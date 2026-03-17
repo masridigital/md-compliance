@@ -1,0 +1,135 @@
+{% extends "layouts/masri-base.html" %}
+
+{% block title %}Home — {{ branding.app_name | default('Masri Digital Compliance') }}{% endblock %}
+
+{% block content %}
+<div x-data="homeDashboard()">
+
+  <!-- Greeting Header -->
+  <div class="md-page-header">
+    <div>
+      <h1 style="font-size: var(--font-display); font-weight: 700; color: var(--text-primary); margin: 0; letter-spacing: -0.5px;">
+        Good <span x-text="timeOfDay"></span>, {{ current_user.first_name or current_user.email.split('@')[0] }}.
+      </h1>
+      <p style="color: var(--text-secondary); margin: var(--space-xs) 0 0 0; font-size: var(--font-body);">
+        {% if attention_count is defined and attention_count > 0 %}
+          You have {{ attention_count }} client{{ 's' if attention_count != 1 else '' }} needing attention.
+        {% else %}
+          <span x-show="attentionCount > 0" x-text="'You have ' + attentionCount + ' client' + (attentionCount !== 1 ? 's' : '') + ' needing attention.'"></span>
+          <span x-show="attentionCount === 0">All clients are on track.</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="md-page-header-actions">
+      <span style="color: var(--text-tertiary); font-size: var(--font-small);" x-text="todayDate"></span>
+    </div>
+  </div>
+
+  <!-- Stat Cards -->
+  <div class="md-stat-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); margin-bottom: var(--space-xl);">
+    <div class="md-stat-card">
+      <div style="font-size: 32px; font-weight: 700; color: var(--text-primary); line-height: 1;" x-text="stats.activeClients">{{ stats.active_clients | default(0) }}</div>
+      <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Active Clients</div>
+    </div>
+    <div class="md-stat-card">
+      <div style="font-size: 32px; font-weight: 700; color: var(--danger); line-height: 1;" x-text="stats.atRisk">{{ stats.at_risk | default(0) }}</div>
+      <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">At Risk</div>
+    </div>
+    <div class="md-stat-card">
+      <div style="font-size: 32px; font-weight: 700; color: var(--warning); line-height: 1;" x-text="stats.reviewsDue">{{ stats.reviews_due | default(0) }}</div>
+      <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Reviews Due</div>
+    </div>
+    <div class="md-stat-card">
+      <div style="font-size: 32px; font-weight: 700; color: var(--success); line-height: 1;" x-text="stats.avgScore + '%'">{{ stats.avg_score | default(0) }}%</div>
+      <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Avg Score</div>
+    </div>
+  </div>
+
+  <!-- Section header -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+    <h2 style="font-size: var(--font-h1); font-weight: 600; color: var(--text-primary); margin: 0;">Clients</h2>
+    <a href="{{ url_for('main.new_tenant') }}" class="md-btn md-btn-primary md-btn-sm">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+      Add Client
+    </a>
+  </div>
+
+  <!-- Client Cards Grid -->
+  <div class="md-client-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-md);">
+    {% for tenant in tenants %}
+    <a href="{{ url_for('main.tenant_detail', tenant_id=tenant.id) }}" style="text-decoration: none;">
+      <div class="md-card md-card-hover" style="padding: var(--space-lg);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="font-weight: 600; font-size: var(--font-h2); color: var(--text-primary);">{{ tenant.name }}</div>
+          {% if tenant.has_overdue %}
+            <span class="md-status-pill md-status-non-compliant" style="font-size: var(--font-caption);">Needs Attention</span>
+          {% else %}
+            <span class="md-status-pill md-status-compliant" style="font-size: var(--font-caption);">On Track</span>
+          {% endif %}
+        </div>
+        <div style="margin-top: var(--space-md);">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: var(--font-small); color: var(--text-secondary);">Compliance</span>
+            <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-primary);">{{ tenant.compliance_pct }}%</span>
+          </div>
+          <div class="md-progress-bar">
+            <div class="md-progress-fill" style="width: {{ tenant.compliance_pct }}%;
+              {% if tenant.compliance_pct >= 80 %}background: var(--success);{% elif tenant.compliance_pct >= 50 %}background: var(--warning);{% else %}background: var(--danger);{% endif %}">
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: var(--space-md); font-size: var(--font-small);">
+          <span style="color: var(--text-tertiary);">Last activity: {{ tenant.last_activity }}</span>
+          {% if tenant.overdue_count > 0 %}
+            <span style="color: var(--danger); font-weight: 500;">{{ tenant.overdue_count }} overdue</span>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% else %}
+    <!-- Empty State -->
+    <div style="grid-column: 1 / -1;">
+      <div class="md-empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <h3>No clients yet</h3>
+        <p>Add your first client to get started with compliance tracking.</p>
+        <a href="{{ url_for('main.new_tenant') }}" class="md-btn md-btn-primary" style="margin-top: var(--space-sm);">Add Client</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function homeDashboard() {
+  return {
+    timeOfDay: '',
+    todayDate: '',
+    attentionCount: {{ attention_count | default(0) }},
+    stats: {
+      activeClients: {{ stats.active_clients | default(0) }},
+      atRisk: {{ stats.at_risk | default(0) }},
+      reviewsDue: {{ stats.reviews_due | default(0) }},
+      avgScore: {{ stats.avg_score | default(0) }}
+    },
+    init() {
+      const hour = new Date().getHours();
+      if (hour < 12) this.timeOfDay = 'morning';
+      else if (hour < 17) this.timeOfDay = 'afternoon';
+      else this.timeOfDay = 'evening';
+
+      this.todayDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+    }
+  };
+}
+</script>
+{% endblock %}

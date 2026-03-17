@@ -1,0 +1,278 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% import "helpers/snippets.html" as snippet with context %}
+{% block before_head %}
+  {{ super() }}
+  {% import "helpers/src_macros.html" as macro %}
+  {{ macro.filehelper(grid=True) }}
+{% endblock %}
+
+{%block page_header_title%}Controls{%endblock%}
+{%block page_header_title_border%}{%endblock%}
+{%block page_header_buttons%}{%endblock%}
+
+{%block content%}
+<div x-data="table()" class="grid grid-cols-6 gap-4 mt-2">
+  <div class="col-span-6">
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body">
+        <div class="flex justify-between align-items-center">
+          <h2 class="card-title mb-4">Controls</h2>
+          <button class="btn btn-sm green-badge" @click="openCreateModal">New</button>
+        </div>
+        <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms x-transition:leave.duration.100ms x-html="loadingSkeleton"></div>
+        <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms x-transition:leave.duration.500ms></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="modal" x-bind:class="{ 'modal-open': showDeleteModal }">
+        <div class="modal-box">
+            <form method="dialog">
+              <button @click="showDeleteModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg" x-text="'Are you sure you want to delete ' + selectedItem.id + '?'"></h3>
+            <div class="modal-action">
+                <button class="btn" @click="showModal = false">Close</button>
+                <button class="btn red-badge" @click="deleteControl(selectedItem)">Delete Control</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="modal" x-bind:class="{ 'modal-open': showCreateModal }">
+        <div class="modal-box w-11/12 max-w-5xl">
+            <form method="dialog">
+              <button @click="showCreateModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg">Create Control</h3>
+            <div class="card card-body">
+                          <div class="grid grid-cols-6 gap-x-6">
+                                  <div class="col-span-3">
+                                    <label for="email" class="block text-sm font-medium pb-2">Contact email</label>
+                                    <input x-model="formData.contact_email" type="email" placeholder="Input email" class="input input-bordered w-full" required/>
+                                  </div>
+                                  <div class="col-span-3">
+                                    <label for="email" class="block text-sm font-medium pb-2">System Tenant</label>
+                                    <input x-model="formData.is_system" type="checkbox" checked="checked" class="checkbox" />
+                                  </div>
+                          </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn" @click="showCreateModal = false">Close</button>
+                <button class="btn blue-badge" @click="createControl">Create</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="modal" x-bind:class="{ 'modal-open': showModal }">
+        <div class="modal-box w-11/12 max-w-5xl">
+            <form method="dialog">
+              <button @click="showModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg" x-text="selectedItem.id"></h3>
+            <div class="card card-body">
+                          <div class="grid grid-cols-6 gap-6">
+                                  <div class="col-span-6 sm:col-span-3">
+                                    <label class="block text-sm font-medium mb-2">Contact Email</label>
+                                    <input x-model="selectedItem.contact_email" id="email" type="text" class="input input-bordered w-full"/>
+                                  </div>
+                          </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn" @click="showModal = false">Close</button>
+                <button class="btn red-badge" @click="openDeleteModal(selectedItem)">Delete</button>
+                <button class="btn blue-badge" @click="updateControl">Update</button>
+            </div>
+        </div>
+    </div>
+  </div>
+
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function table(){
+    return {
+        init() {
+          this.$watch(
+            "items", (newValue, oldValue) => {
+                this.drawTable({"selector": "#table_1", "tableData":newValue})
+          })
+
+          this.getItems()
+        },
+        loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
+        loading: true,
+        showDeleteModal: false,
+        showModal: false,
+        selectedItem: {},
+        tableHeaders: [
+          {"field": "id", "headerName": "#", "width": 100, "filter": "agTextColumnFilter", "hide": false},
+          {"field": "contact_email", "headerName": "Contact", "filter": "agTextColumnFilter"},
+          {"field": "is_system", "headerName": "Is System", "filter": "agTextColumnFilter"},
+          {"field": "deployment_count", "headerName": "Deployments", "filter": "agTextColumnFilter"},
+          {"field": "date_added", "headerName": "Created At", "filter": "agTextColumnFilter"}
+        ],
+        openModal(item) {
+          this.selectedItem = item;
+          this.showModal = true;
+        },
+        showCreateModal: false,
+        openCreateModal(item) {
+          this.showCreateModal = true;
+        },
+        openDeleteModal(item) {
+          this.selectedItem = item;
+          this.showModal = false;
+          this.showDeleteModal = true;
+        },
+        items: [],
+        formData: {
+          "contact_email": "",
+          "is_system": false
+        },
+        createControl() {
+          if (!this.formData.contact_email) {
+            toast("Email is required", "error")
+            return
+          }
+          $.ajax({
+            type: "POST",
+            url: "/api/v1/tenants",
+            contentType: "application/json; charset=utf-8",
+            data: JSON.stringify(this.formData),
+            dataType: "json",
+            success: (data) => {
+              toast("Created tenant")
+              this.getItems()
+              this.showCreateModal = false;
+              this.formData.contact_email = ""
+              this.formData.is_system = false
+            },
+            error: (errMsg) => {
+              toast(errMsg["responseJSON"]["message"], "error")
+            }
+          })
+        },
+        updateControl() {
+          var data = {
+            "contact_email": this.selectedItem.contact_email
+          }
+          $.ajax({
+            type: "PUT",
+            url: "/api/v1/tenants/"+this.selectedItem.id,
+            contentType: "application/json; charset=utf-8",
+            data: JSON.stringify(data),
+            dataType: "json",
+            success: (data) => {
+              toast("Tenant updated")
+              this.selectedItem = {}
+              this.getItems()
+              this.showModal = false;
+            },
+            error: (errMsg) => {
+              toast(errMsg["responseJSON"]["message"], "error")
+            }
+          })
+        },
+        deleteControl(item) {
+          $.ajax({
+            type: "DELETE",
+            url: "/api/v1/tenants/"+item.id,
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: (data) => {
+              toast("Deleted tenant")
+              this.selectedItem = {}
+              this.getItems()
+              this.showDeleteModal = false;
+            },
+            error: (errMsg) => {
+              toast(errMsg["responseJSON"]["message"], "error")
+            }
+          })
+        },
+        drawTable: function({ selector = null, tableData = null, formatter = null }) {
+          var data = tableData;
+          var columns = [];
+
+          gridOptions = {
+            pagination: true,
+            paginationPageSize: 25,
+            domLayout: "autoHeight",
+            suppressMenuHide: true,
+            suppressHorizontalScroll: true,
+            enableCellTextSelection:true,
+            suppressFieldDotNotation: true,
+            onGridReady: (params) => {
+              params.api.sizeColumnsToFit();
+              this.loading = false;
+              window.onresize = () => {
+                this.loading = true;
+                params.api.sizeColumnsToFit();
+                this.loading = false;
+              }
+            },
+            autoSizeStrategy: {
+              type: 'fitGridWidth',
+              defaultMinWidth: 50,
+            }
+          }
+          const gridElement = document.querySelector(selector);
+          if (this.table) {
+            this.table.destroy();
+          }
+
+          gridOptions.rowData = this.formattedTable(tableData);
+          gridOptions.columnDefs = this.tableHeaders
+
+          gridOptions.onRowDoubleClicked = (row) => {
+            selectedItem = this.items.find(obj => obj.id === row.data.id);
+            this.openModal(selectedItem)
+          },
+
+          this.table = agGrid.createGrid(gridElement, gridOptions);
+
+        },
+        formattedTable: function(data) {
+          var filteredData = [];
+          var keysToExtract = this.tableHeaders.map(header => header.field)
+
+          data.forEach((row) => {
+            var filteredRow = {};
+            keysToExtract.forEach(key => {
+              /*
+              if (row.name === "Limit unsuccessful logon") {
+                row.name = `<button class='btn btn-sm' @click='alert(1)' x-text='${this.controls.length}'></button>`
+              }*/
+
+              filteredRow[key] = row[key];
+            });
+            filteredData.push(filteredRow);
+          });
+
+          return filteredData
+        },
+        getItems: function() {
+          this.loading = true,
+          request("GET",
+            "/api/v1/controls",
+            data => {
+              this.items = data;
+              this.loading = false;
+            },
+            error => {
+              toast(error.message, "error");
+            }
+          );
+        }
+    }
+}
+</script>
+{%endblock%}

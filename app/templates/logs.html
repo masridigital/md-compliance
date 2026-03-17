@@ -1,0 +1,150 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% import "helpers/snippets.html" as snippet with context %}
+{% block before_head %}
+{{ super() }}
+{% import "helpers/src_macros.html" as macro %}
+{{ macro.filehelper(grid=True) }}
+{% endblock %}
+
+{%block page_header_title%}Logs{%endblock%}
+{%block page_header_title_border%}{%endblock%}
+{%block page_header_buttons%}{%endblock%}
+{%block tenant_btn%}{%endblock%}
+
+{%block content%}
+<div x-data="table()" class="grid grid-cols-6 gap-4 mt-2">
+    <div class="col-span-6">
+        <div class="card bg-base-100 border border-base-300">
+            <div class="card-body">
+                <div class="flex justify-between align-items-center">
+                    <h2 class="card-title mb-4">Logs</h2>
+                    <div class="space-x-2 flex">
+                        <button class="btn btn-sm capitalize tooltip"
+                                @click="exportCSV" data-tip="CSV Export"><i class="ti ti-download"></i></button>
+                        <button class="btn btn-sm capitalize tooltip"
+                                @click="getItems" data-tip="Refresh table"><i class="ti ti-refresh"></i></button>
+                    </div>
+                </div>
+                <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms
+                     x-transition:leave.duration.100ms x-html="loadingSkeleton"></div>
+                <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms
+                     x-transition:leave.duration.500ms></div>
+            </div>
+        </div>
+    </div>
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function table(){
+    return {
+        init() {
+          this.$watch(
+            "items", (newValue, oldValue) => {
+                this.drawTable({"selector": "#table_1", "tableData":newValue})
+          })
+
+          this.getItems()
+        },
+        loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
+        loading: true,
+        showDeleteModal: false,
+        showModal: false,
+        buttonDisabled: false,
+        selectedItem: {},
+        tableHeaders: [
+          {"field": "namespace", "headerName": "Namespace", "width": 100, "filter": "agTextColumnFilter"},
+          {"field": "level", "headerName": "Type", "width": 100, "filter": "agTextColumnFilter"},
+          {"field": "action", "headerName": "Action", "width": 100, "filter": "agTextColumnFilter"},
+          {"field": "message", "headerName": "Message", "filter": "agTextColumnFilter"},
+          {"field": "date_added", "headerName": "Created At", "filter": "agTextColumnFilter", "modal": {"disable": true}}
+        ],
+        openModal(item) {
+          this.selectedItem = item;
+          this.showModal = true;
+        },
+        items: [],
+        exportCSV: function() {
+          this.table.exportDataAsCsv();
+        },
+        drawTable: function({ selector = null, tableData = null, formatter = null }) {
+          var data = tableData;
+          var columns = [];
+
+          gridOptions = {
+            pagination: true,
+            paginationPageSize: 25,
+            domLayout: "autoHeight",
+            suppressMenuHide: true,
+            suppressHorizontalScroll: true,
+            enableCellTextSelection:true,
+            suppressFieldDotNotation: true,
+            onGridReady: (params) => {
+              params.api.sizeColumnsToFit();
+              this.loading = false;
+              window.onresize = () => {
+                this.loading = true;
+                params.api.sizeColumnsToFit();
+                this.loading = false;
+              }
+            },
+            autoSizeStrategy: {
+              type: 'fitGridWidth',
+              defaultMinWidth: 50,
+            }
+          }
+          const gridElement = document.querySelector(selector);
+          if (this.table) {
+            this.table.destroy();
+          }
+
+          gridOptions.rowData = this.formattedTable(tableData);
+          gridOptions.columnDefs = this.tableHeaders
+
+          gridOptions.onRowDoubleClicked = (row) => {
+            selectedItem = this.items.find(obj => obj.id === row.data.id);
+            this.openModal(selectedItem)
+          },
+
+          this.table = agGrid.createGrid(gridElement, gridOptions);
+
+        },
+        formattedTable: function(data) {
+          var filteredData = [];
+          var keysToExtract = this.tableHeaders.map(header => header.field)
+
+          data.forEach((row) => {
+            var filteredRow = {};
+            keysToExtract.forEach(key => {
+              /*
+              if (row.name === "Limit unsuccessful logon") {
+                row.name = `<button class='btn btn-sm' @click='alert(1)' x-text='${this.controls.length}'></button>`
+              }*/
+
+              filteredRow[key] = row[key];
+            });
+            filteredData.push(filteredRow);
+          });
+
+          return filteredData
+        },
+        getItems: function() {
+          this.loading = true,
+          request("GET",
+            `/api/v1/logs`,
+            data => {
+              this.items = data;
+              this.loading = false;
+            },
+            error => {
+              toast(error.message, "error");
+            }
+          );
+        }
+    }
+}
+
+</script>
+{%endblock%}

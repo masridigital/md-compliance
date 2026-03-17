@@ -1,0 +1,452 @@
+[
+  {
+    "name": "Employee Management and Background Checks",
+    "description": "Implement employee screening, management, and termination procedures to ensure that individuals with access to taxpayer data are trustworthy and that access is promptly revoked when employment ends.",
+    "guidance": "Conduct background checks on all employees who will have access to taxpayer data, including criminal history and credit checks where legally permitted. Require new hires to sign confidentiality agreements before granting access. Implement a formal termination checklist that includes immediate revocation of all system access, return of equipment and credentials, and removal from facility access lists. Maintain records of all background checks and employee access agreements.",
+    "ref_code": "IRS-4557-1",
+    "system_level": false,
+    "category": "Personnel Security",
+    "subcategory": "Employee Screening",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Pre-Employment Background Checks",
+        "description": "Conduct background checks on all prospective employees who will have access to taxpayer data before granting system access.",
+        "ref_code": "IRS-4557-1.1",
+        "guidance": "Perform criminal history checks and verify employment references for all candidates. Where legally permitted, conduct credit checks for positions with access to financial data. Document results and retain records securely."
+      },
+      {
+        "name": "Confidentiality Agreements",
+        "description": "Require all employees with access to taxpayer data to sign confidentiality and non-disclosure agreements as a condition of employment.",
+        "ref_code": "IRS-4557-1.2",
+        "guidance": "Draft confidentiality agreements covering taxpayer data protection obligations, penalties for unauthorized disclosure, and post-employment restrictions. Obtain signatures before granting data access. Renew annually."
+      },
+      {
+        "name": "Employee Termination Procedures",
+        "description": "Implement formal termination procedures that ensure immediate revocation of all access to taxpayer data and return of firm property.",
+        "ref_code": "IRS-4557-1.3",
+        "guidance": "Create a termination checklist covering system access revocation, key and badge collection, device return, and data deletion. Revoke all access within 24 hours of termination. Conduct exit interviews covering ongoing confidentiality obligations."
+      }
+    ]
+  },
+  {
+    "name": "Security Awareness Training",
+    "description": "Provide comprehensive security awareness training to all employees handling taxpayer data, covering phishing recognition, social engineering, password hygiene, and tax-specific threats such as IRS impersonation scams and W-2 phishing attacks.",
+    "guidance": "Deliver security awareness training to all new hires during onboarding and to all employees annually thereafter. Cover topics including phishing identification, social engineering techniques, password security, physical security, clean desk policy, and data handling procedures. Include tax-specific threats such as fake IRS emails, W-2 request scams, and client impersonation schemes. Conduct phishing simulations at least quarterly. Track training completion and assessment scores.",
+    "ref_code": "IRS-4557-2",
+    "system_level": false,
+    "category": "Personnel Security",
+    "subcategory": "Security Awareness",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Annual Security Training Program",
+        "description": "Deliver comprehensive security awareness training to all employees at least annually, covering current threats and data protection best practices.",
+        "ref_code": "IRS-4557-2.1",
+        "guidance": "Provide training during onboarding and at least annually. Cover phishing, social engineering, password hygiene, clean desk, and incident reporting. Track completion and require acknowledgment."
+      },
+      {
+        "name": "Phishing Simulation Exercises",
+        "description": "Conduct regular phishing simulations to test employee awareness and provide immediate feedback and remedial training.",
+        "ref_code": "IRS-4557-2.2",
+        "guidance": "Run phishing simulations at least quarterly. Track click rates and reporting rates. Provide immediate training for employees who fail simulations. Report results to management."
+      },
+      {
+        "name": "Tax-Specific Threat Training",
+        "description": "Train employees on threats specific to the tax industry, including IRS impersonation scams, W-2 phishing, identity theft schemes, and client impersonation.",
+        "ref_code": "IRS-4557-2.3",
+        "guidance": "Provide targeted training on tax-industry threats using real-world examples. Share IRS Security Summit alerts with staff. Update training content as new schemes emerge."
+      }
+    ]
+  },
+  {
+    "name": "Firewall and Network Protection",
+    "description": "Install and maintain hardware and software firewall protection on all systems and networks used to process, store, or transmit taxpayer data to prevent unauthorized access from external and internal threats.",
+    "guidance": "Deploy enterprise-grade firewalls at all network perimeters and enable host-based firewalls on all endpoints. Configure firewall rules to deny all traffic by default and allow only necessary connections. Review firewall rules quarterly and after any network changes. Maintain firewall logs for at least one year. Segment networks to isolate systems containing taxpayer data from general-purpose networks and guest access.",
+    "ref_code": "IRS-4557-3",
+    "system_level": true,
+    "category": "System Security",
+    "subcategory": "Firewall Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Hardware Firewall Deployment",
+        "description": "Install a dedicated hardware firewall appliance between internal networks containing taxpayer data and any external or untrusted networks.",
+        "ref_code": "IRS-4557-3.1",
+        "guidance": "Deploy a dedicated hardware firewall at the network perimeter. Keep firmware up to date. Configure deny-by-default rules and document all allowed traffic flows."
+      },
+      {
+        "name": "Host-Based Firewall Configuration",
+        "description": "Enable and configure host-based software firewalls on all workstations and servers that process or store taxpayer data.",
+        "ref_code": "IRS-4557-3.2",
+        "guidance": "Enable the OS firewall or deploy managed endpoint firewall on every device handling taxpayer data. Prevent end users from disabling or modifying firewall settings."
+      },
+      {
+        "name": "Network Segmentation",
+        "description": "Segment networks to isolate systems containing taxpayer data from general-purpose networks, guest access, and other less-trusted zones.",
+        "ref_code": "IRS-4557-3.3",
+        "guidance": "Use VLANs or separate physical networks to isolate tax preparation systems. Restrict inter-segment traffic to only necessary communications. Document the network architecture."
+      },
+      {
+        "name": "Firewall Rule Review",
+        "description": "Review firewall rules and access control lists at least quarterly to ensure only authorized traffic is permitted.",
+        "ref_code": "IRS-4557-3.4",
+        "guidance": "Conduct quarterly reviews of all firewall rules. Remove obsolete or overly permissive rules. Document each review including findings and changes made."
+      }
+    ]
+  },
+  {
+    "name": "Anti-Malware and Software Security",
+    "description": "Install, maintain, and regularly update anti-malware software on all systems that process or store taxpayer data. Keep all operating systems and applications current with security patches to prevent exploitation of known vulnerabilities.",
+    "guidance": "Deploy enterprise anti-malware solutions on all endpoints and servers handling taxpayer data. Configure automatic definition updates at least daily. Enable real-time scanning and schedule full system scans weekly. Keep all operating systems, applications, and firmware updated with security patches within 30 days of release. Prioritize critical patches for immediate deployment. Centralize management and alerting for all security software.",
+    "ref_code": "IRS-4557-4",
+    "system_level": true,
+    "category": "System Security",
+    "subcategory": "Malware and Patch Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Anti-Malware Deployment and Updates",
+        "description": "Install commercial anti-malware software on all systems and configure automatic definition updates at least daily.",
+        "ref_code": "IRS-4557-4.1",
+        "guidance": "Deploy reputable enterprise antivirus on every endpoint. Ensure software cannot be disabled by standard users. Maintain a centralized management console. Verify daily updates are being applied."
+      },
+      {
+        "name": "Security Patch Management",
+        "description": "Maintain a patch management program ensuring all operating systems, applications, and firmware receive security updates within defined timeframes.",
+        "ref_code": "IRS-4557-4.2",
+        "guidance": "Apply critical security patches within 14 days and all other patches within 30 days. Test patches before deployment to production. Maintain a patch compliance dashboard."
+      },
+      {
+        "name": "Real-Time and Scheduled Scanning",
+        "description": "Enable real-time file scanning and schedule comprehensive system scans on all devices that process or store taxpayer data.",
+        "ref_code": "IRS-4557-4.3",
+        "guidance": "Enable real-time on-access scanning on all endpoints. Schedule full-system scans at least weekly during non-business hours. Review scan results and remediate findings promptly."
+      }
+    ]
+  },
+  {
+    "name": "Encryption of Taxpayer Data",
+    "description": "Encrypt all taxpayer data at rest using full-disk encryption and in transit using TLS 1.2 or higher to protect the confidentiality of sensitive information against unauthorized access.",
+    "guidance": "Implement full-disk encryption on all devices storing taxpayer data using BitLocker, FileVault, or equivalent solutions. Encrypt all data transmissions with TLS 1.2 or higher. Manage encryption keys securely with documented procedures for generation, storage, rotation, and destruction. Encrypt portable storage devices including USB drives and external hard drives. Verify encryption is active through regular audits.",
+    "ref_code": "IRS-4557-5",
+    "system_level": true,
+    "category": "Data Protection",
+    "subcategory": "Encryption",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Full-Disk Encryption",
+        "description": "Enable full-disk encryption on all workstations, laptops, and servers that store taxpayer data at rest.",
+        "ref_code": "IRS-4557-5.1",
+        "guidance": "Deploy BitLocker (Windows) or FileVault (macOS) on all devices. Ensure encryption is enabled before any taxpayer data is stored. Centrally manage and escrow recovery keys."
+      },
+      {
+        "name": "Transport Layer Encryption",
+        "description": "Encrypt all taxpayer data in transit using TLS 1.2 or higher for web, email, and file transfer communications.",
+        "ref_code": "IRS-4557-5.2",
+        "guidance": "Configure all web servers and applications to require TLS 1.2+. Disable SSL, TLS 1.0, and TLS 1.1. Use encrypted email or secure file transfer for transmitting taxpayer data."
+      },
+      {
+        "name": "Portable Media Encryption",
+        "description": "Encrypt all portable storage devices including USB drives, external hard drives, and mobile devices that may contain taxpayer data.",
+        "ref_code": "IRS-4557-5.3",
+        "guidance": "Require encryption on all portable storage devices. Consider prohibiting removable media entirely. If permitted, use only organization-approved encrypted USB devices."
+      }
+    ]
+  },
+  {
+    "name": "Strong Authentication and Password Policies",
+    "description": "Require strong passwords, enforce regular password changes, implement account lockout policies, and assign unique user IDs to each individual accessing systems containing taxpayer data.",
+    "guidance": "Enforce passwords of at least 12 characters with a mix of uppercase, lowercase, numbers, and special characters. Require password changes every 90 days and enforce a history of at least 10 previous passwords. Lock accounts after 5 failed login attempts for at least 30 minutes. Assign unique credentials to every user and prohibit shared accounts. Implement multi-factor authentication for all remote access and critical system administration.",
+    "ref_code": "IRS-4557-6",
+    "system_level": false,
+    "category": "System Security",
+    "subcategory": "Authentication",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Password Complexity Requirements",
+        "description": "Enforce minimum password length and complexity requirements including mixed character types for all accounts accessing taxpayer data.",
+        "ref_code": "IRS-4557-6.1",
+        "guidance": "Require passwords of at least 12 characters with mixed case, numbers, and special characters. Prohibit dictionary words and previously used passwords."
+      },
+      {
+        "name": "Account Lockout Policy",
+        "description": "Configure automatic account lockout after consecutive failed login attempts to prevent brute-force attacks on accounts with access to taxpayer data.",
+        "ref_code": "IRS-4557-6.2",
+        "guidance": "Lock accounts after 5 failed attempts. Require a minimum 30-minute lockout or administrator intervention. Log all lockout events for investigation."
+      },
+      {
+        "name": "Unique User Identification",
+        "description": "Assign unique user IDs to every individual with access to systems containing taxpayer data and prohibit shared or group accounts.",
+        "ref_code": "IRS-4557-6.3",
+        "guidance": "Create individual accounts for every user. Eliminate shared, group, or generic accounts. Maintain a current list of all authorized user accounts and review quarterly."
+      },
+      {
+        "name": "Multi-Factor Authentication",
+        "description": "Implement multi-factor authentication for all remote access and administrative access to systems containing taxpayer data.",
+        "ref_code": "IRS-4557-6.4",
+        "guidance": "Require MFA for VPN connections, remote desktop, cloud services, and system administration. Prefer hardware tokens or authenticator apps over SMS-based codes."
+      }
+    ]
+  },
+  {
+    "name": "Physical Security Controls",
+    "description": "Restrict physical access to offices and servers containing taxpayer data through locks, visitor management, clean desk policies, and secure document disposal to prevent unauthorized physical access to sensitive information.",
+    "guidance": "Implement physical access controls including key card systems, locked server rooms, and visitor sign-in procedures. Enforce a clean desk policy requiring taxpayer documents to be secured when unattended. Shred all paper documents containing taxpayer data using cross-cut shredders. Install security cameras at building entrances and in areas containing servers. Maintain visitor logs for at least one year.",
+    "ref_code": "IRS-4557-7",
+    "system_level": false,
+    "category": "Physical Security",
+    "subcategory": "Facility Controls",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Facility Access Restriction",
+        "description": "Restrict physical access to areas containing taxpayer data using locks, key cards, or other access control mechanisms.",
+        "ref_code": "IRS-4557-7.1",
+        "guidance": "Install key card or combination lock systems on all doors to areas with taxpayer data. Limit access to authorized personnel. Review access lists quarterly."
+      },
+      {
+        "name": "Visitor Management",
+        "description": "Maintain a visitor log and escort all visitors in areas where taxpayer data is processed or stored.",
+        "ref_code": "IRS-4557-7.2",
+        "guidance": "Require all visitors to sign in with date, time, and purpose. Issue visitor badges and require escort. Retain visitor logs for at least one year."
+      },
+      {
+        "name": "Clean Desk Policy",
+        "description": "Enforce a clean desk policy requiring all taxpayer documents and portable media to be secured when workstations are unattended.",
+        "ref_code": "IRS-4557-7.3",
+        "guidance": "Require employees to lock away all taxpayer documents when leaving their workspace. Lock computer screens when stepping away. Conduct periodic clean desk audits."
+      },
+      {
+        "name": "Secure Document Disposal",
+        "description": "Shred all paper documents containing taxpayer data using cross-cut shredders before disposal and securely wipe electronic media.",
+        "ref_code": "IRS-4557-7.4",
+        "guidance": "Provide cross-cut shredders in all areas handling taxpayer documents. Shred documents immediately when no longer needed. Use certified destruction services for electronic media."
+      }
+    ]
+  },
+  {
+    "name": "Data Security Plan Creation and Maintenance",
+    "description": "Create and maintain a comprehensive Written Information Security Plan (WISP) that documents all security measures protecting taxpayer data, assigns responsibilities, and establishes procedures for maintaining and updating the plan.",
+    "guidance": "Develop a written data security plan that covers all aspects of taxpayer data protection including administrative, technical, and physical safeguards. The plan should be tailored to the firm's size and complexity. Designate a security coordinator responsible for implementation and enforcement. Include risk assessment results, control descriptions, incident response procedures, and training requirements. Review and update the plan annually and after significant changes. Make the plan available to all employees who handle taxpayer data.",
+    "ref_code": "IRS-4557-8",
+    "system_level": false,
+    "category": "Data Protection",
+    "subcategory": "Security Planning",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "WISP Development",
+        "description": "Create a comprehensive Written Information Security Plan tailored to the firm's size, complexity, and types of taxpayer data handled.",
+        "ref_code": "IRS-4557-8.1",
+        "guidance": "Use IRS Publication 4557 as a framework. Address all required elements including risk assessment, access controls, encryption, monitoring, incident response, and training. Scale the plan to the firm's operations."
+      },
+      {
+        "name": "Security Coordinator Designation",
+        "description": "Designate a security coordinator responsible for developing, implementing, and maintaining the data security plan.",
+        "ref_code": "IRS-4557-8.2",
+        "guidance": "Formally designate a security coordinator by name or title. Ensure the individual has sufficient authority and knowledge. Document the designation and communicate it to all staff."
+      },
+      {
+        "name": "Annual Plan Review",
+        "description": "Review and update the Written Information Security Plan at least annually to address changes in threats, technology, and business operations.",
+        "ref_code": "IRS-4557-8.3",
+        "guidance": "Schedule annual WISP reviews. Update for new threats, regulatory changes, and operational modifications. Document all revisions and distribute updated versions to relevant staff."
+      }
+    ]
+  },
+  {
+    "name": "Data Backup and Recovery",
+    "description": "Maintain encrypted backups of all taxpayer data, test data restoration procedures at least annually, and store backup copies at a secure offsite location to ensure business continuity and data recovery in the event of a disaster or security incident.",
+    "guidance": "Implement automated daily backups of all systems containing taxpayer data. Encrypt backups using AES-256 or equivalent. Store backup copies at a geographically separate secure location or use encrypted cloud backup. Test restoration procedures at least annually and document results. Define recovery time objectives (RTO) and recovery point objectives (RPO) for each critical system. Retain backups per IRS records retention requirements.",
+    "ref_code": "IRS-4557-9",
+    "system_level": true,
+    "category": "Data Protection",
+    "subcategory": "Backup and Recovery",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Automated Encrypted Backups",
+        "description": "Perform automated daily backups of all taxpayer data and encrypt all backup media using strong encryption algorithms.",
+        "ref_code": "IRS-4557-9.1",
+        "guidance": "Configure automated daily backups. Encrypt with AES-256 or equivalent. Verify backup completion daily through automated alerts. Maintain backup logs."
+      },
+      {
+        "name": "Offsite Backup Storage",
+        "description": "Store at least one copy of backups at a secure offsite location geographically separate from the primary site.",
+        "ref_code": "IRS-4557-9.2",
+        "guidance": "Maintain offsite copies at a geographically separate facility or use encrypted cloud backup. Ensure offsite location meets equivalent security standards."
+      },
+      {
+        "name": "Annual Restoration Testing",
+        "description": "Test backup restoration procedures at least annually to verify that taxpayer data can be successfully recovered.",
+        "ref_code": "IRS-4557-9.3",
+        "guidance": "Conduct full restoration tests annually. Document results including time to restore and data integrity verification. Address failures immediately. Test individual file recovery quarterly."
+      }
+    ]
+  },
+  {
+    "name": "Incident Response and Data Theft Reporting",
+    "description": "Maintain a written incident response plan and establish procedures to report data theft or loss to the IRS, law enforcement, and affected taxpayers in accordance with IRS requirements, including use of Form 14039 and notification of the IRS Stakeholder Liaison.",
+    "guidance": "Develop a comprehensive written incident response plan covering detection, containment, investigation, eradication, recovery, and post-incident review. Include specific procedures for reporting taxpayer data breaches to the IRS using Form 14039 and notifying the IRS Stakeholder Liaison within 24 hours. Establish notification procedures for affected taxpayers. Preserve evidence for law enforcement investigation. Conduct tabletop exercises annually to test the plan.",
+    "ref_code": "IRS-4557-10",
+    "system_level": false,
+    "category": "Incident Response",
+    "subcategory": "Breach Response",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Written Incident Response Plan",
+        "description": "Develop and maintain a written plan defining roles, responsibilities, and procedures for responding to security incidents involving taxpayer data.",
+        "ref_code": "IRS-4557-10.1",
+        "guidance": "Cover detection, containment, eradication, recovery, and lessons learned. Assign specific roles. Include contact information for IRS, law enforcement, and legal counsel. Review annually."
+      },
+      {
+        "name": "IRS Notification Procedures",
+        "description": "Establish procedures to report data theft to the IRS within 24 hours using Form 14039 and by contacting the IRS Stakeholder Liaison.",
+        "ref_code": "IRS-4557-10.2",
+        "guidance": "Document the process for filing Form 14039. Maintain current IRS Stakeholder Liaison contact information. Notify within 24 hours of confirmed breach. Report to local law enforcement concurrently."
+      },
+      {
+        "name": "Taxpayer Notification",
+        "description": "Establish procedures for notifying affected taxpayers of data breaches, including recommended protective actions such as identity monitoring.",
+        "ref_code": "IRS-4557-10.3",
+        "guidance": "Prepare notification templates in advance. Include breach description, compromised data types, and recommended actions. Provide information about IRS Identity Protection PINs and credit monitoring resources."
+      },
+      {
+        "name": "Tabletop Exercises",
+        "description": "Conduct annual tabletop exercises simulating taxpayer data breach scenarios to test the incident response plan and train staff.",
+        "ref_code": "IRS-4557-10.4",
+        "guidance": "Conduct at least one exercise annually with realistic scenarios. Include all response team members. Document findings and update the plan based on lessons learned."
+      }
+    ]
+  },
+  {
+    "name": "Secure Remote Access and Wireless Security",
+    "description": "Require VPN with multi-factor authentication for all remote access to systems containing taxpayer data, and secure all wireless networks with WPA2 or WPA3 encryption to prevent interception of sensitive information.",
+    "guidance": "Deploy enterprise VPN for all remote connections to tax systems. Require multi-factor authentication for VPN access. Monitor and log all remote sessions. Configure all wireless access points with WPA2-Enterprise or WPA3 encryption. Create separate SSIDs for guest access isolated from tax data networks. Change default router passwords and disable remote management. Scan for rogue access points quarterly.",
+    "ref_code": "IRS-4557-11",
+    "system_level": true,
+    "category": "System Security",
+    "subcategory": "Remote and Wireless Security",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "VPN with MFA for Remote Access",
+        "description": "Require all remote connections to systems with taxpayer data to use an encrypted VPN tunnel with multi-factor authentication.",
+        "ref_code": "IRS-4557-11.1",
+        "guidance": "Deploy VPN that encrypts all traffic. Require at least two authentication factors. Prohibit direct remote access without VPN. Log all connection events."
+      },
+      {
+        "name": "Wireless Network Encryption",
+        "description": "Configure all wireless networks with WPA2 or WPA3 encryption and segregate guest networks from systems containing taxpayer data.",
+        "ref_code": "IRS-4557-11.2",
+        "guidance": "Enable WPA2-Enterprise or WPA3. Disable legacy protocols. Create a separate guest SSID on an isolated VLAN. Change default AP credentials."
+      },
+      {
+        "name": "Remote Device Security",
+        "description": "Ensure all devices used for remote access meet minimum security requirements including current patches, antivirus, and encryption.",
+        "ref_code": "IRS-4557-11.3",
+        "guidance": "Implement network access control to verify device compliance. Require current patches, active antivirus, and full-disk encryption on remote devices before granting VPN access."
+      }
+    ]
+  },
+  {
+    "name": "Tax Software Security and EFIN Protection",
+    "description": "Maintain all tax preparation software with current updates and security patches, protect Electronic Filing Identification Numbers from unauthorized use, and implement secure configurations for all tax-specific applications.",
+    "guidance": "Apply tax software updates and patches within 7 days of release. Verify e-file transmissions use encrypted connections with valid certificates. Protect EFINs from unauthorized access by limiting knowledge to authorized personnel and monitoring for misuse. Disable or remove unused user accounts in tax software. Report suspected EFIN theft to the IRS e-Help Desk immediately. Enable all security features available in the tax software including audit logging and session management.",
+    "ref_code": "IRS-4557-12",
+    "system_level": true,
+    "category": "Software Security",
+    "subcategory": "Tax Application Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "IRS Publication 4557",
+      "authority": "Internal Revenue Service"
+    },
+    "subcontrols": [
+      {
+        "name": "Tax Software Updates and Patching",
+        "description": "Keep all tax preparation software current with the latest updates and security patches applied within defined timeframes.",
+        "ref_code": "IRS-4557-12.1",
+        "guidance": "Apply tax software updates within 7 days of release. Enable automatic updates where available. Verify update installation and test functionality after patching."
+      },
+      {
+        "name": "EFIN Protection",
+        "description": "Protect Electronic Filing Identification Numbers from unauthorized access, use, theft, or misuse by implementing strict access controls and monitoring.",
+        "ref_code": "IRS-4557-12.2",
+        "guidance": "Limit EFIN knowledge to authorized personnel. Monitor e-file submissions for unauthorized use. Report suspected theft to the IRS immediately. Store EFIN documentation securely."
+      },
+      {
+        "name": "Tax Software Account Management",
+        "description": "Manage user accounts in tax software by disabling unused accounts, enforcing strong authentication, and maintaining audit trails.",
+        "ref_code": "IRS-4557-12.3",
+        "guidance": "Review tax software accounts quarterly. Disable accounts upon employee departure. Remove inactive accounts after 90 days. Maintain audit trails of all account changes."
+      },
+      {
+        "name": "E-File Transmission Security",
+        "description": "Verify that all electronic tax filing transmissions are encrypted and transmitted over secure channels with valid certificates.",
+        "ref_code": "IRS-4557-12.4",
+        "guidance": "Confirm tax software uses TLS 1.2+ for e-file transmissions. Verify digital certificates are valid and current. Monitor transmission logs for errors or anomalies."
+      }
+    ]
+  }
+]

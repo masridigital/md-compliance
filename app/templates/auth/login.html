@@ -1,0 +1,88 @@
+{% extends "layouts/basic.html" %}
+
+{%block body%}
+<div x-data="login()" class="min-h-screen">
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
+    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary"></div>
+    <form class="lg:col-span-2 max-w-lg w-full p-4 mx-auto" action="{{url_for("auth.get_login", next=request.args.get("next"))}}" method="POST">
+      <div class="mb-5">
+        <h3 class=" text-4xl font-extrabold mt-10">Login</h3>
+        {%if config.IS_SELF_REGISTRATION_ENABLED %}
+        <p class="text-sm my-2">Interested? <a href="/register" class="text-primary font-semibold hover:underline ml-1 whitespace-nowrap">Sign up here</a></p>
+        {%endif%}
+      </div>
+      <div class="mb-4">
+        <label class="text-sm block mb-1">Email</label>
+        <label class="input input-sm input-bordered flex items-center gap-2">
+          <i class="ti ti-mail"></i>
+          <input name="email" x-model="payload.email" type="text" class="grow" placeholder="Email" />
+        </label>
+      </div>
+      <div class="mb-4">
+        <div class="flex justify-between">
+            <label class="text-sm block mb-1">Password</label>
+            <a href="/reset-password" class="text-primary font-semibold hover:underline ml-1 whitespace-nowrap text-xs">Forgot Password?</a>
+        </div>
+        <label class="input input-sm input-bordered flex items-center gap-2">
+          <i class="ti ti-lock"></i>
+          <input name="password" x-model="payload.password" placeholder="Enter password" class="grow" type="password"/>
+        </label>
+      </div>
+      <div class="mt-4">
+        <button :disabled="!readyToGo" class="btn btn-primary btn-block">
+          Login
+        </button>
+      </div>
+      {%if config.ENABLE_GOOGLE_AUTH or config.ENABLE_MICROSOFT_AUTH%}
+      <div class="divider text-xs font-semibold">OR</div>
+      <div class="flex flex-row gap-x-4 justify-between">
+        {%if config.ENABLE_GOOGLE_AUTH%}
+        <a href="{{url_for('auth.google_auth', flow='login')}}" :disabled="!readyToGoSSO" class="btn grow"><i class="ti ti-brand-google text-error text-2xl"></i>Continue with Google</a>
+        {%endif%}
+        {%if config.ENABLE_MICROSOFT_AUTH%}
+        <a href="{{url_for('auth.microsoft_auth', flow='login')}}" :disabled="!readyToGoSSO" class="btn grow"><i class="ti ti-brand-azure text-info text-2xl"></i>Continue with Microsoft</a>
+        {%endif%}
+      </div>
+      <p x-show="!readyToGoSSO" class="mt-2 text-xs text-error">Complete the fields above.</p>
+      {%endif%}
+      <div x-show="adminEmail.length>2" class="mt-4 text-xs" x-text="'Having issues? Reach out to '+adminEmail"></div>
+    </form>
+  </div>
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function login(){
+    return {
+        init() {
+          this.$watch(
+            "payload", (newValue, oldValue) => {
+              this.isReadyToGo(newValue)
+          })
+          this.isReadyToGo(this.payload)
+          this.payload.email = this.getURLParam("email")
+        },
+        adminEmail: "{{config.HELP_EMAIL}}",
+        payload: {},
+        btnLoading: true,
+        readyToGo: false,
+        getURLParam: function(param, defaultValue="") {
+          var queryParams = new URLSearchParams(window.location.search);
+          return queryParams.get(param) || defaultValue;
+        },
+        isReadyToGo: function(payload) {
+            if (!payload.email || !payload.email.includes("@")) {
+              this.readyToGo = false
+              return
+            }
+            if (!payload.password || !payload.password) {
+              this.readyToGo = false
+              return
+            }
+            this.readyToGo = true
+        }
+    }
+}
+</script>
+{%endblock%}

@@ -1,0 +1,477 @@
+[
+  {
+    "name": "Definitions and Applicability",
+    "description": "Establishes the foundational definitions used throughout 23 NYCRR 500, including key terms such as Covered Entity, Cybersecurity Event, Nonpublic Information, and Penetration Testing. This section defines the scope of applicability, specifying which financial institutions and entities regulated by the New York Department of Financial Services must comply with the regulation. Limited exemptions are provided for smaller entities meeting certain thresholds related to employee count, gross annual revenue, or year-end total assets.",
+    "ref_code": "500.1",
+    "guidance": "Organizations should review the definitions carefully to determine whether they qualify as a Covered Entity under the regulation. Evaluate whether any exemptions apply based on organizational size and operational profile, and document the basis for any claimed exemption. Maintain an up-to-date applicability assessment and revisit it as organizational characteristics change over time.",
+    "category": "Program Governance",
+    "subcategory": "Definitions",
+    "subcontrols": [
+      {
+        "name": "Covered Entity Determination",
+        "description": "Each organization must formally assess and document whether it meets the definition of a Covered Entity operating under a license, registration, charter, certificate, permit, accreditation, or similar authorization under the Banking Law, the Insurance Law, or the Financial Services Law.",
+        "ref_code": "500.1.1"
+      },
+      {
+        "name": "Exemption Assessment",
+        "description": "Entities that believe they qualify for a limited exemption must file a Notice of Exemption with the Superintendent and document the specific criteria under which the exemption is claimed, including employee count, revenue, and asset thresholds.",
+        "ref_code": "500.1.2"
+      }
+    ]
+  },
+  {
+    "name": "Cybersecurity Program",
+    "description": "Requires each Covered Entity to maintain a cybersecurity program designed to protect the confidentiality, integrity, and availability of its information systems. The program must be based on the entity's risk assessment and must include measures to identify and assess internal and external cybersecurity risks, implement defensive infrastructure, detect and respond to cybersecurity events, and recover from events while fulfilling all regulatory reporting obligations. The program must be reviewed and updated periodically to address emerging threats.",
+    "ref_code": "500.2",
+    "guidance": "Implement a formal, documented cybersecurity program that is risk-based and proportionate to the organization's size, complexity, and threat landscape. The program should integrate with overall enterprise risk management and be reviewed at least annually. Assign clear ownership and ensure adequate resources are allocated for program execution, including budget, staffing, and tooling.",
+    "category": "Program Governance",
+    "subcategory": "Cybersecurity Program",
+    "subcontrols": [
+      {
+        "name": "Program Documentation and Scope",
+        "description": "The cybersecurity program must be formally documented, defining the scope of covered information systems, data assets, and business processes. Documentation should include program objectives, key stakeholders, and integration points with enterprise risk management.",
+        "ref_code": "500.2.1"
+      },
+      {
+        "name": "Threat Detection and Response Capabilities",
+        "description": "The program must include capabilities to detect, respond to, and recover from cybersecurity events, including continuous monitoring, incident detection mechanisms, and defined escalation and recovery procedures.",
+        "ref_code": "500.2.2"
+      },
+      {
+        "name": "Program Review and Updates",
+        "description": "The cybersecurity program must be periodically reviewed and updated to account for changes in the threat landscape, business operations, technology infrastructure, and regulatory requirements.",
+        "ref_code": "500.2.3"
+      }
+    ]
+  },
+  {
+    "name": "Cybersecurity Policy",
+    "description": "Requires the implementation and maintenance of a written cybersecurity policy that is approved by a Senior Officer or the board of directors. The policy must address specific areas including information security, data governance and classification, asset inventory and device management, access controls, business continuity and disaster recovery, systems and network security monitoring, and incident response. The policy must be reviewed and updated at least annually.",
+    "ref_code": "500.3",
+    "guidance": "Develop a comprehensive written cybersecurity policy that covers all required domains specified in the regulation. Ensure the policy is formally approved by senior leadership or the board and is communicated to all relevant personnel. Establish a policy review cycle of at least once per year and update the policy whenever material changes occur in the threat environment, technology stack, or business operations.",
+    "category": "Program Governance",
+    "subcategory": "Policy",
+    "subcontrols": [
+      {
+        "name": "Policy Content Requirements",
+        "description": "The cybersecurity policy must address all mandated domains including information security, data governance, access controls, business continuity, disaster recovery, network security, systems monitoring, and customer data privacy.",
+        "ref_code": "500.3.1"
+      },
+      {
+        "name": "Policy Approval and Review",
+        "description": "The policy must be approved by the board of directors or a Senior Officer and must be reviewed at least annually. Changes triggered by significant cybersecurity events, regulatory updates, or material changes in technology must prompt an interim review.",
+        "ref_code": "500.3.2"
+      },
+      {
+        "name": "Policy Communication and Enforcement",
+        "description": "The cybersecurity policy must be communicated to all employees and relevant third parties, with mechanisms in place to enforce compliance including disciplinary measures for violations.",
+        "ref_code": "500.3.3"
+      }
+    ]
+  },
+  {
+    "name": "Chief Information Security Officer",
+    "description": "Requires each Covered Entity to designate a qualified individual as the Chief Information Security Officer (CISO) responsible for overseeing and implementing the cybersecurity program and enforcing the cybersecurity policy. The CISO must report to the board of directors or equivalent governing body at least annually on the organization's cybersecurity posture, risks, and program effectiveness. The CISO function may be fulfilled by a third-party service provider or an affiliate, provided certain conditions are met.",
+    "ref_code": "500.4",
+    "guidance": "Appoint a qualified CISO with sufficient authority, resources, and organizational independence to effectively manage the cybersecurity program. If using a third-party CISO, ensure the entity retains overall responsibility and oversight. The CISO should prepare and deliver at least annual written reports to the board covering risk assessments, the status of the cybersecurity program, material cybersecurity events, and planned improvements.",
+    "category": "Program Governance",
+    "subcategory": "Leadership",
+    "subcontrols": [
+      {
+        "name": "CISO Qualifications and Authority",
+        "description": "The designated CISO must possess adequate qualifications, experience, and authority to direct the cybersecurity program, with sufficient independence and access to resources to carry out responsibilities effectively.",
+        "ref_code": "500.4.1"
+      },
+      {
+        "name": "Board Reporting",
+        "description": "The CISO must provide a written report to the board of directors or equivalent governing body at least annually, covering the cybersecurity program's status, material risks, effectiveness of controls, and any cybersecurity events or incidents.",
+        "ref_code": "500.4.2"
+      },
+      {
+        "name": "Third-Party CISO Arrangements",
+        "description": "If the CISO function is outsourced to a third-party service provider or affiliate, the Covered Entity must retain responsibility for compliance and ensure adequate oversight, documentation, and accountability of the third-party arrangement.",
+        "ref_code": "500.4.3"
+      }
+    ]
+  },
+  {
+    "name": "Penetration Testing and Vulnerability Assessments",
+    "description": "Requires Covered Entities to conduct periodic penetration testing and vulnerability assessments of their information systems. Penetration testing must be performed at least annually from both internal and external perspectives. Vulnerability assessments, including automated scans and manual reviews, must be conducted bi-annually at minimum. The scope and frequency of testing must be informed by the entity's risk assessment.",
+    "ref_code": "500.5",
+    "guidance": "Establish a formal penetration testing and vulnerability assessment program that includes defined scope, methodology, and frequency aligned with the organization's risk profile. Engage qualified internal or external testers, ensure findings are documented and risk-rated, and implement a remediation tracking process. Retest to validate that identified vulnerabilities have been effectively resolved.",
+    "category": "Technical Controls",
+    "subcategory": "Testing and Assessment",
+    "subcontrols": [
+      {
+        "name": "Annual Penetration Testing",
+        "description": "Conduct penetration testing at least annually using qualified personnel. Testing must cover internal and external attack vectors and simulate realistic threat scenarios relevant to the entity's environment and risk profile.",
+        "ref_code": "500.5.1"
+      },
+      {
+        "name": "Bi-Annual Vulnerability Assessments",
+        "description": "Perform vulnerability assessments at least twice per year, including systematic scans of information systems to identify known vulnerabilities, misconfigurations, and weaknesses that could be exploited by threat actors.",
+        "ref_code": "500.5.2"
+      },
+      {
+        "name": "Remediation Tracking",
+        "description": "Maintain a formal process for tracking, prioritizing, and remediating vulnerabilities identified through penetration testing and vulnerability assessments, with defined timelines based on severity and risk.",
+        "ref_code": "500.5.3"
+      }
+    ]
+  },
+  {
+    "name": "Audit Trail",
+    "description": "Requires Covered Entities to securely maintain systems designed to reconstruct material financial transactions and to detect and respond to cybersecurity events. Audit trails must be sufficient to support normal operations and obligations, including the detection of unauthorized access or tampering. Records must be maintained for a minimum of five years for transaction records and three years for cybersecurity event logs.",
+    "ref_code": "500.6",
+    "guidance": "Implement comprehensive logging and audit trail mechanisms across critical systems, including financial transaction systems, authentication systems, and network infrastructure. Ensure logs capture sufficient detail to reconstruct events and support forensic investigations. Protect log integrity using tamper-evident storage, centralize log collection where feasible, and establish retention policies that meet or exceed regulatory minimums.",
+    "category": "Technical Controls",
+    "subcategory": "Logging and Monitoring",
+    "subcontrols": [
+      {
+        "name": "Financial Transaction Audit Trails",
+        "description": "Maintain audit trails designed to reconstruct material financial transactions sufficient to support normal operations and regulatory obligations. Transaction logs must be retained for at least five years.",
+        "ref_code": "500.6.1"
+      },
+      {
+        "name": "Cybersecurity Event Logging",
+        "description": "Implement logging capabilities to detect and respond to cybersecurity events, including unauthorized access, data modifications, and system anomalies. Cybersecurity event logs must be retained for at least three years.",
+        "ref_code": "500.6.2"
+      },
+      {
+        "name": "Log Integrity and Protection",
+        "description": "Ensure the integrity of audit trail data by implementing controls to prevent unauthorized modification or deletion of log records, including centralized log management and tamper-evident storage mechanisms.",
+        "ref_code": "500.6.3"
+      }
+    ]
+  },
+  {
+    "name": "Access Privileges",
+    "description": "Requires Covered Entities to limit user access privileges to information systems that provide access to nonpublic information solely to those individuals who require such access to perform their job responsibilities. Access privileges must be periodically reviewed and promptly revoked when no longer needed, such as upon personnel changes, role transitions, or termination. The principle of least privilege must be applied across all systems containing sensitive data.",
+    "ref_code": "500.7",
+    "guidance": "Implement a formal access management program based on the principle of least privilege and need-to-know. Establish processes for granting, modifying, and revoking access, including approval workflows and documentation. Conduct periodic access reviews at least annually to identify and remove excessive or orphaned privileges. Integrate access management with HR processes to ensure timely deprovisioning upon role changes or termination.",
+    "category": "Technical Controls",
+    "subcategory": "Access Management",
+    "subcontrols": [
+      {
+        "name": "Least Privilege Enforcement",
+        "description": "Access to information systems containing nonpublic information must be restricted to authorized individuals based on job function and necessity, granting only the minimum access required to perform assigned duties.",
+        "ref_code": "500.7.1"
+      },
+      {
+        "name": "Periodic Access Reviews",
+        "description": "Conduct periodic reviews of user access privileges to ensure they remain appropriate and aligned with current job responsibilities. Reviews should be performed at least annually and documented, with findings remediated promptly.",
+        "ref_code": "500.7.2"
+      },
+      {
+        "name": "Access Revocation Procedures",
+        "description": "Implement procedures to promptly revoke access when it is no longer needed due to role changes, transfers, leave of absence, or termination, including integration with human resources processes for timely deprovisioning.",
+        "ref_code": "500.7.3"
+      }
+    ]
+  },
+  {
+    "name": "Application Security",
+    "description": "Requires Covered Entities to have written procedures, guidelines, and standards designed to ensure the security of in-house developed applications and to evaluate and test the security of externally developed applications. Secure development practices must be integrated throughout the software development lifecycle, including secure coding standards, code review, and testing prior to deployment. The application security program must be periodically reviewed and updated.",
+    "ref_code": "500.8",
+    "guidance": "Establish a formal application security program that covers both internally developed and externally acquired applications. Integrate security into the software development lifecycle through secure coding guidelines, static and dynamic analysis, code reviews, and pre-deployment security testing. For third-party applications, perform security assessments prior to deployment and monitor for vulnerabilities on an ongoing basis.",
+    "category": "Technical Controls",
+    "subcategory": "Application Security",
+    "subcontrols": [
+      {
+        "name": "Secure Development Practices",
+        "description": "Implement secure coding standards and integrate security activities throughout the SDLC, including threat modeling, secure code reviews, and automated security testing for all in-house developed applications.",
+        "ref_code": "500.8.1"
+      },
+      {
+        "name": "Third-Party Application Security",
+        "description": "Evaluate and test the security of externally developed applications prior to deployment in production environments. Maintain an inventory of third-party applications and monitor for security patches and vulnerability disclosures.",
+        "ref_code": "500.8.2"
+      }
+    ]
+  },
+  {
+    "name": "Risk Assessment",
+    "description": "Requires Covered Entities to conduct periodic risk assessments sufficient to inform the design of the cybersecurity program. The risk assessment must identify and document cybersecurity risks to information systems and nonpublic information, assess the adequacy of existing controls, and inform decisions regarding additional controls or mitigation strategies. Risk assessments must be updated whenever there are material changes to the business, technology, or threat landscape.",
+    "ref_code": "500.9",
+    "guidance": "Conduct comprehensive risk assessments at least annually that evaluate threats, vulnerabilities, and potential impacts to information systems and nonpublic information. Use a structured risk assessment methodology aligned with recognized frameworks. Document risk findings, assign risk owners, develop treatment plans, and track remediation progress. Update the risk assessment when material changes occur in the business or technology environment.",
+    "category": "Risk Management",
+    "subcategory": "Risk Assessment",
+    "subcontrols": [
+      {
+        "name": "Risk Identification and Documentation",
+        "description": "Identify and document internal and external cybersecurity risks to information systems and nonpublic information. Maintain a risk register that captures threat sources, vulnerabilities, likelihood, potential impact, and current control effectiveness.",
+        "ref_code": "500.9.1"
+      },
+      {
+        "name": "Controls Adequacy Assessment",
+        "description": "Assess the adequacy and effectiveness of existing cybersecurity controls in mitigating identified risks. Perform gap analysis to determine where additional controls or enhancements are needed.",
+        "ref_code": "500.9.2"
+      },
+      {
+        "name": "Risk Treatment and Mitigation Planning",
+        "description": "Develop and implement risk treatment plans for identified risks, including decisions to accept, mitigate, transfer, or avoid each risk. Track treatment plan implementation and reassess residual risk levels.",
+        "ref_code": "500.9.3"
+      }
+    ]
+  },
+  {
+    "name": "Cybersecurity Personnel and Intelligence",
+    "description": "Requires Covered Entities to utilize qualified cybersecurity personnel sufficient to manage cybersecurity risks and perform core cybersecurity functions. Personnel must stay current with changing threats and countermeasures through ongoing training and threat intelligence. The entity may use third-party service providers or affiliates to fulfill these requirements, provided it maintains adequate oversight and accountability.",
+    "ref_code": "500.10",
+    "guidance": "Ensure adequate staffing of qualified cybersecurity professionals with the skills and certifications necessary to manage the organization's cybersecurity program. Provide ongoing professional development and training to keep personnel current on emerging threats, technologies, and best practices. Integrate threat intelligence feeds and information-sharing communities into security operations to enhance situational awareness and proactive defense.",
+    "category": "Personnel & Training",
+    "subcategory": "Cybersecurity Personnel",
+    "subcontrols": [
+      {
+        "name": "Qualified Personnel Requirements",
+        "description": "Employ or contract sufficient qualified cybersecurity personnel to manage the organization's cybersecurity risks. Personnel must possess relevant experience, certifications, and skills appropriate to the entity's complexity and risk profile.",
+        "ref_code": "500.10.1"
+      },
+      {
+        "name": "Cybersecurity Intelligence and Awareness",
+        "description": "Establish processes to gather, analyze, and act on cybersecurity threat intelligence. Personnel must stay current on emerging threats, vulnerabilities, and countermeasures through ongoing training and participation in information-sharing communities.",
+        "ref_code": "500.10.2"
+      }
+    ]
+  },
+  {
+    "name": "Third Party Service Provider Security Policy",
+    "description": "Requires Covered Entities to implement written policies and procedures designed to ensure the security of information systems and nonpublic information accessible to or held by third-party service providers. The entity must conduct due diligence on third parties, establish minimum cybersecurity requirements in contracts, and implement ongoing monitoring and assessment of third-party security practices.",
+    "ref_code": "500.11",
+    "guidance": "Develop a formal third-party risk management program that includes pre-engagement due diligence, contractual security requirements, and ongoing monitoring. Require third-party service providers to maintain cybersecurity practices consistent with the entity's policies and regulatory requirements. Include provisions for access controls, encryption, incident notification, and audit rights in agreements. Periodically reassess third-party risk based on changes in services or the third party's security posture.",
+    "category": "Risk Management",
+    "subcategory": "Third-Party Risk",
+    "subcontrols": [
+      {
+        "name": "Third-Party Due Diligence",
+        "description": "Conduct thorough due diligence assessments of third-party service providers prior to engagement and periodically thereafter, evaluating the third party's cybersecurity practices, controls, and ability to protect nonpublic information.",
+        "ref_code": "500.11.1"
+      },
+      {
+        "name": "Contractual Security Requirements",
+        "description": "Include minimum cybersecurity requirements in contracts with third-party service providers, covering access controls, encryption, data handling, incident notification timelines, audit rights, and representations regarding cybersecurity practices.",
+        "ref_code": "500.11.2"
+      },
+      {
+        "name": "Ongoing Third-Party Monitoring",
+        "description": "Implement processes for ongoing monitoring and periodic reassessment of third-party service provider security practices, including review of compliance with contractual requirements and evaluation of material changes in the third party's risk profile.",
+        "ref_code": "500.11.3"
+      }
+    ]
+  },
+  {
+    "name": "Multi-Factor Authentication",
+    "description": "Requires Covered Entities to implement multi-factor authentication for any individual accessing the entity's internal networks from an external network, and for privileged access to database servers containing nonpublic information. MFA must use at least two authentication factors from knowledge, possession, or inherence categories. Risk-based authentication mechanisms may also satisfy this requirement where appropriately implemented.",
+    "ref_code": "500.12",
+    "guidance": "Deploy multi-factor authentication across all remote access points and for privileged access to systems containing nonpublic information. Select MFA solutions that are resistant to phishing and replay attacks. Establish policies governing the use and management of MFA tokens and devices, including procedures for lost or compromised credentials. Consider risk-based or adaptive authentication as a complementary measure for additional access scenarios.",
+    "category": "Technical Controls",
+    "subcategory": "Authentication",
+    "subcontrols": [
+      {
+        "name": "Remote Access MFA",
+        "description": "Implement multi-factor authentication for all individuals accessing the Covered Entity's internal networks from external networks, including VPN, remote desktop, and cloud-based access pathways.",
+        "ref_code": "500.12.1"
+      },
+      {
+        "name": "Privileged Access MFA",
+        "description": "Require multi-factor authentication for all privileged access to database servers and other systems that store or process nonpublic information. Privileged accounts must be subject to enhanced authentication controls.",
+        "ref_code": "500.12.2"
+      },
+      {
+        "name": "MFA Technology Standards",
+        "description": "MFA implementations must use at least two distinct authentication factors from knowledge, possession, and inherence categories, with technologies resistant to common attack vectors such as phishing, SIM-swapping, and man-in-the-middle attacks.",
+        "ref_code": "500.12.3"
+      }
+    ]
+  },
+  {
+    "name": "Limitations on Data Retention",
+    "description": "Requires Covered Entities to establish policies and procedures for the secure disposal of nonpublic information that is no longer necessary for business operations or other legitimate business purposes, except where required to be retained by law or regulation. Data retention and disposal practices must minimize the risk associated with retaining unnecessary sensitive data and reduce the potential impact of a data breach.",
+    "ref_code": "500.13",
+    "guidance": "Develop and implement data retention and disposal policies that define retention periods for each category of nonpublic information based on business need and regulatory requirements. Implement secure disposal methods such as cryptographic erasure, secure overwriting, or physical destruction appropriate to the media type. Conduct periodic reviews of stored data to identify information that has exceeded its retention period and ensure timely, documented disposal.",
+    "category": "Technical Controls",
+    "subcategory": "Data Management",
+    "subcontrols": [
+      {
+        "name": "Data Retention Policy",
+        "description": "Establish and maintain a data retention policy that defines retention periods for categories of nonpublic information based on business requirements, legal obligations, and regulatory mandates. The policy must be reviewed and updated periodically.",
+        "ref_code": "500.13.1"
+      },
+      {
+        "name": "Secure Data Disposal",
+        "description": "Implement secure disposal procedures to ensure that nonpublic information is rendered permanently unrecoverable when no longer needed. Disposal methods must be appropriate to the storage media and must be documented and auditable.",
+        "ref_code": "500.13.2"
+      }
+    ]
+  },
+  {
+    "name": "Training and Monitoring",
+    "description": "Requires Covered Entities to implement risk-based policies, procedures, and controls designed to monitor the activity of authorized users and detect unauthorized access or use of nonpublic information. Entities must also provide regular cybersecurity awareness training for all personnel, updated to reflect risks identified in the entity's risk assessment, addressing emerging threats such as social engineering, phishing, and ransomware.",
+    "ref_code": "500.14",
+    "guidance": "Establish a user activity monitoring program covering access to systems containing nonpublic information, with alerts for anomalous behavior. Deploy tools such as SIEM, UEBA, or DLP solutions to enhance detection capabilities. Implement a cybersecurity awareness training program that is mandatory for all employees, delivered at onboarding and at least annually thereafter, and updated to address current threat trends. Track training completion and measure effectiveness through assessments and simulated exercises.",
+    "category": "Personnel & Training",
+    "subcategory": "Training and Monitoring",
+    "subcontrols": [
+      {
+        "name": "User Activity Monitoring",
+        "description": "Implement controls to monitor the activity of authorized users on information systems that process or store nonpublic information, capable of detecting unauthorized access, data exfiltration, and anomalous user behavior.",
+        "ref_code": "500.14.1"
+      },
+      {
+        "name": "Cybersecurity Awareness Training",
+        "description": "Provide regular cybersecurity awareness training to all personnel, updated to reflect current threats and risks identified in the entity's risk assessment, covering phishing, social engineering, password hygiene, and incident reporting procedures.",
+        "ref_code": "500.14.2"
+      },
+      {
+        "name": "Training Effectiveness Measurement",
+        "description": "Measure the effectiveness of cybersecurity training through periodic assessments, simulated phishing campaigns, and tracking of training completion rates. Use results to identify knowledge gaps and refine training content.",
+        "ref_code": "500.14.3"
+      }
+    ]
+  },
+  {
+    "name": "Encryption of Nonpublic Information",
+    "description": "Requires Covered Entities to implement controls, including encryption, to protect nonpublic information held or transmitted by the entity both in transit over external networks and at rest. Where encryption of data at rest is not feasible, the entity must implement effective alternative compensating controls reviewed and approved by the CISO. Encryption standards must be consistent with industry best practices and the entity's risk assessment.",
+    "ref_code": "500.15",
+    "guidance": "Deploy encryption for all nonpublic information in transit over external networks using industry-standard protocols such as TLS 1.2 or higher. Encrypt nonpublic information at rest using strong encryption algorithms such as AES-256. Where encryption at rest is deemed infeasible, document the rationale and implement CISO-approved compensating controls. Establish key management procedures covering key generation, storage, rotation, and destruction.",
+    "category": "Technical Controls",
+    "subcategory": "Encryption",
+    "subcontrols": [
+      {
+        "name": "Encryption in Transit",
+        "description": "All nonpublic information transmitted over external networks must be encrypted using current industry-standard encryption protocols. Deprecated protocols and weak cipher suites must be disabled across all systems.",
+        "ref_code": "500.15.1"
+      },
+      {
+        "name": "Encryption at Rest",
+        "description": "Nonpublic information stored on information systems must be encrypted at rest using strong encryption algorithms. Where encryption at rest is infeasible, documented compensating controls must be approved by the CISO.",
+        "ref_code": "500.15.2"
+      },
+      {
+        "name": "Key Management",
+        "description": "Establish and maintain cryptographic key management procedures covering the full key lifecycle, including generation, distribution, storage, rotation, revocation, and destruction of encryption keys.",
+        "ref_code": "500.15.3"
+      }
+    ]
+  },
+  {
+    "name": "Incident Response Plan",
+    "description": "Requires Covered Entities to establish a written incident response plan designed to promptly respond to and recover from any cybersecurity event materially affecting the confidentiality, integrity, or availability of the entity's information systems or nonpublic information. The plan must address the goals of the incident response process, define roles and responsibilities, outline communication and escalation procedures, and include requirements for post-incident review and plan updates.",
+    "ref_code": "500.16",
+    "guidance": "Develop a comprehensive incident response plan aligned with business continuity and disaster recovery strategies. Define clear roles and responsibilities for incident response team members including internal and external stakeholders. Establish communication protocols for internal escalation, regulatory notification, and public disclosure. Conduct tabletop exercises and simulations at least annually, and update the plan based on lessons learned from exercises and actual incidents.",
+    "category": "Incident Response",
+    "subcategory": "Incident Response Planning",
+    "subcontrols": [
+      {
+        "name": "Incident Response Roles and Procedures",
+        "description": "Define clear roles, responsibilities, and escalation procedures for incident response team members. The plan must address detection, analysis, containment, eradication, recovery, and post-incident activities.",
+        "ref_code": "500.16.1"
+      },
+      {
+        "name": "Incident Response Testing",
+        "description": "Test the incident response plan at least annually through tabletop exercises, simulations, or functional drills to validate the effectiveness of communication channels, escalation procedures, and technical response capabilities.",
+        "ref_code": "500.16.2"
+      },
+      {
+        "name": "Post-Incident Review and Plan Updates",
+        "description": "Conduct post-incident reviews following cybersecurity events and exercises to identify lessons learned and areas for improvement. Update the incident response plan based on findings and communicate changes to all relevant personnel.",
+        "ref_code": "500.16.3"
+      }
+    ]
+  },
+  {
+    "name": "Notices to Superintendent",
+    "description": "Requires Covered Entities to notify the Superintendent of Financial Services as promptly as possible but no later than 72 hours from a determination that a cybersecurity event has occurred meeting specified notification thresholds. Notification is required for events with a reasonable likelihood of materially harming normal operations, or where notice is required to any government body, self-regulatory agency, or supervisory body. Extortion events involving nonpublic information must also be reported.",
+    "ref_code": "500.17",
+    "guidance": "Establish processes to identify cybersecurity events that trigger regulatory notification requirements under 23 NYCRR 500. Implement a notification workflow enabling reporting to the Superintendent within the 72-hour window, including pre-drafted notification templates. Designate responsible individuals for making notification determinations and submitting reports. Maintain records of all notifications made and the supporting analysis.",
+    "category": "Compliance & Reporting",
+    "subcategory": "Regulatory Notifications",
+    "subcontrols": [
+      {
+        "name": "Notification Threshold Determination",
+        "description": "Establish criteria and procedures for determining whether a cybersecurity event meets the regulatory threshold for notification to the Superintendent, including events that materially harm operations or require notification to government bodies.",
+        "ref_code": "500.17.1"
+      },
+      {
+        "name": "72-Hour Notification Process",
+        "description": "Implement a process to ensure timely notification to the Superintendent within 72 hours of determining a reportable cybersecurity event has occurred. Maintain notification templates, escalation contacts, and submission procedures.",
+        "ref_code": "500.17.2"
+      },
+      {
+        "name": "Extortion Event Reporting",
+        "description": "Establish specific procedures for reporting extortion events involving cybersecurity threats against nonpublic information, including ransomware incidents and data theft with extortion demands, within the required notification timeframe.",
+        "ref_code": "500.17.3"
+      }
+    ]
+  },
+  {
+    "name": "Confidentiality",
+    "description": "Establishes that information provided by Covered Entities to the Superintendent pursuant to 23 NYCRR 500 is subject to applicable exemptions from disclosure under the Banking Law, Insurance Law, Financial Services Law, and other applicable state and federal laws. This protects the confidentiality of cybersecurity-related disclosures made during regulatory examinations, incident notifications, and compliance certifications, encouraging transparent communication with regulators.",
+    "ref_code": "500.18",
+    "guidance": "Understand the confidentiality protections afforded to information submitted to the Superintendent under this regulation. While these protections encourage candid disclosure, entities should carefully review all submissions to ensure they contain only necessary information. Establish internal procedures for preparing, reviewing, and approving regulatory submissions to maintain appropriate confidentiality boundaries. Work with legal counsel to understand the scope and limitations of these protections.",
+    "category": "Compliance & Reporting",
+    "subcategory": "Confidentiality",
+    "subcontrols": [
+      {
+        "name": "Regulatory Submission Controls",
+        "description": "Establish procedures for preparing and reviewing all information submitted to the Superintendent, ensuring submissions are accurate, complete, and contain only information necessary for regulatory purposes.",
+        "ref_code": "500.18.1"
+      },
+      {
+        "name": "Confidentiality Protections Awareness",
+        "description": "Ensure relevant personnel understand the confidentiality protections applicable to regulatory submissions and the legal frameworks governing disclosure exemptions under applicable banking, insurance, and financial services laws.",
+        "ref_code": "500.18.2"
+      }
+    ]
+  },
+  {
+    "name": "Governance (CISO Reporting, Board Oversight)",
+    "description": "Requires enhanced governance structures ensuring that cybersecurity is integrated into the overall governance framework of the Covered Entity. The CISO must have a direct reporting line to the board of directors or equivalent governing body, and the board must exercise adequate oversight of the cybersecurity program. The board must receive and review reports on cybersecurity posture, approve the cybersecurity policy, and ensure senior management allocates sufficient resources to maintain an effective cybersecurity program.",
+    "ref_code": "500.19",
+    "guidance": "Establish clear governance structures that elevate cybersecurity to a board-level concern. Ensure the CISO has appropriate reporting lines and access to the board. The board should receive regular briefings on cybersecurity risks, program status, and significant incidents. Board members should have sufficient knowledge or access to expert advice to exercise meaningful oversight. Document board-level decisions regarding cybersecurity program direction, resource allocation, and risk acceptance.",
+    "category": "Program Governance",
+    "subcategory": "Board Oversight",
+    "subcontrols": [
+      {
+        "name": "Board Cybersecurity Oversight",
+        "description": "The board of directors or equivalent governing body must exercise active oversight of the cybersecurity program, including review and approval of the cybersecurity policy, risk appetite, and resource allocation for cybersecurity functions.",
+        "ref_code": "500.19.1"
+      },
+      {
+        "name": "CISO Reporting Structure",
+        "description": "The CISO must have a direct or functionally direct reporting relationship to the board or a designated board committee, with reporting occurring at least annually and whenever material cybersecurity events or significant changes in risk posture warrant attention.",
+        "ref_code": "500.19.2"
+      },
+      {
+        "name": "Senior Management Accountability",
+        "description": "Senior management must be accountable for implementing the cybersecurity program and ensuring adequate resources, staffing, and budgets are allocated. Management decisions regarding cybersecurity must be documented and aligned with the board-approved risk appetite.",
+        "ref_code": "500.19.3"
+      }
+    ]
+  },
+  {
+    "name": "Compliance (Annual Certification)",
+    "description": "Requires each Covered Entity to annually submit to the Superintendent a written statement certifying compliance with the requirements of 23 NYCRR 500. The certification must be signed by the board of directors or a Senior Officer and must be based on a review of the entity's cybersecurity program, policies, and procedures. Supporting documentation must be maintained for examination by the Department of Financial Services for a period of five years.",
+    "ref_code": "500.20",
+    "guidance": "Establish an annual compliance certification process that includes a comprehensive review of the entity's cybersecurity program against all requirements of 23 NYCRR 500. Develop a certification checklist and evidence collection process to support the certification statement. Ensure the board or Senior Officer signs the certification based on a thorough understanding of compliance status. Maintain all supporting documentation for at least five years.",
+    "category": "Compliance & Reporting",
+    "subcategory": "Annual Certification",
+    "subcontrols": [
+      {
+        "name": "Annual Certification Process",
+        "description": "Establish a formal process for preparing and submitting the annual certification of compliance to the Superintendent, including a comprehensive review of the cybersecurity program against all regulatory requirements.",
+        "ref_code": "500.20.1"
+      },
+      {
+        "name": "Certification Evidence and Documentation",
+        "description": "Maintain comprehensive documentation supporting the annual certification, including evidence of control implementation, testing results, risk assessments, and remediation activities. Documentation must be retained for at least five years.",
+        "ref_code": "500.20.2"
+      },
+      {
+        "name": "Senior Officer or Board Attestation",
+        "description": "The annual certification must be signed by the board of directors or a Senior Officer who has reviewed the supporting evidence and attests to the entity's compliance with all applicable provisions of 23 NYCRR 500.",
+        "ref_code": "500.20.3"
+      }
+    ]
+  }
+]

@@ -1,0 +1,222 @@
+[
+  {
+    "name": "Tax Return Information Protection",
+    "description": "Implement comprehensive safeguards to protect tax return information as defined under IRC Section 7216, including all information furnished to the tax preparer in connection with preparing a tax return, derived from that information, or obtained through the tax preparation relationship.",
+    "guidance": "Establish a written information security plan that specifically addresses tax return information (TRI) as defined under IRC 7216. TRI includes all data provided by clients for tax preparation, data derived from returns, and information obtained in the preparer-client relationship. Implement encryption for all electronic TRI at rest and in transit. Restrict access to TRI to authorized preparers and staff. Obtain valid written consent from taxpayers before disclosing or using TRI for any purpose other than return preparation. Maintain awareness of the criminal penalties under IRC 7216 for unauthorized disclosure.",
+    "ref_code": "FTCTP-1",
+    "system_level": false,
+    "category": "Tax Data Protection",
+    "subcategory": "Return Information Security",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission",
+      "related_statute": "IRC Section 7216"
+    },
+    "subcontrols": [
+      {
+        "name": "IRC 7216 Compliance Program",
+        "description": "Establish a compliance program ensuring all handling of tax return information meets IRC Section 7216 requirements for disclosure and use restrictions.",
+        "ref_code": "FTCTP-1.1",
+        "guidance": "Train all preparers on IRC 7216 requirements. Implement consent forms that meet Revenue Procedure 2013-14 standards. Document all permitted disclosures. Conduct annual compliance reviews."
+      },
+      {
+        "name": "Taxpayer Consent Management",
+        "description": "Obtain and maintain valid written consent from taxpayers before disclosing or using tax return information for purposes beyond return preparation.",
+        "ref_code": "FTCTP-1.2",
+        "guidance": "Use consent forms that meet IRS requirements including specific identification of the information to be disclosed, the purpose, and the recipient. Maintain signed consent records for three years. Ensure consents are voluntarily given and not a condition of service."
+      },
+      {
+        "name": "Tax Return Information Access Controls",
+        "description": "Restrict access to tax return information to authorized preparers and support staff whose roles require such access.",
+        "ref_code": "FTCTP-1.3",
+        "guidance": "Implement role-based access controls in tax preparation software. Assign unique user IDs to each preparer. Log all access to client tax files. Revoke access immediately when personnel leave the firm."
+      }
+    ]
+  },
+  {
+    "name": "E-Filing Security Requirements",
+    "description": "Implement security controls for electronic filing of tax returns, including protection of e-file credentials, secure transmission of returns, and monitoring for unauthorized filing activity using the firm's Electronic Filing Identification Number (EFIN).",
+    "guidance": "Protect EFIN credentials and e-file access by limiting knowledge to authorized personnel and monitoring for unauthorized use. Ensure all e-file transmissions use encrypted connections with valid certificates. Implement monitoring to detect unusual filing patterns such as unexpected filing volumes, returns for unfamiliar clients, or filings outside normal business hours. Review e-file rejection reports for signs of identity theft or fraud. Report suspected EFIN compromise to the IRS e-Help Desk immediately.",
+    "ref_code": "FTCTP-2",
+    "system_level": true,
+    "category": "E-Filing Security",
+    "subcategory": "Electronic Filing Controls",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission",
+      "related_statute": "IRS e-File Program Requirements"
+    },
+    "subcontrols": [
+      {
+        "name": "EFIN Protection and Monitoring",
+        "description": "Protect the firm's Electronic Filing Identification Number from unauthorized access and monitor for signs of EFIN misuse or compromise.",
+        "ref_code": "FTCTP-2.1",
+        "guidance": "Limit EFIN knowledge to authorized principals. Monitor filing volumes and patterns for anomalies. Set up alerts for filings outside business hours or exceeding normal volumes. Report suspected compromise to the IRS immediately."
+      },
+      {
+        "name": "E-File Transmission Encryption",
+        "description": "Ensure all electronic tax return transmissions to the IRS and state agencies use encrypted connections with current TLS protocols.",
+        "ref_code": "FTCTP-2.2",
+        "guidance": "Verify tax software uses TLS 1.2 or higher for all e-file transmissions. Confirm digital certificates are valid and current. Monitor transmission logs for failed or intercepted filings."
+      },
+      {
+        "name": "E-File Rejection Monitoring",
+        "description": "Monitor e-file rejection reports for indications of identity theft, duplicate filing, or other fraudulent activity involving client returns.",
+        "ref_code": "FTCTP-2.3",
+        "guidance": "Review all e-file rejections, especially those indicating a return was already filed for the taxpayer. Report suspected identity theft using IRS Form 14039. Notify affected clients promptly and assist them with identity theft resolution."
+      },
+      {
+        "name": "E-File Software Security",
+        "description": "Maintain tax preparation and e-filing software with current security patches, updates, and properly configured security settings.",
+        "ref_code": "FTCTP-2.4",
+        "guidance": "Apply tax software updates within 7 days of release. Enable all available security features including audit logging, session timeouts, and password requirements. Verify the software vendor's security practices annually."
+      }
+    ]
+  },
+  {
+    "name": "Client Data Handling During Tax Season",
+    "description": "Establish secure procedures for the collection, processing, storage, and return of client tax documents during the active tax preparation season, addressing the high volume of sensitive information handled during peak filing periods.",
+    "guidance": "Implement secure intake procedures for client documents including encrypted upload portals, secure drop-off locations, and chain-of-custody tracking. Train seasonal staff on data handling requirements before granting access to client information. Implement clean desk policies and secure workstation configurations. Use encrypted communication channels for all client correspondence containing tax data. Establish end-of-day security procedures including workstation lockdown and document storage verification.",
+    "ref_code": "FTCTP-3",
+    "system_level": false,
+    "category": "Seasonal Operations",
+    "subcategory": "Tax Season Data Handling",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Secure Client Document Intake",
+        "description": "Establish secure procedures for receiving client tax documents through all channels including in-person, mail, and electronic submission.",
+        "ref_code": "FTCTP-3.1",
+        "guidance": "Provide encrypted upload portals for electronic submissions. Use locked drop-off boxes for in-person deliveries. Log all received documents with client name, date, and contents. Issue receipts to clients."
+      },
+      {
+        "name": "Secure Client Communications",
+        "description": "Use encrypted communication channels for all correspondence with clients that contains tax return information or sensitive financial data.",
+        "ref_code": "FTCTP-3.2",
+        "guidance": "Use encrypted email or secure client portals for transmitting tax documents and return copies. Never send SSNs or financial data via unencrypted email or text message. Train clients on secure communication procedures."
+      },
+      {
+        "name": "Client Document Return and Acknowledgment",
+        "description": "Establish secure procedures for returning original client documents after tax preparation is complete, with documented acknowledgment of receipt.",
+        "ref_code": "FTCTP-3.3",
+        "guidance": "Return original documents to clients promptly after preparation. Obtain signed acknowledgment of document return. Use secure delivery methods for mailed documents. Track outstanding documents and follow up."
+      }
+    ]
+  },
+  {
+    "name": "Post-Season Data Security and Offseason Protection",
+    "description": "Implement security controls for protecting client tax data during the offseason when offices may have reduced staffing, and establish procedures for secure storage, system maintenance, and preparation for the next filing season.",
+    "guidance": "Secure all client data at the end of tax season by archiving files to encrypted storage, disabling seasonal employee accounts, and verifying that all temporary workstations are sanitized. Conduct a post-season security review to identify and remediate any issues that arose during the filing period. Maintain monitoring and patch management throughout the offseason even with reduced operations. Perform pre-season security preparations including system updates, account reviews, and staff training before the next filing period begins.",
+    "ref_code": "FTCTP-4",
+    "system_level": false,
+    "category": "Seasonal Operations",
+    "subcategory": "Offseason Security",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Post-Season Security Review",
+        "description": "Conduct a security review at the conclusion of each tax season to identify vulnerabilities, incidents, or policy violations that occurred during the filing period.",
+        "ref_code": "FTCTP-4.1",
+        "guidance": "Review access logs, incident reports, and compliance records from the tax season. Identify areas for improvement. Document findings and update security procedures before the next season."
+      },
+      {
+        "name": "Seasonal Account Deactivation",
+        "description": "Disable all temporary and seasonal employee accounts immediately at the end of their engagement, revoking access to all systems containing client data.",
+        "ref_code": "FTCTP-4.2",
+        "guidance": "Maintain a list of all seasonal employee accounts. Disable accounts on or before the last day of engagement. Verify deactivation within 24 hours. Collect and secure any firm-issued devices or credentials."
+      },
+      {
+        "name": "Offseason System Maintenance",
+        "description": "Maintain security monitoring, patch management, and system maintenance throughout the offseason to prevent vulnerabilities from accumulating.",
+        "ref_code": "FTCTP-4.3",
+        "guidance": "Continue applying security patches and software updates during the offseason. Maintain antivirus and monitoring systems. Conduct vulnerability scans before each new filing season begins."
+      }
+    ]
+  },
+  {
+    "name": "IRS PTIN Holder Security Requirements",
+    "description": "Ensure all Preparer Tax Identification Number (PTIN) holders within the firm comply with IRS security requirements for tax return preparers, including maintaining current PTINs, completing required continuing education, and adhering to Circular 230 obligations.",
+    "guidance": "Maintain a registry of all PTIN holders within the firm with their PTIN numbers, renewal dates, and compliance status. Ensure all PTINs are renewed annually before the expiration date. Verify that PTIN holders complete required continuing education including ethics and tax law updates. Implement controls to prevent unauthorized individuals from using a firm preparer's PTIN. Monitor IRS communications regarding PTIN holder requirements and disciplinary actions.",
+    "ref_code": "FTCTP-5",
+    "system_level": false,
+    "category": "Tax Data Protection",
+    "subcategory": "Preparer Credentials",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission",
+      "related_statute": "IRS PTIN Requirements, Circular 230"
+    },
+    "subcontrols": [
+      {
+        "name": "PTIN Registry and Renewal Tracking",
+        "description": "Maintain a current registry of all firm PTIN holders and track renewal dates to ensure continuous compliance with IRS registration requirements.",
+        "ref_code": "FTCTP-5.1",
+        "guidance": "Create and maintain a centralized PTIN registry with holder names, PTIN numbers, and expiration dates. Set renewal reminders 60 days before expiration. Verify renewal completion annually."
+      },
+      {
+        "name": "PTIN Access Protection",
+        "description": "Implement controls to prevent unauthorized use of preparers' PTINs, including monitoring for returns filed under a PTIN by unauthorized individuals.",
+        "ref_code": "FTCTP-5.2",
+        "guidance": "Restrict knowledge of individual PTINs to the holder and firm management. Monitor filing volumes per PTIN for anomalies. Require preparers to report suspected PTIN misuse immediately."
+      },
+      {
+        "name": "Continuing Education Compliance",
+        "description": "Ensure all PTIN holders complete required continuing education including IRS Annual Filing Season Program requirements and ethics courses.",
+        "ref_code": "FTCTP-5.3",
+        "guidance": "Track CE completion for all PTIN holders. Include security awareness training as part of annual professional development. Verify CE credits are filed with the IRS Return Preparer Office."
+      }
+    ]
+  },
+  {
+    "name": "Tax Preparer Written Information Security Plan",
+    "description": "Develop and maintain a Written Information Security Plan (WISP) tailored to the tax preparation practice, addressing the unique risks and regulatory requirements applicable to tax return preparers as outlined in IRS Publication 4557 and the FTC Safeguards Rule.",
+    "guidance": "Create a WISP that addresses the specific security requirements for tax preparation firms, including protection of tax return information under IRC 7216, EFIN security, client data handling procedures, and seasonal staffing considerations. The WISP should be proportionate to the firm's size and complexity. Include roles and responsibilities, risk assessment procedures, safeguard descriptions, incident response procedures, and service provider oversight. Review and update the WISP annually. Ensure all staff, including seasonal employees, read and acknowledge the WISP before accessing client data.",
+    "ref_code": "FTCTP-6",
+    "system_level": false,
+    "category": "Tax Data Protection",
+    "subcategory": "Security Program",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Tax Preparer Specific",
+      "authority": "Federal Trade Commission",
+      "related_statute": "IRS Publication 4557"
+    },
+    "subcontrols": [
+      {
+        "name": "Tax-Specific WISP Development",
+        "description": "Develop a Written Information Security Plan that addresses the unique security requirements of a tax preparation practice, including IRS-specific obligations.",
+        "ref_code": "FTCTP-6.1",
+        "guidance": "Include sections covering IRC 7216 compliance, EFIN security, client data intake and return procedures, seasonal staffing, and IRS reporting requirements. Use IRS Publication 4557 as a baseline framework."
+      },
+      {
+        "name": "Staff WISP Acknowledgment",
+        "description": "Require all staff, including seasonal and temporary employees, to read and formally acknowledge the WISP before being granted access to client tax data.",
+        "ref_code": "FTCTP-6.2",
+        "guidance": "Obtain signed acknowledgment from all staff upon hire and annually thereafter. Include WISP review as part of new hire orientation and seasonal staff onboarding. Maintain acknowledgment records."
+      },
+      {
+        "name": "Annual WISP Review and Update",
+        "description": "Review and update the Written Information Security Plan annually to address changes in IRS requirements, threat landscape, technology, and business operations.",
+        "ref_code": "FTCTP-6.3",
+        "guidance": "Schedule the WISP review before each tax season begins. Incorporate lessons learned from the prior filing season. Update for new IRS guidance, software changes, and identified security gaps. Document all revisions."
+      }
+    ]
+  }
+]

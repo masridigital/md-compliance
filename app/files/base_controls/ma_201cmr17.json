@@ -1,0 +1,232 @@
+[
+  {
+    "name": "Purpose and Scope",
+    "description": "Establishes the purpose and scope of 201 CMR 17.00, which implements the provisions of Massachusetts General Laws chapter 93H, section 2. The regulation sets forth minimum standards for safeguarding personal information of Massachusetts residents contained in both paper and electronic records. It applies to all persons who own or license personal information about a Massachusetts resident, regardless of whether the entity is located within the Commonwealth.",
+    "ref_code": "17.01",
+    "guidance": "Organizations must determine whether they own or license personal information of Massachusetts residents and therefore fall within the scope of this regulation. Conduct an inventory of all personal information held, noting the format (electronic or paper) and storage locations. Even entities located outside Massachusetts are subject to these requirements if they handle personal information of Massachusetts residents. Document the applicability determination and review it periodically.",
+    "category": "Program Requirements",
+    "subcategory": "Purpose and Scope",
+    "subcontrols": [
+      {
+        "name": "Applicability Determination",
+        "description": "Each organization must assess and document whether it owns or licenses personal information of Massachusetts residents, thereby establishing whether the regulation applies to its operations regardless of geographic location.",
+        "ref_code": "17.01.1"
+      },
+      {
+        "name": "Personal Information Inventory",
+        "description": "Conduct and maintain an inventory of all personal information of Massachusetts residents held by the organization, including the type of information, format (paper or electronic), storage locations, and systems that process such data.",
+        "ref_code": "17.01.2"
+      }
+    ]
+  },
+  {
+    "name": "Definitions",
+    "description": "Provides the key definitions used throughout 201 CMR 17.00, including the critical definition of personal information as a Massachusetts resident's first name and last name (or first initial and last name) in combination with any one or more of the following: Social Security number, driver's license number or state-issued identification number, or financial account number. Definitions also cover terms such as 'owns or licenses,' 'service provider,' 'breach of security,' and 'encrypted.'",
+    "ref_code": "17.02",
+    "guidance": "Review all definitions carefully to understand the scope of protected data and applicable obligations. Pay particular attention to the definition of personal information, as it determines what data triggers the regulation's requirements. Map the defined terms to your organization's data classification taxonomy to ensure consistent interpretation and application across all compliance activities. Train personnel who handle Massachusetts resident data on these definitions.",
+    "category": "Program Requirements",
+    "subcategory": "Definitions",
+    "subcontrols": [
+      {
+        "name": "Personal Information Classification",
+        "description": "Classify all data holdings against the regulatory definition of personal information to identify records that include a Massachusetts resident's name in combination with Social Security numbers, driver's license numbers, or financial account numbers.",
+        "ref_code": "17.02.1"
+      },
+      {
+        "name": "Terminology Alignment",
+        "description": "Align organizational data governance terminology with the definitions in 201 CMR 17.00, ensuring that terms such as 'breach of security,' 'encrypted,' and 'service provider' are consistently interpreted across policies, procedures, and training materials.",
+        "ref_code": "17.02.2"
+      }
+    ]
+  },
+  {
+    "name": "Duty to Protect and Comprehensive Information Security Program",
+    "description": "Requires every person who owns or licenses personal information of Massachusetts residents to develop, implement, and maintain a comprehensive information security program (WISP) that contains administrative, technical, and physical safeguards appropriate to the size, scope, and type of business, the resources available, the amount of stored data, and the need for security and confidentiality. The program must be in writing and reasonably consistent with industry standards.",
+    "ref_code": "17.03",
+    "guidance": "Develop a Written Information Security Program (WISP) tailored to your organization's specific circumstances, including its size, complexity, available resources, and the volume and sensitivity of personal information handled. The WISP must address administrative, technical, and physical safeguards in a comprehensive manner. Ensure the program is documented in writing, approved by senior management, and reviewed at least annually. Align the program with recognized industry standards and frameworks where applicable.",
+    "category": "Program Requirements",
+    "subcategory": "Information Security Program",
+    "subcontrols": [
+      {
+        "name": "Written Information Security Program (WISP) Documentation",
+        "description": "Create and maintain a formal Written Information Security Program that documents all administrative, technical, and physical safeguards implemented to protect personal information, proportionate to the organization's size, scope, resources, and data sensitivity.",
+        "ref_code": "17.03.1"
+      },
+      {
+        "name": "Safeguard Categories Coverage",
+        "description": "Ensure the comprehensive information security program addresses all three categories of safeguards: administrative (policies, procedures, training), technical (access controls, encryption, monitoring), and physical (facility security, media protection, disposal).",
+        "ref_code": "17.03.2"
+      },
+      {
+        "name": "Program Review and Maintenance",
+        "description": "Review and update the comprehensive information security program at least annually and whenever material changes to business operations, technology, threats, or regulatory requirements affect the security of personal information.",
+        "ref_code": "17.03.3"
+      }
+    ]
+  },
+  {
+    "name": "Computer System Security Requirements",
+    "description": "Specifies mandatory technical security requirements for every computer system that stores or accesses personal information of Massachusetts residents. Requirements include secure user authentication protocols, access control measures, encryption of transmitted records and files over public networks and wirelessly, monitoring of systems for unauthorized use, encryption of personal information on portable devices, and maintaining reasonably up-to-date firewall and operating system security patches.",
+    "ref_code": "17.04",
+    "guidance": "Implement all mandated technical controls on every computer system that stores or accesses personal information. Deploy secure authentication protocols, enforce access control policies, encrypt personal information in transit and on portable devices, maintain current firewall protection and security patches, and implement system monitoring capabilities. Document the implementation of each technical requirement and conduct periodic assessments to verify continued effectiveness and compliance.",
+    "category": "Technical Requirements",
+    "subcategory": "Computer System Security",
+    "subcontrols": [
+      {
+        "name": "Secure Authentication Protocols",
+        "description": "Implement secure user authentication protocols on all systems accessing personal information, including control of user IDs, assignment of unique passwords, restriction of access to active users only, and blocking of access after multiple unsuccessful authentication attempts.",
+        "ref_code": "17.04.1"
+      },
+      {
+        "name": "Encryption and Firewall Requirements",
+        "description": "Encrypt all transmitted records and files containing personal information over public networks and wireless connections. Deploy and maintain reasonably up-to-date firewall protection and operating system security patches on all internet-connected systems.",
+        "ref_code": "17.04.2"
+      },
+      {
+        "name": "System Monitoring and Portable Device Controls",
+        "description": "Implement monitoring capabilities to detect unauthorized use of or access to personal information on computer systems. Encrypt all personal information stored on laptops, portable devices, and other removable media.",
+        "ref_code": "17.04.3"
+      }
+    ]
+  },
+  {
+    "name": "Designating Responsible Person",
+    "description": "Requires that the comprehensive information security program include the designation of one or more employees to maintain the program. The designated individual(s) must have overall responsibility for the development, implementation, maintenance, and enforcement of the information security program, ensuring clear accountability and ownership for the protection of personal information within the organization.",
+    "ref_code": "17.03(2)(a)",
+    "guidance": "Formally designate one or more qualified employees as responsible for the information security program in writing. The designated person(s) should have sufficient authority, resources, and organizational support to effectively oversee the program. Document the designation including the scope of responsibilities, reporting structure, and any delegated authorities. Ensure continuity of the role through succession planning and cross-training of backup personnel.",
+    "category": "Administrative Requirements",
+    "subcategory": "Program Oversight",
+    "subcontrols": [
+      {
+        "name": "Formal Designation Documentation",
+        "description": "Document the formal designation of one or more employees responsible for the information security program, including their names, titles, specific responsibilities, authority levels, and reporting relationships within the organization.",
+        "ref_code": "17.03(2)(a).1"
+      },
+      {
+        "name": "Succession Planning for Security Oversight",
+        "description": "Establish succession plans and cross-training arrangements to ensure continuity of the information security program oversight function in the event of personnel changes, extended absences, or organizational restructuring.",
+        "ref_code": "17.03(2)(a).2"
+      }
+    ]
+  },
+  {
+    "name": "Risk Assessment and Identifying Internal/External Risks",
+    "description": "Requires that the comprehensive information security program include the identification and assessment of reasonably foreseeable internal and external risks to the security, confidentiality, and integrity of personal information. The risk assessment must evaluate the sufficiency of existing safeguards, covering areas including employee training, information systems processing and storage, and the prevention, detection, and response to attacks, intrusions, or other system failures.",
+    "ref_code": "17.03(2)(b)",
+    "guidance": "Conduct a thorough risk assessment identifying both internal risks (employee negligence, insider threats, inadequate training) and external risks (cyber attacks, social engineering, physical theft) to personal information. Evaluate the effectiveness of current safeguards against identified risks and document gaps. The assessment should inform decisions about additional controls, training needs, and resource allocation. Update the risk assessment at least annually or whenever significant changes occur.",
+    "category": "Administrative Requirements",
+    "subcategory": "Risk Assessment",
+    "subcontrols": [
+      {
+        "name": "Internal Risk Identification",
+        "description": "Identify and assess reasonably foreseeable internal risks to personal information, including threats from employee negligence, unauthorized access by insiders, inadequate training, improper data handling, and deficiencies in information system security controls.",
+        "ref_code": "17.03(2)(b).1"
+      },
+      {
+        "name": "External Risk Identification",
+        "description": "Identify and assess reasonably foreseeable external risks to personal information, including threats from cyber attacks, malware, social engineering, unauthorized physical access, theft of devices, and exploitation of system vulnerabilities.",
+        "ref_code": "17.03(2)(b).2"
+      },
+      {
+        "name": "Safeguard Sufficiency Evaluation",
+        "description": "Evaluate the sufficiency of existing safeguards in controlling identified internal and external risks. Document gaps between current controls and required protection levels and develop remediation plans to address identified deficiencies.",
+        "ref_code": "17.03(2)(b).3"
+      }
+    ]
+  },
+  {
+    "name": "Employee Compliance Policies",
+    "description": "Requires the comprehensive information security program to include policies relating to the storage, access, and transportation of records containing personal information outside of business premises. Organizations must develop employee security policies for the protection of personal information, enforce disciplinary measures for policy violations, and implement methods for preventing terminated employees from accessing records containing personal information.",
+    "ref_code": "17.03(2)(c)",
+    "guidance": "Develop clear, written policies governing employee handling of personal information, including rules for storage, access, and transportation of records both within and outside of business premises. Communicate these policies to all employees at hire and through periodic training. Establish procedures to prevent terminated employees from accessing personal information, including prompt revocation of physical and logical access. Ensure policies cover remote work scenarios and personal device usage.",
+    "category": "Administrative Requirements",
+    "subcategory": "Employee Policies",
+    "subcontrols": [
+      {
+        "name": "Data Handling Policies for Employees",
+        "description": "Establish and enforce written policies governing the storage, access, and transportation of records containing personal information outside of business premises, including rules for remote work, personal device usage, and physical document handling.",
+        "ref_code": "17.03(2)(c).1"
+      },
+      {
+        "name": "Employee Training on Information Security",
+        "description": "Provide regular training to all employees on the organization's information security program, policies, and procedures at onboarding and periodically thereafter, with content updated to reflect current threats and policy changes.",
+        "ref_code": "17.03(2)(c).2"
+      },
+      {
+        "name": "Terminated Employee Access Prevention",
+        "description": "Implement procedures to immediately prevent terminated employees from accessing records containing personal information, including revocation of all physical access (keys, badges) and logical access (accounts, remote access, email) upon separation.",
+        "ref_code": "17.03(2)(c).3"
+      }
+    ]
+  },
+  {
+    "name": "Disciplinary Actions for Violations",
+    "description": "Requires the comprehensive information security program to impose disciplinary measures for violations of the information security program rules. Organizations must establish a clear framework of consequences for employees and other authorized users who fail to comply with security policies and procedures designed to protect personal information. The disciplinary framework should be proportionate, consistently applied, and communicated to all personnel.",
+    "ref_code": "17.03(2)(d)",
+    "guidance": "Define a clear and graduated disciplinary framework for violations of information security policies, ranging from verbal warnings for minor first-time offenses to termination for severe or repeated violations. Ensure the disciplinary policy is documented, communicated to all employees, and applied consistently. Integrate the disciplinary framework with existing HR policies and procedures. Document all disciplinary actions taken for security violations and use incident data to identify areas requiring additional training or control improvements.",
+    "category": "Administrative Requirements",
+    "subcategory": "Enforcement",
+    "subcontrols": [
+      {
+        "name": "Disciplinary Framework Definition",
+        "description": "Establish a documented, graduated disciplinary framework that defines specific consequences for violations of information security policies, including verbal warnings, written warnings, suspension, and termination depending on the severity and frequency of violations.",
+        "ref_code": "17.03(2)(d).1"
+      },
+      {
+        "name": "Consistent Enforcement and Documentation",
+        "description": "Apply disciplinary measures consistently across all employees and authorized users who violate information security policies. Document all disciplinary actions taken, including the nature of the violation, investigation findings, and corrective measures imposed.",
+        "ref_code": "17.03(2)(d).2"
+      }
+    ]
+  },
+  {
+    "name": "Technical Security Requirements (Encryption, Authentication, Firewalls, Patching, Access Control, Monitoring, Training)",
+    "description": "Specifies the detailed technical security measures that must be implemented on computer systems that electronically store or access personal information. Requirements include secure user authentication protocols with unique identifiers, mandatory password management, access control restrictions based on need-to-know, encryption of personal information transmitted over public and wireless networks, encryption on portable devices, reasonably up-to-date firewall protection, current security patches, and up-to-date system security agent software including anti-malware with current definitions.",
+    "ref_code": "17.04(1-8)",
+    "guidance": "Implement each of the eight technical requirements on all systems that store or access personal information. For authentication, enforce unique user IDs, strong password policies, and account lockout mechanisms. For access control, restrict data access to need-to-know users. Deploy encryption for data in transit over public and wireless networks and for data on portable devices. Maintain current firewall rules and apply operating system and application security patches promptly. Deploy and maintain anti-malware solutions with current definitions. Document implementation status of each requirement and conduct regular assessments.",
+    "category": "Technical Requirements",
+    "subcategory": "Mandatory Technical Controls",
+    "subcontrols": [
+      {
+        "name": "User Authentication and Access Control",
+        "description": "Implement secure user authentication protocols including unique user identification, reasonably complex passwords, restriction of access to currently active user accounts only, and automatic lockout after multiple failed authentication attempts. Restrict access to personal information to those users with a legitimate need-to-know.",
+        "ref_code": "17.04(1-8).1"
+      },
+      {
+        "name": "Encryption and Network Security",
+        "description": "Encrypt all personal information transmitted across public networks and wireless connections. Encrypt personal information stored on laptops and portable devices. Deploy and maintain reasonably up-to-date firewall protection for systems connected to the internet that store or access personal information.",
+        "ref_code": "17.04(1-8).2"
+      },
+      {
+        "name": "Patching, Anti-Malware, and Monitoring",
+        "description": "Maintain reasonably up-to-date versions of system security agent software including anti-malware with current patches and definitions. Apply operating system security patches promptly. Monitor systems for unauthorized access to or use of personal information.",
+        "ref_code": "17.04(1-8).3"
+      }
+    ]
+  },
+  {
+    "name": "Third-Party Service Provider Oversight",
+    "description": "Requires that the comprehensive information security program include provisions for overseeing third-party service providers who have access to personal information. Organizations must take reasonable steps to select and retain service providers capable of maintaining appropriate security measures consistent with the regulation. Contractual requirements must obligate providers to implement and maintain such measures, and organizations must verify ongoing compliance.",
+    "ref_code": "17.03(2)(f)",
+    "guidance": "Establish a formal third-party risk management program covering the full lifecycle of service provider relationships involving personal information. Conduct due diligence assessments prior to engaging service providers to evaluate their security capabilities. Include contractual provisions requiring providers to implement security measures consistent with 201 CMR 17.00. Monitor compliance through periodic assessments, audits, or certifications. Maintain an inventory of all service providers with access to personal information and the contractual safeguards in place.",
+    "category": "Administrative Requirements",
+    "subcategory": "Third-Party Oversight",
+    "subcontrols": [
+      {
+        "name": "Service Provider Due Diligence",
+        "description": "Conduct due diligence assessments of third-party service providers prior to granting access to personal information, evaluating the provider's security practices, incident history, certifications, and ability to maintain safeguards consistent with regulatory requirements.",
+        "ref_code": "17.03(2)(f).1"
+      },
+      {
+        "name": "Contractual Security Requirements",
+        "description": "Include contractual provisions requiring third-party service providers to implement and maintain appropriate security measures for the protection of personal information, specifying security obligations, incident notification requirements, audit rights, and data handling restrictions.",
+        "ref_code": "17.03(2)(f).2"
+      },
+      {
+        "name": "Ongoing Service Provider Monitoring",
+        "description": "Implement procedures for ongoing monitoring and periodic reassessment of third-party service providers to verify continued compliance with contractual security requirements and the adequacy of safeguards protecting personal information.",
+        "ref_code": "17.03(2)(f).3"
+      }
+    ]
+  }
+]

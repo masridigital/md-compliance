@@ -1,0 +1,756 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block page_header_title%}Security Violations{%endblock%}
+{%block page_header_title_border%}{%endblock%}
+{%block page_header_buttons%}{%endblock%}
+
+{%block content%}
+<div x-data="page()" x-init="init()">
+
+    <!-- ── Header Stats ── -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="stat bg-base-100 border rounded-xl p-4">
+            <div class="stat-title text-xs uppercase tracking-widest text-base-content/50">Total Violations</div>
+            <div class="stat-value text-2xl font-bold" x-text="violations.length"></div>
+        </div>
+        <div class="stat bg-base-100 border rounded-xl p-4">
+            <div class="stat-title text-xs uppercase tracking-widest text-base-content/50">Affected Jobs</div>
+            <div class="stat-value text-2xl font-bold" x-text="uniqueJobIds.length"></div>
+        </div>
+        <div class="stat bg-base-100 border rounded-xl p-4">
+            <div class="stat-title text-xs uppercase tracking-widest text-base-content/50">High Severity</div>
+            <div class="stat-value text-2xl font-bold text-error" x-text="violations.filter(v => v.severity === 'high').length"></div>
+        </div>
+        <div class="stat bg-base-100 border rounded-xl p-4">
+            <div class="stat-title text-xs uppercase tracking-widest text-base-content/50">Integrations</div>
+            <div class="stat-value text-2xl font-bold" x-text="uniqueIntegrations.length"></div>
+        </div>
+    </div>
+
+    <!-- ── Filters Bar ── -->
+    <div class="bg-base-100 border rounded-xl p-4 mb-4">
+        <div class="flex flex-wrap items-center gap-3">
+
+            <!-- Search -->
+            <div class="relative flex-1 min-w-48">
+                <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                    type="text"
+                    placeholder="Search task, integration, message..."
+                    class="input input-bordered input-sm w-full pl-9"
+                    x-model="filters.search"
+                    @input="page = 1">
+            </div>
+
+            <!-- Severity -->
+            <select class="select select-bordered select-sm w-36" x-model="filters.severity" @change="page = 1">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+
+            <!-- Integration -->
+            <select class="select select-bordered select-sm w-44" x-model="filters.integration" @change="page = 1">
+                <option value="">All Integrations</option>
+                <template x-for="name in uniqueIntegrations" :key="name">
+                    <option :value="name" x-text="name"></option>
+                </template>
+            </select>
+
+            <!-- Framework -->
+            <select class="select select-bordered select-sm w-40" x-model="filters.framework" @change="page = 1">
+                <option value="">All Frameworks</option>
+                <template x-for="fw in uniqueFrameworks" :key="fw">
+                    <option :value="fw" x-text="fw"></option>
+                </template>
+            </select>
+
+            <!-- Job ID -->
+            <input
+                type="text"
+                placeholder="Filter by Job ID..."
+                class="input input-bordered input-sm w-40 font-mono"
+                x-model="filters.jobId"
+                @input="page = 1">
+
+            <!-- Group toggle -->
+            <label class="flex items-center gap-2 cursor-pointer select-none text-sm ml-auto">
+                <span class="text-base-content/70">Group by Job</span>
+                <input type="checkbox" class="toggle toggle-sm toggle-primary" x-model="groupByJob">
+            </label>
+
+            <!-- Clear filters -->
+            <button
+                x-show="hasActiveFilters"
+                @click="clearFilters()"
+                class="btn btn-ghost btn-sm text-base-content/60"
+                x-cloak>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Clear
+            </button>
+
+            <!-- Reload -->
+            <button @click="loadViolations()" class="btn btn-ghost btn-sm" :disabled="loading">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{'animate-spin': loading}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Active filter chips -->
+        <div x-show="hasActiveFilters" class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-base-200" x-cloak>
+            <template x-if="filters.search">
+                <span class="badge badge-neutral gap-1 text-xs">
+                    "<span x-text="filters.search"></span>"
+                    <button @click="filters.search = ''; page = 1" class="ml-1 opacity-60 hover:opacity-100">✕</button>
+                </span>
+            </template>
+            <template x-if="filters.severity">
+                <span class="badge gap-1 text-xs" :class="severityBadgeClass(filters.severity)">
+                    <span x-text="filters.severity"></span>
+                    <button @click="filters.severity = ''; page = 1" class="ml-1 opacity-60 hover:opacity-100">✕</button>
+                </span>
+            </template>
+            <template x-if="filters.integration">
+                <span class="badge badge-info gap-1 text-xs">
+                    <span x-text="filters.integration"></span>
+                    <button @click="filters.integration = ''; page = 1" class="ml-1 opacity-60 hover:opacity-100">✕</button>
+                </span>
+            </template>
+            <template x-if="filters.framework">
+                <span class="badge badge-ghost gap-1 text-xs">
+                    <span x-text="filters.framework"></span>
+                    <button @click="filters.framework = ''; page = 1" class="ml-1 opacity-60 hover:opacity-100">✕</button>
+                </span>
+            </template>
+            <template x-if="filters.jobId">
+                <span class="badge badge-ghost gap-1 text-xs font-mono">
+                    Job: <span x-text="filters.jobId"></span>
+                    <button @click="filters.jobId = ''; page = 1" class="ml-1 opacity-60 hover:opacity-100">✕</button>
+                </span>
+            </template>
+            <span class="text-xs text-base-content/40 ml-auto self-center">
+                <span x-text="filteredViolations.length"></span> result(s)
+            </span>
+        </div>
+    </div>
+
+    <!-- ── Loading ── -->
+    <div x-show="loading" class="flex justify-center items-center py-16">
+        <span class="loading loading-spinner loading-lg"></span>
+    </div>
+
+    <!-- ── Error ── -->
+    <div x-show="error && !loading" class="alert alert-error mb-4" x-cloak>
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span x-text="error"></span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         FLAT TABLE VIEW
+    ════════════════════════════════════════════════════════ -->
+    <div x-show="!loading && !groupByJob" x-cloak>
+
+        <!-- Empty state -->
+        <div x-show="filteredViolations.length === 0" class="text-center py-16 text-base-content/40">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-lg font-medium">No violations found</p>
+            <p class="text-sm mt-1">Try adjusting your filters</p>
+        </div>
+
+        <!-- Table -->
+        <div x-show="filteredViolations.length > 0" class="border rounded-xl overflow-hidden">
+            <table class="table table-sm w-full">
+                <thead class="bg-base-200 text-xs uppercase tracking-widest text-base-content/60">
+                    <tr>
+                        <th class="py-3 px-4">
+                            <button class="flex items-center gap-1 hover:text-base-content transition-colors" @click="setSort('severity')">
+                                Severity
+                                <span x-show="sortField === 'severity'" x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-primary"></span>
+                            </button>
+                        </th>
+                        <th class="py-3 px-4">
+                            <button class="flex items-center gap-1 hover:text-base-content transition-colors" @click="setSort('task_name')">
+                                Task
+                                <span x-show="sortField === 'task_name'" x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-primary"></span>
+                            </button>
+                        </th>
+                        <th class="py-3 px-4">
+                            <button class="flex items-center gap-1 hover:text-base-content transition-colors" @click="setSort('integration_name')">
+                                Integration
+                                <span x-show="sortField === 'integration_name'" x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-primary"></span>
+                            </button>
+                        </th>
+                        <th class="py-3 px-4">
+                            <button class="flex items-center gap-1 hover:text-base-content transition-colors" @click="setSort('job_id')">
+                                Job ID
+                                <span x-show="sortField === 'job_id'" x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-primary"></span>
+                            </button>
+                        </th>
+                        <th class="py-3 px-4">Controls</th>
+                        <th class="py-3 px-4">Message</th>
+                        <th class="py-3 px-4">
+                            <button class="flex items-center gap-1 hover:text-base-content transition-colors" @click="setSort('timestamp')">
+                                Timestamp
+                                <span x-show="sortField === 'timestamp'" x-text="sortDir === 'asc' ? '↑' : '↓'" class="text-primary"></span>
+                            </button>
+                        </th>
+                        <th class="py-3 px-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="v in pagedViolations" :key="v.id">
+                        <tr class="hover border-b border-base-200 cursor-pointer" @click="openDetail(v)">
+                            <td class="px-4 py-3">
+                                <span class="badge badge-sm font-semibold" :class="severityBadgeClass(v.severity)" x-text="v.severity || '—'"></span>
+                            </td>
+                            <td class="px-4 py-3 font-mono text-xs font-semibold" x-text="v.task_name || '—'"></td>
+                            <td class="px-4 py-3">
+                                <span class="blue-badge text-xs" x-text="v.integration_name || '—'"></span>
+                            </td>
+                            <td class="px-4 py-3 font-mono text-xs text-base-content/60" x-text="v.job_id"></td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="ref in (v.control_references || [])" :key="ref.control_id">
+                                        <span class="badge badge-xs badge-ghost font-mono" x-text="ref.framework + ' ' + ref.control_id"></span>
+                                    </template>
+                                    <span x-show="!v.control_references || v.control_references.length === 0" class="text-base-content/30 text-xs">—</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-xs text-base-content/70 max-w-xs truncate" x-text="v.output?.message || v.description || '—'"></td>
+                            <td class="px-4 py-3 text-xs text-base-content/50 whitespace-nowrap" x-text="formatDate(v.timestamp)"></td>
+                            <td class="px-4 py-3" @click.stop>
+                                <button class="btn btn-xs btn-ghost" @click="openDetail(v)">View</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div x-show="totalPages > 1" class="flex justify-between items-center mt-4">
+            <div class="text-sm text-base-content/50">
+                Showing <span x-text="((page - 1) * perPage) + 1"></span>–<span x-text="Math.min(page * perPage, filteredViolations.length)"></span> of <span x-text="filteredViolations.length"></span>
+            </div>
+            <div class="join">
+                <button class="join-item btn btn-sm" @click="page--" :disabled="page === 1">«</button>
+                <button class="join-item btn btn-sm">Page <span x-text="page"></span> of <span x-text="totalPages"></span></button>
+                <button class="join-item btn btn-sm" @click="page++" :disabled="page === totalPages">»</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         GROUPED BY JOB VIEW
+    ════════════════════════════════════════════════════════ -->
+    <div x-show="!loading && groupByJob" x-cloak>
+
+        <!-- Expand / Collapse all -->
+        <div x-show="groupedJobs.length > 0" class="flex justify-end gap-2 mb-3">
+            <button class="btn btn-xs btn-ghost" @click="expandAll()">Expand all</button>
+            <button class="btn btn-xs btn-ghost" @click="collapseAll()">Collapse all</button>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="groupedJobs.length === 0" class="text-center py-16 text-base-content/40">
+            <p class="text-lg font-medium">No violations found</p>
+            <p class="text-sm mt-1">Try adjusting your filters</p>
+        </div>
+
+        <!-- Job groups -->
+        <div class="space-y-3">
+            <template x-for="group in groupedJobs" :key="group.job_id">
+                <div class="border rounded-xl overflow-hidden">
+
+                    <!-- Job group header row -->
+                    <div
+                        class="flex items-center gap-4 px-5 py-3 bg-base-200 cursor-pointer hover:bg-base-300 transition-colors select-none"
+                        @click="toggleGroup(group.job_id)">
+
+                        <!-- Expand chevron -->
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="h-4 w-4 text-base-content/40 transition-transform duration-200 flex-shrink-0"
+                             :class="{'rotate-90': expandedGroups.includes(group.job_id)}"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+
+                        <!-- Job ID -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-base-content/40 uppercase tracking-widest">Job</span>
+                            <span class="font-mono font-semibold text-sm" x-text="group.job_id"></span>
+                        </div>
+
+                        <!-- Integration badge -->
+                        <span class="blue-badge text-xs" x-text="group.integration_name"></span>
+
+                        <!-- Severity breakdown -->
+                        <div class="flex gap-1.5 ml-2">
+                            <template x-if="group.counts.critical > 0">
+                                <span class="badge badge-xs red-badge font-bold" x-text="group.counts.critical + ' critical'"></span>
+                            </template>
+                            <template x-if="group.counts.high > 0">
+                                <span class="badge badge-xs orange-badge font-bold" x-text="group.counts.high + ' high'"></span>
+                            </template>
+                            <template x-if="group.counts.medium > 0">
+                                <span class="badge badge-xs blue-badge font-bold" x-text="group.counts.medium + ' medium'"></span>
+                            </template>
+                            <template x-if="group.counts.low > 0">
+                                <span class="badge badge-xs gray-badge font-bold" x-text="group.counts.low + ' low'"></span>
+                            </template>
+                        </div>
+
+                        <!-- Total count -->
+                        <span class="ml-auto text-xs text-base-content/50 flex-shrink-0">
+                            <span x-text="group.violations.length"></span> violation<span x-show="group.violations.length !== 1">s</span>
+                        </span>
+
+                        <!-- Latest timestamp -->
+                        <span class="text-xs text-base-content/40 flex-shrink-0 hidden md:block" x-text="formatDate(group.latest_timestamp)"></span>
+                    </div>
+
+                    <!-- Violations sub-table (expanded) -->
+                    <div x-show="expandedGroups.includes(group.job_id)">
+                        <table class="table table-sm w-full">
+                            <thead class="bg-base-100 border-b border-base-200 text-xs uppercase tracking-widest text-base-content/40">
+                                <tr>
+                                    <th class="py-2 px-4">Severity</th>
+                                    <th class="py-2 px-4">Task</th>
+                                    <th class="py-2 px-4">Controls</th>
+                                    <th class="py-2 px-4">Message</th>
+                                    <th class="py-2 px-4">Timestamp</th>
+                                    <th class="py-2 px-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="v in group.violations" :key="v.id">
+                                    <tr class="hover border-b border-base-100 cursor-pointer" @click="openDetail(v)">
+                                        <td class="px-4 py-2.5">
+                                            <span class="badge badge-sm font-semibold" :class="severityBadgeClass(v.severity)" x-text="v.severity || '—'"></span>
+                                        </td>
+                                        <td class="px-4 py-2.5 font-mono text-xs font-semibold" x-text="v.task_name || '—'"></td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex flex-wrap gap-1">
+                                                <template x-for="ref in (v.control_references || [])" :key="ref.control_id">
+                                                    <span class="badge badge-xs badge-ghost font-mono" x-text="ref.framework + ' ' + ref.control_id"></span>
+                                                </template>
+                                                <span x-show="!v.control_references || v.control_references.length === 0" class="text-base-content/30 text-xs">—</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-xs text-base-content/70 max-w-sm truncate" x-text="v.output?.message || v.description || '—'"></td>
+                                        <td class="px-4 py-2.5 text-xs text-base-content/40 whitespace-nowrap" x-text="formatDate(v.timestamp)"></td>
+                                        <td class="px-4 py-2.5" @click.stop>
+                                            <button class="btn btn-xs btn-ghost" @click="openDetail(v)">View</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         DETAIL DRAWER
+    ════════════════════════════════════════════════════════ -->
+    <div
+        x-show="detailOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex justify-end"
+        style="display:none">
+
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeDetail()"></div>
+
+        <!-- Drawer panel -->
+        <div class="relative bg-base-100 h-full w-full max-w-2xl flex flex-col shadow-2xl" @click.stop>
+
+            <!-- Panel header -->
+            <div class="flex items-start justify-between px-6 py-4 border-b border-base-200 bg-base-200 flex-shrink-0">
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-3">
+                        <span class="badge font-semibold"
+                              :class="severityBadgeClass(selectedViolation?.severity)"
+                              x-text="selectedViolation?.severity || 'unknown'">
+                        </span>
+                        <span class="font-mono font-bold text-sm" x-text="selectedViolation?.task_name"></span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-base-content/50 mt-1">
+                        <span>Job <span class="font-mono" x-text="selectedViolation?.job_id"></span></span>
+                        <span>·</span>
+                        <span class="blue-badge" x-text="selectedViolation?.integration_name"></span>
+                        <span>·</span>
+                        <span x-text="formatDate(selectedViolation?.timestamp)"></span>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-ghost btn-square" @click="closeDetail()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Drawer tabs -->
+            <div class="flex gap-1 px-6 pt-3 border-b border-base-200 flex-shrink-0">
+                <button
+                    class="tab tab-bordered pb-3 text-sm"
+                    :class="{'tab-active font-semibold': detailTab === 'output'}"
+                    @click="detailTab = 'output'">
+                    Output
+                </button>
+                <button
+                    class="tab tab-bordered pb-3 text-sm"
+                    :class="{'tab-active font-semibold': detailTab === 'controls'}"
+                    @click="detailTab = 'controls'">
+                    Controls
+                </button>
+                <button
+                    class="tab tab-bordered pb-3 text-sm"
+                    :class="{'tab-active font-semibold': detailTab === 'meta'}"
+                    @click="detailTab = 'meta'">
+                    Meta / Raw
+                </button>
+            </div>
+
+            <!-- Drawer scrollable body -->
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+                <!-- OUTPUT TAB -->
+                <div x-show="detailTab === 'output'" class="space-y-4">
+                    <div x-show="selectedViolation?.output?.message">
+                        <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Message</p>
+                        <div class="bg-base-200 rounded-lg px-4 py-3 text-sm" x-text="selectedViolation?.output?.message"></div>
+                    </div>
+                    <div x-show="selectedViolation?.description">
+                        <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Description</p>
+                        <div class="bg-base-200 rounded-lg px-4 py-3 text-sm" x-text="selectedViolation?.description"></div>
+                    </div>
+                    <div x-show="selectedViolation?.output?.data">
+                        <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Output Data</p>
+                        <pre class="bg-base-200 rounded-lg p-4 text-xs overflow-x-auto"><code x-text="JSON.stringify(selectedViolation?.output?.data, null, 2)"></code></pre>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div x-show="selectedViolation?.environment">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Environment</p>
+                            <span class="gray-badge" x-text="selectedViolation?.environment"></span>
+                        </div>
+                        <div x-show="selectedViolation?.violation_type">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Violation Type</p>
+                            <span class="gray-badge" x-text="selectedViolation?.violation_type"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTROLS TAB -->
+                <div x-show="detailTab === 'controls'" class="space-y-3">
+                    <div
+                        x-show="!selectedViolation?.control_references || selectedViolation?.control_references.length === 0"
+                        class="text-center py-8 text-base-content/40">
+                        No control references for this violation.
+                    </div>
+                    <template x-for="ref in (selectedViolation?.control_references || [])" :key="ref.control_id">
+                        <div class="border border-base-200 rounded-xl p-4 flex items-center gap-4">
+                            <div class="bg-primary/10 text-primary font-mono font-bold text-sm rounded-lg px-3 py-2 flex-shrink-0" x-text="ref.control_id"></div>
+                            <div>
+                                <p class="text-xs uppercase tracking-widest text-base-content/40">Framework</p>
+                                <p class="font-semibold text-sm" x-text="ref.framework"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- META / RAW TAB -->
+                <div x-show="detailTab === 'meta'" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Violation ID</p>
+                            <p class="font-mono font-semibold" x-text="selectedViolation?.id"></p>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Job ID</p>
+                            <p class="font-mono font-semibold" x-text="selectedViolation?.job_id"></p>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Integration</p>
+                            <p class="font-semibold" x-text="selectedViolation?.integration_name"></p>
+                        </div>
+                        <div class="bg-base-200 rounded-lg p-3">
+                            <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Timestamp</p>
+                            <p class="text-xs" x-text="selectedViolation?.timestamp"></p>
+                        </div>
+                    </div>
+                    <div x-show="selectedViolation?.meta">
+                        <p class="text-xs uppercase tracking-widest text-base-content/40 mb-1">Meta</p>
+                        <pre class="bg-base-200 rounded-lg p-4 text-xs overflow-x-auto"><code x-text="JSON.stringify(selectedViolation?.meta, null, 2)"></code></pre>
+                    </div>
+                    <details class="collapse collapse-arrow bg-base-200 rounded-xl">
+                        <summary class="collapse-title text-sm font-semibold">Full JSON</summary>
+                        <div class="collapse-content">
+                            <pre class="text-xs overflow-x-auto pt-2"><code x-text="JSON.stringify(selectedViolation, null, 2)"></code></pre>
+                        </div>
+                    </details>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function page() {
+    return {
+        violations: [],
+        loading: false,
+        error: null,
+
+        // Filters
+        filters: {
+            search: '',
+            severity: '',
+            integration: '',
+            framework: '',
+            jobId: '',
+        },
+
+        // View mode
+        groupByJob: false,
+        expandedGroups: [],
+
+        // Sorting (flat view)
+        sortField: 'timestamp',
+        sortDir: 'desc',
+
+        // Pagination (flat view)
+        page: 1,
+        perPage: 25,
+
+        // Detail drawer
+        detailOpen: false,
+        selectedViolation: null,
+        detailTab: 'output',
+
+        // ── Lifecycle ─────────────────────────────────────────────────
+        async init() {
+            await this.loadViolations();
+        },
+
+        async loadViolations() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/violations`);
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.message || err.detail || `HTTP ${response.status}`);
+                }
+                this.violations = await response.json();
+            } catch (err) {
+                this.error = err.message;
+                console.error('Error loading violations:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── Derived: unique filter options ────────────────────────────
+        get uniqueIntegrations() {
+            return [...new Set(this.violations.map(v => v.integration_name).filter(Boolean))].sort();
+        },
+
+        get uniqueJobIds() {
+            return [...new Set(this.violations.map(v => v.job_id))];
+        },
+
+        get uniqueFrameworks() {
+            const fws = new Set();
+            this.violations.forEach(v => (v.control_references || []).forEach(r => fws.add(r.framework)));
+            return [...fws].sort();
+        },
+
+        get hasActiveFilters() {
+            return !!(this.filters.search || this.filters.severity || this.filters.integration || this.filters.framework || this.filters.jobId);
+        },
+
+        // ── Filtering + Sorting ───────────────────────────────────────
+        get filteredViolations() {
+            let results = this.violations;
+
+            if (this.filters.severity) {
+                results = results.filter(v => v.severity === this.filters.severity);
+            }
+            if (this.filters.integration) {
+                results = results.filter(v => v.integration_name === this.filters.integration);
+            }
+            if (this.filters.framework) {
+                results = results.filter(v =>
+                    (v.control_references || []).some(r => r.framework === this.filters.framework)
+                );
+            }
+            if (this.filters.jobId) {
+                const q = this.filters.jobId.toLowerCase();
+                results = results.filter(v => String(v.job_id).toLowerCase().includes(q));
+            }
+            if (this.filters.search) {
+                const q = this.filters.search.toLowerCase();
+                results = results.filter(v =>
+                    (v.task_name || '').toLowerCase().includes(q) ||
+                    (v.integration_name || '').toLowerCase().includes(q) ||
+                    (v.description || '').toLowerCase().includes(q) ||
+                    (v.output?.message || '').toLowerCase().includes(q) ||
+                    (v.violation_type || '').toLowerCase().includes(q) ||
+                    String(v.job_id).includes(q)
+                );
+            }
+
+            // Sort
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            results = [...results].sort((a, b) => {
+                let av = a[this.sortField];
+                let bv = b[this.sortField];
+                if (this.sortField === 'severity') {
+                    av = severityOrder[av] ?? 99;
+                    bv = severityOrder[bv] ?? 99;
+                }
+                if (av == null) return 1;
+                if (bv == null) return -1;
+                if (av < bv) return this.sortDir === 'asc' ? -1 : 1;
+                if (av > bv) return this.sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            return results;
+        },
+
+        // ── Pagination ────────────────────────────────────────────────
+        get pagedViolations() {
+            const start = (this.page - 1) * this.perPage;
+            return this.filteredViolations.slice(start, start + this.perPage);
+        },
+
+        get totalPages() {
+            return Math.max(1, Math.ceil(this.filteredViolations.length / this.perPage));
+        },
+
+        // ── Grouped view ──────────────────────────────────────────────
+        get groupedJobs() {
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            const map = new Map();
+
+            for (const v of this.filteredViolations) {
+                if (!map.has(v.job_id)) {
+                    map.set(v.job_id, {
+                        job_id: v.job_id,
+                        integration_name: v.integration_name,
+                        violations: [],
+                        counts: { critical: 0, high: 0, medium: 0, low: 0 },
+                        latest_timestamp: v.timestamp,
+                    });
+                }
+                const g = map.get(v.job_id);
+                g.violations.push(v);
+                if (v.severity && g.counts[v.severity] !== undefined) {
+                    g.counts[v.severity]++;
+                }
+                if (v.timestamp > g.latest_timestamp) {
+                    g.latest_timestamp = v.timestamp;
+                }
+            }
+
+            return [...map.values()].sort((a, b) => {
+                const worstSeverity = (counts) => {
+                    for (const s of ['critical', 'high', 'medium', 'low']) {
+                        if (counts[s] > 0) return severityOrder[s];
+                    }
+                    return 99;
+                };
+                const diff = worstSeverity(a.counts) - worstSeverity(b.counts);
+                if (diff !== 0) return diff;
+                return b.latest_timestamp > a.latest_timestamp ? 1 : -1;
+            });
+        },
+
+        toggleGroup(jobId) {
+            if (this.expandedGroups.includes(jobId)) {
+                this.expandedGroups = this.expandedGroups.filter(id => id !== jobId);
+            } else {
+                this.expandedGroups = [...this.expandedGroups, jobId];
+            }
+        },
+
+        expandAll() {
+            this.expandedGroups = this.groupedJobs.map(g => g.job_id);
+        },
+
+        collapseAll() {
+            this.expandedGroups = [];
+        },
+
+        // ── Sorting ───────────────────────────────────────────────────
+        setSort(field) {
+            if (this.sortField === field) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortField = field;
+                this.sortDir = field === 'timestamp' ? 'desc' : 'asc';
+            }
+            this.page = 1;
+        },
+
+        // ── Filters ───────────────────────────────────────────────────
+        clearFilters() {
+            this.filters.search = '';
+            this.filters.severity = '';
+            this.filters.integration = '';
+            this.filters.framework = '';
+            this.filters.jobId = '';
+            this.page = 1;
+        },
+
+        // ── Detail Drawer ─────────────────────────────────────────────
+        openDetail(violation) {
+            this.selectedViolation = violation;
+            this.detailTab = 'output';
+            this.detailOpen = true;
+        },
+
+        closeDetail() {
+            this.detailOpen = false;
+            this.selectedViolation = null;
+        },
+
+        // ── Helpers ───────────────────────────────────────────────────
+        severityBadgeClass(severity) {
+            const map = {
+                critical: 'red-badge',
+                high:     'orange-badge',
+                medium:   'yellow-badge',
+                low:      'green-badge',
+            };
+            return map[severity] || 'gray-badge';
+        },
+
+        formatDate(dateString) {
+            if (!dateString) return '—';
+            return new Date(dateString).toLocaleString();
+        },
+    };
+}
+</script>
+{%endblock%}

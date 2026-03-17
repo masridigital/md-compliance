@@ -1,0 +1,1516 @@
+{% extends "layouts/masri-base.html" %}
+
+{% block title %}Settings — {{ branding.app_name | default('Masri Digital Compliance') }}{% endblock %}
+
+{% block head %}
+<style>
+  /* macOS System Settings Layout */
+  .settings-layout {
+    display: flex;
+    gap: 0;
+    min-height: calc(100vh - 160px);
+    background: var(--surface-0);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* Left Sidebar */
+  .settings-sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface-1);
+    border-right: 1px solid var(--surface-3);
+    padding: var(--space-md) 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .settings-sidebar-header {
+    padding: var(--space-sm) var(--space-lg) var(--space-md);
+    font-size: var(--font-small);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+  }
+  .settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: 8px var(--space-lg);
+    margin: 0 var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-body);
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    user-select: none;
+    border: none;
+    background: none;
+    width: calc(100% - var(--space-md));
+    text-align: left;
+  }
+  .settings-nav-item:hover {
+    background: var(--surface-2);
+  }
+  .settings-nav-item.is-active {
+    background: var(--brand-primary);
+    color: #FFFFFF;
+  }
+  .settings-nav-item.is-active .settings-nav-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: #FFFFFF;
+  }
+  .settings-nav-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: background var(--transition-fast), color var(--transition-fast);
+  }
+  .settings-nav-icon-general { background: #E8E8ED; color: #6E6E73; }
+  .settings-nav-icon-branding { background: #E5D4F5; color: #7B2FBE; }
+  .settings-nav-icon-storage { background: #D4E8FB; color: #0066CC; }
+  .settings-nav-icon-llm { background: #D4F5E0; color: #1A7A32; }
+  .settings-nav-icon-sso { background: #FDE8D4; color: #B55A00; }
+  .settings-nav-icon-notifications { background: #FFE5E5; color: #CC0000; }
+  .settings-nav-icon-apikeys { background: #FFF4E5; color: #7D4A00; }
+
+  /* Right Content Panel */
+  .settings-content {
+    flex: 1;
+    padding: var(--space-xl);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--surface-0);
+  }
+  .settings-content-header {
+    margin-bottom: var(--space-xl);
+  }
+  .settings-content-header h2 {
+    font-size: var(--font-h1);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-xs) 0;
+  }
+  .settings-content-header p {
+    font-size: var(--font-body);
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* Form Groups */
+  .settings-form-group {
+    margin-bottom: var(--space-lg);
+  }
+  .settings-form-label {
+    display: block;
+    font-size: var(--font-small);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+  }
+  .settings-form-hint {
+    font-size: var(--font-caption);
+    color: var(--text-tertiary);
+    margin-top: 4px;
+  }
+  .settings-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+  }
+
+  /* Provider Card */
+  .settings-provider-card {
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-card);
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--surface-3);
+    transition: border-color var(--transition-fast);
+  }
+  .settings-provider-card.is-enabled {
+    border-color: var(--brand-primary);
+  }
+  .settings-provider-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+  }
+  .settings-provider-card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-weight: 600;
+    font-size: var(--font-body);
+    color: var(--text-primary);
+  }
+
+  /* Severity Matrix */
+  .severity-matrix {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+  }
+  .severity-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-small);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .severity-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand-primary);
+  }
+
+  /* Color Picker Wrapper */
+  .color-picker-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+  .color-picker-wrapper input[type="color"] {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #D1D1D6;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    padding: 2px;
+    background: var(--surface-1);
+  }
+
+  /* API Key Table */
+  .key-prefix {
+    font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+    font-size: var(--font-small);
+    background: var(--surface-2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text-primary);
+  }
+
+  /* Modal Overlay */
+  .settings-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .settings-modal {
+    background: var(--surface-1);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-modal);
+    width: 480px;
+    max-width: 90vw;
+    padding: var(--space-xl);
+  }
+  .settings-modal h3 {
+    font-size: var(--font-h2);
+    font-weight: 700;
+    margin: 0 0 var(--space-md) 0;
+    color: var(--text-primary);
+  }
+  .key-display {
+    font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+    font-size: var(--font-small);
+    background: var(--surface-2);
+    border: 1px solid var(--surface-3);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    word-break: break-all;
+    line-height: 1.5;
+    color: var(--text-primary);
+  }
+
+  /* Section Card */
+  .settings-section-card {
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Default radio */
+  .default-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--font-small);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .default-radio input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand-primary);
+  }
+
+  /* Save button row */
+  .settings-save-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    margin-top: var(--space-xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--surface-3);
+  }
+
+  /* Responsive: stack sidebar on small screens */
+  @media (max-width: 768px) {
+    .settings-layout {
+      flex-direction: column;
+      min-height: auto;
+    }
+    .settings-sidebar {
+      width: 100%;
+      min-width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--surface-3);
+      padding: var(--space-sm) 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      display: flex;
+      gap: 0;
+    }
+    .settings-sidebar-header {
+      display: none;
+    }
+    .settings-nav-item {
+      display: inline-flex;
+      width: auto;
+      margin: 0 2px;
+      padding: 8px 14px;
+      flex-shrink: 0;
+      font-size: var(--font-small);
+    }
+    .settings-nav-icon {
+      width: 24px;
+      height: 24px;
+      font-size: 13px;
+    }
+    .settings-content {
+      padding: var(--space-lg) var(--space-md);
+    }
+    .settings-form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="settingsHub()">
+
+  <!-- Page Header -->
+  <div class="md-page-header">
+    <div>
+      <h1 style="font-size: var(--font-h1); font-weight: 700; margin: 0;">Settings</h1>
+      <p style="color: var(--text-secondary); margin: var(--space-xs) 0 0 0; font-size: var(--font-small);">
+        Manage platform configuration and integrations
+      </p>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       macOS System Settings Layout
+       ================================================================ -->
+  <div class="settings-layout">
+
+    <!-- ─── Left Sidebar ─── -->
+    <div class="settings-sidebar">
+      <div class="settings-sidebar-header">Categories</div>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'general' }"
+              @click="activeSection = 'general'">
+        <span class="settings-nav-icon settings-nav-icon-general"><i class="ti ti-settings"></i></span>
+        General
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'branding' }"
+              @click="activeSection = 'branding'">
+        <span class="settings-nav-icon settings-nav-icon-branding"><i class="ti ti-palette"></i></span>
+        Branding
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'storage' }"
+              @click="activeSection = 'storage'">
+        <span class="settings-nav-icon settings-nav-icon-storage"><i class="ti ti-database"></i></span>
+        Storage
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'llm' }"
+              @click="activeSection = 'llm'">
+        <span class="settings-nav-icon settings-nav-icon-llm"><i class="ti ti-brain"></i></span>
+        LLM / AI
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'sso' }"
+              @click="activeSection = 'sso'">
+        <span class="settings-nav-icon settings-nav-icon-sso"><i class="ti ti-lock"></i></span>
+        SSO &amp; Auth
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'notifications' }"
+              @click="activeSection = 'notifications'">
+        <span class="settings-nav-icon settings-nav-icon-notifications"><i class="ti ti-bell"></i></span>
+        Notifications
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'apikeys' }"
+              @click="activeSection = 'apikeys'">
+        <span class="settings-nav-icon settings-nav-icon-apikeys"><i class="ti ti-key"></i></span>
+        API Keys
+      </button>
+    </div>
+
+    <!-- ─── Right Content Panel ─── -->
+    <div class="settings-content">
+
+      <!-- ============================================================
+           GENERAL
+           ============================================================ -->
+      <div x-show="activeSection === 'general'" x-cloak>
+        <div class="settings-content-header">
+          <h2>General</h2>
+          <p>Core platform settings such as application name, support contact, and branding assets.</p>
+        </div>
+
+        <div class="settings-section-card">
+          <div class="settings-form-row">
+            <div class="settings-form-group">
+              <label class="settings-form-label">Application Name</label>
+              <input type="text" class="md-input" x-model="platform.app_name"
+                     placeholder="Masri Digital Compliance">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Support Email</label>
+              <input type="email" class="md-input" x-model="platform.support_email"
+                     placeholder="support@masri.digital">
+            </div>
+          </div>
+
+          <div class="settings-form-row">
+            <div class="settings-form-group">
+              <label class="settings-form-label">Logo URL</label>
+              <input type="text" class="md-input" x-model="platform.logo_url"
+                     placeholder="https://cdn.example.com/logo.png">
+              <div class="settings-form-hint">Recommended: 200x40px PNG or SVG with transparent background</div>
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Favicon URL</label>
+              <input type="text" class="md-input" x-model="platform.favicon_url"
+                     placeholder="https://cdn.example.com/favicon.ico">
+              <div class="settings-form-hint">Recommended: 32x32px ICO or PNG</div>
+            </div>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Footer Text</label>
+            <input type="text" class="md-input" x-model="platform.footer_text"
+                   placeholder="&copy; 2026 Masri Digital. All rights reserved.">
+          </div>
+
+          <div class="settings-save-row">
+            <button class="md-btn md-btn-primary" @click="savePlatform()" :disabled="saving.platform">
+              <span x-show="!saving.platform">Save Changes</span>
+              <span x-show="saving.platform"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           BRANDING
+           ============================================================ -->
+      <div x-show="activeSection === 'branding'" x-cloak>
+        <div class="settings-content-header">
+          <h2>Branding</h2>
+          <p>Customize colors and login page appearance for your tenant.</p>
+        </div>
+
+        <div class="settings-section-card">
+          <div class="settings-form-group">
+            <label class="settings-form-label">Primary Brand Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" x-model="branding.primary_color"
+                     :value="branding.primary_color || '#0066CC'">
+              <input type="text" class="md-input" x-model="branding.primary_color"
+                     placeholder="#0066CC" style="max-width: 160px;">
+            </div>
+          </div>
+
+          <hr class="md-divider">
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Login Headline</label>
+            <input type="text" class="md-input" x-model="branding.login_headline"
+                   placeholder="Welcome to Masri Digital Compliance">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Login Sub-headline</label>
+            <input type="text" class="md-input" x-model="branding.login_subheadline"
+                   placeholder="Secure access to your compliance management platform">
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Login Background Color</label>
+            <div class="color-picker-wrapper">
+              <input type="color" x-model="branding.login_bg_color"
+                     :value="branding.login_bg_color || '#F5F5F7'">
+              <input type="text" class="md-input" x-model="branding.login_bg_color"
+                     placeholder="#F5F5F7" style="max-width: 160px;">
+            </div>
+          </div>
+
+          <div class="settings-save-row">
+            <button class="md-btn md-btn-primary" @click="saveBranding()" :disabled="saving.branding">
+              <span x-show="!saving.branding">Save Branding</span>
+              <span x-show="saving.branding"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           STORAGE
+           ============================================================ -->
+      <div x-show="activeSection === 'storage'" x-cloak>
+        <div class="settings-content-header">
+          <h2>Storage</h2>
+          <p>Configure file storage providers for document management.</p>
+        </div>
+
+        <!-- Local Storage -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': storage.local && storage.local.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-folder" style="font-size: 20px; color: var(--text-secondary);"></i>
+              Local File System
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <label class="default-radio">
+                <input type="radio" name="default_storage" value="local"
+                       x-model="storage.defaultProvider">
+                Default
+              </label>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="storage.local.enabled">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div x-show="storage.local && storage.local.enabled" x-collapse>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Base Path</label>
+              <input type="text" class="md-input" x-model="storage.local.base_path"
+                     placeholder="/var/data/documents">
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveStorage('local')" :disabled="saving.storage_local">
+                <span x-show="!saving.storage_local">Save</span>
+                <span x-show="saving.storage_local"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- S3 Storage -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': storage.s3 && storage.s3.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-brand-aws" style="font-size: 20px; color: #FF9900;"></i>
+              Amazon S3
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <label class="default-radio">
+                <input type="radio" name="default_storage" value="s3"
+                       x-model="storage.defaultProvider">
+                Default
+              </label>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="storage.s3.enabled">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div x-show="storage.s3 && storage.s3.enabled" x-collapse>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Bucket Name</label>
+                <input type="text" class="md-input" x-model="storage.s3.bucket"
+                       placeholder="my-compliance-bucket">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Region</label>
+                <input type="text" class="md-input" x-model="storage.s3.region"
+                       placeholder="us-east-1">
+              </div>
+            </div>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Access Key ID</label>
+                <input type="text" class="md-input" x-model="storage.s3.access_key"
+                       placeholder="AKIAIOSFODNN7EXAMPLE">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Secret Access Key</label>
+                <input type="password" class="md-input" x-model="storage.s3.secret_key"
+                       placeholder="Enter secret key">
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveStorage('s3')" :disabled="saving.storage_s3">
+                <span x-show="!saving.storage_s3">Save</span>
+                <span x-show="saving.storage_s3"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Azure Blob Storage -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': storage.azure && storage.azure.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-brand-azure" style="font-size: 20px; color: #0078D4;"></i>
+              Azure Blob Storage
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <label class="default-radio">
+                <input type="radio" name="default_storage" value="azure"
+                       x-model="storage.defaultProvider">
+                Default
+              </label>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="storage.azure.enabled">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div x-show="storage.azure && storage.azure.enabled" x-collapse>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Container Name</label>
+              <input type="text" class="md-input" x-model="storage.azure.container"
+                     placeholder="compliance-documents">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Connection String</label>
+              <input type="password" class="md-input" x-model="storage.azure.connection_string"
+                     placeholder="DefaultEndpointsProtocol=https;AccountName=...">
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveStorage('azure')" :disabled="saving.storage_azure">
+                <span x-show="!saving.storage_azure">Save</span>
+                <span x-show="saving.storage_azure"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SharePoint Storage -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': storage.sharepoint && storage.sharepoint.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-brand-office" style="font-size: 20px; color: #0078D4;"></i>
+              SharePoint
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <label class="default-radio">
+                <input type="radio" name="default_storage" value="sharepoint"
+                       x-model="storage.defaultProvider">
+                Default
+              </label>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="storage.sharepoint.enabled">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div x-show="storage.sharepoint && storage.sharepoint.enabled" x-collapse>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Site URL</label>
+                <input type="text" class="md-input" x-model="storage.sharepoint.site_url"
+                       placeholder="https://company.sharepoint.com/sites/compliance">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Document Library</label>
+                <input type="text" class="md-input" x-model="storage.sharepoint.library"
+                       placeholder="Documents">
+              </div>
+            </div>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client ID</label>
+                <input type="text" class="md-input" x-model="storage.sharepoint.client_id"
+                       placeholder="Application (client) ID">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client Secret</label>
+                <input type="password" class="md-input" x-model="storage.sharepoint.client_secret"
+                       placeholder="Enter client secret">
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveStorage('sharepoint')" :disabled="saving.storage_sharepoint">
+                <span x-show="!saving.storage_sharepoint">Save</span>
+                <span x-show="saving.storage_sharepoint"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Egnyte Storage -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': storage.egnyte && storage.egnyte.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-cloud" style="font-size: 20px; color: #00A4E4;"></i>
+              Egnyte
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <label class="default-radio">
+                <input type="radio" name="default_storage" value="egnyte"
+                       x-model="storage.defaultProvider">
+                Default
+              </label>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="storage.egnyte.enabled">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div x-show="storage.egnyte && storage.egnyte.enabled" x-collapse>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Domain</label>
+                <input type="text" class="md-input" x-model="storage.egnyte.domain"
+                       placeholder="company.egnyte.com">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Folder Path</label>
+                <input type="text" class="md-input" x-model="storage.egnyte.folder_path"
+                       placeholder="/Shared/Compliance">
+              </div>
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Access Token</label>
+              <input type="password" class="md-input" x-model="storage.egnyte.access_token"
+                     placeholder="Enter Egnyte access token">
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveStorage('egnyte')" :disabled="saving.storage_egnyte">
+                <span x-show="!saving.storage_egnyte">Save</span>
+                <span x-show="saving.storage_egnyte"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           LLM / AI
+           ============================================================ -->
+      <div x-show="activeSection === 'llm'" x-cloak>
+        <div class="settings-content-header">
+          <h2>LLM / AI</h2>
+          <p>Configure your AI language model provider, credentials, and usage limits.</p>
+        </div>
+
+        <div class="settings-section-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
+            <span class="settings-form-label" style="margin-bottom: 0;">Enable AI Features</span>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="llm.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+
+          <div x-show="llm.enabled">
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Provider</label>
+                <select class="md-select" x-model="llm.provider">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="azure_openai">Azure OpenAI</option>
+                  <option value="ollama">Ollama (Self-Hosted)</option>
+                </select>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Model Name</label>
+                <input type="text" class="md-input" x-model="llm.model_name"
+                       placeholder="gpt-4o">
+              </div>
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-form-label">API Key</label>
+              <input type="password" class="md-input" x-model="llm.api_key"
+                     placeholder="sk-...">
+              <div class="settings-form-hint">Your API key is encrypted at rest and never exposed in the UI.</div>
+            </div>
+
+            <!-- Azure OpenAI conditional fields -->
+            <template x-if="llm.provider === 'azure_openai'">
+              <div>
+                <div class="settings-form-row">
+                  <div class="settings-form-group">
+                    <label class="settings-form-label">Azure Endpoint</label>
+                    <input type="text" class="md-input" x-model="llm.azure_endpoint"
+                           placeholder="https://myresource.openai.azure.com">
+                  </div>
+                  <div class="settings-form-group">
+                    <label class="settings-form-label">Deployment Name</label>
+                    <input type="text" class="md-input" x-model="llm.azure_deployment"
+                           placeholder="gpt-4o-deployment">
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Ollama conditional field -->
+            <template x-if="llm.provider === 'ollama'">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Ollama Base URL</label>
+                <input type="text" class="md-input" x-model="llm.ollama_base_url"
+                       placeholder="http://localhost:11434">
+              </div>
+            </template>
+
+            <hr class="md-divider">
+
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Monthly Token Budget</label>
+                <input type="number" class="md-input" x-model.number="llm.token_budget"
+                       placeholder="1000000" min="0" step="10000">
+                <div class="settings-form-hint">Maximum tokens per month (0 = unlimited)</div>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Rate Limit (req/min)</label>
+                <input type="number" class="md-input" x-model.number="llm.rate_limit"
+                       placeholder="60" min="0">
+                <div class="settings-form-hint">Max requests per minute per user (0 = unlimited)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-save-row">
+            <button class="md-btn md-btn-primary" @click="saveLlm()" :disabled="saving.llm">
+              <span x-show="!saving.llm">Save AI Settings</span>
+              <span x-show="saving.llm"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           SSO & AUTH
+           ============================================================ -->
+      <div x-show="activeSection === 'sso'" x-cloak>
+        <div class="settings-content-header">
+          <h2>SSO &amp; Authentication</h2>
+          <p>Configure single sign-on, multi-factor authentication, and session policies.</p>
+        </div>
+
+        <div class="settings-section-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
+            <span class="settings-form-label" style="margin-bottom: 0;">Enable SSO</span>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="sso.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+
+          <div x-show="sso.enabled">
+            <div class="settings-form-group">
+              <label class="settings-form-label">SSO Provider</label>
+              <select class="md-select" x-model="sso.provider">
+                <option value="">Select provider...</option>
+                <option value="azure_ad">Azure AD (Entra ID)</option>
+                <option value="okta">Okta</option>
+                <option value="google">Google Workspace</option>
+                <option value="onelogin">OneLogin</option>
+                <option value="saml">Generic SAML 2.0</option>
+                <option value="oidc">Generic OIDC</option>
+              </select>
+            </div>
+
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client ID</label>
+                <input type="text" class="md-input" x-model="sso.client_id"
+                       placeholder="Application client ID">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client Secret</label>
+                <input type="password" class="md-input" x-model="sso.client_secret"
+                       placeholder="Enter client secret">
+              </div>
+            </div>
+
+            <div class="settings-form-group">
+              <label class="settings-form-label">Discovery URL / Metadata Endpoint</label>
+              <input type="text" class="md-input" x-model="sso.discovery_url"
+                     placeholder="https://login.microsoftonline.com/{tenant}/.well-known/openid-configuration">
+            </div>
+          </div>
+
+          <hr class="md-divider">
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <span class="settings-form-label" style="margin-bottom: 0;">Allow Local Password Fallback</span>
+                <div class="settings-form-hint" style="margin-top: 2px;">Users can still log in with email/password if SSO fails</div>
+              </div>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="sso.allow_local_fallback">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <span class="settings-form-label" style="margin-bottom: 0;">Require MFA</span>
+                <div class="settings-form-hint" style="margin-top: 2px;">Enforce multi-factor authentication for all users</div>
+              </div>
+              <label class="md-toggle">
+                <input type="checkbox" x-model="sso.mfa_required">
+                <span class="md-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+
+          <hr class="md-divider">
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Session Timeout (minutes)</label>
+            <input type="number" class="md-input" x-model.number="sso.session_timeout"
+                   placeholder="480" min="5" max="43200" style="max-width: 200px;">
+            <div class="settings-form-hint">Idle time before the user is logged out (default: 480 min = 8 hours)</div>
+          </div>
+
+          <div class="settings-save-row">
+            <button class="md-btn md-btn-primary" @click="saveSso()" :disabled="saving.sso">
+              <span x-show="!saving.sso">Save Auth Settings</span>
+              <span x-show="saving.sso"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           NOTIFICATIONS
+           ============================================================ -->
+      <div x-show="activeSection === 'notifications'" x-cloak>
+        <div class="settings-content-header">
+          <h2>Notifications</h2>
+          <p>Configure notification channels and severity routing.</p>
+        </div>
+
+        <!-- Microsoft Teams -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': notifications.teams && notifications.teams.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-brand-teams" style="font-size: 20px; color: #6264A7;"></i>
+              Microsoft Teams
+            </div>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="notifications.teams.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+          <div x-show="notifications.teams && notifications.teams.enabled" x-collapse>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Webhook URL</label>
+              <input type="text" class="md-input" x-model="notifications.teams.webhook_url"
+                     placeholder="https://outlook.office.com/webhook/...">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Severity Levels</label>
+              <div class="severity-matrix">
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.teams.severities" value="critical"> Critical
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.teams.severities" value="high"> High
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.teams.severities" value="medium"> Medium
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.teams.severities" value="low"> Low
+                </label>
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveNotifications('teams')" :disabled="saving.notif_teams">
+                <span x-show="!saving.notif_teams">Save</span>
+                <span x-show="saving.notif_teams"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': notifications.email && notifications.email.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-mail" style="font-size: 20px; color: var(--brand-primary);"></i>
+              Email (SMTP)
+            </div>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="notifications.email.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+          <div x-show="notifications.email && notifications.email.enabled" x-collapse>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">SMTP Host</label>
+                <input type="text" class="md-input" x-model="notifications.email.smtp_host"
+                       placeholder="smtp.gmail.com">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">SMTP Port</label>
+                <input type="number" class="md-input" x-model.number="notifications.email.smtp_port"
+                       placeholder="587">
+              </div>
+            </div>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Username</label>
+                <input type="text" class="md-input" x-model="notifications.email.smtp_username"
+                       placeholder="noreply@company.com">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Password</label>
+                <input type="password" class="md-input" x-model="notifications.email.smtp_password"
+                       placeholder="Enter SMTP password">
+              </div>
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">From Address</label>
+              <input type="email" class="md-input" x-model="notifications.email.from_address"
+                     placeholder="compliance@company.com">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Severity Levels</label>
+              <div class="severity-matrix">
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.email.severities" value="critical"> Critical
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.email.severities" value="high"> High
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.email.severities" value="medium"> Medium
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.email.severities" value="low"> Low
+                </label>
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveNotifications('email')" :disabled="saving.notif_email">
+                <span x-show="!saving.notif_email">Save</span>
+                <span x-show="saving.notif_email"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slack -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': notifications.slack && notifications.slack.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-brand-slack" style="font-size: 20px; color: #4A154B;"></i>
+              Slack
+            </div>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="notifications.slack.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+          <div x-show="notifications.slack && notifications.slack.enabled" x-collapse>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Webhook URL</label>
+              <input type="text" class="md-input" x-model="notifications.slack.webhook_url"
+                     placeholder="https://hooks.slack.com/services/T00.../B00.../xxxx">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Channel</label>
+              <input type="text" class="md-input" x-model="notifications.slack.channel"
+                     placeholder="#compliance-alerts">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Severity Levels</label>
+              <div class="severity-matrix">
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.slack.severities" value="critical"> Critical
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.slack.severities" value="high"> High
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.slack.severities" value="medium"> Medium
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.slack.severities" value="low"> Low
+                </label>
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveNotifications('slack')" :disabled="saving.notif_slack">
+                <span x-show="!saving.notif_slack">Save</span>
+                <span x-show="saving.notif_slack"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SMS -->
+        <div class="settings-provider-card" :class="{ 'is-enabled': notifications.sms && notifications.sms.enabled }">
+          <div class="settings-provider-card-header">
+            <div class="settings-provider-card-title">
+              <i class="ti ti-message" style="font-size: 20px; color: var(--success);"></i>
+              SMS (Twilio)
+            </div>
+            <label class="md-toggle">
+              <input type="checkbox" x-model="notifications.sms.enabled">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+          <div x-show="notifications.sms && notifications.sms.enabled" x-collapse>
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Account SID</label>
+                <input type="text" class="md-input" x-model="notifications.sms.account_sid"
+                       placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Auth Token</label>
+                <input type="password" class="md-input" x-model="notifications.sms.auth_token"
+                       placeholder="Enter Twilio auth token">
+              </div>
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">From Phone Number</label>
+              <input type="text" class="md-input" x-model="notifications.sms.from_number"
+                     placeholder="+15551234567">
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Severity Levels</label>
+              <div class="severity-matrix">
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.sms.severities" value="critical"> Critical
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.sms.severities" value="high"> High
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.sms.severities" value="medium"> Medium
+                </label>
+                <label class="severity-checkbox">
+                  <input type="checkbox" x-model="notifications.sms.severities" value="low"> Low
+                </label>
+              </div>
+            </div>
+            <div class="settings-save-row" style="border-top: none; margin-top: var(--space-md); padding-top: 0;">
+              <button class="md-btn md-btn-primary md-btn-sm" @click="saveNotifications('sms')" :disabled="saving.notif_sms">
+                <span x-show="!saving.notif_sms">Save</span>
+                <span x-show="saving.notif_sms"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           API KEYS
+           ============================================================ -->
+      <div x-show="activeSection === 'apikeys'" x-cloak>
+        <div class="settings-content-header">
+          <h2>API Keys</h2>
+          <p>Manage MCP API keys for external integrations and programmatic access.</p>
+        </div>
+
+        <div class="settings-section-card">
+          <!-- Generate New Key -->
+          <div style="display: flex; align-items: flex-end; gap: var(--space-md); margin-bottom: var(--space-xl);">
+            <div style="flex: 1;">
+              <label class="settings-form-label">Key Name</label>
+              <input type="text" class="md-input" x-model="newKeyName"
+                     placeholder="e.g. CI/CD Pipeline, Partner Integration"
+                     @keydown.enter="generateKey()">
+            </div>
+            <button class="md-btn md-btn-primary" @click="generateKey()" :disabled="!newKeyName.trim() || saving.generateKey">
+              <i class="ti ti-plus" style="font-size: 16px;"></i>
+              <span x-show="!saving.generateKey">Generate New Key</span>
+              <span x-show="saving.generateKey"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+          </div>
+
+          <!-- Keys Table -->
+          <div style="overflow-x: auto;">
+            <table class="md-table" x-show="mcpKeys.length > 0">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Key Prefix</th>
+                  <th>Created</th>
+                  <th>Last Used</th>
+                  <th>Status</th>
+                  <th style="width: 80px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="key in mcpKeys" :key="key.id">
+                  <tr>
+                    <td style="font-weight: 500;" x-text="key.name"></td>
+                    <td><span class="key-prefix" x-text="key.prefix + '...'"></span></td>
+                    <td style="font-size: var(--font-small); color: var(--text-secondary);" x-text="formatDate(key.created_at)"></td>
+                    <td style="font-size: var(--font-small); color: var(--text-secondary);" x-text="key.last_used_at ? formatDate(key.last_used_at) : 'Never'"></td>
+                    <td>
+                      <span class="md-status-pill"
+                            :class="key.is_active ? 'md-status-compliant' : 'md-status-non-compliant'"
+                            x-text="key.is_active ? 'Active' : 'Revoked'"></span>
+                    </td>
+                    <td>
+                      <button class="md-btn md-btn-ghost md-btn-sm" style="color: var(--danger); height: 32px; padding: 0 8px;"
+                              @click="deleteKey(key.id)"
+                              x-show="key.is_active"
+                              title="Revoke key">
+                        <i class="ti ti-trash" style="font-size: 16px;"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State -->
+          <div x-show="mcpKeys.length === 0" class="md-empty-state" style="padding: var(--space-xl);">
+            <i class="ti ti-key-off" style="font-size: 36px; color: var(--text-tertiary); margin-bottom: var(--space-md);"></i>
+            <h3>No API Keys</h3>
+            <p>Generate your first API key to enable programmatic access to the platform.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.settings-content -->
+  </div><!-- /.settings-layout -->
+
+  <!-- ================================================================
+       New Key Modal
+       ================================================================ -->
+  <div x-show="newKeyRaw !== null" x-cloak class="settings-modal-backdrop"
+       x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+    <div class="settings-modal" @click.away="newKeyRaw = null">
+      <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+        <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--status-compliant-bg); display: flex; align-items: center; justify-content: center;">
+          <i class="ti ti-check" style="font-size: 20px; color: var(--status-compliant-text);"></i>
+        </div>
+        <h3 style="margin: 0;">API Key Generated</h3>
+      </div>
+
+      <div class="md-alert md-alert-warning md-alert-block" style="margin-bottom: var(--space-lg);">
+        <i class="ti ti-alert-triangle" style="font-size: 16px; flex-shrink: 0;"></i>
+        <span>Copy this key now. It will not be shown again.</span>
+      </div>
+
+      <div class="key-display" x-text="newKeyRaw" style="margin-bottom: var(--space-lg);"></div>
+
+      <div style="display: flex; gap: var(--space-sm); justify-content: flex-end;">
+        <button class="md-btn md-btn-secondary md-btn-sm" @click="copyKey()">
+          <i class="ti ti-copy" style="font-size: 16px;"></i>
+          Copy to Clipboard
+        </button>
+        <button class="md-btn md-btn-primary md-btn-sm" @click="newKeyRaw = null">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function settingsHub() {
+  return {
+    activeSection: 'general',
+
+    /* Data models */
+    platform: {},
+    branding: {},
+    llm: {},
+    sso: {},
+    storage: {
+      defaultProvider: 'local',
+      local: { enabled: false, base_path: '' },
+      s3: { enabled: false, bucket: '', region: '', access_key: '', secret_key: '' },
+      azure: { enabled: false, container: '', connection_string: '' },
+      sharepoint: { enabled: false, site_url: '', library: '', client_id: '', client_secret: '' },
+      egnyte: { enabled: false, domain: '', folder_path: '', access_token: '' }
+    },
+    notifications: {
+      teams: { enabled: false, webhook_url: '', severities: [] },
+      email: { enabled: false, smtp_host: '', smtp_port: 587, smtp_username: '', smtp_password: '', from_address: '', severities: [] },
+      slack: { enabled: false, webhook_url: '', channel: '', severities: [] },
+      sms: { enabled: false, account_sid: '', auth_token: '', from_number: '', severities: [] }
+    },
+    mcpKeys: [],
+    newKeyName: '',
+    newKeyRaw: null,
+
+    /* Saving flags */
+    saving: {
+      platform: false,
+      branding: false,
+      llm: false,
+      sso: false,
+      storage_local: false,
+      storage_s3: false,
+      storage_azure: false,
+      storage_sharepoint: false,
+      storage_egnyte: false,
+      notif_teams: false,
+      notif_email: false,
+      notif_slack: false,
+      notif_sms: false,
+      generateKey: false
+    },
+
+    /* ── Lifecycle ── */
+    init() {
+      this.loadAll();
+    },
+
+    loadAll() {
+      this.loadPlatform();
+      this.loadBranding();
+      this.loadLlm();
+      this.loadSso();
+      this.loadStorage();
+      this.loadNotifications();
+      this.loadMcpKeys();
+    },
+
+    /* ── Loaders ── */
+    loadPlatform() {
+      request('GET', '/api/v1/settings/platform', (data) => {
+        this.platform = data || {};
+      }, () => {});
+    },
+
+    loadBranding() {
+      const tenantId = this.getTenantId();
+      if (!tenantId) return;
+      request('GET', `/api/v1/settings/tenants/${tenantId}/branding`, (data) => {
+        this.branding = data || {};
+      }, () => {});
+    },
+
+    loadLlm() {
+      request('GET', '/api/v1/settings/llm', (data) => {
+        this.llm = data || {};
+      }, () => {});
+    },
+
+    loadSso() {
+      request('GET', '/api/v1/settings/sso', (data) => {
+        this.sso = data || {};
+      }, () => {});
+    },
+
+    loadStorage() {
+      request('GET', '/api/v1/settings/storage', (data) => {
+        if (data) {
+          this.storage = Object.assign({}, this.storage, data);
+        }
+      }, () => {});
+    },
+
+    loadNotifications() {
+      const channels = ['teams', 'email', 'slack', 'sms'];
+      channels.forEach(channel => {
+        request('GET', `/api/v1/settings/notifications/${channel}`, (data) => {
+          if (data) {
+            this.notifications[channel] = Object.assign({}, this.notifications[channel], data);
+          }
+        }, () => {});
+      });
+    },
+
+    loadMcpKeys() {
+      request('GET', '/api/v1/settings/mcp-keys', (data) => {
+        this.mcpKeys = data || [];
+      }, () => {});
+    },
+
+    /* ── Savers ── */
+    savePlatform() {
+      this.saving.platform = true;
+      request('PUT', '/api/v1/settings/platform', (data) => {
+        this.saving.platform = false;
+        this.platform = data || this.platform;
+        Alpine.store('app').showToast('Platform settings saved', 'success');
+      }, (err) => {
+        this.saving.platform = false;
+        Alpine.store('app').showToast('Failed to save platform settings', 'error');
+      }, this.platform);
+    },
+
+    saveBranding() {
+      const tenantId = this.getTenantId();
+      if (!tenantId) {
+        Alpine.store('app').showToast('No tenant selected', 'error');
+        return;
+      }
+      this.saving.branding = true;
+      request('PUT', `/api/v1/settings/tenants/${tenantId}/branding`, (data) => {
+        this.saving.branding = false;
+        this.branding = data || this.branding;
+        Alpine.store('app').showToast('Branding saved', 'success');
+      }, (err) => {
+        this.saving.branding = false;
+        Alpine.store('app').showToast('Failed to save branding', 'error');
+      }, this.branding);
+    },
+
+    saveStorage(provider) {
+      const flagKey = 'storage_' + provider;
+      this.saving[flagKey] = true;
+      const payload = Object.assign({}, this.storage[provider], { default: this.storage.defaultProvider === provider });
+      request('PUT', `/api/v1/settings/storage/${provider}`, (data) => {
+        this.saving[flagKey] = false;
+        Alpine.store('app').showToast(`${this.providerLabel(provider)} storage saved`, 'success');
+      }, (err) => {
+        this.saving[flagKey] = false;
+        Alpine.store('app').showToast(`Failed to save ${this.providerLabel(provider)} storage`, 'error');
+      }, payload);
+    },
+
+    saveLlm() {
+      this.saving.llm = true;
+      request('PUT', '/api/v1/settings/llm', (data) => {
+        this.saving.llm = false;
+        this.llm = data || this.llm;
+        Alpine.store('app').showToast('AI settings saved', 'success');
+      }, (err) => {
+        this.saving.llm = false;
+        Alpine.store('app').showToast('Failed to save AI settings', 'error');
+      }, this.llm);
+    },
+
+    saveSso() {
+      this.saving.sso = true;
+      request('PUT', '/api/v1/settings/sso', (data) => {
+        this.saving.sso = false;
+        this.sso = data || this.sso;
+        Alpine.store('app').showToast('Auth settings saved', 'success');
+      }, (err) => {
+        this.saving.sso = false;
+        Alpine.store('app').showToast('Failed to save auth settings', 'error');
+      }, this.sso);
+    },
+
+    saveNotifications(channel) {
+      const flagKey = 'notif_' + channel;
+      this.saving[flagKey] = true;
+      request('PUT', `/api/v1/settings/notifications/${channel}`, (data) => {
+        this.saving[flagKey] = false;
+        Alpine.store('app').showToast(`${this.channelLabel(channel)} notifications saved`, 'success');
+      }, (err) => {
+        this.saving[flagKey] = false;
+        Alpine.store('app').showToast(`Failed to save ${this.channelLabel(channel)} notifications`, 'error');
+      }, this.notifications[channel]);
+    },
+
+    /* ── API Keys ── */
+    generateKey() {
+      if (!this.newKeyName.trim()) return;
+      this.saving.generateKey = true;
+      request('POST', '/api/v1/settings/mcp-keys', (data) => {
+        this.saving.generateKey = false;
+        if (data && data.raw_key) {
+          this.newKeyRaw = data.raw_key;
+        }
+        this.newKeyName = '';
+        this.loadMcpKeys();
+      }, (err) => {
+        this.saving.generateKey = false;
+        Alpine.store('app').showToast('Failed to generate API key', 'error');
+      }, { name: this.newKeyName.trim() });
+    },
+
+    deleteKey(keyId) {
+      if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) return;
+      request('DELETE', `/api/v1/settings/mcp-keys/${keyId}`, () => {
+        Alpine.store('app').showToast('API key revoked', 'success');
+        this.loadMcpKeys();
+      }, () => {
+        Alpine.store('app').showToast('Failed to revoke API key', 'error');
+      });
+    },
+
+    copyKey() {
+      if (this.newKeyRaw && navigator.clipboard) {
+        navigator.clipboard.writeText(this.newKeyRaw).then(() => {
+          Alpine.store('app').showToast('Copied to clipboard', 'success');
+        }).catch(() => {
+          Alpine.store('app').showToast('Failed to copy', 'error');
+        });
+      }
+    },
+
+    /* ── Helpers ── */
+    getTenantId() {
+      try {
+        return Alpine.store('currentUser')?.selectedTenant?.id || null;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    formatDate(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+
+    providerLabel(provider) {
+      const labels = { local: 'Local', s3: 'S3', azure: 'Azure', sharepoint: 'SharePoint', egnyte: 'Egnyte' };
+      return labels[provider] || provider;
+    },
+
+    channelLabel(channel) {
+      const labels = { teams: 'Teams', email: 'Email', slack: 'Slack', sms: 'SMS' };
+      return labels[channel] || channel;
+    }
+  };
+}
+</script>
+{% endblock %}

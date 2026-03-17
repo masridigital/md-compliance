@@ -1,0 +1,959 @@
+{% extends "layouts/masri-base.html" %}
+
+{% block title %}Compliance Frameworks — {{ branding.app_name | default('Masri Digital Compliance') }}{% endblock %}
+
+{% block content %}
+<div x-data="complianceView()" x-init="init()">
+
+  <!-- ================================================================
+       Page Header
+       ================================================================ -->
+  <div class="md-page-header">
+    <div>
+      <h1 style="font-size: var(--font-display); font-weight: 700; color: var(--text-primary); margin: 0; letter-spacing: -0.5px;">
+        Compliance Frameworks
+      </h1>
+      <p style="color: var(--text-secondary); margin: var(--space-xs) 0 0 0; font-size: var(--font-body);">
+        <span x-show="frameworks.length > 0" x-text="frameworks.length + ' active framework' + (frameworks.length !== 1 ? 's' : '')"></span>
+        <span x-show="frameworks.length === 0">No frameworks assigned yet</span>
+      </p>
+    </div>
+    <div class="md-page-header-actions">
+      <button class="md-btn md-btn-secondary md-btn-sm" @click="loadFrameworks()" title="Refresh">
+        <i class="ti ti-refresh" style="font-size: 16px;"></i>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       Loading State
+       ================================================================ -->
+  <template x-if="loading">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-3xl);">
+      <div class="md-spinner" style="width: 32px; height: 32px; margin-bottom: var(--space-md);"></div>
+      <span style="color: var(--text-secondary); font-size: var(--font-body);">Loading frameworks...</span>
+    </div>
+  </template>
+
+  <!-- ================================================================
+       Empty State
+       ================================================================ -->
+  <template x-if="!loading && frameworks.length === 0">
+    <div class="md-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9l2 2 4-4"/>
+      </svg>
+      <h3>No compliance frameworks</h3>
+      <p>Assign a compliance framework to this client in Settings to begin tracking controls.</p>
+    </div>
+  </template>
+
+  <template x-if="!loading && frameworks.length > 0">
+    <div>
+
+      <!-- ================================================================
+           Framework Selector — Horizontal Scrollable Row
+           ================================================================ -->
+      <div style="margin-bottom: var(--space-xl); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: var(--space-xs);"
+           class="md-framework-scroller">
+        <div style="display: flex; gap: var(--space-sm); min-width: min-content;">
+          <template x-for="fw in frameworks" :key="fw.id">
+            <button @click="selectFramework(fw)"
+                    class="md-card"
+                    :style="selectedFramework && selectedFramework.id === fw.id
+                      ? 'border: 2px solid var(--brand-primary); padding: calc(var(--space-md) - 2px) calc(var(--space-lg) - 2px); cursor: pointer; min-width: 200px; text-align: left; background: var(--brand-light); transition: all var(--transition-normal);'
+                      : 'border: 2px solid transparent; padding: var(--space-md) var(--space-lg); cursor: pointer; min-width: 200px; text-align: left; transition: all var(--transition-normal);'">
+              <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm);">
+                <div style="width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"
+                     :style="selectedFramework && selectedFramework.id === fw.id ? 'background: var(--brand-primary); color: #fff;' : 'background: var(--brand-light); color: var(--brand-primary);'">
+                  <i class="ti ti-clipboard-check" style="font-size: 16px;"></i>
+                </div>
+                <span style="font-weight: 600; font-size: var(--font-body); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                      x-text="fw.name"></span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-sm);">
+                <div class="md-progress-bar" style="flex: 1; height: 6px;">
+                  <div class="md-progress-fill"
+                       :style="'width: ' + (fw.compliance_pct || 0) + '%;' +
+                         ((fw.compliance_pct || 0) >= 80 ? 'background: var(--success);' :
+                          (fw.compliance_pct || 0) >= 50 ? 'background: var(--warning);' :
+                          'background: var(--danger);')">
+                  </div>
+                </div>
+                <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-primary); min-width: 36px; text-align: right;"
+                      x-text="(fw.compliance_pct || 0) + '%'"></span>
+              </div>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- ================================================================
+           Compliance Overview — Donut Chart + Summary Stats
+           ================================================================ -->
+      <div style="display: grid; grid-template-columns: 200px 1fr; gap: var(--space-lg); margin-bottom: var(--space-xl); align-items: start;"
+           class="md-compliance-overview">
+
+        <!-- Donut Chart -->
+        <div class="md-card" style="display: flex; flex-direction: column; align-items: center; padding: var(--space-lg);">
+          <div style="position: relative; width: 140px; height: 140px;">
+            <svg viewBox="0 0 36 36" style="width: 140px; height: 140px; transform: rotate(-90deg);">
+              <!-- Background circle -->
+              <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--surface-3)" stroke-width="2.5"/>
+              <!-- Compliant arc (green) -->
+              <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--success)" stroke-width="2.5"
+                      :stroke-dasharray="donutCompliant + ' ' + (100 - donutCompliant)"
+                      stroke-dashoffset="0"
+                      style="transition: stroke-dasharray var(--transition-slow);"/>
+              <!-- Partial arc (yellow) -->
+              <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--warning)" stroke-width="2.5"
+                      :stroke-dasharray="donutPartial + ' ' + (100 - donutPartial)"
+                      :stroke-dashoffset="'-' + donutCompliant"
+                      style="transition: stroke-dasharray var(--transition-slow), stroke-dashoffset var(--transition-slow);"/>
+              <!-- Non-Compliant arc (red) -->
+              <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--danger)" stroke-width="2.5"
+                      :stroke-dasharray="donutNonCompliant + ' ' + (100 - donutNonCompliant)"
+                      :stroke-dashoffset="'-' + (donutCompliant + donutPartial)"
+                      style="transition: stroke-dasharray var(--transition-slow), stroke-dashoffset var(--transition-slow);"/>
+            </svg>
+            <!-- Center text -->
+            <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <span style="font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1;"
+                    x-text="stats.total > 0 ? Math.round((stats.compliant / stats.total) * 100) + '%' : '—'"></span>
+              <span style="font-size: var(--font-caption); color: var(--text-secondary); margin-top: 2px;">Compliant</span>
+            </div>
+          </div>
+          <!-- Legend -->
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-md); width: 100%;">
+            <div style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small);">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--success); flex-shrink: 0;"></span>
+              <span style="color: var(--text-secondary); flex: 1;">Compliant</span>
+              <span style="font-weight: 600; color: var(--text-primary);" x-text="stats.compliant"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small);">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--warning); flex-shrink: 0;"></span>
+              <span style="color: var(--text-secondary); flex: 1;">Partial</span>
+              <span style="font-weight: 600; color: var(--text-primary);" x-text="stats.partial"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small);">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--danger); flex-shrink: 0;"></span>
+              <span style="color: var(--text-secondary); flex: 1;">Non-Compliant</span>
+              <span style="font-weight: 600; color: var(--text-primary);" x-text="stats.non_compliant"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small);">
+              <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--surface-3); flex-shrink: 0;"></span>
+              <span style="color: var(--text-secondary); flex: 1;">Not Assessed</span>
+              <span style="font-weight: 600; color: var(--text-primary);" x-text="stats.not_assessed"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary Stats + Overall Progress -->
+        <div>
+          <div class="md-stat-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); margin-bottom: var(--space-lg);">
+            <!-- Total Controls -->
+            <div class="md-stat-card">
+              <div style="font-size: 32px; font-weight: 700; color: var(--text-primary); line-height: 1;" x-text="stats.total">0</div>
+              <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Total Controls</div>
+            </div>
+            <!-- Compliant -->
+            <div class="md-stat-card">
+              <div style="font-size: 32px; font-weight: 700; color: var(--success); line-height: 1;" x-text="stats.compliant">0</div>
+              <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Compliant</div>
+              <div style="font-size: var(--font-caption); color: var(--success); font-weight: 600; margin-top: 2px;"
+                   x-text="stats.total > 0 ? Math.round((stats.compliant / stats.total) * 100) + '%' : '—'"></div>
+            </div>
+            <!-- Partial -->
+            <div class="md-stat-card">
+              <div style="font-size: 32px; font-weight: 700; color: var(--warning); line-height: 1;" x-text="stats.partial">0</div>
+              <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Partial</div>
+              <div style="font-size: var(--font-caption); color: var(--warning); font-weight: 600; margin-top: 2px;"
+                   x-text="stats.total > 0 ? Math.round((stats.partial / stats.total) * 100) + '%' : '—'"></div>
+            </div>
+            <!-- Non-Compliant -->
+            <div class="md-stat-card">
+              <div style="font-size: 32px; font-weight: 700; color: var(--danger); line-height: 1;" x-text="stats.non_compliant">0</div>
+              <div style="font-size: var(--font-small); color: var(--text-secondary); margin-top: 4px;">Non-Compliant</div>
+              <div style="font-size: var(--font-caption); color: var(--danger); font-weight: 600; margin-top: 2px;"
+                   x-text="stats.total > 0 ? Math.round((stats.non_compliant / stats.total) * 100) + '%' : '—'"></div>
+            </div>
+          </div>
+
+          <!-- Overall Progress Bar -->
+          <div class="md-card" style="padding: var(--space-md) var(--space-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+              <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-secondary);">Overall Compliance</span>
+              <span style="font-size: var(--font-small); font-weight: 700; color: var(--text-primary);"
+                    x-text="overallPct + '%'"></span>
+            </div>
+            <div class="md-progress-bar" style="height: 10px;">
+              <div class="md-progress-fill"
+                   :style="'width: ' + overallPct + '%;' +
+                     (overallPct >= 80 ? 'background: var(--success);' :
+                      overallPct >= 50 ? 'background: var(--warning);' :
+                      'background: var(--danger);')">
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================================================================
+           Filter / Search Bar
+           ================================================================ -->
+      <div class="md-filter-bar" style="display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); align-items: center;">
+        <!-- Text Search -->
+        <div style="position: relative; flex: 1; min-width: 220px;">
+          <i class="ti ti-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 16px; color: var(--text-tertiary);"></i>
+          <input type="text" class="md-input" placeholder="Search controls by name or code..."
+                 x-model="search"
+                 style="padding-left: 36px;">
+        </div>
+
+        <!-- Status Filter -->
+        <select class="md-select" x-model="statusFilter" style="width: auto; min-width: 160px;">
+          <option value="all">All Statuses</option>
+          <option value="compliant">Compliant</option>
+          <option value="partial">Partial</option>
+          <option value="non_compliant">Non-Compliant</option>
+          <option value="not_assessed">Not Assessed</option>
+        </select>
+
+        <!-- Category Filter -->
+        <select class="md-select" x-model="categoryFilter" style="width: auto; min-width: 160px;">
+          <option value="all">All Categories</option>
+          <template x-for="cat in categories" :key="cat">
+            <option :value="cat" x-text="cat"></option>
+          </template>
+        </select>
+
+        <!-- Sort -->
+        <select class="md-select" x-model="sortBy" style="width: auto; min-width: 140px;">
+          <option value="ref_code">Sort: Ref Code</option>
+          <option value="name">Sort: Name</option>
+          <option value="status">Sort: Status</option>
+          <option value="last_updated">Sort: Last Updated</option>
+        </select>
+      </div>
+
+      <!-- Active Filters Summary -->
+      <div x-show="search || statusFilter !== 'all' || categoryFilter !== 'all'"
+           style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); flex-wrap: wrap;">
+        <span style="font-size: var(--font-small); color: var(--text-secondary);">Showing</span>
+        <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-primary);"
+              x-text="filteredControls.length + ' of ' + controls.length + ' controls'"></span>
+        <button class="md-btn md-btn-ghost md-btn-sm" @click="search = ''; statusFilter = 'all'; categoryFilter = 'all';"
+                style="margin-left: auto; height: 28px; font-size: var(--font-small);">
+          <i class="ti ti-x" style="font-size: 14px;"></i> Clear Filters
+        </button>
+      </div>
+
+      <!-- ================================================================
+           Controls List — Grouped by Category (Accordion)
+           ================================================================ -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+
+        <!-- No Results -->
+        <div x-show="Object.keys(groupedByCategory).length === 0 && !loadingControls"
+             class="md-empty-state" style="padding: var(--space-xl);">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <h3 style="font-size: var(--font-body);">No controls match your filters</h3>
+          <p style="font-size: var(--font-small);">Try adjusting your search or filter criteria.</p>
+        </div>
+
+        <!-- Loading Controls Skeleton -->
+        <div x-show="loadingControls" style="display: flex; flex-direction: column; gap: var(--space-sm);">
+          <template x-for="i in 3" :key="'skel-' + i">
+            <div class="md-skeleton" style="height: 60px; border-radius: var(--radius-md);"></div>
+          </template>
+        </div>
+
+        <!-- Category Accordions -->
+        <template x-for="(catControls, catName) in groupedByCategory" :key="catName">
+          <div class="md-accordion-item">
+            <!-- Category Header -->
+            <div class="md-accordion-header"
+                 @click="toggleCategory(catName)"
+                 style="gap: var(--space-md);">
+              <div style="display: flex; align-items: center; gap: var(--space-md); flex: 1; min-width: 0;">
+                <!-- Chevron -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink: 0; transition: transform var(--transition-fast);"
+                     :style="expandedCategories[catName] ? 'transform: rotate(90deg);' : ''">
+                  <path d="M6 4l4 4-4 4" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <!-- Category Name -->
+                <span style="font-weight: 600; font-size: var(--font-body); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                      x-text="catName"></span>
+                <!-- Control Count Badge -->
+                <span class="md-badge" style="background: var(--surface-2); color: var(--text-secondary);"
+                      x-text="catControls.length + ' control' + (catControls.length !== 1 ? 's' : '')"></span>
+              </div>
+              <!-- Category Progress Bar -->
+              <div style="display: flex; align-items: center; gap: var(--space-sm); width: 160px; flex-shrink: 0;">
+                <div class="md-progress-bar" style="flex: 1; height: 6px;">
+                  <div class="md-progress-fill"
+                       :style="'width: ' + categoryCompliancePct(catControls) + '%;' +
+                         (categoryCompliancePct(catControls) >= 80 ? 'background: var(--success);' :
+                          categoryCompliancePct(catControls) >= 50 ? 'background: var(--warning);' :
+                          'background: var(--danger);')">
+                  </div>
+                </div>
+                <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-primary); min-width: 32px; text-align: right;"
+                      x-text="categoryCompliancePct(catControls) + '%'"></span>
+              </div>
+            </div>
+
+            <!-- Category Body — Control Rows -->
+            <div x-show="expandedCategories[catName]" x-transition.duration.200ms>
+              <div class="md-accordion-body" style="padding-top: 0;">
+                <template x-for="control in catControls" :key="control.id || control.ref_code">
+                  <div @click="openControlDetail(control)"
+                       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); cursor: pointer; transition: background var(--transition-fast); border-bottom: 1px solid var(--surface-2);"
+                       :style="selectedControl && selectedControl.id === control.id ? 'background: var(--brand-light);' : ''"
+                       @mouseenter="$el.style.background = 'var(--surface-2)'"
+                       @mouseleave="$el.style.background = selectedControl && selectedControl.id === control.id ? 'var(--brand-light)' : ''">
+                    <!-- Ref Code -->
+                    <span style="font-size: var(--font-small); font-weight: 600; color: var(--brand-primary); min-width: 80px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"
+                          x-text="control.ref_code"></span>
+                    <!-- Name -->
+                    <span style="flex: 1; font-size: var(--font-body); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                          x-text="control.name"></span>
+                    <!-- Status Badge -->
+                    <span class="md-status-pill"
+                          :class="statusClass(control.status)"
+                          x-text="statusLabel(control.status)"
+                          style="flex-shrink: 0;"></span>
+                    <!-- Assigned Avatar -->
+                    <div x-show="control.assigned_to" class="md-avatar" style="width: 28px; height: 28px; font-size: var(--font-caption); flex-shrink: 0;"
+                         :title="control.assigned_to_name || control.assigned_to"
+                         x-text="control.assigned_to_name ? control.assigned_to_name.charAt(0).toUpperCase() : '?'"></div>
+                    <!-- Last Updated -->
+                    <span style="font-size: var(--font-small); color: var(--text-tertiary); min-width: 75px; text-align: right; flex-shrink: 0;"
+                          class="md-hide-on-mobile"
+                          x-text="control.last_updated ? formatDate(control.last_updated) : '—'"></span>
+                    <!-- Chevron -->
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink: 0;">
+                      <path d="M5 3l4 4-4 4" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+
+      </div>
+
+    </div>
+  </template>
+
+  <!-- ================================================================
+       Control Detail — Slide Panel (teleported to body)
+       ================================================================ -->
+  <template x-teleport="body">
+    <div x-show="detailOpen" x-cloak style="position: fixed; inset: 0; z-index: 999;">
+      <!-- Backdrop -->
+      <div @click="closeDetail()" style="position: fixed; inset: 0; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"
+           x-show="detailOpen"
+           x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+      <!-- Panel -->
+      <div class="md-slide-panel"
+           x-show="detailOpen"
+           x-transition:enter="transition ease-out duration-250" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+           style="width: 520px;">
+
+        <!-- Panel Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-lg); border-bottom: 1px solid var(--surface-3); position: sticky; top: 0; background: var(--surface-1); z-index: 1;">
+          <div style="min-width: 0; flex: 1;">
+            <span style="font-size: var(--font-small); font-weight: 600; color: var(--brand-primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"
+                  x-text="selectedControl ? selectedControl.ref_code : ''"></span>
+            <div style="font-weight: 600; font-size: var(--font-h2); color: var(--text-primary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                 x-text="selectedControl ? selectedControl.name : ''"></div>
+          </div>
+          <button @click="closeDetail()"
+                  style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--surface-2); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; margin-left: var(--space-md);"
+                  aria-label="Close panel">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 3L3 11M3 3l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <!-- Panel Body -->
+        <div style="padding: var(--space-lg); overflow-y: auto; height: calc(100vh - 80px);" x-show="selectedControl">
+
+          <!-- Status Selector -->
+          <div style="margin-bottom: var(--space-lg);">
+            <label class="md-section-label">Status</label>
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+              <template x-for="st in ['compliant', 'partial', 'non_compliant', 'not_assessed']" :key="st">
+                <button class="md-btn md-btn-sm"
+                        :class="selectedControl && selectedControl.status === st ? '' : 'md-btn-secondary'"
+                        :style="selectedControl && selectedControl.status === st
+                          ? 'background: ' + statusColor(st) + '; color: #fff; border: none;'
+                          : ''"
+                        @click="updateControlStatus(selectedControl, st)"
+                        x-text="statusLabel(st)">
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div style="margin-bottom: var(--space-lg);">
+            <label class="md-section-label">Description</label>
+            <p style="font-size: var(--font-body); color: var(--text-primary); line-height: 1.6; margin: 0;"
+               x-text="selectedControl ? selectedControl.description : ''"></p>
+          </div>
+
+          <!-- Guidance -->
+          <div style="margin-bottom: var(--space-lg);" x-show="selectedControl && selectedControl.guidance">
+            <label class="md-section-label">Guidance</label>
+            <div class="md-alert md-alert-info md-alert-block" style="font-size: var(--font-body); line-height: 1.6;">
+              <i class="ti ti-info-circle" style="font-size: 18px; flex-shrink: 0; margin-top: 2px;"></i>
+              <span x-text="selectedControl ? selectedControl.guidance : ''"></span>
+            </div>
+          </div>
+
+          <hr class="md-divider">
+
+          <!-- Evidence Section -->
+          <div style="margin-bottom: var(--space-lg);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+              <label class="md-section-label" style="margin-bottom: 0;">Evidence</label>
+              <label class="md-btn md-btn-secondary md-btn-sm" style="cursor: pointer;">
+                <i class="ti ti-upload" style="font-size: 14px;"></i> Upload
+                <input type="file" multiple @change="uploadEvidence($event)" style="display: none;">
+              </label>
+            </div>
+            <!-- Evidence Files List -->
+            <div x-show="selectedControl && selectedControl.evidence && selectedControl.evidence.length > 0"
+                 style="display: flex; flex-direction: column; gap: var(--space-sm);">
+              <template x-for="(file, idx) in (selectedControl ? selectedControl.evidence || [] : [])" :key="idx">
+                <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--surface-2); border-radius: var(--radius-sm);">
+                  <i class="ti ti-file" style="font-size: 16px; color: var(--text-secondary);"></i>
+                  <span style="flex: 1; font-size: var(--font-small); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                        x-text="file.name || file.filename"></span>
+                  <span style="font-size: var(--font-caption); color: var(--text-tertiary);" x-text="file.uploaded_at ? formatDate(file.uploaded_at) : ''"></span>
+                  <button @click.stop="removeEvidence(file)"
+                          style="background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 4px;"
+                          title="Remove">
+                    <i class="ti ti-x" style="font-size: 14px;"></i>
+                  </button>
+                </div>
+              </template>
+            </div>
+            <!-- No evidence -->
+            <div x-show="!selectedControl || !selectedControl.evidence || selectedControl.evidence.length === 0"
+                 style="padding: var(--space-lg); text-align: center; color: var(--text-tertiary); font-size: var(--font-small); background: var(--surface-2); border-radius: var(--radius-sm);">
+              No evidence files uploaded yet.
+            </div>
+          </div>
+
+          <!-- Notes / Comments -->
+          <div style="margin-bottom: var(--space-lg);">
+            <label class="md-section-label">Notes</label>
+            <textarea class="md-textarea" placeholder="Add notes or comments about this control..."
+                      x-model="controlNotes"
+                      @change="saveControlNotes()"
+                      style="min-height: 80px;"></textarea>
+          </div>
+
+          <hr class="md-divider">
+
+          <!-- AI Assessment -->
+          <div style="margin-bottom: var(--space-lg);">
+            <button class="md-btn md-btn-secondary" style="width: 100%;" @click="requestAiAssessment(selectedControl)"
+                    :disabled="aiAssessing">
+              <template x-if="!aiAssessing">
+                <span style="display: inline-flex; align-items: center; gap: var(--space-sm);">
+                  <i class="ti ti-sparkles" style="font-size: 18px;"></i>
+                  AI Assessment
+                </span>
+              </template>
+              <template x-if="aiAssessing">
+                <span style="display: inline-flex; align-items: center; gap: var(--space-sm);">
+                  <span class="md-spinner" style="width: 16px; height: 16px;"></span>
+                  Analyzing...
+                </span>
+              </template>
+            </button>
+            <!-- AI Result -->
+            <div x-show="aiResult" style="margin-top: var(--space-md);">
+              <div class="md-alert md-alert-block" style="background: var(--brand-light); color: var(--brand-primary); flex-direction: column; align-items: flex-start; gap: var(--space-sm);">
+                <div style="display: flex; align-items: center; gap: var(--space-sm); font-weight: 600; font-size: var(--font-small);">
+                  <i class="ti ti-sparkles" style="font-size: 16px;"></i> AI Assessment
+                </div>
+                <p style="font-size: var(--font-body); line-height: 1.6; margin: 0; color: var(--text-primary);" x-text="aiResult"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subcontrols -->
+          <div x-show="selectedControl && selectedControl.subcontrols && selectedControl.subcontrols.length > 0">
+            <hr class="md-divider">
+            <label class="md-section-label">Subcontrols</label>
+            <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+              <template x-for="sub in (selectedControl ? selectedControl.subcontrols || [] : [])" :key="sub.ref_code || sub.id">
+                <div class="md-card" style="padding: var(--space-md);">
+                  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-sm);">
+                    <div style="min-width: 0;">
+                      <span style="font-size: var(--font-small); font-weight: 600; color: var(--brand-primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"
+                            x-text="sub.ref_code"></span>
+                      <div style="font-size: var(--font-body); font-weight: 500; color: var(--text-primary); margin-top: 2px;"
+                           x-text="sub.name"></div>
+                    </div>
+                    <span class="md-status-pill"
+                          :class="statusClass(sub.status || 'not_assessed')"
+                          x-text="statusLabel(sub.status || 'not_assessed')"
+                          style="flex-shrink: 0; font-size: var(--font-caption);"></span>
+                  </div>
+                  <p x-show="sub.description"
+                     style="font-size: var(--font-small); color: var(--text-secondary); line-height: 1.5; margin: var(--space-sm) 0 0 0;"
+                     x-text="sub.description"></p>
+                </div>
+              </template>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </template>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  /* Framework scroller hide scrollbar */
+  .md-framework-scroller::-webkit-scrollbar { display: none; }
+  .md-framework-scroller { scrollbar-width: none; }
+
+  /* Compliance overview responsive */
+  @media (max-width: 767px) {
+    .md-compliance-overview {
+      grid-template-columns: 1fr !important;
+    }
+    .md-compliance-overview > .md-card:first-child {
+      order: -1;
+    }
+  }
+</style>
+
+<script>
+/**
+ * request() — lightweight fetch wrapper matching the gapps convention.
+ * Calls successCb(data) on 2xx, errorCb(error) otherwise.
+ */
+function request(method, url, successCb, errorCb) {
+  fetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    credentials: 'same-origin'
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  })
+  .then(function(data) { if (successCb) successCb(data); })
+  .catch(function(err) { if (errorCb) errorCb(err); });
+}
+
+function requestWithBody(method, url, body, successCb, errorCb) {
+  fetch(url, {
+    method: method,
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body)
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  })
+  .then(function(data) { if (successCb) successCb(data); })
+  .catch(function(err) { if (errorCb) errorCb(err); });
+}
+
+function complianceView() {
+  return {
+    /* ----------------------------------------------------------------
+       State
+       ---------------------------------------------------------------- */
+    frameworks: [],
+    selectedFramework: null,
+    controls: [],
+    categories: [],
+    search: '',
+    statusFilter: 'all',
+    categoryFilter: 'all',
+    sortBy: 'ref_code',
+    selectedControl: null,
+    detailOpen: false,
+    controlNotes: '',
+    aiAssessing: false,
+    aiResult: null,
+    loading: true,
+    loadingControls: false,
+    expandedCategories: {},
+    stats: { total: 0, compliant: 0, partial: 0, non_compliant: 0, not_assessed: 0 },
+
+    /* ----------------------------------------------------------------
+       Computed: overall percentage
+       ---------------------------------------------------------------- */
+    get overallPct() {
+      return this.stats.total > 0 ? Math.round((this.stats.compliant / this.stats.total) * 100) : 0;
+    },
+
+    /* ----------------------------------------------------------------
+       Computed: donut chart segments (percentage of total)
+       ---------------------------------------------------------------- */
+    get donutCompliant() {
+      return this.stats.total > 0 ? Math.round((this.stats.compliant / this.stats.total) * 100) : 0;
+    },
+    get donutPartial() {
+      return this.stats.total > 0 ? Math.round((this.stats.partial / this.stats.total) * 100) : 0;
+    },
+    get donutNonCompliant() {
+      return this.stats.total > 0 ? Math.round((this.stats.non_compliant / this.stats.total) * 100) : 0;
+    },
+
+    /* ----------------------------------------------------------------
+       Init
+       ---------------------------------------------------------------- */
+    init() {
+      this.loadFrameworks();
+    },
+
+    /* ----------------------------------------------------------------
+       Data Loading
+       ---------------------------------------------------------------- */
+    loadFrameworks() {
+      var self = this;
+      self.loading = true;
+      var tenantId = this.getTenantId();
+      if (!tenantId) {
+        self.loading = false;
+        return;
+      }
+      request('GET', '/api/v1/tenants/' + tenantId + '/frameworks',
+        function(data) {
+          self.frameworks = data.frameworks || data.items || data || [];
+          /* Compute compliance_pct from controls if not provided */
+          if (self.frameworks.length > 0 && !self.selectedFramework) {
+            self.selectFramework(self.frameworks[0]);
+          }
+          self.loading = false;
+        },
+        function(err) {
+          Alpine.store('app').showToast('Failed to load frameworks', 'error');
+          self.loading = false;
+        }
+      );
+    },
+
+    selectFramework(fw) {
+      this.selectedFramework = fw;
+      this.controls = [];
+      this.selectedControl = null;
+      this.detailOpen = false;
+      this.expandedCategories = {};
+      this.loadControls();
+    },
+
+    loadControls() {
+      var self = this;
+      if (!self.selectedFramework) return;
+      self.loadingControls = true;
+
+      var tenantId = this.getTenantId();
+      var url = '/api/v1/tenants/' + tenantId + '/frameworks/' + self.selectedFramework.id + '/controls';
+
+      request('GET', url,
+        function(data) {
+          self.controls = data.controls || data.items || data || [];
+          self.extractCategories();
+          self.computeStats();
+          /* Expand all categories by default */
+          self.controls.forEach(function(c) {
+            if (c.category && !self.expandedCategories.hasOwnProperty(c.category)) {
+              self.expandedCategories[c.category] = true;
+            }
+          });
+          self.loadingControls = false;
+        },
+        function(err) {
+          Alpine.store('app').showToast('Failed to load controls', 'error');
+          self.loadingControls = false;
+        }
+      );
+    },
+
+    /* ----------------------------------------------------------------
+       Helpers
+       ---------------------------------------------------------------- */
+    getTenantId() {
+      /* Try Alpine store first, fall back to server-rendered value */
+      try {
+        if (Alpine.store('currentUser') && Alpine.store('currentUser').selectedTenant) {
+          return Alpine.store('currentUser').selectedTenant.id;
+        }
+      } catch (e) { /* ignore */ }
+      return '{{ current_tenant.id if current_tenant else "" }}';
+    },
+
+    extractCategories() {
+      var cats = {};
+      this.controls.forEach(function(c) {
+        if (c.category) cats[c.category] = true;
+      });
+      this.categories = Object.keys(cats).sort();
+    },
+
+    computeStats() {
+      var s = { total: 0, compliant: 0, partial: 0, non_compliant: 0, not_assessed: 0 };
+      this.controls.forEach(function(c) {
+        s.total++;
+        if (c.status === 'compliant') s.compliant++;
+        else if (c.status === 'partial') s.partial++;
+        else if (c.status === 'non_compliant') s.non_compliant++;
+        else s.not_assessed++;
+      });
+      this.stats = s;
+    },
+
+    /* ----------------------------------------------------------------
+       Filtering & Grouping
+       ---------------------------------------------------------------- */
+    get filteredControls() {
+      var self = this;
+      var list = this.controls.filter(function(c) {
+        /* Status filter */
+        if (self.statusFilter !== 'all' && c.status !== self.statusFilter) return false;
+        /* Category filter */
+        if (self.categoryFilter !== 'all' && c.category !== self.categoryFilter) return false;
+        /* Text search */
+        if (self.search) {
+          var q = self.search.toLowerCase();
+          var nameMatch = (c.name || '').toLowerCase().indexOf(q) !== -1;
+          var refMatch = (c.ref_code || '').toLowerCase().indexOf(q) !== -1;
+          if (!nameMatch && !refMatch) return false;
+        }
+        return true;
+      });
+
+      /* Sort */
+      var sortKey = self.sortBy;
+      list.sort(function(a, b) {
+        var va = a[sortKey] || '';
+        var vb = b[sortKey] || '';
+        if (sortKey === 'status') {
+          var order = { compliant: 0, partial: 1, non_compliant: 2, not_assessed: 3 };
+          return (order[va] || 3) - (order[vb] || 3);
+        }
+        if (sortKey === 'last_updated') {
+          return (new Date(vb || 0)) - (new Date(va || 0));
+        }
+        return String(va).localeCompare(String(vb));
+      });
+
+      return list;
+    },
+
+    get groupedByCategory() {
+      var groups = {};
+      this.filteredControls.forEach(function(c) {
+        var cat = c.category || 'Uncategorized';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(c);
+      });
+      return groups;
+    },
+
+    categoryCompliancePct(catControls) {
+      if (!catControls || catControls.length === 0) return 0;
+      var compliant = catControls.filter(function(c) { return c.status === 'compliant'; }).length;
+      return Math.round((compliant / catControls.length) * 100);
+    },
+
+    toggleCategory(catName) {
+      this.expandedCategories[catName] = !this.expandedCategories[catName];
+    },
+
+    /* ----------------------------------------------------------------
+       Control Detail Panel
+       ---------------------------------------------------------------- */
+    openControlDetail(control) {
+      this.selectedControl = control;
+      this.controlNotes = control.notes || '';
+      this.aiResult = null;
+      this.detailOpen = true;
+    },
+
+    closeDetail() {
+      this.detailOpen = false;
+    },
+
+    updateControlStatus(control, status) {
+      if (!control) return;
+      var self = this;
+      var tenantId = this.getTenantId();
+      var url = '/api/v1/tenants/' + tenantId + '/controls/' + control.id + '/status';
+
+      requestWithBody('PATCH', url, { status: status },
+        function(data) {
+          control.status = status;
+          self.computeStats();
+          Alpine.store('app').showToast('Status updated to ' + self.statusLabel(status), 'success');
+        },
+        function(err) {
+          Alpine.store('app').showToast('Failed to update status', 'error');
+        }
+      );
+    },
+
+    saveControlNotes() {
+      if (!this.selectedControl) return;
+      var self = this;
+      var tenantId = this.getTenantId();
+      var url = '/api/v1/tenants/' + tenantId + '/controls/' + this.selectedControl.id + '/notes';
+
+      requestWithBody('PATCH', url, { notes: this.controlNotes },
+        function(data) {
+          self.selectedControl.notes = self.controlNotes;
+          Alpine.store('app').showToast('Notes saved', 'success');
+        },
+        function(err) {
+          Alpine.store('app').showToast('Failed to save notes', 'error');
+        }
+      );
+    },
+
+    uploadEvidence(event) {
+      if (!this.selectedControl) return;
+      var self = this;
+      var files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      var tenantId = this.getTenantId();
+      var url = '/api/v1/tenants/' + tenantId + '/controls/' + this.selectedControl.id + '/evidence';
+
+      var formData = new FormData();
+      for (var i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData
+      })
+      .then(function(res) {
+        if (!res.ok) throw new Error('Upload failed');
+        return res.json();
+      })
+      .then(function(data) {
+        if (!self.selectedControl.evidence) self.selectedControl.evidence = [];
+        var uploaded = data.files || data.evidence || [];
+        uploaded.forEach(function(f) { self.selectedControl.evidence.push(f); });
+        Alpine.store('app').showToast('Evidence uploaded', 'success');
+      })
+      .catch(function(err) {
+        Alpine.store('app').showToast('Failed to upload evidence', 'error');
+      });
+
+      /* Reset file input */
+      event.target.value = '';
+    },
+
+    removeEvidence(file) {
+      if (!confirm('Remove this evidence file?')) return;
+      var self = this;
+      var tenantId = this.getTenantId();
+      var fileId = file.id || file.filename;
+      var url = '/api/v1/tenants/' + tenantId + '/controls/' + this.selectedControl.id + '/evidence/' + fileId;
+
+      request('DELETE', url,
+        function(data) {
+          self.selectedControl.evidence = self.selectedControl.evidence.filter(function(f) {
+            return (f.id || f.filename) !== (file.id || file.filename);
+          });
+          Alpine.store('app').showToast('Evidence removed', 'success');
+        },
+        function(err) {
+          Alpine.store('app').showToast('Failed to remove evidence', 'error');
+        }
+      );
+    },
+
+    requestAiAssessment(control) {
+      if (!control) return;
+      var self = this;
+      self.aiAssessing = true;
+      self.aiResult = null;
+
+      var tenantId = this.getTenantId();
+      var url = '/api/v1/tenants/' + tenantId + '/controls/' + control.id + '/ai-assess';
+
+      request('POST', url,
+        function(data) {
+          self.aiResult = data.assessment || data.result || data.message || 'Assessment complete.';
+          self.aiAssessing = false;
+        },
+        function(err) {
+          Alpine.store('app').showToast('AI assessment failed. Ensure AI is enabled in Settings.', 'error');
+          self.aiAssessing = false;
+        }
+      );
+    },
+
+    /* ----------------------------------------------------------------
+       Display Helpers
+       ---------------------------------------------------------------- */
+    statusClass(status) {
+      var map = {
+        'compliant': 'md-status-compliant',
+        'partial': 'md-status-in-progress',
+        'non_compliant': 'md-status-non-compliant',
+        'not_assessed': 'md-status-not-started'
+      };
+      return map[status] || 'md-status-not-started';
+    },
+
+    statusLabel(status) {
+      var map = {
+        'compliant': 'Compliant',
+        'partial': 'Partial',
+        'non_compliant': 'Non-Compliant',
+        'not_assessed': 'Not Assessed'
+      };
+      return map[status] || 'Not Assessed';
+    },
+
+    statusColor(status) {
+      var map = {
+        'compliant': 'var(--success)',
+        'partial': 'var(--warning)',
+        'non_compliant': 'var(--danger)',
+        'not_assessed': 'var(--text-tertiary)'
+      };
+      return map[status] || 'var(--text-tertiary)';
+    },
+
+    formatDate(dateStr) {
+      if (!dateStr) return '';
+      try {
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch (e) {
+        return dateStr;
+      }
+    }
+  };
+}
+</script>
+{% endblock %}

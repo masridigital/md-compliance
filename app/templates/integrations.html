@@ -1,0 +1,2009 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block page_header_title%}Integrations{%endblock%}
+{%block page_header_title_border%}{%endblock%}
+{%block page_header_buttons%}{%endblock%}
+
+{%block content%}
+<div x-data="page()" x-init="init()" class="py-6">
+
+    <div x-show="integrationsHealth === 'unhealthy'" class="alert alert-error mb-6 text-white" x-cloak>
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Integrations platform is not configured and/or unhealthy. Please view the documentation for more information.</span>
+    </div>
+
+    <div class="drawer drawer-end">
+        <input id="details-drawer" type="checkbox" class="drawer-toggle" x-model="drawerOpen" />
+
+        <!-- Main Content -->
+        <div x-show="integrationsHealth === 'unhealthy'" class="drawer-content">
+            <div x-show="error" class="alert alert-error mb-6" x-cloak>
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Integrations platform is not configured and/or unhealthy. Please view the documentation for more information.</span>
+            </div>
+        </div>
+        <div x-show="integrationsHealth === 'healthy'" class="drawer-content">
+            <!-- Navigation Tabs with Filters -->
+            <div class="flex items-center justify-between mb-2 gap-4">
+                <div role="tablist" class="tabs tabs-boxed">
+                    <a role="tab" class="tab" :class="{'tab-active': activeTab === 'integrations'}" @click="setTab('integrations')">
+                        Integrations
+                        <span class="gray-badge ml-2" x-text="integrations.length"></span>
+                    </a>
+                    <a role="tab" class="tab" :class="{'tab-active': activeTab === 'deployments'}" @click="setTab('deployments')">
+                        Deployments
+                        <span class="gray-badge ml-2" x-text="totalDeploymentsCount"></span>
+                    </a>
+                    <a role="tab" class="tab" :class="{'tab-active': activeTab === 'jobs'}" @click="setTab('jobs')">
+                        Jobs
+                        <span class="gray-badge ml-2" x-text="totalJobsCount"></span>
+                    </a>
+                </div>
+
+                <!-- Filters and Search (Right Side) -->
+                <div class="flex items-center gap-3">
+                    <!-- Integrations Search -->
+                    <div x-show="activeTab === 'integrations'" class="flex items-center gap-3">
+                        <input
+                            type="text"
+                            placeholder="Search integrations..."
+                            class="input input-bordered input-sm w-64"
+                            x-model="filters.integrations">
+                        <!-- Service integrations toggle -->
+                        <label class="flex items-center gap-2 cursor-pointer select-none text-sm" title="Show integrations marked as services">
+                            <span class="text-base-content/70">Show services</span>
+                            <input type="checkbox" class="toggle toggle-sm toggle-primary" x-model="filters.showServices">
+                        </label>
+                        <button @click="loadIntegrations()" class="btn btn-sm btn-ghost" :disabled="loading">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{'animate-spin': loading}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                        <button @click="initIntegrations" class="btn btn-sm btn-primary">Refresh Integrations</button>
+                    </div>
+
+                    <!-- Deployments Filters -->
+                    <div x-show="activeTab === 'deployments'" class="flex items-center gap-3">
+                        <!-- FIX: search now filters by integration name client-side via filteredDeployments computed property -->
+                        <input
+                            type="text"
+                            placeholder="Search by integration name..."
+                            class="input input-bordered input-sm w-64"
+                            x-model="filters.deployments"
+                            @input="deploymentsPage = 1">
+                        <select class="select select-bordered select-sm w-32" x-model="filters.deploymentStatus" @change="deploymentsPage = 1; loadDeployments()">
+                            <option value="">All Status</option>
+                            <option value="enabled">Enabled</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                        <select class="select select-bordered select-sm w-32" x-model="filters.deploymentQueue" @change="deploymentsPage = 1; loadDeployments()">
+                            <option value="">All Queues</option>
+                            <template x-for="queue in uniqueQueues" :key="queue">
+                                <option :value="queue" x-text="queue"></option>
+                            </template>
+                        </select>
+                        <button @click="loadDeployments()" class="btn btn-sm btn-ghost" :disabled="loading">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{'animate-spin': loading}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                        <button @click="openCreateDeploymentModal()" class="btn btn-sm btn-primary">Create</button>
+                    </div>
+
+                    <!-- Jobs Filters — client-side via filteredJobs computed property -->
+                    <div x-show="activeTab === 'jobs'" class="flex items-center gap-3">
+                        <input
+                            type="text"
+                            placeholder="Search jobs..."
+                            class="input input-bordered input-sm w-64"
+                            x-model="filters.jobs">
+                        <select class="select select-bordered select-sm w-32" x-model="filters.jobStatus">
+                            <option value="">All Status</option>
+                            <option value="queued">Queued</option>
+                            <option value="in-progress">In Progress</option>
+                            <option value="done">Done</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                        <button
+                            x-show="filters.jobDeploymentId"
+                            @click="clearJobFilter()"
+                            class="btn btn-ghost btn-sm">
+                            Clear Filter
+                        </button>
+                        <button @click="loadJobs()" class="btn btn-sm btn-ghost" :disabled="loading">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{'animate-spin': loading}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loading" class="flex justify-center items-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+
+            <!-- Error State -->
+            <div x-show="error" class="alert alert-error mb-6" x-cloak>
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span x-text="error"></span>
+            </div>
+
+            <!-- Integrations Tab -->
+            <div x-show="activeTab === 'integrations'" x-cloak>
+                <div role="alert" class="alert mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Integrations allow you to automatically identify policy violations and perform automations in the platform. </span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <template x-for="integration in filteredIntegrations" :key="integration.id">
+                        <div class="card border hover:shadow-2xl transition-shadow cursor-pointer" @click="openDrawer('integration', integration)">
+                            <div class="card-body">
+                                <div class="flex justify-between">
+                                    <h2 class="card-title" x-text="integration.title || integration.name"></h2>
+                                    <span x-show="integration.is_service" class="red-badge text-xs">Service</span>
+                                </div>
+
+                                <p class="text-sm text-base-content/70" x-text="integration.description"></p>
+
+                                <div class="divider my-2"></div>
+
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="font-semibold">Name:</span>
+                                        <span class="gray-badge" x-text="integration.name"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-semibold">ID:</span>
+                                        <span class="font-mono text-xs" x-text="integration.id"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-semibold">Deployments:</span>
+                                        <span class="blue-badge" x-text="getDeploymentCount(integration.id)"></span>
+                                    </div>
+                                </div>
+
+                                <div class="card-actions justify-end mt-2" @click.stop>
+                                    <button class="btn btn-xs btn-primary" @click="openCreateDeploymentModal(integration)">
+                                        + Deploy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="!loading && filteredIntegrations.length === 0" class="text-center py-12">
+                    <p class="text-base-content/70 mb-2 text-lg">No integrations found. Please deploy the integrations below.</p>
+                    <button @click="initIntegrations" class="btn btn-primary">Deploy</button>
+                </div>
+            </div>
+
+            <!-- Deployments Tab -->
+            <div x-show="activeTab === 'deployments'" x-cloak>
+               <div role="alert" class="alert mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Deployments are instances of integrations and define how a specific integration executes.</span>
+                </div>
+                <div x-show="filters.jobDeploymentId" class="alert alert-info mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Filtered by Deployment ID: <span class="font-mono" x-text="filters.jobDeploymentId"></span></span>
+                </div>
+
+                <!-- FIX: table now iterates filteredDeployments which filters by integration name -->
+                <div x-show="!loading && filteredDeployments.length > 0" class="overflow-x-auto overflow-y-visible border rounded-md">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th class="p-6">ID</th>
+                                <th>Integration</th>
+                                <th>Status</th>
+                                <th>Schedule</th>
+                                <th>Queue</th>
+                                <th>Jobs</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="deployment in filteredDeployments" :key="deployment.id">
+                                <tr class="hover cursor-pointer" @click="openDrawer('deployment', deployment)">
+                                    <td class="font-mono text-xs" x-text="deployment.id"></td>
+                                    <td>
+                                        <span class="blue-badge" x-text="getIntegrationName(deployment.integration_id)"></span>
+                                    </td>
+                                    <td>
+                                        <span class="" :class="{
+                                            'green-badge': deployment.enabled,
+                                            'red-badge': !deployment.enabled
+                                        }">
+                                            <span x-text="deployment.enabled ? 'Enabled' : 'Disabled'"></span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span x-show="deployment.schedule" class="font-mono text-xs" x-text="deployment.schedule"></span>
+                                        <span x-show="!deployment.schedule" class="text-base-content/50">Manual</span>
+                                    </td>
+                                    <td>
+                                        <span class="gray-badge" x-text="deployment.queue"></span>
+                                    </td>
+                                    <td x-text="getJobsForDeployment(deployment.id).length"></td>
+                                    <td @click.stop>
+                                        <button @click="openDrawer('deployment', deployment)" class="btn btn-sm">View</button>
+                                        <button @click.stop="openDeleteDeploymentModal(deployment)" class="btn btn-sm">
+                                            <i class="ti ti-trash text-error"></i>
+                                        </button>
+                                        <button @click="postManualDeployment(deployment.id)" x-show="!deployment.schedule" class="btn btn-sm text-primary">Start<i class="ti ti-player-play ml-1 text-primary"></i></button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination for Deployments -->
+                <div x-show="deploymentsPagination && filteredDeployments.length > 0" class="flex justify-between items-center mt-4">
+                    <div class="text-sm text-base-content/70">
+                        Showing <span x-text="((deploymentsPage - 1) * deploymentsPerPage) + 1"></span> to <span x-text="Math.min(deploymentsPage * deploymentsPerPage, totalDeploymentsCount)"></span> of <span x-text="totalDeploymentsCount"></span> deployments
+                    </div>
+                    <div class="join">
+                        <button class="join-item btn btn-sm" @click="goToDeploymentsPage(deploymentsPage - 1)" :disabled="deploymentsPage === 1">«</button>
+                        <button class="join-item btn btn-sm">Page <span x-text="deploymentsPage"></span> of <span x-text="totalDeploymentsPages"></span></button>
+                        <button class="join-item btn btn-sm" @click="goToDeploymentsPage(deploymentsPage + 1)" :disabled="deploymentsPage === totalDeploymentsPages">»</button>
+                    </div>
+                </div>
+
+                <div x-show="!loading && filteredDeployments.length === 0" class="text-center py-12">
+                    <p class="text-base-content/70 mb-2">No deployments found</p>
+                    <button @click="openCreateDeploymentModal()" class="btn btn-primary">Create Deployment</button>
+                </div>
+            </div>
+
+            <!-- Jobs Tab -->
+            <div x-show="activeTab === 'jobs'" x-cloak>
+               <div role="alert" class="alert mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 shrink-0 stroke-current">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Jobs are the execution of specific deployments. Jobs may have one or many tasks, which specify the activities of the job.</span>
+                </div>
+                <div x-show="filters.jobDeploymentId" class="alert alert-info mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Filtered by Deployment ID: <span class="font-mono" x-text="filters.jobDeploymentId"></span></span>
+                </div>
+                <div x-show="!loading && filteredJobs.length > 0" class="overflow-x-auto border rounded-md">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th class="p-6">ID</th>
+                                <th>Deployment</th>
+                                <th>Status</th>
+                                <th>Tasks</th>
+                                <th>Started</th>
+                                <th>Finished</th>
+                                <th>Duration</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="job in filteredJobs" :key="job.id">
+                                <tr class="hover cursor-pointer" @click="openDrawer('job', job)">
+                                    <td class="font-mono text-xs" x-text="job.id"></td>
+                                    <td>
+                                        <!-- FIX: show integration name with deployment id in parentheses -->
+                                        <span class="text-xs">
+                                            <span class="blue-badge" x-text="getIntegrationNameForJob(job.deployment_id)"></span>
+                                            <span class="font-mono text-base-content/50 ml-1 text-xs" x-text="'(' + job.deployment_id + ')'"></span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="" :class="{
+                                            'green-badge': job.status === 'done',
+                                            'yellow-badge': job.status === 'in-progress',
+                                            'blue-badge': job.status === 'queued',
+                                            'red-badge': job.status === 'failed'
+                                        }">
+                                            <span x-text="job.status"></span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span x-show="job.result" class="text-xs">
+                                            <span x-text="getSuccessfulTasks(job)" :class="getSuccessfulTasks(job) === getTotalTasks(job) ? 'text-success font-semibold' : ''"></span>/<span x-text="getTotalTasks(job)"></span>
+                                        </span>
+                                        <span x-show="!job.result" class="text-base-content/50">-</span>
+                                    </td>
+                                    <td class="text-xs">
+                                        <span x-show="job.started_at" x-text="formatDate(job.started_at)"></span>
+                                        <span x-show="!job.started_at" class="text-base-content/50">-</span>
+                                    </td>
+                                    <td class="text-xs">
+                                        <span x-show="job.finished_at" x-text="formatDate(job.finished_at)"></span>
+                                        <span x-show="!job.finished_at" class="text-base-content/50">-</span>
+                                    </td>
+                                    <td class="text-xs">
+                                        <span x-show="job.started_at && job.finished_at" x-text="calculateDuration(job.started_at, job.finished_at)"></span>
+                                        <span x-show="!job.started_at || !job.finished_at" class="text-base-content/50">-</span>
+                                    </td>
+                                    <td @click.stop>
+                                        <button class="btn btn-xs" @click="openDrawer('job', job)">
+                                            Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination for Jobs -->
+                <div x-show="jobsPagination && filteredJobs.length > 0" class="flex justify-between items-center mt-4">
+                    <div class="text-sm text-base-content/70">
+                        Showing <span x-text="((jobsPage - 1) * jobsPerPage) + 1"></span> to <span x-text="Math.min(jobsPage * jobsPerPage, totalJobsCount)"></span> of <span x-text="totalJobsCount"></span> jobs
+                    </div>
+                    <div class="join">
+                        <button class="join-item btn btn-sm" @click="goToJobsPage(jobsPage - 1)" :disabled="jobsPage === 1">«</button>
+                        <button class="join-item btn btn-sm">Page <span x-text="jobsPage"></span> of <span x-text="totalJobsPages"></span></button>
+                        <button class="join-item btn btn-sm" @click="goToJobsPage(jobsPage + 1)" :disabled="jobsPage === totalJobsPages">»</button>
+                    </div>
+                </div>
+
+                <div x-show="!loading && filteredJobs.length === 0" class="text-center py-12">
+                    <p class="text-base-content/70">No jobs found</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drawer Side -->
+        <div class="drawer-side z-50">
+            <label for="details-drawer" aria-label="close sidebar" class="drawer-overlay" @click="drawerOpen = false"></label>
+
+            <div class="bg-base-200 flex flex-col h-screen w-3/4 px-6">
+
+                <!-- Top Section (Static) -->
+                <div class="border-b border-base-300 pt-4">
+                    <!-- Integration Header -->
+                    <div x-show="drawerType === 'integration'" class="p-6 px-4 pb-2 border border-base-300 rounded-md">
+                        <div class="flex justify-between">
+                            <div class="flex flex-col">
+                                <span class="subtitle text-xs !mb-0">Integration</span>
+                                <span class="text-lg" x-text="selectedItem?.title || selectedItem?.name"></span>
+                            </div>
+                            <button @click="drawerOpen = false" class="btn btn-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4 my-4">
+                            <div>
+                                <span class="subtitle text-xs">ID</span>
+                                <p class="font-mono text-xs" x-text="selectedItem?.id"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Name</span>
+                                <p class="text-sm" x-text="selectedItem?.name"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Deployments</span>
+                                <p class="text-sm" x-text="getDeploymentCount(selectedItem?.id)"></p>
+                            </div>
+                        </div>
+
+                        <div role="tablist" class="tabs gap-x-2">
+                            <button @click="drawerTab = 'details'" :class="{'btn-active': drawerTab==='details'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100">Details</button>
+                            <button @click="drawerTab = 'deployments'" :class="{'btn-active': drawerTab==='deployments'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100">Deployments</button>
+                        </div>
+                    </div>
+
+                    <!-- Deployment Header -->
+                    <div x-show="drawerType === 'deployment'" class="p-6 px-4 pb-2 border border-base-300 rounded-md">
+                        <div class="flex justify-between">
+                            <div class="flex flex-col">
+                                <span class="subtitle text-xs !mb-0">Deployment</span>
+                                <span class="text-lg font-mono" x-text="'ID: ' + selectedItem?.id"></span>
+                            </div>
+                            <button @click="drawerOpen = false" class="btn btn-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-4 my-4">
+                            <div>
+                                <span class="subtitle text-xs">Integration</span>
+                                <p class="text-xs blue-badge" x-text="getIntegrationName(selectedItem?.integration_id)"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Status</span>
+                                <span class="text-xs" :class="{'green-badge': selectedItem?.enabled, 'red-badge': !selectedItem?.enabled}">
+                                    <span x-text="selectedItem?.enabled ? 'Enabled' : 'Disabled'"></span>
+                                </span>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Queue</span>
+                                <p class="text-xs gray-badge" x-text="selectedItem?.queue"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Timeout</span>
+                                <p class="text-xs" x-text="selectedItem?.timeout + 's'"></p>
+                            </div>
+                        </div>
+
+                        <div role="tablist" class="tabs gap-x-2">
+                            <button @click="drawerTab = 'details'" :class="{'btn-active': drawerTab==='details'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100">Details</button>
+                            <button @click="drawerTab = 'config'" :class="{'btn-active': drawerTab==='config'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100">Config</button>
+                            <button @click="drawerTab = 'jobs'" :class="{'btn-active': drawerTab==='jobs'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100">
+                                Jobs
+                                <span class="badge badge-sm ml-1" x-text="getJobCountForDeployment(selectedItem?.id)"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Job Header -->
+                    <div x-show="drawerType === 'job' && !selectedCheck" class="p-6 px-4 pb-2 border border-base-300 rounded-md">
+                        <div class="flex justify-between">
+                            <div class="flex flex-col">
+                                <span class="subtitle text-xs !mb-0">Job Details</span>
+                                <span class="text-lg font-mono" x-text="selectedItem?.id"></span>
+                            </div>
+                            <button @click="drawerOpen = false" class="btn btn-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-5 gap-4 my-4">
+                            <div>
+                                <span class="subtitle text-xs">Status</span>
+                                <p class="text-xs" :class="{
+                                    'green-badge': selectedItem?.status === 'done',
+                                    'yellow-badge': selectedItem?.status === 'in-progress',
+                                    'blue-badge': selectedItem?.status === 'queued',
+                                    'red-badge': selectedItem?.status === 'failed'
+                                }" x-text="selectedItem?.status"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Violations</span>
+                                <p x-text="getViolationCount(selectedItem)"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Deployment</span>
+                                <p class="text-xs font-mono" x-text="getIntegrationNameForJob(selectedItem.deployment_id)+'('+selectedItem?.deployment_id+')'"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Created</span>
+                                <p class="text-xs" x-text="formatDate(selectedItem?.created_at)"></p>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Duration</span>
+                                <p class="text-xs" x-text="calculateDuration(selectedItem?.started_at, selectedItem?.finished_at)"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Check Detail Header (Nested) -->
+                    <div x-show="drawerType === 'job' && selectedCheck" class="p-6 px-4 pb-2 border border-base-300 rounded-md">
+                        <div class="flex items-center gap-4">
+                            <button @click="selectedCheck = null" class="btn btn-sm btn-ghost">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                            </button>
+                            <div class="flex flex-col">
+                                <span class="subtitle text-xs !mb-0">Check Details</span>
+                                <span class="text-lg" x-text="selectedCheck?.name"></span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-4 my-4">
+                            <div>
+                                <span class="subtitle text-xs">Status</span>
+                                <span class="text-xs" :class="{
+                                    'green-badge': selectedCheck?.success === true,
+                                    'red-badge': selectedCheck?.success === false
+                                }" x-text="selectedCheck?.success ? 'Success' : 'Failed'"></span>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Type</span>
+                                <span class="text-xs" :class="{'red-badge': selectedCheck?.is_violation}" x-text="selectedCheck?.is_violation ? 'Violation' : selectedCheck?.type"></span>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Duration</span>
+                                <span class="text-xs" x-text="formatDurationMs(selectedCheck?.duration)"></span>
+                            </div>
+                            <div>
+                                <span class="subtitle text-xs">Start</span>
+                                <span class="text-xs" x-text="selectedCheck?.start_time"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scrollable Middle Section -->
+                <div id="middle-section" class="flex-1 overflow-y-auto py-4">
+
+                    <!-- Integration Content -->
+                    <div x-show="drawerType === 'integration' && drawerTab === 'details'">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="subtitle text-sm mb-2">Description</h4>
+                                <p class="text-sm" x-text="selectedItem?.description"></p>
+                            </div>
+                            <div>
+                                <h4 class="subtitle text-sm mb-2">Schema</h4>
+                                <pre class="bg-base-300 p-4 rounded-lg overflow-x-auto text-xs"><code x-text="JSON.stringify(selectedItem?.schema, null, 2)"></code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="drawerType === 'integration' && drawerTab === 'deployments'">
+                        <div class="flex justify-end mb-3">
+                            <button class="btn btn-sm btn-primary" @click="openCreateDeploymentModal(selectedItem)">
+                                + New Deployment
+                            </button>
+                        </div>
+                        <div class="space-y-2">
+                            <template x-for="deployment in allDeployments.filter(d => d.integration_id === selectedItem?.id)" :key="deployment.id">
+                                <div class="card bg-base-300 shadow-sm cursor-pointer hover:bg-base-100" @click="openDrawer('deployment', deployment)">
+                                    <div class="card-body p-4">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="font-semibold text-sm font-mono" x-text="'ID: ' + deployment.id"></div>
+                                                <div class="text-xs text-base-content/60 mt-1" x-text="'Queue: ' + deployment.queue"></div>
+                                            </div>
+                                            <span :class="{'green-badge': deployment.enabled, 'red-badge': !deployment.enabled}">
+                                                <span x-text="deployment.enabled ? 'Enabled' : 'Disabled'"></span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Deployment Content - Details tab now includes editable schedule & enabled -->
+                    <div x-show="drawerType === 'deployment' && drawerTab === 'details'">
+                        <div class="space-y-6">
+
+                            <!-- Inline edit form -->
+                            <div class="border border-base-300 rounded-lg p-4 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="subtitle text-sm">Deployment Settings</h4>
+                                    <div class="flex gap-2">
+                                        <button
+                                            x-show="!editingDetails"
+                                            @click="startEditingDetails()"
+                                            class="btn btn-sm btn-primary">
+                                            Edit
+                                        </button>
+                                        <div x-show="editingDetails" class="flex gap-2">
+                                            <button @click="saveDetails()" class="btn btn-sm btn-success" :disabled="savingDetails">
+                                                <span x-show="!savingDetails">Save</span>
+                                                <span x-show="savingDetails" class="loading loading-spinner loading-xs"></span>
+                                            </button>
+                                            <button @click="cancelEditDetails()" class="btn btn-sm btn-ghost">Cancel</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div x-show="detailsError" class="alert alert-error text-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span x-text="detailsError"></span>
+                                </div>
+
+                                <!-- Read-only view -->
+                                <div x-show="!editingDetails" class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <h4 class="subtitle text-sm">Schedule</h4>
+                                        <p class="font-mono text-sm" x-text="selectedItem?.schedule || 'Manual'"></p>
+                                    </div>
+                                    <div>
+                                        <h4 class="subtitle text-sm">Enabled</h4>
+                                        <span :class="{'green-badge': selectedItem?.enabled, 'red-badge': !selectedItem?.enabled}">
+                                            <span x-text="selectedItem?.enabled ? 'Yes' : 'No'"></span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Edit view -->
+                                <div x-show="editingDetails" class="space-y-4">
+                                    <div class="form-control">
+                                        <label class="label">
+                                            <span class="label-text font-semibold text-sm">Schedule</span>
+                                            <span class="label-text-alt text-base-content/50 text-xs">Cron expression (leave blank for manual)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            class="input input-bordered input-sm w-full font-mono"
+                                            placeholder="e.g. 0 * * * * (every hour)"
+                                            x-model="editedDetails.schedule">
+                                        <label class="label" x-show="editedDetails.schedule">
+                                            <span class="label-text-alt text-base-content/50 text-xs" x-text="describeCron(editedDetails.schedule)"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-control">
+                                        <label class="label cursor-pointer justify-start gap-4">
+                                            <input type="checkbox" class="toggle toggle-primary" x-model="editedDetails.enabled">
+                                            <div>
+                                                <span class="label-text font-semibold text-sm">Enabled</span>
+                                                <p class="text-xs text-base-content/50">Toggle to enable or disable this deployment</p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="drawerType === 'deployment' && drawerTab === 'config'">
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="subtitle text-sm">Configuration</h4>
+                                <button
+                                    x-show="!editingConfig"
+                                    @click="editingConfig = true; editedConfig = JSON.stringify(selectedItem?.config, null, 2)"
+                                    class="btn btn-sm btn-primary">
+                                    Edit Config
+                                </button>
+                                <div x-show="editingConfig" class="flex gap-2">
+                                    <button @click="saveConfig()" class="btn btn-sm btn-success" :disabled="savingConfig">
+                                        <span x-show="!savingConfig">Save</span>
+                                        <span x-show="savingConfig" class="loading loading-spinner loading-xs"></span>
+                                    </button>
+                                    <button @click="editingConfig = false; configError = null" class="btn btn-sm btn-ghost">Cancel</button>
+                                </div>
+                            </div>
+
+                            <div x-show="configError" class="alert alert-error">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span x-text="configError"></span>
+                            </div>
+
+                            <div x-show="!editingConfig">
+                                <pre class="bg-base-300 p-4 rounded-lg overflow-x-auto text-xs"><code x-text="JSON.stringify(selectedItem?.config, null, 2)"></code></pre>
+                            </div>
+
+                            <div x-show="editingConfig">
+                                <textarea
+                                    x-model="editedConfig"
+                                    class="textarea textarea-bordered w-full font-mono text-xs"
+                                    rows="20"
+                                    placeholder='{"key": "value"}'></textarea>
+                                <p class="text-xs text-base-content/60 mt-2">Edit the configuration as JSON</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="drawerType === 'deployment' && drawerTab === 'jobs'">
+                        <div x-show="getJobsForDeployment(selectedItem?.id).length === 0" class="text-center py-8 text-base-content/70">
+                            No jobs found for this deployment
+                        </div>
+                        <div x-show="getJobsForDeployment(selectedItem?.id).length > 0" class="space-y-2">
+                            <template x-for="job in getJobsForDeployment(selectedItem?.id)" :key="job.id">
+                                <div class="card bg-base-300 shadow-sm cursor-pointer hover:bg-base-100" @click="openDrawer('job', job)">
+                                    <div class="card-body p-4">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="font-semibold text-sm font-mono" x-text="job.id"></div>
+                                                <div class="text-xs text-base-content/60 mt-1" x-text="formatDate(job.created_at)"></div>
+                                            </div>
+                                            <div class="flex flex-col items-end gap-2">
+                                                <span :class="{
+                                                    'green-badge': job.status === 'done',
+                                                    'yellow-badge': job.status === 'in-progress',
+                                                    'blue-badge': job.status === 'queued',
+                                                    'red-badge': job.status === 'failed'
+                                                }" x-text="job.status"></span>
+                                                <span class="text-xs text-base-content/60" x-text="calculateDuration(job.started_at, job.finished_at)"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div x-show="drawerType === 'deployment' && drawerTab === 'violations'">
+                        <div x-show="violations.length === 0" class="text-center py-8 text-base-content/70">
+                            No violations found
+                        </div>
+                        <div x-show="violations.length > 0" class="space-y-4">
+                            <template x-for="violation in violations" :key="violation.id">
+                                <p x-text="violation"></p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Job Content - Checks Table -->
+                    <div x-show="drawerType === 'job' && !selectedCheck">
+                        <div x-show="!selectedItem?.result || Object.keys(selectedItem?.result || {}).length === 0" class="text-center py-8 text-base-content/70">
+                            Results not available
+                        </div>
+
+                        <div x-show="selectedItem?.result && Object.keys(selectedItem?.result || {}).length > 0">
+
+                            <!-- Checks Filters -->
+                            <div class="flex items-center gap-3 mb-3">
+                                <input
+                                    type="text"
+                                    placeholder="Search by task name..."
+                                    class="input input-bordered input-sm w-56"
+                                    x-model="checkSearch"
+                                    @input="checksPage = 1">
+                                <select class="select select-bordered select-sm w-36" x-model="checkTypeFilter" @change="checksPage = 1">
+                                    <option value="">All Types</option>
+                                    <option value="collector">Collector</option>
+                                    <option value="insight">Insight</option>
+                                </select>
+                                <span class="text-xs text-base-content/50 ml-auto">
+                                    <span x-text="filteredChecks.length"></span> task(s)
+                                </span>
+                            </div>
+
+                            <div class="overflow-x-auto border rounded-md">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th class="p-4">Task Name</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Violation</th>
+                                            <th>Errors</th>
+                                            <th>Duration</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="check in pagedChecks" :key="check.name">
+                                            <tr class="hover cursor-pointer" @click="viewCheckDetail(check.name, check)">
+                                                <td class="font-semibold text-sm" x-text="check.name"></td>
+                                                <td>
+                                                    <span class="gray-badge" x-text="check.type"></span>
+                                                </td>
+                                                <td>
+                                                    <span :class="{'green-badge': check.success === true, 'red-badge': check.success === false}">
+                                                        <span x-text="check.success ? 'Success' : 'Failed'"></span>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span x-show="check.is_violation" class="red-badge">Violation</span>
+                                                    <span x-show="!check.is_violation" class="text-base-content/50 text-xs">—</span>
+                                                </td>
+                                                <td>
+                                                    <span x-show="check.errors && check.errors.length > 0" class="red-badge" x-text="check.errors.length + ' error(s)'"></span>
+                                                    <span x-show="!check.errors || check.errors.length === 0" class="text-base-content/50">-</span>
+                                                </td>
+                                                <td class="text-xs" x-text="formatDurationMs(check.duration)"></td>
+                                                <td @click.stop>
+                                                    <button class="btn btn-xs" @click="viewCheckDetail(check.name, check)">
+                                                        View →
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="pagedChecks.length === 0">
+                                            <td colspan="7" class="text-center text-base-content/50 py-6">No tasks match your filters</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Checks Pagination -->
+                            <div class="flex justify-between items-center mt-3">
+                                <div class="text-sm text-base-content/70">
+                                    Showing <span x-text="((checksPage - 1) * checksPerPage) + 1"></span>–<span x-text="Math.min(checksPage * checksPerPage, filteredChecks.length)"></span> of <span x-text="filteredChecks.length"></span>
+                                </div>
+                                <div class="join">
+                                    <button class="join-item btn btn-xs" @click="checksPage--" :disabled="checksPage === 1">«</button>
+                                    <button class="join-item btn btn-xs">Page <span x-text="checksPage"></span> of <span x-text="totalCheckPages"></span></button>
+                                    <button class="join-item btn btn-xs" @click="checksPage++" :disabled="checksPage === totalCheckPages">»</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Job Content - Check Detail -->
+                    <div x-show="drawerType === 'job' && selectedCheck">
+    <div class="space-y-4">
+
+        <!-- Errors -->
+        <div x-show="selectedCheck?.errors && selectedCheck?.errors.length > 0">
+            <details class="collapse collapse-arrow bg-base-300">
+                <summary class="collapse-title text-sm font-semibold text-error">
+                    Errors (<span x-text="selectedCheck?.errors.length"></span>)
+                </summary>
+                <div class="collapse-content max-h-60 overflow-y-auto">
+                    <template x-for="(error, index) in selectedCheck?.errors" :key="index">
+                        <div class="text-xs font-mono pb-1" x-text="error"></div>
+                    </template>
+                </div>
+            </details>
+        </div>
+
+        <!-- Traceback -->
+        <div x-show="selectedCheck?.traceback">
+            <details class="collapse collapse-arrow bg-error/10">
+                <summary class="collapse-title text-sm font-semibold text-error">Traceback</summary>
+                <div class="collapse-content max-h-60 overflow-y-auto">
+                    <pre class="text-error overflow-x-auto text-xs"><code x-text="selectedCheck?.traceback"></code></pre>
+                </div>
+            </details>
+        </div>
+
+        <!-- Logs -->
+        <div x-show="selectedCheck?.logs && selectedCheck?.logs.length > 0">
+            <details class="collapse collapse-arrow bg-base-300">
+                <summary class="collapse-title text-sm font-semibold">
+                    Logs (<span x-text="selectedCheck?.logs.length"></span>)
+                </summary>
+                <div class="collapse-content max-h-60 overflow-y-auto">
+                    <template x-for="(log, index) in selectedCheck?.logs" :key="index">
+                        <div class="text-xs font-mono pb-1" x-text="log"></div>
+                    </template>
+                </div>
+            </details>
+        </div>
+
+        <!-- Message -->
+        <div x-show="selectedCheck?.output?.message">
+            <details class="collapse collapse-arrow bg-base-300" open>
+                <summary class="collapse-title text-sm font-semibold">Message</summary>
+                <div class="collapse-content max-h-60 overflow-y-auto">
+                    <pre class="overflow-x-auto text-xs"><code x-text="JSON.stringify(selectedCheck?.output?.message, null, 2)"></code></pre>
+                </div>
+            </details>
+        </div>
+
+        <!-- Result -->
+        <div x-show="selectedCheck?.output?.data">
+            <details class="collapse collapse-arrow bg-base-300" open>
+                <summary class="collapse-title text-sm font-semibold">Result</summary>
+                <div class="collapse-content max-h-60 overflow-y-auto">
+                    <pre class="overflow-x-auto text-xs"><code x-text="JSON.stringify(selectedCheck?.output?.data, null, 2)"></code></pre>
+                </div>
+            </details>
+        </div>
+
+        <!-- Full JSON -->
+        <details class="collapse collapse-arrow bg-base-300">
+            <summary class="collapse-title text-sm font-semibold">
+                Complete Check Data (JSON)
+            </summary>
+            <div class="collapse-content max-h-60 overflow-y-auto">
+                <pre class="overflow-x-auto text-xs"><code x-text="JSON.stringify(selectedCheck, null, 2)"></code></pre>
+            </div>
+        </details>
+    </div>
+</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== DELETE DEPLOYMENT MODAL ===================== -->
+    <dialog id="delete-deployment-modal" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg">Delete Deployment</h3>
+            <p class="text-sm text-base-content/60 mt-1 mb-4">This action cannot be undone. All jobs associated with the deployment will also be deleted.</p>
+
+            <div class="bg-base-200 rounded-lg p-4 space-y-2 text-sm mb-4">
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Deployment ID</span>
+                    <span class="font-mono text-xs" x-text="deploymentToDelete?.id"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Integration</span>
+                    <span class="blue-badge" x-text="getIntegrationName(deploymentToDelete?.integration_id)"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Status</span>
+                    <span :class="deploymentToDelete?.enabled ? 'green-badge' : 'red-badge'" x-text="deploymentToDelete?.enabled ? 'Enabled' : 'Disabled'"></span>
+                </div>
+            </div>
+
+            <div x-show="deleteError" class="alert alert-error text-sm mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span x-text="deleteError"></span>
+            </div>
+
+            <div class="modal-action">
+                <button class="btn btn-ghost" @click="closeDeleteDeploymentModal()" :disabled="deleting">Cancel</button>
+                <button class="btn btn-error" @click="confirmDeleteDeployment()" :disabled="deleting">
+                    <span x-show="!deleting">
+                        <i class="ti ti-trash mr-1"></i> Delete
+                    </span>
+                    <span x-show="deleting" class="loading loading-spinner loading-sm"></span>
+                </button>
+            </div>
+        </div>
+        <div class="modal-backdrop" @click="closeDeleteDeploymentModal()"></div>
+    </dialog>
+    <!-- ================================================================== -->
+
+    <!-- ===================== CREATE DEPLOYMENT MODAL ===================== -->
+    <dialog id="create-deployment-modal" class="modal">
+        <div class="modal-box w-11/12 max-w-2xl">
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h3 class="font-bold text-lg">Create Deployment</h3>
+                    <p class="text-sm text-base-content/60 mt-0.5">Deploy an integration with a specific configuration</p>
+                </div>
+                <button class="btn btn-sm btn-circle btn-ghost" @click="closeCreateDeploymentModal()">✕</button>
+            </div>
+
+            <!-- Step Indicator -->
+            <ul class="steps w-full mb-6">
+                <li class="step" :class="{'step-primary': createDeployment.step >= 1}">Select Integration</li>
+                <li class="step" :class="{'step-primary': createDeployment.step >= 2}">Configure</li>
+                <li class="step" :class="{'step-primary': createDeployment.step >= 3}">Settings</li>
+            </ul>
+
+            <!-- Step 1: Select Integration -->
+            <div x-show="createDeployment.step === 1">
+                <p class="text-sm font-semibold mb-3">Choose an Integration</p>
+                <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    <template x-for="integration in integrations" :key="integration.id">
+                        <div
+                            class="border rounded-lg p-4 cursor-pointer transition-all"
+                            :class="createDeployment.selectedIntegration?.id === integration.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-base-300 hover:border-primary/50 hover:bg-base-200'"
+                            @click="selectIntegrationForDeployment(integration)">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="font-semibold text-sm" x-text="integration.title || integration.name"></div>
+                                    <div class="text-xs text-base-content/60 mt-1" x-text="integration.description"></div>
+                                    <div class="flex gap-2 mt-2">
+                                        <span class="gray-badge" x-text="integration.name"></span>
+                                        <span class="blue-badge" x-text="getDeploymentCount(integration.id) + ' deployments'"></span>
+                                    </div>
+                                </div>
+                                <div x-show="createDeployment.selectedIntegration?.id === integration.id" class="text-primary ml-3 mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <div class="modal-action mt-6">
+                    <button class="btn btn-ghost" @click="closeCreateDeploymentModal()">Cancel</button>
+                    <button
+                        class="btn btn-primary"
+                        :disabled="!createDeployment.selectedIntegration"
+                        @click="createDeployment.step = 2">
+                        Next: Configure →
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Configure (schema-driven) -->
+            <div x-show="createDeployment.step === 2">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="blue-badge" x-text="createDeployment.selectedIntegration?.title || createDeployment.selectedIntegration?.name"></span>
+                    <span class="text-base-content/50 text-xs">— Fill in the required configuration fields</span>
+                </div>
+
+                <!-- Schema-driven form fields -->
+                <div x-show="getSchemaProperties(createDeployment.selectedIntegration).length > 0" class="space-y-4 max-h-96 overflow-y-auto pr-1">
+                    <template x-for="field in getSchemaProperties(createDeployment.selectedIntegration)" :key="field.key">
+                        <div class="form-control">
+                            <label class="label pb-1">
+                                <span class="label-text font-semibold text-sm">
+                                    <span x-text="field.title || field.key"></span>
+                                    <span x-show="field.required" class="text-error ml-1">*</span>
+                                </span>
+                                <span class="label-text-alt text-base-content/50 text-xs" x-text="field.type"></span>
+                            </label>
+                            <p x-show="field.description" class="text-xs text-base-content/50 mb-1" x-text="field.description"></p>
+
+                            <!-- Boolean field -->
+                            <div x-show="field.type === 'boolean'" class="flex items-center gap-3 mt-1">
+                                <input
+                                    type="checkbox"
+                                    class="toggle toggle-primary"
+                                    :checked="createDeployment.configValues[field.key]"
+                                    @change="createDeployment.configValues[field.key] = $event.target.checked">
+                                <span class="text-xs text-base-content/60" x-text="createDeployment.configValues[field.key] ? 'Enabled' : 'Disabled'"></span>
+                            </div>
+
+                            <!-- Integer/Number field -->
+                            <input
+                                x-show="field.type === 'integer' || field.type === 'number'"
+                                type="number"
+                                class="input input-bordered input-sm w-full"
+                                :placeholder="field.default !== undefined ? 'Default: ' + field.default : ''"
+                                :value="createDeployment.configValues[field.key]"
+                                @input="createDeployment.configValues[field.key] = $event.target.value === '' ? undefined : Number($event.target.value)"
+                                :step="field.type === 'integer' ? '1' : 'any'">
+
+                            <!-- Enum/Select field -->
+                            <select
+                                x-show="field.enum && field.enum.length > 0 && field.type !== 'boolean'"
+                                class="select select-bordered select-sm w-full"
+                                @change="createDeployment.configValues[field.key] = $event.target.value">
+                                <option value="">Select...</option>
+                                <template x-for="opt in (field.enum || [])" :key="opt">
+                                    <option :value="opt" :selected="createDeployment.configValues[field.key] === opt" x-text="opt"></option>
+                                </template>
+                            </select>
+
+                            <!-- Array field -->
+                            <div x-show="field.type === 'array'" class="space-y-2">
+                                <template x-for="(item, idx) in (createDeployment.configValues[field.key] || [])" :key="idx">
+                                    <div class="flex gap-2">
+                                        <input
+                                            type="text"
+                                            class="input input-bordered input-sm flex-1"
+                                            :value="item"
+                                            @input="updateArrayItem(field.key, idx, $event.target.value)"
+                                            :placeholder="'Item ' + (idx + 1)">
+                                        <button class="btn btn-sm btn-ghost btn-square text-error" @click="removeArrayItem(field.key, idx)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                                <button class="btn btn-sm btn-outline btn-primary w-full" @click="addArrayItem(field.key)">
+                                    + Add Item
+                                </button>
+                            </div>
+
+                            <!-- Object field -->
+                            <div x-show="field.type === 'object' && !field.enum">
+                                <textarea
+                                    class="textarea textarea-bordered w-full font-mono text-xs"
+                                    rows="4"
+                                    :placeholder="'Enter JSON object for ' + field.key"
+                                    @input="parseObjectField(field.key, $event.target.value)"
+                                    x-text="JSON.stringify(createDeployment.configValues[field.key] || {}, null, 2)"></textarea>
+                            </div>
+
+                            <!-- Default: string field (excluding enum and other special types) -->
+                            <input
+                                x-show="field.type === 'string' && !field.enum"
+                                type="text"
+                                class="input input-bordered input-sm w-full"
+                                :placeholder="field.default !== undefined ? 'Default: ' + field.default : (field.examples && field.examples[0] ? 'e.g. ' + field.examples[0] : '')"
+                                :value="createDeployment.configValues[field.key] || ''"
+                                @input="createDeployment.configValues[field.key] = $event.target.value || undefined">
+                        </div>
+                    </template>
+                </div>
+
+                <!-- No schema defined — fallback to JSON editor -->
+                <div x-show="getSchemaProperties(createDeployment.selectedIntegration).length === 0" class="space-y-2">
+                    <p class="text-sm text-base-content/60">No schema defined for this integration. Enter configuration as raw JSON.</p>
+                    <textarea
+                        class="textarea textarea-bordered w-full font-mono text-xs"
+                        rows="10"
+                        placeholder='{\n  "key": "value"\n}'
+                        x-model="createDeployment.rawConfig"></textarea>
+                </div>
+
+                <!-- Validation error -->
+                <div x-show="createDeployment.configError" class="alert alert-error mt-4 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span x-text="createDeployment.configError"></span>
+                </div>
+
+                <div class="modal-action mt-6">
+                    <button class="btn btn-ghost" @click="createDeployment.step = 1">← Back</button>
+                    <button class="btn btn-primary" @click="validateConfigAndNext()">Next: Settings →</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Deployment Settings -->
+            <div x-show="createDeployment.step === 3">
+                <div class="space-y-4">
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold text-sm">Schedule</span>
+                            <span class="label-text-alt text-base-content/50 text-xs">Cron expression (use 'manual' for manual deployment)</span>
+                        </label>
+                        <input type="text" class="input input-bordered input-sm w-full font-mono" x-model="createDeployment.settings.schedule" :placeholder="createDeployment.selectedIntegration.schedule">
+
+                        <label class="label" x-show="createDeployment.settings.schedule">
+                            <span class="label-text-alt text-base-content/50 text-xs" x-text="describeCron(createDeployment.settings.schedule)"></span>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold text-sm">Task Timeout (seconds)</span>
+                            <span class="label-text-alt text-base-content/50 text-xs">Max execution time before the specific tasks are killed</span>
+                        </label>
+                        <input
+                            type="number"
+                            class="input input-bordered input-sm w-full"
+                            placeholder="300"
+                            min="1"
+                            x-model.number="createDeployment.settings.timeout">
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label cursor-pointer justify-start gap-4">
+                            <input type="checkbox" class="toggle toggle-primary" x-model="createDeployment.settings.enabled">
+                            <div>
+                                <span class="label-text font-semibold text-sm">Enable immediately</span>
+                                <p class="text-xs text-base-content/50">If unchecked, deployment will be created in a disabled state</p>
+                            </div>
+                        </label>
+                    </div>
+
+                </div>
+
+                <!-- Summary card -->
+                <div class="bg-base-200 border border-base-300 rounded-lg p-4 mt-5 space-y-2">
+                    <p class="text-xs font-semibold text-base-content/60 uppercase tracking-wider">Summary</p>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-base-content/60">Integration</span>
+                        <span class="font-semibold" x-text="createDeployment.selectedIntegration?.title || createDeployment.selectedIntegration?.name"></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-base-content/60">Schedule</span>
+                        <span class="font-mono text-xs" x-text="createDeployment.settings.schedule || createDeployment.selectedIntegration.schedule"></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-base-content/60">Timeout</span>
+                        <span x-text="(createDeployment.settings.timeout || 300) + 's'"></span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-base-content/60">Status</span>
+                        <span :class="createDeployment.settings.enabled ? 'green-badge' : 'red-badge'" x-text="createDeployment.settings.enabled ? 'Enabled' : 'Disabled'"></span>
+                    </div>
+                </div>
+
+                <!-- Submit error -->
+                <div x-show="createDeployment.submitError" class="alert alert-error mt-4 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span x-text="createDeployment.submitError"></span>
+                </div>
+
+                <div class="modal-action mt-6">
+                    <button class="btn btn-ghost" @click="createDeployment.step = 2">← Back</button>
+                    <button
+                        class="btn btn-primary"
+                        :disabled="createDeployment.submitting"
+                        @click="submitCreateDeployment()">
+                        <span x-show="!createDeployment.submitting">Create Deployment</span>
+                        <span x-show="createDeployment.submitting" class="loading loading-spinner loading-sm"></span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        <!-- Click outside to close -->
+        <div class="modal-backdrop" @click="closeCreateDeploymentModal()"></div>
+    </dialog>
+    <!-- ================================================================== -->
+
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function page(){
+    return {
+        activeTab: 'integrations',
+        integrations: [],
+        deployments: [],
+        jobs: [],
+        allDeployments: [],
+        allJobs: [],
+        violations: [],
+        loading: false,
+        error: null,
+        integrationsHealth: "healthy",
+        checkSearch: '',
+        checkTypeFilter: '',
+        checksPage: 1,
+        checksPerPage: 10,
+
+        // Drawer state
+        drawerOpen: false,
+        drawerType: '',
+        drawerTab: 'details',
+        selectedItem: null,
+        selectedCheck: null,
+
+        // Config editing
+        editingConfig: false,
+        editedConfig: '',
+        savingConfig: false,
+        configError: null,
+
+        // Details editing (schedule + enabled)
+        editingDetails: false,
+        editedDetails: { schedule: '', enabled: true },
+        savingDetails: false,
+        detailsError: null,
+
+        // Pagination
+        deploymentsPage: 1,
+        deploymentsPerPage: 20,
+        jobsPage: 1,
+        jobsPerPage: 20,
+
+        // Delete deployment
+        deploymentToDelete: null,
+        deleting: false,
+        deleteError: null,
+
+        // Server pagination metadata
+        deploymentsPagination: null,
+        jobsPagination: null,
+
+        // Filters
+        filters: {
+            integrations: '',
+            showServices: false,   // false = hide service integrations by default
+            deployments: '',
+            deploymentStatus: '',
+            deploymentQueue: '',
+            jobs: '',
+            jobStatus: '',
+            jobDeploymentId: ''
+        },
+
+        // ── Create Deployment Modal ──────────────────────────────────────
+        createDeployment: {
+            step: 1,
+            selectedIntegration: null,
+            configValues: {},
+            rawConfig: '{}',
+            configError: null,
+            settings: {
+                queue: '',
+                schedule: '',
+                timeout: 300,
+                enabled: true,
+            },
+            submitting: false,
+            submitError: null,
+        },
+        // ────────────────────────────────────────────────────────────────
+
+        async init() {
+            // Restore tab from URL hash on load
+            const hash = window.location.hash.replace('#', '');
+            if (['integrations', 'deployments', 'jobs'].includes(hash)) {
+                this.activeTab = hash;
+            }
+            await this.loadAll();
+            setInterval(() => {
+                if (this.activeTab === 'deployments') {
+                    this.loadDeployments();
+                } else if (this.activeTab === 'jobs') {
+                    this.loadJobs();
+                } else {
+                    this.loadIntegrations();
+                }
+            }, 30000);
+        },
+        openDeleteDeploymentModal(deployment) {
+            this.deploymentToDelete = deployment;
+            this.deleteError = null;
+            this.deleting = false;
+            document.getElementById('delete-deployment-modal').showModal();
+        },
+
+        closeDeleteDeploymentModal() {
+            document.getElementById('delete-deployment-modal').close();
+            this.deploymentToDelete = null;
+            this.deleteError = null;
+            this.deleting = false;
+        },
+
+        async confirmDeleteDeployment() {
+            this.deleting = true;
+            this.deleteError = null;
+            try {
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments/${this.deploymentToDelete.id}`, {
+                    method: 'DELETE',
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.message || err.detail || `HTTP ${response.status}`);
+                }
+                this.closeDeleteDeploymentModal();
+                // Close drawer if the deleted deployment is currently open
+                if (this.selectedItem?.id === this.deploymentToDelete?.id) {
+                    this.drawerOpen = false;
+                }
+                toast('Deployment deleted successfully!');
+                await this.loadDeployments();
+                await this.loadAllDeployments();
+            } catch (err) {
+                this.deleteError = err.message;
+            } finally {
+                this.deleting = false;
+            }
+        },
+        // Set active tab and sync URL hash
+        setTab(tab) {
+            this.activeTab = tab;
+            window.location.hash = tab;
+            this.clearFilters();
+        },
+        getViolationCount(job) {
+            if (!job.result || typeof job.result !== 'object') return 0;
+            return Object.values(job.result).filter(task => task.is_violation === true).length;
+        },
+        get allChecks() {
+            const result = this.selectedItem?.result;
+            if (!result || typeof result !== 'object') return [];
+            return Object.entries(result).map(([name, check]) => ({ name, ...check }));
+        },
+
+        get filteredChecks() {
+            let items = this.allChecks;
+            if (this.checkTypeFilter) {
+                items = items.filter(c => c.type === this.checkTypeFilter);
+            }
+            if (this.checkSearch) {
+                const s = this.checkSearch.toLowerCase();
+                items = items.filter(c => (c.name || '').toLowerCase().includes(s));
+            }
+            return items;
+        },
+
+        get pagedChecks() {
+            const start = (this.checksPage - 1) * this.checksPerPage;
+            return this.filteredChecks.slice(start, start + this.checksPerPage);
+        },
+
+        get totalCheckPages() {
+            return Math.max(1, Math.ceil(this.filteredChecks.length / this.checksPerPage));
+        },
+        async postManualDeployment(id) {
+            try {
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments/${id}/jobs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!response.ok) {
+                    toast('Failed to queue manual job', 'error');
+                    return;
+                }
+                toast('Job queued successfully!');
+            } catch (err) {
+                toast('Failed to queue manual job', 'error');
+                console.log(err)
+            }
+        },
+        async initIntegrations() {
+            try {
+                const response = await fetch(`/api/v1/init-integrations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!response.ok) {
+                    toast('Failed to initialize integrations', 'error');
+                    return;
+                }
+                toast('Integrations deployed successfully!');
+                await this.loadIntegrations();
+            } catch (err) {
+                console.error('Error initializing integrations:', err);
+                alert('Failed to initialize integrations: ' + err.message);
+            }
+        },
+
+        async loadAll() {
+            this.loading = true;
+            this.error = null;
+            try {
+                await Promise.all([
+                    this.loadIntegrations(),
+                    this.loadDeployments(),
+                    this.loadJobs()
+                ]);
+                await this.loadAllDeployments();
+                await this.loadAllJobs();
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadIntegrations() {
+            try {
+                const response = await fetch(`/api/v1/integrations`);
+                if (!response.ok) {
+                    this.integrationsHealth = "unhealthy";
+                    toast('Failed to load integrations', "error");
+                    toast("test")
+                } else {
+                    this.integrations = await response.json();
+                    this.integrationsHealth = "healthy";
+                }
+            } catch (err) {
+                console.error('Error loading integrations:', err);
+                this.integrationsHealth = "unhealthy";
+                throw err;
+            }
+        },
+
+        async loadDeployments() {
+            try {
+                const params = new URLSearchParams({ page: this.deploymentsPage, per_page: this.deploymentsPerPage });
+                if (this.filters.deploymentStatus) params.append('status', this.filters.deploymentStatus);
+                if (this.filters.deploymentQueue) params.append('queue', this.filters.deploymentQueue);
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments?${params}`);
+                if (!response.ok) toast("Unable to load deployments", "error");
+                const data = await response.json();
+                if (data.deployments && data.pagination) {
+                    this.deployments = data.deployments;
+                    this.deploymentsPagination = data.pagination;
+                } else {
+                    this.deployments = data;
+                }
+            } catch (err) {
+                console.error('Error loading deployments:', err);
+                throw err;
+            }
+        },
+
+        async loadJobs() {
+            try {
+                const params = new URLSearchParams({ page: this.jobsPage, per_page: this.jobsPerPage });
+                if (this.filters.jobs) params.append('search', this.filters.jobs);
+                if (this.filters.jobStatus) params.append('status', this.filters.jobStatus);
+                if (this.filters.jobDeploymentId) params.append('deployment_id', this.filters.jobDeploymentId);
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/jobs?${params}`);
+                if (!response.ok) toast('Failed to load jobs', "error");
+                const data = await response.json();
+                if (data.jobs && data.pagination) {
+                    this.jobs = data.jobs;
+                    this.jobsPagination = data.pagination;
+                } else {
+                    this.jobs = data;
+                }
+            } catch (err) {
+                console.error('Error loading jobs:', err);
+                throw err;
+            }
+        },
+
+        async loadAllDeployments() {
+            try {
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments?page=1&per_page=100`);
+                if (!response.ok) toast('Failed to load all deployments', "error");
+                const data = await response.json();
+                this.allDeployments = data.deployments || data;
+            } catch (err) {
+                console.error('Error loading all deployments:', err);
+            }
+        },
+
+        async loadAllJobs() {
+            try {
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/jobs?page=1&per_page=100`);
+                if (!response.ok) toast('Failed to load all jobs', "error");
+                const data = await response.json();
+                this.allJobs = data.jobs || data;
+            } catch (err) {
+                console.error('Error loading all jobs:', err);
+            }
+        },
+
+        async viewViolations(deploymentId) {
+            try {
+                const response = await fetch(`/api/v1/deployments/${deploymentId}/violations`);
+                if (!response.ok) toast('Failed to load violations', "error");
+                this.violations = await response.json();
+            } catch (err) {
+                this.error = err.message;
+            }
+        },
+
+        // ── Edit Details (schedule + enabled) ───────────────────────────
+
+        startEditingDetails() {
+            this.editedDetails = {
+                schedule: this.selectedItem?.schedule || '',
+                enabled: this.selectedItem?.enabled ?? true,
+            };
+            this.detailsError = null;
+            this.editingDetails = true;
+        },
+
+        cancelEditDetails() {
+            this.editingDetails = false;
+            this.detailsError = null;
+        },
+
+        async saveDetails() {
+            this.savingDetails = true;
+            this.detailsError = null;
+            try {
+                const payload = {
+                    enabled: this.editedDetails.enabled,
+                    schedule: this.editedDetails.schedule || null,
+                };
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments/${this.selectedItem.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.message || err.detail || `HTTP ${response.status}`);
+                }
+                // Update local state
+                this.selectedItem.enabled = this.editedDetails.enabled;
+                this.selectedItem.schedule = this.editedDetails.schedule || null;
+                // Sync in deployments list
+                const idx = this.deployments.findIndex(d => d.id === this.selectedItem.id);
+                if (idx !== -1) {
+                    this.deployments[idx].enabled = this.selectedItem.enabled;
+                    this.deployments[idx].schedule = this.selectedItem.schedule;
+                }
+                const idx2 = this.allDeployments.findIndex(d => d.id === this.selectedItem.id);
+                if (idx2 !== -1) {
+                    this.allDeployments[idx2].enabled = this.selectedItem.enabled;
+                    this.allDeployments[idx2].schedule = this.selectedItem.schedule;
+                }
+                this.editingDetails = false;
+                toast('Deployment updated successfully!');
+            } catch (err) {
+                this.detailsError = err.message;
+            } finally {
+                this.savingDetails = false;
+            }
+        },
+
+        // ────────────────────────────────────────────────────────────────
+
+        // ── Create Deployment Modal ──────────────────────────────────────
+
+        openCreateDeploymentModal(integration = null) {
+            // Reset state
+            this.createDeployment = {
+                step: integration ? 2 : 1,
+                selectedIntegration: integration || null,
+                configValues: {},
+                rawConfig: '{}',
+                configError: null,
+                settings: { queue: this.uniqueQueues[0] || '', schedule: '', timeout: 300, enabled: true },
+                submitting: false,
+                submitError: null,
+            };
+            if (integration) {
+                this.initConfigDefaults(integration);
+            }
+            document.getElementById('create-deployment-modal').showModal();
+        },
+
+        closeCreateDeploymentModal() {
+            document.getElementById('create-deployment-modal').close();
+        },
+
+        selectIntegrationForDeployment(integration) {
+            this.createDeployment.selectedIntegration = integration;
+            this.createDeployment.configValues = {};
+            this.initConfigDefaults(integration);
+        },
+
+        initConfigDefaults(integration) {
+            // Pre-populate defaults from schema
+            const props = this.getSchemaProperties(integration);
+            const defaults = {};
+            for (const field of props) {
+                if (field.default !== undefined) {
+                    defaults[field.key] = field.default;
+                } else if (field.type === 'boolean') {
+                    defaults[field.key] = false;
+                } else if (field.type === 'array') {
+                    defaults[field.key] = [];
+                }
+            }
+            this.createDeployment.configValues = defaults;
+        },
+
+        /**
+         * Extract a flat list of field descriptors from an integration's JSON schema.
+         */
+        getSchemaProperties(integration) {
+            if (!integration?.schema) return [];
+            const schema = integration.schema;
+            const properties = schema.properties || schema.schema?.properties || null;
+            if (!properties) return [];
+            const required = new Set(schema.required || schema.schema?.required || []);
+            return Object.entries(properties).map(([key, def]) => ({
+                key,
+                title: def.title || null,
+                description: def.description || null,
+                type: def.type || 'string',
+                enum: def.enum || null,
+                default: def.default,
+                examples: def.examples || [],
+                required: required.has(key),
+            }));
+        },
+
+        validateConfigAndNext() {
+            this.createDeployment.configError = null;
+            const integration = this.createDeployment.selectedIntegration;
+            const fields = this.getSchemaProperties(integration);
+
+            if (fields.length === 0) {
+                try {
+                    JSON.parse(this.createDeployment.rawConfig);
+                } catch (e) {
+                    this.createDeployment.configError = 'Invalid JSON: ' + e.message;
+                    return;
+                }
+            } else {
+                for (const field of fields) {
+                    if (field.required) {
+                        const val = this.createDeployment.configValues[field.key];
+                        if (val === undefined || val === null || val === '') {
+                            this.createDeployment.configError = `"${field.title || field.key}" is required.`;
+                            return;
+                        }
+                    }
+                }
+            }
+
+            this.createDeployment.step = 3;
+        },
+
+        buildConfigPayload() {
+            const integration = this.createDeployment.selectedIntegration;
+            const fields = this.getSchemaProperties(integration);
+            if (fields.length === 0) {
+                return JSON.parse(this.createDeployment.rawConfig);
+            }
+            const config = {};
+            for (const field of fields) {
+                const val = this.createDeployment.configValues[field.key];
+                if (val !== undefined && val !== null && val !== '') {
+                    config[field.key] = val;
+                }
+            }
+            return config;
+        },
+
+        async submitCreateDeployment() {
+            this.createDeployment.submitting = true;
+            this.createDeployment.submitError = null;
+            try {
+                const payload = {
+                    integration_id: this.createDeployment.selectedIntegration.id,
+                    config: this.buildConfigPayload(),
+                    queue: "default",
+                    timeout: this.createDeployment.settings.timeout || 300,
+                    enabled: this.createDeployment.settings.enabled,
+                    tenant_id: this.$store.currentUser.selectedTenant.id,
+                };
+                if (this.createDeployment.settings.schedule !== 'manual') {
+                    payload.schedule = this.createDeployment.settings.schedule || this.createDeployment.selectedIntegration.schedule
+                }
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.message || err.detail || `HTTP ${response.status}`);
+                }
+                const created = await response.json();
+                this.closeCreateDeploymentModal();
+                toast('Deployment created successfully!');
+                await this.loadDeployments();
+                await this.loadAllDeployments();
+                this.activeTab = 'deployments';
+<!--                this.openDrawer('deployment', created);-->
+            } catch (err) {
+                this.createDeployment.submitError = err.message;
+            } finally {
+                this.createDeployment.submitting = false;
+            }
+        },
+
+        // Array field helpers
+        addArrayItem(key) {
+            if (!Array.isArray(this.createDeployment.configValues[key])) {
+                this.createDeployment.configValues[key] = [];
+            }
+            this.createDeployment.configValues[key] = [...this.createDeployment.configValues[key], ''];
+        },
+        removeArrayItem(key, idx) {
+            this.createDeployment.configValues[key] = this.createDeployment.configValues[key].filter((_, i) => i !== idx);
+        },
+        updateArrayItem(key, idx, value) {
+            const arr = [...(this.createDeployment.configValues[key] || [])];
+            arr[idx] = value;
+            this.createDeployment.configValues[key] = arr;
+        },
+
+        // Object field helper
+        parseObjectField(key, value) {
+            try {
+                this.createDeployment.configValues[key] = JSON.parse(value);
+            } catch {
+                // Keep raw string; will fail validation if required
+            }
+        },
+
+        // Very lightweight human-readable cron hint
+        describeCron(expr) {
+            if (!expr || expr === 'manual') return '';
+            const parts = expr.trim().split(/\s+/);
+            if (parts.length < 5) return 'Invalid cron expression';
+            const [min, hour, dom, month, dow] = parts;
+            if (min === '0' && hour === '*' && dom === '*' && month === '*' && dow === '*') return 'Every hour';
+            if (min === '0' && hour === '0' && dom === '*' && month === '*' && dow === '*') return 'Every day at midnight';
+            if (min === '0' && hour === '0' && dom === '*' && month === '*' && dow === '1') return 'Every Monday at midnight';
+            if (min === '*') return 'Every minute';
+            return 'Custom schedule';
+        },
+
+        // ────────────────────────────────────────────────────────────────
+
+        goToDeploymentsPage(page) {
+            if (page >= 1 && page <= this.totalDeploymentsPages) {
+                this.deploymentsPage = page;
+                this.loadDeployments();
+            }
+        },
+
+        goToJobsPage(page) {
+            if (page >= 1 && page <= this.totalJobsPages) {
+                this.jobsPage = page;
+                this.loadJobs();
+            }
+        },
+
+        openDrawer(type, item, tab = 'details') {
+            this.drawerType = type;
+            this.selectedItem = item;
+            this.drawerTab = tab;
+            this.selectedCheck = null;
+            this.drawerOpen = true;
+            this.editingConfig = false;
+            this.editedConfig = '';
+            this.savingConfig = false;
+            this.configError = null;
+            this.editingDetails = false;
+            this.detailsError = null;
+            this.checkSearch = '';
+            this.checkTypeFilter = '';
+            this.checksPage = 1;
+<!--            if (type === 'deployment') {-->
+<!--                this.viewViolations(item.id);-->
+<!--            }-->
+        },
+
+        viewCheckDetail(checkName, checkData) {
+            this.selectedCheck = { name: checkName, ...checkData };
+        },
+
+        viewIntegrationDeployments(integrationId) {
+            this.activeTab = 'deployments';
+            this.filters.deployments = this.getIntegrationName(integrationId);
+            this.deploymentsPage = 1;
+            this.loadDeployments();
+        },
+
+        viewDeploymentJobs(deploymentId) {
+            this.activeTab = 'jobs';
+            this.filters.jobDeploymentId = deploymentId;
+            this.jobsPage = 1;
+            this.loadJobs();
+        },
+
+        clearJobFilter() {
+            this.filters.jobDeploymentId = '';
+            this.jobsPage = 1;
+            this.loadJobs();
+        },
+
+        clearFilters() {
+            this.filters.integrations = '';
+            this.filters.showServices = false;
+            this.filters.deployments = '';
+            this.filters.deploymentStatus = '';
+            this.filters.deploymentQueue = '';
+            this.filters.jobs = '';
+            this.filters.jobStatus = '';
+            this.filters.jobDeploymentId = '';
+            this.deploymentsPage = 1;
+            this.jobsPage = 1;
+        },
+
+        getIntegrationName(integrationId) {
+            const integration = this.integrations.find(i => i.id === integrationId);
+            return integration ? (integration.title || integration.name) : `ID: ${integrationId}`;
+        },
+
+        // FIX: resolve integration name for a job via its deployment
+        getIntegrationNameForJob(deploymentId) {
+            const deployment = this.allDeployments.find(d => d.id === deploymentId);
+            if (!deployment) return 'Unknown';
+            return this.getIntegrationName(deployment.integration_id);
+        },
+
+        getDeploymentCount(integrationId) {
+            return this.allDeployments.filter(d => d.integration_id === integrationId).length;
+        },
+
+        getJobsForDeployment(deploymentId) {
+            return this.allJobs.filter(j => j.deployment_id === deploymentId);
+        },
+
+        getJobCountForDeployment(deploymentId) {
+            return this.allJobs.filter(j => j.deployment_id === deploymentId).length;
+        },
+
+        get filteredIntegrations() {
+            let filtered = this.integrations;
+            // Hide service integrations unless the toggle is on
+            if (!this.filters.showServices) {
+                filtered = filtered.filter(i => !i.is_service);
+            }
+            if (this.filters.integrations) {
+                const search = this.filters.integrations.toLowerCase();
+                filtered = filtered.filter(i =>
+                    i.name.toLowerCase().includes(search) ||
+                    (i.title && i.title.toLowerCase().includes(search)) ||
+                    (i.description && i.description.toLowerCase().includes(search))
+                );
+            }
+            return filtered;
+        },
+
+        // client-side filter deployments by integration name, status, and queue
+        get filteredDeployments() {
+            let results = this.deployments;
+            if (this.filters.deployments) {
+                const search = this.filters.deployments.toLowerCase();
+                results = results.filter(d => {
+                    const integrationName = (this.getIntegrationName(d.integration_id) || '').toLowerCase();
+                    return integrationName.includes(search) || String(d.id).toLowerCase().includes(search);
+                });
+            }
+            if (this.filters.deploymentStatus) {
+                const enabled = this.filters.deploymentStatus === 'enabled';
+                results = results.filter(d => d.enabled === enabled);
+            }
+            if (this.filters.deploymentQueue) {
+                results = results.filter(d => d.queue === this.filters.deploymentQueue);
+            }
+            return results;
+        },
+
+        // client-side filter jobs by search text, status, and deployment id
+        get filteredJobs() {
+            let results = this.jobs;
+            if (this.filters.jobDeploymentId) {
+                results = results.filter(j => j.deployment_id === this.filters.jobDeploymentId);
+            }
+            if (this.filters.jobStatus) {
+                results = results.filter(j => j.status === this.filters.jobStatus);
+            }
+            if (this.filters.jobs) {
+                const search = this.filters.jobs.toLowerCase();
+                results = results.filter(j => {
+                    const integrationName = (this.getIntegrationNameForJob(j.deployment_id) || '').toLowerCase();
+                    return String(j.id).toLowerCase().includes(search) ||
+                        String(j.deployment_id).toLowerCase().includes(search) ||
+                        integrationName.includes(search);
+                });
+            }
+            return results;
+        },
+
+        get totalDeploymentsCount() {
+            return this.deploymentsPagination ? this.deploymentsPagination.total : this.deployments.length;
+        },
+
+        get totalJobsCount() {
+            return this.jobsPagination ? this.jobsPagination.total : this.jobs.length;
+        },
+
+        get totalDeploymentsPages() {
+            return this.deploymentsPagination ? this.deploymentsPagination.pages : 1;
+        },
+
+        get totalJobsPages() {
+            return this.jobsPagination ? this.jobsPagination.pages : 1;
+        },
+
+        get uniqueQueues() {
+            return [...new Set(this.allDeployments.map(d => d.queue))].filter(Boolean);
+        },
+
+        formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleString();
+        },
+
+        calculateDuration(start, end) {
+            if (!start || !end) return '-';
+            const duration = (new Date(end) - new Date(start)) / 1000;
+            if (duration < 60) return `${Math.round(duration)}s`;
+            if (duration < 3600) return `${Math.round(duration / 60)}m`;
+            return `${Math.round(duration / 3600)}h`;
+        },
+
+        formatDurationMs(duration) {
+            if (duration === undefined || duration === null) return '-';
+            return duration < 60 ? `${duration.toFixed(2)}s` : `${(duration / 60).toFixed(2)}m`;
+        },
+
+        getTotalTasks(job) {
+            if (!job.result || typeof job.result !== 'object') return 0;
+            return Object.keys(job.result).length;
+        },
+
+        getSuccessfulTasks(job) {
+            if (!job.result || typeof job.result !== 'object') return 0;
+            return Object.values(job.result).filter(task => task.success === true).length;
+        },
+
+        async saveConfig() {
+            this.savingConfig = true;
+            this.configError = null;
+            try {
+                const config = JSON.parse(this.editedConfig);
+                const response = await fetch(`/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/deployments/${this.selectedItem.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config }),
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Failed to update config');
+                }
+                this.selectedItem.config = config;
+                await this.loadDeployments();
+                await this.loadAllDeployments();
+                this.editingConfig = false;
+            } catch (err) {
+                this.configError = err instanceof SyntaxError ? 'Invalid JSON format' : err.message;
+            } finally {
+                this.savingConfig = false;
+            }
+        }
+    }
+}
+</script>
+{%endblock%}

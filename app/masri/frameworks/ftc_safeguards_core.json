@@ -1,0 +1,533 @@
+[
+  {
+    "name": "Designation of Qualified Individual",
+    "description": "Designate a single Qualified Individual responsible for overseeing, implementing, and enforcing the information security program. This individual must have sufficient authority, stature, and resources to direct the program effectively across the organization.",
+    "guidance": "Appoint a Qualified Individual by name or title with documented authority over the ISP. This person may be an employee, affiliate, or service provider, but the institution retains ultimate responsibility. Ensure the Qualified Individual has direct access to the board of directors or governing body and sufficient budget and staffing. Document the appointment formally and review the designation at least annually or upon departure of the individual.",
+    "ref_code": "314.4(a)",
+    "system_level": false,
+    "category": "Program Governance",
+    "subcategory": "Leadership Designation",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Formal Qualified Individual Appointment",
+        "description": "Formally designate the Qualified Individual in writing, specifying their authority, responsibilities, and reporting structure within the organization.",
+        "ref_code": "314.4(a).1",
+        "guidance": "Issue a formal written appointment letter or board resolution naming the Qualified Individual. Define reporting lines, budget authority, and scope of responsibility."
+      },
+      {
+        "name": "Qualified Individual Competency",
+        "description": "Ensure the designated Qualified Individual possesses the knowledge, skills, and experience necessary to effectively manage the information security program.",
+        "ref_code": "314.4(a).2",
+        "guidance": "Verify the Qualified Individual holds relevant certifications (e.g., CISSP, CISM) or equivalent experience. Provide ongoing professional development opportunities and assess competency annually."
+      },
+      {
+        "name": "Third-Party Qualified Individual Oversight",
+        "description": "If the Qualified Individual is a service provider or affiliate, maintain oversight and accountability for their performance in managing the information security program.",
+        "ref_code": "314.4(a).3",
+        "guidance": "If outsourcing the Qualified Individual role, establish a contract with defined SLAs, reporting requirements, and performance metrics. The institution retains full responsibility for compliance regardless of outsourcing."
+      }
+    ]
+  },
+  {
+    "name": "Written Information Security Program",
+    "description": "Develop, implement, and maintain a comprehensive written information security program that contains administrative, technical, and physical safeguards appropriate to the size and complexity of the institution and the sensitivity of the customer information it handles.",
+    "guidance": "Create a formally documented ISP that addresses all elements required by 16 CFR 314. The program should be proportionate to the organization's risk profile and should cover all systems, personnel, and processes that handle customer information. Review and update the ISP at least annually and whenever material changes in business operations or threat landscape occur. Ensure the ISP is approved by the board or senior management and communicated to all relevant personnel.",
+    "ref_code": "314.3",
+    "system_level": false,
+    "category": "Program Governance",
+    "subcategory": "Information Security Program",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "ISP Documentation and Scope",
+        "description": "Document the scope of the information security program, identifying all systems, data flows, and personnel that handle customer information.",
+        "ref_code": "314.3.1",
+        "guidance": "Define the boundaries of the ISP including all business units, systems, and third parties that process customer information. Maintain a current data flow diagram and system inventory."
+      },
+      {
+        "name": "ISP Annual Review and Update",
+        "description": "Review and update the written information security program at least annually to address changes in technology, threats, business operations, and regulatory requirements.",
+        "ref_code": "314.3.2",
+        "guidance": "Schedule annual ISP reviews with documented sign-off from the Qualified Individual and senior management. Track changes between versions and communicate updates to all affected personnel."
+      },
+      {
+        "name": "ISP Board Approval",
+        "description": "Obtain approval of the information security program from the board of directors or equivalent governing body to ensure executive commitment and resource allocation.",
+        "ref_code": "314.3.3",
+        "guidance": "Present the ISP to the board for formal approval at least annually. Document board approval in meeting minutes. Include ISP effectiveness metrics and resource requirements in the presentation."
+      }
+    ]
+  },
+  {
+    "name": "Risk Assessment",
+    "description": "Conduct and document a written risk assessment that identifies reasonably foreseeable internal and external risks to the security, confidentiality, and integrity of customer information, and assesses the sufficiency of safeguards in place to control these risks.",
+    "guidance": "Perform a comprehensive written risk assessment covering all systems, networks, and processes that store, transmit, or process customer information. Identify threat sources, vulnerabilities, and the likelihood and potential impact of each identified risk. Document the criteria used for risk evaluation and ensure findings are reviewed by the Qualified Individual. Update the risk assessment at least annually or whenever material changes occur.",
+    "ref_code": "314.4(b)",
+    "system_level": false,
+    "category": "Risk Assessment",
+    "subcategory": "Risk Identification",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Internal Risk Identification",
+        "description": "Identify and evaluate risks from internal sources, including employees, contractors, and business processes that could compromise customer information.",
+        "ref_code": "314.4(b).1",
+        "guidance": "Assess risks from employee access, separation of duties, background checks, and termination procedures. Evaluate potential for accidental or intentional data exposure by authorized personnel."
+      },
+      {
+        "name": "External Risk Identification",
+        "description": "Identify and evaluate risks from external sources, including cyberattacks, social engineering, physical intrusion, and third-party compromise.",
+        "ref_code": "314.4(b).2",
+        "guidance": "Assess risks from cybercriminals, nation-states, and hacktivists. Evaluate exposure to phishing, ransomware, and supply chain compromise. Review threat intelligence relevant to financial services."
+      },
+      {
+        "name": "Safeguard Sufficiency Evaluation",
+        "description": "Assess whether existing safeguards adequately control identified risks, considering the sensitivity of customer information and the complexity of the institution's activities.",
+        "ref_code": "314.4(b).3",
+        "guidance": "Map existing controls to each identified risk and evaluate whether they reduce risk to an acceptable level. Document gaps and create a remediation plan with owners and target dates."
+      },
+      {
+        "name": "Risk Assessment Updates",
+        "description": "Review and update the risk assessment periodically and whenever material changes occur to operations, information systems, or threats.",
+        "ref_code": "314.4(b).4",
+        "guidance": "Schedule annual risk assessment reviews. Trigger ad-hoc assessments when significant changes occur such as new system deployments, mergers, or security incidents. Document all updates."
+      }
+    ]
+  },
+  {
+    "name": "Testing and Monitoring of Safeguards",
+    "description": "Implement continuous monitoring or periodic testing of the effectiveness of safeguards' key controls, systems, and procedures, including those to detect actual and attempted attacks on, or intrusions into, information systems.",
+    "guidance": "Establish a program of continuous monitoring or periodic penetration testing and vulnerability assessments to verify that safeguards function as intended. Continuous monitoring should include intrusion detection, log analysis, and automated vulnerability scanning. If periodic testing is chosen instead, conduct penetration testing annually and vulnerability assessments at least every six months. Document all test results and remediate identified weaknesses promptly.",
+    "ref_code": "314.4(c)",
+    "system_level": true,
+    "category": "Risk Assessment",
+    "subcategory": "Testing and Monitoring",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Continuous Monitoring Program",
+        "description": "Implement continuous monitoring of information systems to detect and respond to security events in real time, including intrusion detection and log correlation.",
+        "ref_code": "314.4(c).1",
+        "guidance": "Deploy SIEM, IDS/IPS, and automated vulnerability scanning tools. Establish alert thresholds and escalation procedures. Review and tune monitoring rules quarterly."
+      },
+      {
+        "name": "Periodic Penetration Testing",
+        "description": "Conduct annual penetration testing of information systems that process customer information to identify exploitable vulnerabilities.",
+        "ref_code": "314.4(c).2",
+        "guidance": "Engage qualified internal or external testers to perform annual penetration tests. Define scope to include all systems handling customer information. Remediate critical and high findings within 30 days."
+      },
+      {
+        "name": "Vulnerability Assessment Program",
+        "description": "Perform vulnerability assessments at least every six months to identify and prioritize security weaknesses in systems and applications.",
+        "ref_code": "314.4(c).3",
+        "guidance": "Run automated vulnerability scans at least biannually across all in-scope systems. Prioritize findings using CVSS scores. Track remediation through a formal vulnerability management process."
+      }
+    ]
+  },
+  {
+    "name": "Access Controls",
+    "description": "Implement and maintain access controls that limit access to customer information to authorized individuals whose access is necessary to perform their job functions, based on the principle of least privilege.",
+    "guidance": "Establish role-based access controls restricting access to customer information to personnel whose job functions require it. Implement provisioning and de-provisioning workflows, periodic access reviews, and segregation of duties. Revoke access promptly upon role change or termination. Use multi-factor authentication where required and enforce strong authentication policies across all systems containing customer information.",
+    "ref_code": "314.4(d)(1)",
+    "system_level": false,
+    "category": "Technical Safeguards",
+    "subcategory": "Access Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Role-Based Access Control",
+        "description": "Implement role-based access control across all systems handling customer information, granting the minimum necessary privileges for each role.",
+        "ref_code": "314.4(d)(1).1",
+        "guidance": "Define access roles aligned with job functions. Document the access control matrix. Review and update roles quarterly to reflect organizational changes."
+      },
+      {
+        "name": "Access Provisioning and De-provisioning",
+        "description": "Establish formal procedures for granting, modifying, and revoking access to customer information upon hiring, role changes, or termination.",
+        "ref_code": "314.4(d)(1).2",
+        "guidance": "Integrate access provisioning with HR workflows. Revoke access within 24 hours of termination. Disable accounts for extended leave. Log all provisioning actions."
+      },
+      {
+        "name": "Periodic Access Reviews",
+        "description": "Conduct regular reviews of user access rights to ensure access remains appropriate and no unauthorized access has been granted.",
+        "ref_code": "314.4(d)(1).3",
+        "guidance": "Perform access certification at least quarterly. Require manager attestation of each report's access. Remove or adjust unjustified access. Document review results."
+      }
+    ]
+  },
+  {
+    "name": "Data Inventory and Classification",
+    "description": "Conduct a periodic inventory of data, noting where customer information is collected, stored, and transmitted, and maintain a complete and accurate record of all information assets.",
+    "guidance": "Develop and maintain a comprehensive inventory of all customer information, including its location, format, sensitivity, and the systems used to process it. Classify data according to sensitivity levels and apply appropriate protections for each classification tier. Update the inventory at least annually and whenever new systems or data types are introduced. Include data flow maps showing how customer information moves through the organization and to third parties.",
+    "ref_code": "314.4(d)(2)",
+    "system_level": false,
+    "category": "Technical Safeguards",
+    "subcategory": "Data Management",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Customer Information Inventory",
+        "description": "Maintain a current inventory of all customer information, documenting where it is collected, stored, processed, and transmitted.",
+        "ref_code": "314.4(d)(2).1",
+        "guidance": "Catalog all repositories containing customer information including databases, file shares, cloud services, and paper records. Update the inventory at least annually."
+      },
+      {
+        "name": "Data Classification Scheme",
+        "description": "Establish a data classification scheme that categorizes customer information by sensitivity and applies corresponding security controls.",
+        "ref_code": "314.4(d)(2).2",
+        "guidance": "Define classification tiers (e.g., Public, Internal, Confidential, Restricted). Map each data type to the appropriate tier. Apply encryption, access controls, and handling requirements based on classification."
+      },
+      {
+        "name": "Data Flow Mapping",
+        "description": "Create and maintain data flow diagrams that document how customer information moves through internal systems and to external parties.",
+        "ref_code": "314.4(d)(2).3",
+        "guidance": "Document all data flows involving customer information, including collection points, internal transfers, third-party sharing, and disposal. Review data flow maps whenever systems or processes change."
+      }
+    ]
+  },
+  {
+    "name": "Encryption of Customer Information",
+    "description": "Encrypt all customer information held or transmitted by the institution both in transit over external networks and at rest, unless the Qualified Individual has determined alternative compensating controls are equally effective.",
+    "guidance": "Implement encryption using industry-standard algorithms (AES-256 for data at rest, TLS 1.2 or higher for data in transit) for all customer information. Establish key management procedures covering key generation, distribution, storage, rotation, and destruction. If the Qualified Individual approves alternative compensating controls in lieu of encryption, document the justification and ensure the alternatives provide equivalent protection. Review encryption standards annually.",
+    "ref_code": "314.4(d)(3)",
+    "system_level": true,
+    "category": "Technical Safeguards",
+    "subcategory": "Encryption",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Encryption in Transit",
+        "description": "Encrypt all customer information transmitted over external networks using TLS 1.2 or higher or equivalent cryptographic protocols.",
+        "ref_code": "314.4(d)(3).1",
+        "guidance": "Configure all web servers, APIs, and communication channels to require TLS 1.2+. Disable older protocols. Obtain and maintain valid TLS certificates from trusted certificate authorities."
+      },
+      {
+        "name": "Encryption at Rest",
+        "description": "Encrypt all customer information stored on the institution's systems using AES-256 or equivalent encryption algorithms.",
+        "ref_code": "314.4(d)(3).2",
+        "guidance": "Deploy full-disk encryption on all endpoints and servers. Encrypt database fields containing customer information. Use encrypted storage for backups and archives."
+      },
+      {
+        "name": "Encryption Key Management",
+        "description": "Implement secure key management procedures including key generation, storage, rotation, and destruction to maintain the integrity of encryption protections.",
+        "ref_code": "314.4(d)(3).3",
+        "guidance": "Use hardware security modules or secure key management services. Rotate encryption keys at least annually. Segregate key management duties. Document all key lifecycle procedures."
+      }
+    ]
+  },
+  {
+    "name": "Multi-Factor Authentication",
+    "description": "Require multi-factor authentication for any individual accessing any information system that contains customer information, unless the Qualified Individual has approved in writing the use of equivalent compensating controls.",
+    "guidance": "Implement MFA requiring at least two of the three authentication factor types: knowledge (password), possession (token, smart card, mobile device), and inherence (biometric). Apply MFA to all access points for systems containing customer information, including VPN, remote desktop, cloud services, and administrative interfaces. Document any approved exceptions with compensating controls justified by the Qualified Individual.",
+    "ref_code": "314.4(d)(4)",
+    "system_level": true,
+    "category": "Technical Safeguards",
+    "subcategory": "Authentication",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "MFA Implementation for All Access",
+        "description": "Deploy multi-factor authentication on all systems and applications that store, process, or transmit customer information.",
+        "ref_code": "314.4(d)(4).1",
+        "guidance": "Enable MFA on all access points including VPN, cloud applications, email, and administrative consoles. Prefer hardware tokens or authenticator apps over SMS-based codes."
+      },
+      {
+        "name": "MFA for Remote Access",
+        "description": "Require multi-factor authentication for all remote access sessions to systems containing customer information.",
+        "ref_code": "314.4(d)(4).2",
+        "guidance": "Enforce MFA on all remote access channels including VPN, remote desktop, and cloud-based services. Block remote access attempts without MFA completion."
+      },
+      {
+        "name": "MFA Exception Documentation",
+        "description": "Document and justify any exceptions to the MFA requirement, with written approval from the Qualified Individual and equivalent compensating controls.",
+        "ref_code": "314.4(d)(4).3",
+        "guidance": "If MFA is infeasible for specific systems, the Qualified Individual must approve in writing the use of compensating controls. Document the risk assessment, compensating controls, and review exceptions annually."
+      }
+    ]
+  },
+  {
+    "name": "Secure Data Disposal",
+    "description": "Implement policies, procedures, and controls to securely dispose of customer information no later than two years after the last date the information was used in connection with providing a product or service, unless retention is required by law or regulation.",
+    "guidance": "Establish a data retention schedule that identifies the maximum retention period for each type of customer information. Implement automated and manual processes to identify and securely dispose of customer information that has exceeded its retention period. Use approved destruction methods including cryptographic erasure, degaussing, or physical destruction for electronic media and cross-cut shredding for paper records. Document all disposal activities and maintain disposal logs.",
+    "ref_code": "314.4(d)(5)",
+    "system_level": false,
+    "category": "Technical Safeguards",
+    "subcategory": "Data Retention and Disposal",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Data Retention Schedule",
+        "description": "Establish and maintain a data retention schedule specifying maximum retention periods for each category of customer information.",
+        "ref_code": "314.4(d)(5).1",
+        "guidance": "Define retention periods aligned with legal and business requirements. Default to two years from last use unless longer retention is legally required. Review the schedule annually."
+      },
+      {
+        "name": "Secure Destruction Methods",
+        "description": "Use approved methods for secure destruction of customer information, including cryptographic erasure, degaussing, physical destruction, or cross-cut shredding.",
+        "ref_code": "314.4(d)(5).2",
+        "guidance": "Define approved destruction methods for each media type. Use NIST SP 800-88 guidelines for electronic media sanitization. Require cross-cut shredding for paper records. Verify destruction completion."
+      },
+      {
+        "name": "Disposal Documentation and Logging",
+        "description": "Maintain records of all data disposal activities, including the type of information destroyed, method used, date, and personnel involved.",
+        "ref_code": "314.4(d)(5).3",
+        "guidance": "Log all disposal activities with sufficient detail for audit purposes. Retain disposal logs for at least three years. Include certificates of destruction from third-party vendors."
+      }
+    ]
+  },
+  {
+    "name": "Change Management",
+    "description": "Adopt procedures for change management that evaluate the security implications of changes to information systems, networks, or business operations before implementation.",
+    "guidance": "Implement a formal change management process that requires security impact assessments for all changes to systems handling customer information. Changes should be documented, tested in a non-production environment, approved by appropriate stakeholders, and reviewed post-implementation. Emergency changes must follow an expedited process with retrospective documentation. Maintain a change log and audit trail for all modifications.",
+    "ref_code": "314.4(d)(6)",
+    "system_level": true,
+    "category": "Administrative Safeguards",
+    "subcategory": "Change Management",
+    "dti": "medium",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Security Impact Assessment for Changes",
+        "description": "Evaluate the security implications of proposed changes to information systems before implementation to ensure customer information remains protected.",
+        "ref_code": "314.4(d)(6).1",
+        "guidance": "Require a security impact assessment as part of every change request. Identify potential risks to customer information and define mitigations before approval."
+      },
+      {
+        "name": "Change Testing and Approval",
+        "description": "Test all changes in a non-production environment and obtain formal approval from designated personnel before production deployment.",
+        "ref_code": "314.4(d)(6).2",
+        "guidance": "Maintain a staging environment that mirrors production. Test changes thoroughly before deployment. Require sign-off from security and system owners."
+      },
+      {
+        "name": "Change Documentation and Audit Trail",
+        "description": "Maintain a comprehensive log of all changes to information systems, including the nature of the change, approval, implementation date, and responsible personnel.",
+        "ref_code": "314.4(d)(6).3",
+        "guidance": "Document all changes in a centralized change management system. Retain change records for at least three years. Review change logs periodically for unauthorized modifications."
+      }
+    ]
+  },
+  {
+    "name": "Security Monitoring and Logging",
+    "description": "Implement policies, procedures, and controls designed to monitor the activity of authorized users and detect unauthorized access or use of, or tampering with, customer information.",
+    "guidance": "Deploy security monitoring solutions including SIEM, intrusion detection systems, and endpoint detection and response tools across all systems handling customer information. Establish baseline activity patterns and configure alerts for anomalous behavior. Retain security logs for a minimum of one year with 90 days immediately accessible. Review logs regularly and investigate all alerts and anomalies within defined response timeframes.",
+    "ref_code": "314.4(d)(7)",
+    "system_level": true,
+    "category": "Administrative Safeguards",
+    "subcategory": "Monitoring and Detection",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Security Event Logging",
+        "description": "Implement comprehensive logging of security-relevant events across all systems that process, store, or transmit customer information.",
+        "ref_code": "314.4(d)(7).1",
+        "guidance": "Log authentication events, access to customer information, administrative actions, and system changes. Centralize logs in a SIEM. Protect log integrity against tampering."
+      },
+      {
+        "name": "Anomaly Detection and Alerting",
+        "description": "Configure automated detection of anomalous activity patterns and generate timely alerts for investigation by security personnel.",
+        "ref_code": "314.4(d)(7).2",
+        "guidance": "Establish baselines for normal user and system behavior. Configure rules and machine learning models to detect deviations. Define alert severity levels and response timeframes."
+      },
+      {
+        "name": "Log Retention and Review",
+        "description": "Retain security logs for a minimum period and conduct regular reviews to identify trends, incidents, and areas for security improvement.",
+        "ref_code": "314.4(d)(7).3",
+        "guidance": "Retain logs for at least one year with 90 days immediately accessible. Conduct weekly log reviews. Document findings and escalate potential incidents per the incident response plan."
+      }
+    ]
+  },
+  {
+    "name": "Service Provider Oversight",
+    "description": "Oversee service providers by selecting and retaining providers that maintain appropriate safeguards for customer information, requiring contractual security provisions, and periodically assessing their security practices.",
+    "guidance": "Implement a third-party risk management program that evaluates the security posture of service providers before engagement and on an ongoing basis. Require contractual provisions obligating service providers to implement safeguards consistent with the institution's ISP. Conduct due diligence assessments including review of SOC 2 reports, security questionnaires, and on-site audits where appropriate. Reassess service providers at least annually and when material changes occur in the service relationship.",
+    "ref_code": "314.4(e)",
+    "system_level": false,
+    "category": "Oversight & Reporting",
+    "subcategory": "Third-Party Risk Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Service Provider Due Diligence",
+        "description": "Conduct security due diligence assessments of service providers before engagement, evaluating their ability to safeguard customer information.",
+        "ref_code": "314.4(e).1",
+        "guidance": "Review SOC 2 reports, security certifications, and completed security questionnaires. Evaluate the provider's incident history and security program maturity before contract execution."
+      },
+      {
+        "name": "Contractual Security Requirements",
+        "description": "Include contractual provisions requiring service providers to implement and maintain safeguards for customer information consistent with the institution's security program.",
+        "ref_code": "314.4(e).2",
+        "guidance": "Include data protection clauses, breach notification requirements, audit rights, and compliance obligations in all service provider agreements. Require service providers to notify the institution of material security changes."
+      },
+      {
+        "name": "Periodic Service Provider Assessments",
+        "description": "Periodically reassess the security practices of service providers to ensure ongoing compliance with contractual and regulatory requirements.",
+        "ref_code": "314.4(e).3",
+        "guidance": "Conduct annual reassessments of all service providers handling customer information. Review updated SOC reports and security questionnaires. Perform on-site assessments for high-risk providers."
+      }
+    ]
+  },
+  {
+    "name": "Board Reporting",
+    "description": "The Qualified Individual must report in writing at least annually to the board of directors or equivalent governing body on the overall status of the information security program, including compliance with the Safeguards Rule, material security events, and recommendations for changes.",
+    "guidance": "Prepare and deliver a comprehensive written report to the board or governing body at least annually. The report must cover the overall status of the ISP, material matters related to the program including risk assessment results, service provider arrangements, security events, and recommendations for improving the program. Present the report in a manner that enables the board to make informed decisions about resource allocation and program direction. Retain copies of all board reports.",
+    "ref_code": "314.4(f)",
+    "system_level": false,
+    "category": "Oversight & Reporting",
+    "subcategory": "Board Reporting",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Annual Written Board Report",
+        "description": "Produce a comprehensive written report for the board of directors covering the overall status and effectiveness of the information security program.",
+        "ref_code": "314.4(f).1",
+        "guidance": "Include ISP compliance status, risk assessment results, material security events, third-party assessments, and recommendations. Present metrics and trends to enable informed decision-making."
+      },
+      {
+        "name": "Material Security Event Reporting",
+        "description": "Report material security events, incidents, and near-misses to the board in a timely manner, including root cause analysis and remediation status.",
+        "ref_code": "314.4(f).2",
+        "guidance": "Define criteria for material events requiring board notification. Include incident description, impact assessment, response actions, and lessons learned in event reports."
+      },
+      {
+        "name": "Program Improvement Recommendations",
+        "description": "Provide the board with actionable recommendations for improving the information security program, including resource requirements and strategic priorities.",
+        "ref_code": "314.4(f).3",
+        "guidance": "Present a prioritized roadmap of security improvements with cost estimates and expected risk reduction. Align recommendations with the organization's strategic objectives and regulatory requirements."
+      }
+    ]
+  },
+  {
+    "name": "Incident Response Plan",
+    "description": "Establish a written incident response plan designed to promptly respond to, and recover from, any security event materially affecting the confidentiality, integrity, or availability of customer information.",
+    "guidance": "Develop a comprehensive written incident response plan that addresses detection, containment, investigation, eradication, recovery, and post-incident review. Define roles and responsibilities, communication protocols, escalation procedures, and notification requirements. Include procedures for preserving evidence, notifying affected customers, and reporting to regulators as required. Test the plan at least annually through tabletop exercises or simulations and update based on lessons learned.",
+    "ref_code": "314.4(g)",
+    "system_level": false,
+    "category": "Oversight & Reporting",
+    "subcategory": "Incident Response",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Incident Response Plan Documentation",
+        "description": "Maintain a written incident response plan that defines procedures for detecting, responding to, and recovering from security events affecting customer information.",
+        "ref_code": "314.4(g).1",
+        "guidance": "Document the complete incident lifecycle from detection through post-incident review. Define roles, escalation paths, and communication channels. Keep the plan accessible to all response team members."
+      },
+      {
+        "name": "Incident Response Testing",
+        "description": "Test the incident response plan at least annually through tabletop exercises, simulations, or live drills to verify its effectiveness.",
+        "ref_code": "314.4(g).2",
+        "guidance": "Conduct at least one tabletop exercise annually with scenarios relevant to the institution. Document results, identify gaps, and update the plan accordingly. Include third-party providers in exercises where appropriate."
+      },
+      {
+        "name": "Customer and Regulatory Notification",
+        "description": "Establish procedures for notifying affected customers, regulators, and law enforcement following a security event as required by applicable laws and regulations.",
+        "ref_code": "314.4(g).3",
+        "guidance": "Define notification triggers, timelines, and templates for customer and regulatory notifications. Maintain current contact information for relevant regulatory agencies and law enforcement. Coordinate notifications with legal counsel."
+      }
+    ]
+  },
+  {
+    "name": "Annual Penetration Testing and Vulnerability Assessment",
+    "description": "Conduct annual penetration testing of information systems and biannual vulnerability assessments to identify and remediate security weaknesses, unless continuous monitoring is in place as an alternative.",
+    "guidance": "Engage qualified testers to perform annual penetration testing covering external and internal attack surfaces for all systems handling customer information. Conduct vulnerability assessments at least every six months. Alternatively, implement a continuous monitoring program that provides equivalent or greater assurance. Remediate critical and high-severity findings within defined timeframes and track all findings through closure. Document test scope, methodology, findings, and remediation status.",
+    "ref_code": "314.4(h)",
+    "system_level": true,
+    "category": "Oversight & Reporting",
+    "subcategory": "Security Testing",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314",
+      "effective_date": "2023-06-09"
+    },
+    "subcontrols": [
+      {
+        "name": "Annual Penetration Testing",
+        "description": "Conduct penetration testing of information systems at least annually, covering both external and internal attack surfaces.",
+        "ref_code": "314.4(h).1",
+        "guidance": "Define the scope to include all systems processing customer information. Engage qualified testers with relevant certifications (e.g., OSCP, GPEN). Remediate critical findings within 30 days and high findings within 60 days."
+      },
+      {
+        "name": "Biannual Vulnerability Assessments",
+        "description": "Perform vulnerability assessments of information systems at least every six months to identify and prioritize security weaknesses.",
+        "ref_code": "314.4(h).2",
+        "guidance": "Run authenticated vulnerability scans across all in-scope systems. Prioritize remediation using CVSS scores. Track findings in a formal vulnerability management system."
+      },
+      {
+        "name": "Findings Remediation and Tracking",
+        "description": "Track all penetration testing and vulnerability assessment findings through remediation, with defined timelines and responsible parties.",
+        "ref_code": "314.4(h).3",
+        "guidance": "Maintain a centralized findings register. Assign owners and target remediation dates based on severity. Verify remediation through retesting. Report remediation status to the Qualified Individual."
+      }
+    ]
+  }
+]

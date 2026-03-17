@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ mobileMenuOpen: false }">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="x-ua-compatible" content="ie=edge; chrome=1">
+
+  <!-- PWA Meta -->
+  <meta name="theme-color" content="{{ branding.primary_color | default('#0066CC') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/icon-192.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/icon.png') }}">
+
+  <!-- Dynamic brand color -->
+  <style>
+    :root {
+      --brand-primary: {{ branding.primary_color | default('#0066CC') }};
+      --brand-hover: {{ branding.hover_color | default('#0055AA') }};
+      --brand-light: {{ branding.light_color | default('#E8F0FB') }};
+    }
+  </style>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Design System CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-design-system.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-mobile.css') }}">
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.10/dist/cdn.min.js"></script>
+
+  <!-- Alpine Global Store -->
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.store('app', {
+        slidePanel: { open: false, title: '', contentUrl: '' },
+        toast: { show: false, message: '', type: 'success' },
+
+        showToast(message, type = 'success') {
+          this.toast = { show: true, message, type };
+          setTimeout(() => { this.toast.show = false; }, 2500);
+        },
+
+        openPanel(title, contentUrl) {
+          this.slidePanel = { open: true, title, contentUrl };
+        },
+
+        closePanel() {
+          this.slidePanel.open = false;
+        }
+      });
+    });
+  </script>
+
+  <!-- Existing gapps helpers (if available) -->
+  {% block include_helpers %}
+  {% if "helpers/src_macros.html" is template %}
+    {% import "helpers/src_macros.html" as macro %}
+    {{ macro.filehelper(sanitize=True) }}
+  {% endif %}
+  {% endblock %}
+
+  <title>{% block title %}{{ branding.app_name | default(config.APP_NAME) | default('Masri Digital Compliance') }}{% endblock %}</title>
+
+  {% block head %}{% endblock %}
+</head>
+
+<body style="background: var(--surface-0); font-family: var(--font-family); color: var(--text-primary); margin: 0;">
+
+  <!-- ================================================================
+       Desktop Top Navigation (hidden below 768px via CSS)
+       ================================================================ -->
+  <nav class="md-top-nav">
+    <div class="md-top-nav-inner">
+      <!-- Logo + Name -->
+      <a href="{{ url_for('main.index') }}" class="md-top-nav-logo">
+        {% if branding is defined and branding.logo_url %}
+          <img src="{{ branding.logo_url }}" alt="{{ branding.app_name | default('Masri Digital') }}">
+        {% else %}
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="28" height="28" rx="6" fill="var(--brand-primary)"/>
+            <path d="M7 19V9l4 7 4-7v10M19 9v10" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {% endif %}
+        <span>{{ branding.app_name | default(config.APP_NAME) | default('Masri Digital') }}</span>
+      </a>
+
+      <!-- Nav Links -->
+      <div class="md-top-nav-links">
+        <a href="{{ url_for('main.index') }}"
+           class="md-top-nav-link {% if request.endpoint == 'main.index' %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('main.compliance') }}"
+           class="md-top-nav-link {% if request.endpoint and 'compliance' in request.endpoint %}is-active{% endif %}">Compliance</a>
+        <a href="{{ url_for('main.risk') }}"
+           class="md-top-nav-link {% if request.endpoint and 'risk' in request.endpoint %}is-active{% endif %}">Risk</a>
+        <a href="{{ url_for('main.wisp') }}"
+           class="md-top-nav-link {% if request.endpoint and 'wisp' in request.endpoint %}is-active{% endif %}">WISP</a>
+        <a href="{{ url_for('main.vendors') }}"
+           class="md-top-nav-link {% if request.endpoint and 'vendor' in request.endpoint %}is-active{% endif %}">Vendors</a>
+      </div>
+
+      <!-- Right Side -->
+      <div class="md-top-nav-right">
+        {% if current_user.is_authenticated %}
+        <!-- Tenant Switcher -->
+        <div x-data="{ open: false }" style="position: relative;">
+          <button @click="open = !open" @click.away="open = false"
+                  class="md-btn md-btn-secondary md-btn-sm" style="height: 34px; font-weight: 500;">
+            <i class="ti ti-building" style="font-size: 14px;"></i>
+            {{ current_tenant.name if current_tenant else 'Select Client' }}
+            <svg width="10" height="6" fill="none" style="margin-left: 2px;"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="md-dropdown" x-show="open" x-transition.opacity x-cloak style="min-width: 220px;">
+            {% if tenants is defined %}
+              {% for tenant in tenants %}
+              <a href="{{ url_for('main.switch_tenant', tenant_id=tenant.id) }}" class="md-dropdown-item">
+                {{ tenant.name }}
+              </a>
+              {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- User Menu -->
+        <div x-data="{ open: false }" style="position: relative;">
+          <button @click="open = !open" @click.away="open = false" class="md-avatar"
+                  title="{{ current_user.email }}">
+            {{ current_user.first_name[0] | upper if current_user.first_name else current_user.email[0] | upper }}
+          </button>
+          <div class="md-dropdown" x-show="open" x-transition.opacity x-cloak>
+            <a href="{{ url_for('main.settings') }}" class="md-dropdown-item">
+              <i class="ti ti-settings" style="font-size: 16px;"></i> Settings
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="md-dropdown-item">
+              <i class="ti ti-logout" style="font-size: 16px;"></i> Sign Out
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- ================================================================
+       Mobile Header (shown below 768px via CSS)
+       ================================================================ -->
+  <header class="md-mobile-header">
+    <button @click="mobileMenuOpen = !mobileMenuOpen"
+            style="background: none; border: none; cursor: pointer; color: var(--text-primary); padding: 8px;"
+            aria-label="Toggle menu">
+      <svg x-show="!mobileMenuOpen" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+      <svg x-show="mobileMenuOpen" x-cloak width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <span class="md-mobile-header-title">{{ branding.app_name | default('MD Comply') }}</span>
+    <div style="width: 40px;"></div>
+  </header>
+
+  <!-- Mobile Menu Overlay -->
+  <div class="md-mobile-menu-overlay" x-show="mobileMenuOpen" x-transition.opacity x-cloak
+       style="position: fixed; inset: 0; top: 52px; background: var(--surface-1); z-index: 39; padding: var(--space-lg); overflow-y: auto;">
+    <a href="{{ url_for('main.index') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-home"></i> Overview
+    </a>
+    <a href="{{ url_for('main.compliance') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-checklist"></i> Compliance
+    </a>
+    <a href="{{ url_for('main.risk') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-alert-triangle"></i> Risk
+    </a>
+    <a href="{{ url_for('main.wisp') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-file-text"></i> WISP
+    </a>
+    <a href="{{ url_for('main.vendors') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-users"></i> Vendors
+    </a>
+    <hr class="md-divider">
+    <a href="{{ url_for('main.settings') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-settings"></i> Settings
+    </a>
+    {% if current_user.is_authenticated %}
+    <a href="{{ url_for('auth.logout') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-logout"></i> Sign Out
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- ================================================================
+       Main Content Area
+       ================================================================ -->
+  <main class="md-content-area">
+    {% block page_header %}{% endblock %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ================================================================
+       Mobile Bottom Tab Bar (shown below 768px via CSS)
+       ================================================================ -->
+  <nav class="md-bottom-nav">
+    <div class="md-bottom-nav-items">
+      <a href="{{ url_for('main.index') }}" class="md-bottom-nav-item {% if request.endpoint == 'main.index' %}active{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"/></svg>
+        <span>Home</span>
+      </a>
+      <a href="{{ url_for('main.compliance') }}" class="md-bottom-nav-item {% if request.endpoint and 'compliance' in request.endpoint %}active{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.615 20h-2.615a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8"/><path d="M14 19l2 2l4-4"/><path d="M9 8h4"/><path d="M9 12h2"/></svg>
+        <span>Compliance</span>
+      </a>
+      <a href="{{ url_for('main.risk') }}" class="md-bottom-nav-item {% if request.endpoint and 'risk' in request.endpoint %}active{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87l-8.106-13.536a1.914 1.914 0 0 0-3.274 0z"/><path d="M12 16h.01"/></svg>
+        <span>Risk</span>
+      </a>
+      <a href="{{ url_for('main.wisp') }}" class="md-bottom-nav-item {% if request.endpoint and 'wisp' in request.endpoint %}active{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1-2-2v-14a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 9h1"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+        <span>WISP</span>
+      </a>
+      <a href="{{ url_for('main.settings') }}" class="md-bottom-nav-item {% if request.endpoint and 'settings' in request.endpoint %}active{% endif %}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0-6 0"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- ================================================================
+       Slide Panel (Right Side)
+       ================================================================ -->
+  <template x-if="$store.app.slidePanel.open">
+    <div>
+      <div class="md-slide-panel-backdrop" @click="$store.app.closePanel()"
+           x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+      </div>
+      <div class="md-slide-panel"
+           x-transition:enter="transition ease-out duration-250" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+           style="transform: translateX(0);">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-lg); border-bottom: 1px solid var(--surface-3); position: sticky; top: 0; background: var(--surface-1); z-index: 1;">
+          <span style="font-weight: 600; font-size: var(--font-h2);" x-text="$store.app.slidePanel.title"></span>
+          <button @click="$store.app.closePanel()"
+                  style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: none; background: var(--surface-2); color: var(--text-secondary); cursor: pointer;"
+                  aria-label="Close panel">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11 3L3 11M3 3l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div style="padding: var(--space-lg); overflow-y: auto; height: calc(100vh - 65px);">
+          {% block slide_panel_content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================================================================
+       Toast Notification
+       ================================================================ -->
+  <div x-show="$store.app.toast.show"
+       x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+       class="md-toast"
+       :class="$store.app.toast.type === 'success' ? 'md-toast-success' : 'md-toast-error'"
+       x-text="$store.app.toast.message"
+       x-cloak>
+  </div>
+
+  {% block scripts %}{% endblock %}
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

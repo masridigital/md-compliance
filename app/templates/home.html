@@ -1,0 +1,112 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block head%}
+<style>
+#main {
+  background-image: url("https://www.gstatic.com/pantheon/images/welcome/background_illustration_v2.svg");
+  background-repeat: no-repeat;
+}
+</style>
+{%endblock%}
+{%block header%}{%endblock%}
+{%block header_title%}Home{%endblock%}
+{%block page_header%}{%endblock%}
+
+{%block content%}
+<div x-data="welcome()" class="mt-12 px-10">
+  <div class="flex-col">
+    <div>
+      <div class="flex flex-row">
+        <div><span class="text-3xl" id="emoji">👋</span></div>
+        <div class="text-4xl font-medium ml-4" x-text="welcomeMessage"></div>
+      </div>
+      <p class="py-6 w-1/2 mt-4 font-medium ">{{config.APP_NAME}} is a risk governance and compliance platform. <a class="underline underline-offset-4 hover:text-neutral-content" href="{{config.DOC_LINK}}">Please check here</a> for more information and/or questions.</p>
+      <div class="text-xl font-medium  mt-4 mb-4">🚀 Get Started</div>
+      <div class="flex flex-row bg-base-200 w-full rounded-box space-x-4 p-6">
+        <div class="card bg-base-100 w-full">
+          <div class="card-body">
+            <h2 class="card-title text-xl">Compliance Projects</h2>
+            <p class="font-medium my-6">Start managing your compliance projects. Track controls, edit policies and monitor your progress.</p>
+            <div class="card-actions border-t border-base-300">
+              <div class="mt-4 flex justify-between w-full">
+                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
+                  <i class="ti ti-brand-asana my-auto"></i>
+                  <span x-text="tenantInfo.projects"></span>
+                </div>
+                <a href="/projects" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card bg-base-100 w-full">
+          <div class="card-body">
+            <h2 class="card-title text-xl">Risk Management</h2>
+            <p class="font-medium my-6">Start managing your risk register. Assess threats, implement controls, and monitor your mitigation progress.</p>
+            <div class="card-actions border-t border-base-300">
+              <div class="mt-4 flex justify-between w-full">
+                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
+                  <i class="ti ti-flag-exclamation my-auto"></i>
+                  <span x-text="tenantInfo.risks"></span>
+                </div>
+                <a :href="'/tenants/'+selectedTenantId+'/risk'" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card bg-base-100 w-full">
+          <div class="card-body">
+            <h2 class="card-title text-xl">User Management</h2>
+            <p class="font-medium my-6">Start managing your users in your tenant. Invite users, assign roles, set permissions, and monitor user activity.</p>
+            <div class="card-actions border-t border-base-300">
+              <div class="mt-4 flex justify-between w-full">
+                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
+                  <i class="ti ti-users my-auto"></i>
+                  <span x-text="tenantInfo.users"></span>
+                </div>
+                <a href="/users" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function welcome(){
+    return {
+        init() {
+            this.setWelcomeMessage()
+            this.getTenantInfo()
+        },
+        welcomeMessage: "",
+        tenantInfo: {},
+        setWelcomeMessage: function() {
+            const currentHour = new Date().getHours(); // Get local browser time (hour)
+            if (currentHour < 12) {
+              this.welcomeMessage = 'Good Morning';
+            } else if (currentHour < 16) {
+              this.welcomeMessage = 'Good Afternoon';
+            } else {
+              this.welcomeMessage = 'Good Evening';
+            }
+        },
+        getTenantInfo: function() {
+          request("GET",
+            `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/info`,
+            data => {
+              this.tenantInfo = data
+            },
+            error => {
+              toast(error.message, "error");
+            }
+          );
+        }
+    }
+}
+</script>
+{%endblock%}

@@ -1,0 +1,296 @@
+/* ==========================================================================
+   Masri Digital Compliance Platform — Mobile & Responsive
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Performance hints for animated elements
+   -------------------------------------------------------------------------- */
+.md-slide-panel,
+.md-bottom-sheet,
+.md-bottom-nav,
+.md-toast {
+  will-change: transform;
+}
+
+/* --------------------------------------------------------------------------
+   2. Desktop (768px and above) — show top nav, hide bottom nav
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  .md-top-nav {
+    display: block;
+  }
+  .md-mobile-header {
+    display: none !important;
+  }
+  .md-bottom-nav {
+    display: none !important;
+  }
+  .md-mobile-menu-overlay {
+    display: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. Mobile (below 768px) — hide top nav, show bottom nav + mobile header
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .md-top-nav {
+    display: none !important;
+  }
+  .md-mobile-header {
+    display: flex !important;
+  }
+  .md-bottom-nav {
+    display: block !important;
+  }
+
+  /* Content accounts for bottom nav */
+  .md-content-area {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  }
+
+  /* Page header stacks */
+  .md-page-header {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  .md-page-header-actions {
+    width: 100%;
+  }
+
+  /* Settings grid 2-col on small tablets */
+  .md-settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+  }
+
+  /* Stat cards 2×2 */
+  .md-stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Slide panel → full-width bottom sheet */
+  .md-slide-panel {
+    width: 100% !important;
+    top: auto !important;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    height: auto !important;
+    max-height: 90vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  /* Table → card stacks */
+  .md-table thead {
+    display: none;
+  }
+  .md-table,
+  .md-table tbody,
+  .md-table tr,
+  .md-table td {
+    display: block;
+    width: 100%;
+  }
+  .md-table tr {
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-sm);
+  }
+  .md-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .md-table td:last-child {
+    border-bottom: none;
+  }
+  .md-table td::before {
+    content: attr(data-label);
+    font-size: var(--font-small);
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: var(--space-md);
+    flex-shrink: 0;
+  }
+
+  /* WISP wizard full viewport step */
+  .md-wizard-step {
+    min-height: calc(100vh - 52px - 56px - 80px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-lg);
+  }
+  .md-wizard-sidebar {
+    display: none !important;
+  }
+  .md-wizard-footer {
+    position: fixed;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    padding: var(--space-md) var(--space-lg);
+    background: var(--surface-1);
+    border-top: 1px solid var(--surface-3);
+    z-index: 30;
+    margin-top: 0;
+  }
+
+  /* Toast above bottom nav */
+  .md-toast {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--space-md));
+    right: var(--space-md);
+    left: var(--space-md);
+  }
+
+  /* Client grid stacks */
+  .md-client-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Filter bar horizontal scroll */
+  .md-filter-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+    padding-bottom: var(--space-sm);
+  }
+  .md-filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Modal → bottom sheet on mobile */
+  .md-modal {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    max-height: 85vh;
+  }
+
+  /* Hide mobile-specific elements */
+  .md-hide-mobile {
+    display: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. Settings grid — 1 column on very small screens
+   -------------------------------------------------------------------------- */
+@media (max-width: 374px) {
+  .md-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  :root {
+    --font-display: 24px;
+    --font-h1: 20px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. Tablet (768px – 1023px)
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .md-settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .md-slide-panel {
+    width: 420px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. Large Desktop (1280px+)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1280px) {
+  .md-content-area {
+    max-width: 1200px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. Safe Area Insets (iPhone notch / Dynamic Island)
+   -------------------------------------------------------------------------- */
+@supports (padding: env(safe-area-inset-top)) {
+  .md-top-nav,
+  .md-mobile-header {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  .md-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .md-bottom-sheet {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   8. Touch Target Enforcement
+   -------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"],
+  .md-accordion-header,
+  .md-settings-card,
+  .md-bottom-nav-item {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .md-input,
+  .md-select,
+  .md-textarea {
+    min-height: 44px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+/* --------------------------------------------------------------------------
+   9. Show on mobile only helper
+   -------------------------------------------------------------------------- */
+.md-show-mobile {
+  display: none;
+}
+@media (max-width: 767px) {
+  .md-show-mobile {
+    display: block;
+  }
+  .md-hide-on-mobile {
+    display: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   10. Print
+   -------------------------------------------------------------------------- */
+@media print {
+  .md-top-nav,
+  .md-mobile-header,
+  .md-bottom-nav,
+  .md-slide-panel,
+  .md-toast,
+  .md-bottom-sheet {
+    display: none !important;
+  }
+  .md-content-area {
+    padding: 0;
+    max-width: 100%;
+  }
+  .md-card,
+  .md-card-hover,
+  .md-card-elevated {
+    box-shadow: none;
+    border: 1px solid #D1D1D6;
+    break-inside: avoid;
+  }
+}

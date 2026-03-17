@@ -1,0 +1,311 @@
+[
+  {
+    "name": "Mortgage Application Data Protection",
+    "description": "Implement safeguards to protect all customer information collected during the mortgage application process, including social security numbers, financial statements, employment records, and credit reports from unauthorized access, disclosure, or misuse.",
+    "guidance": "Encrypt all mortgage application data at rest and in transit. Restrict access to application files to authorized loan officers and processors on a need-to-know basis. Implement secure online application portals with session timeouts and input validation. Audit access to application data and investigate anomalies promptly. Ensure paper applications are stored in locked cabinets with access logs.",
+    "ref_code": "FTCM-1",
+    "system_level": false,
+    "category": "Customer Data Protection",
+    "subcategory": "Application Data",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Secure Application Collection",
+        "description": "Ensure all mortgage application data is collected through secure, encrypted channels whether submitted online, in person, or via mail.",
+        "ref_code": "FTCM-1.1",
+        "guidance": "Use TLS-encrypted web portals for online applications. Provide secure drop-off procedures for in-person submissions. Train staff on proper handling of paper applications containing sensitive data."
+      },
+      {
+        "name": "Application Data Access Controls",
+        "description": "Restrict access to mortgage application data to authorized loan officers, processors, and underwriters based on their role in the transaction.",
+        "ref_code": "FTCM-1.2",
+        "guidance": "Implement role-based access in loan origination systems. Log all access to application files. Conduct quarterly access reviews specific to mortgage processing teams."
+      },
+      {
+        "name": "Application Pipeline Security",
+        "description": "Protect mortgage application data throughout the entire origination pipeline from initial inquiry through closing and post-closing.",
+        "ref_code": "FTCM-1.3",
+        "guidance": "Map the complete data flow of mortgage applications through each stage. Apply encryption and access controls at every stage. Monitor for data leakage between pipeline stages."
+      }
+    ]
+  },
+  {
+    "name": "Closing Document Security",
+    "description": "Protect the confidentiality and integrity of mortgage closing documents, including loan estimates, closing disclosures, promissory notes, and deeds of trust, throughout their lifecycle from preparation through recording and archival.",
+    "guidance": "Implement secure document management systems for closing documents with version control, access logging, and encryption. Use secure electronic signing platforms that comply with E-SIGN and UETA requirements. Ensure physical closing documents are transported securely and stored in fireproof, locked facilities. Implement tamper-evident controls for critical documents such as promissory notes and deeds of trust.",
+    "ref_code": "FTCM-2",
+    "system_level": false,
+    "category": "Customer Data Protection",
+    "subcategory": "Closing Documents",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Electronic Closing Document Security",
+        "description": "Ensure electronic closing documents are protected through encryption, access controls, digital signatures, and tamper-detection mechanisms.",
+        "ref_code": "FTCM-2.1",
+        "guidance": "Use e-signing platforms that comply with E-SIGN Act and UETA. Apply digital signatures with tamper-evident seals. Encrypt stored closing documents and restrict access to authorized closing agents."
+      },
+      {
+        "name": "Physical Closing Document Handling",
+        "description": "Establish secure procedures for handling, transporting, and storing physical closing documents containing customer information.",
+        "ref_code": "FTCM-2.2",
+        "guidance": "Transport documents in sealed containers. Store originals in fireproof, locked facilities with access logging. Maintain chain-of-custody records for all original documents."
+      },
+      {
+        "name": "Closing Document Chain of Custody",
+        "description": "Maintain a documented chain of custody for all closing documents from preparation through recording, delivery, and archival.",
+        "ref_code": "FTCM-2.3",
+        "guidance": "Track each document through every custodial handoff. Record timestamps, responsible parties, and purpose for each transfer. Reconcile document inventories at each stage transition."
+      }
+    ]
+  },
+  {
+    "name": "Nonpublic Personal Information Handling for Loan Origination",
+    "description": "Establish comprehensive safeguards for nonpublic personal information (NPI) collected, used, and shared during the mortgage loan origination process, in compliance with Gramm-Leach-Bliley Act requirements and FTC Safeguards Rule standards.",
+    "guidance": "Identify all NPI elements collected during loan origination including SSN, income, employment history, assets, liabilities, and credit information. Apply the principle of minimum necessary disclosure when sharing NPI with third parties involved in the transaction. Provide privacy notices to applicants at the time of application and prior to sharing NPI with non-affiliated third parties. Document all NPI sharing arrangements and ensure opt-out mechanisms are available where required.",
+    "ref_code": "FTCM-3",
+    "system_level": false,
+    "category": "Customer Data Protection",
+    "subcategory": "NPI Handling",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "NPI Inventory for Mortgage Origination",
+        "description": "Maintain a comprehensive inventory of all nonpublic personal information elements collected during the mortgage origination process.",
+        "ref_code": "FTCM-3.1",
+        "guidance": "Catalog all NPI data fields across application forms, verification documents, and credit reports. Document where each NPI element is stored, who has access, and retention requirements."
+      },
+      {
+        "name": "Minimum Necessary NPI Disclosure",
+        "description": "Limit the sharing of NPI with third parties to only the information necessary for the specific purpose of the mortgage transaction.",
+        "ref_code": "FTCM-3.2",
+        "guidance": "Establish data sharing policies that restrict NPI disclosure to the minimum required for each third-party function. Redact unnecessary NPI from documents shared with appraisers, title companies, and other service providers."
+      },
+      {
+        "name": "Privacy Notice Delivery",
+        "description": "Deliver required privacy notices to mortgage applicants at the appropriate times as required by GLBA and Regulation P.",
+        "ref_code": "FTCM-3.3",
+        "guidance": "Provide initial privacy notices at the time of application or before sharing NPI with non-affiliated third parties. Deliver annual privacy notices to existing customers. Document notice delivery and maintain copies of all notices."
+      }
+    ]
+  },
+  {
+    "name": "Appraiser Oversight and Data Security",
+    "description": "Ensure that appraisers and appraisal management companies engaged in mortgage transactions maintain appropriate safeguards for customer information they receive, including property addresses, borrower identities, and financial details shared for valuation purposes.",
+    "guidance": "Conduct due diligence on appraisers and AMCs before engagement, evaluating their data security practices. Include contractual provisions requiring appropriate safeguards for customer information, breach notification obligations, and audit rights. Limit information shared with appraisers to what is necessary for the valuation assignment. Monitor appraiser compliance through periodic assessments and require evidence of data protection measures.",
+    "ref_code": "FTCM-4",
+    "system_level": false,
+    "category": "Third-Party Oversight",
+    "subcategory": "Appraiser Management",
+    "dti": "high",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Appraiser Security Due Diligence",
+        "description": "Evaluate the data security practices of appraisers and appraisal management companies before engagement, including their ability to protect customer information.",
+        "ref_code": "FTCM-4.1",
+        "guidance": "Require appraisers to complete security questionnaires. Verify they maintain encryption on devices, secure data storage, and appropriate access controls. Assess their incident response capabilities."
+      },
+      {
+        "name": "Appraiser Contractual Security Requirements",
+        "description": "Include data protection obligations in appraiser and AMC contracts, including safeguard requirements, breach notification, and audit rights.",
+        "ref_code": "FTCM-4.2",
+        "guidance": "Draft contracts requiring appraisers to encrypt data, secure physical documents, report breaches within 24 hours, and permit security audits. Include data return or destruction provisions upon engagement completion."
+      },
+      {
+        "name": "Appraiser Data Minimization",
+        "description": "Limit the customer information shared with appraisers to only what is necessary to complete the property valuation assignment.",
+        "ref_code": "FTCM-4.3",
+        "guidance": "Share only property address, borrower name, and valuation-specific details. Redact financial information such as income, SSN, and account numbers from documents provided to appraisers."
+      }
+    ]
+  },
+  {
+    "name": "Title Company and Settlement Agent Oversight",
+    "description": "Oversee title companies, settlement agents, and escrow providers to ensure they maintain appropriate safeguards for customer information shared during the mortgage closing process, including wire transfer instructions and sensitive financial data.",
+    "guidance": "Conduct security assessments of title companies and settlement agents before establishing business relationships. Include contractual requirements for data protection, encrypted communications, and incident notification. Implement secure channels for sharing wire transfer instructions to prevent wire fraud and business email compromise. Monitor title company compliance through annual assessments.",
+    "ref_code": "FTCM-5",
+    "system_level": false,
+    "category": "Third-Party Oversight",
+    "subcategory": "Title and Settlement",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Title Company Security Assessment",
+        "description": "Evaluate the security posture of title companies and settlement agents, including their handling of sensitive financial information and wire transfer procedures.",
+        "ref_code": "FTCM-5.1",
+        "guidance": "Review title company security practices including data encryption, access controls, wire fraud prevention measures, and employee training. Request SOC 2 reports or equivalent attestations where available."
+      },
+      {
+        "name": "Secure Wire Transfer Procedures",
+        "description": "Implement secure procedures for communicating wire transfer instructions between the lender, title company, and borrower to prevent wire fraud.",
+        "ref_code": "FTCM-5.2",
+        "guidance": "Never send wire instructions via unencrypted email. Use secure portals or encrypted communications. Require verbal callback verification of wire instructions using pre-established phone numbers. Train staff on wire fraud red flags."
+      },
+      {
+        "name": "Settlement Agent Data Protection Contracts",
+        "description": "Require contractual data protection provisions with settlement agents covering customer information handling, breach notification, and data disposal.",
+        "ref_code": "FTCM-5.3",
+        "guidance": "Include clauses requiring encryption, access controls, staff training, breach notification within 24 hours, and secure destruction of customer data after the transaction. Conduct annual contract compliance reviews."
+      }
+    ]
+  },
+  {
+    "name": "Mortgage Broker and Correspondent Lender Oversight",
+    "description": "Ensure that mortgage brokers and correspondent lenders maintain adequate safeguards for customer information they collect and process on behalf of the institution, including loan application data and supporting documentation.",
+    "guidance": "Establish a vendor management program specifically for mortgage brokers and correspondent lenders. Require completion of security assessments prior to approval. Include contractual obligations for data protection, breach notification, and compliance with the FTC Safeguards Rule. Monitor ongoing compliance through periodic reviews. Restrict broker and correspondent access to institutional systems through secure portals with MFA.",
+    "ref_code": "FTCM-6",
+    "system_level": false,
+    "category": "Third-Party Oversight",
+    "subcategory": "Broker and Correspondent Management",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Broker Approval Security Assessment",
+        "description": "Conduct security assessments of mortgage brokers before approval, evaluating their information security programs and data handling practices.",
+        "ref_code": "FTCM-6.1",
+        "guidance": "Require brokers to complete a security questionnaire covering encryption, access controls, employee training, and incident response. Verify compliance before granting access to institutional systems."
+      },
+      {
+        "name": "Broker System Access Controls",
+        "description": "Restrict mortgage broker access to institutional loan origination systems through secure portals with multi-factor authentication and activity logging.",
+        "ref_code": "FTCM-6.2",
+        "guidance": "Provide brokers access only through MFA-protected portals. Limit access to functions necessary for loan submission. Log all broker activity and review access logs for anomalies monthly."
+      }
+    ]
+  },
+  {
+    "name": "Mortgage Record Retention",
+    "description": "Establish retention schedules and secure storage procedures for mortgage records containing customer information, ensuring compliance with federal and state retention requirements while protecting data confidentiality throughout the retention period.",
+    "guidance": "Define retention periods for each type of mortgage record based on applicable regulations including TILA, RESPA, ECOA, and state requirements. Store electronic records in encrypted, access-controlled repositories with tamper-detection capabilities. Maintain physical records in secure, climate-controlled facilities with restricted access. Review retention schedules annually to reflect regulatory changes.",
+    "ref_code": "FTCM-7",
+    "system_level": false,
+    "category": "Document Management",
+    "subcategory": "Record Retention",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Retention Schedule Compliance",
+        "description": "Maintain a documented retention schedule for all mortgage record types aligned with federal (TILA, RESPA, ECOA) and state regulatory requirements.",
+        "ref_code": "FTCM-7.1",
+        "guidance": "Define retention periods for each document type: loan applications (25 months minimum per ECOA), closing documents (5 years per TILA/RESPA), and adverse action notices (25 months). Review schedules annually for regulatory updates."
+      },
+      {
+        "name": "Secure Record Storage",
+        "description": "Implement secure storage for mortgage records with encryption for electronic files and physical security controls for paper documents.",
+        "ref_code": "FTCM-7.2",
+        "guidance": "Encrypt electronic mortgage records at rest using AES-256. Store paper records in locked, fire-resistant facilities with access logging. Implement backup and disaster recovery procedures for all archived records."
+      },
+      {
+        "name": "Record Integrity Verification",
+        "description": "Implement controls to verify the integrity and authenticity of mortgage records throughout their retention period.",
+        "ref_code": "FTCM-7.3",
+        "guidance": "Apply digital signatures or hash verification to electronic records. Conduct periodic integrity checks on archived documents. Maintain audit trails of all access and modifications to stored records."
+      }
+    ]
+  },
+  {
+    "name": "Mortgage Record Disposal",
+    "description": "Implement secure disposal procedures for mortgage records containing customer information when the retention period has expired, ensuring complete and irreversible destruction of all NPI.",
+    "guidance": "Establish documented disposal procedures for both electronic and physical mortgage records. Use NIST SP 800-88 compliant methods for electronic media sanitization and cross-cut shredding for paper records. Maintain disposal logs with record type, disposal method, date, and responsible party. Obtain certificates of destruction from third-party disposal vendors.",
+    "ref_code": "FTCM-8",
+    "system_level": false,
+    "category": "Document Management",
+    "subcategory": "Record Disposal",
+    "dti": "medium",
+    "dtc": "medium",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Secure Electronic Record Destruction",
+        "description": "Destroy electronic mortgage records using approved sanitization methods that ensure customer information cannot be recovered.",
+        "ref_code": "FTCM-8.1",
+        "guidance": "Use cryptographic erasure, secure overwriting, or physical destruction per NIST SP 800-88. Ensure destruction covers all copies including backups, replicas, and cached data."
+      },
+      {
+        "name": "Secure Paper Record Destruction",
+        "description": "Destroy paper mortgage records containing customer information through cross-cut shredding or incineration by approved vendors.",
+        "ref_code": "FTCM-8.2",
+        "guidance": "Use cross-cut shredders or certified destruction vendors for paper records. Secure documents awaiting destruction in locked containers. Obtain certificates of destruction for each disposal event."
+      },
+      {
+        "name": "Disposal Documentation",
+        "description": "Maintain complete records of all mortgage document disposal activities, including certificates of destruction and disposal logs.",
+        "ref_code": "FTCM-8.3",
+        "guidance": "Log each disposal event with record type, volume, disposal method, date, and responsible party. Retain disposal logs and certificates of destruction for at least three years after disposal."
+      }
+    ]
+  },
+  {
+    "name": "Mortgage Servicing Data Transfer Security",
+    "description": "Protect customer information during mortgage servicing transfers, including the secure transmission of loan files, payment histories, escrow records, and borrower communications between the transferring and receiving servicers.",
+    "guidance": "Establish secure data transfer protocols for mortgage servicing transfers that protect customer information throughout the process. Use encrypted file transfer mechanisms with integrity verification. Verify the receiving servicer's security posture before initiating data transfer. Conduct reconciliation of transferred records to ensure completeness and accuracy. Notify borrowers of the transfer as required by RESPA.",
+    "ref_code": "FTCM-9",
+    "system_level": true,
+    "category": "Customer Data Protection",
+    "subcategory": "Servicing Transfers",
+    "dti": "high",
+    "dtc": "high",
+    "meta": {
+      "regulation": "FTC Safeguards Rule 16 CFR 314 - Mortgage Specific",
+      "authority": "Federal Trade Commission"
+    },
+    "subcontrols": [
+      {
+        "name": "Secure Servicing Data Transmission",
+        "description": "Transmit mortgage servicing data between servicers using encrypted channels with integrity verification and delivery confirmation.",
+        "ref_code": "FTCM-9.1",
+        "guidance": "Use SFTP, encrypted API endpoints, or other secure transfer mechanisms. Verify data integrity using checksums or digital signatures. Obtain delivery confirmation from the receiving servicer."
+      },
+      {
+        "name": "Receiving Servicer Security Verification",
+        "description": "Verify the information security posture of the receiving servicer before transferring customer information during a servicing transfer.",
+        "ref_code": "FTCM-9.2",
+        "guidance": "Request and review the receiving servicer's security certifications, SOC reports, or completed security assessments. Verify their compliance with the FTC Safeguards Rule before initiating data transfer."
+      },
+      {
+        "name": "Post-Transfer Data Reconciliation",
+        "description": "Reconcile transferred records with the receiving servicer to ensure all customer information was transferred completely and accurately.",
+        "ref_code": "FTCM-9.3",
+        "guidance": "Compare record counts, loan totals, and key data fields between the transferring and receiving servicer datasets. Resolve discrepancies before the transfer effective date. Document the reconciliation results."
+      }
+    ]
+  }
+]

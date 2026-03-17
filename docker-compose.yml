@@ -1,0 +1,63 @@
+services:
+  app:
+    container_name: app
+    image: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    networks:
+      - db_nw
+      - web_nw
+    ports:
+      - "8000:5000"
+    restart: unless-stopped
+    environment:
+      - SQLALCHEMY_DATABASE_URI=postgresql://${POSTGRES_USER:-db1}:${POSTGRES_PASSWORD:-db1}@${POSTGRES_HOST:-postgres}/${POSTGRES_DB:-db1}
+      - RESET_DB=${RESET_DB:-no}
+      - VERSION=${VERSION:-1.0.0}
+      - POSTGRES_USER=${POSTGRES_USER:-db1}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-db1}
+      - POSTGRES_DB=${POSTGRES_DB:-db1}
+      - GUNICORN_WORKERS=2
+      # --- Masri Compliance Platform ---
+      - SECRET_KEY=${SECRET_KEY:-change_secret_key}
+      - LLM_ENABLED=${LLM_ENABLED:-false}
+      - LLM_NAME=${LLM_NAME:-}
+      - LLM_TOKEN=${LLM_TOKEN:-}
+      - MASRI_SCHEDULER_ENABLED=${MASRI_SCHEDULER_ENABLED:-true}
+      - TEAMS_WEBHOOK_URL=${TEAMS_WEBHOOK_URL:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - ENTRA_TENANT_ID=${ENTRA_TENANT_ID:-}
+      - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}
+      - ENTRA_CLIENT_SECRET=${ENTRA_CLIENT_SECRET:-}
+      - APP_PRIMARY_COLOR=${APP_PRIMARY_COLOR:-#0066CC}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-support@masridigital.com}
+    env_file:
+      - .env
+
+  postgres:
+    container_name: postgres
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-db1}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-db1}
+      POSTGRES_DB: ${POSTGRES_DB:-db1}
+      PGDATA: /data/postgres
+    #volumes:
+    #   - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - db_nw
+    restart: unless-stopped
+
+networks:
+  db_nw:
+    driver: bridge
+  web_nw:
+    driver: bridge
+volumes:
+  dbdata:
