@@ -67,9 +67,35 @@ echo ""
 
 check_deps
 
-# ── Step 1: Domain ────────────────────────────────────────────────────────────
-header "Step 1 of 5 — Domain"
-echo "Enter the domain or subdomain where MD Compliance will run."
+# ── Detect public IP ──────────────────────────────────────────────────────────────
+info "Detecting this server's public IP address..."
+SERVER_IP=$(curl -s --max-time 6 https://api.ipify.org 2>/dev/null \
+    || curl -s --max-time 6 https://ifconfig.me 2>/dev/null \
+    || curl -s --max-time 6 https://checkip.amazonaws.com 2>/dev/null \
+    || echo "")
+
+if [ -z "$SERVER_IP" ]; then
+    warn "Could not detect public IP automatically."
+    warn "Find it manually with: curl https://api.ipify.org"
+    SERVER_IP="<your-server-ip>"
+else
+    log "Server public IP: ${BOLD}${SERVER_IP}${RESET}"
+fi
+
+# ── Step 1: Domain ────────────────────────────────────────────
+header "Step 1 of 4 — Domain & DNS"
+echo "Log into your DNS provider and create an A record pointing"
+echo "your domain to this server before continuing."
+echo ""
+echo -e "  ${BOLD}Record type:${RESET}  A"
+echo -e "  ${BOLD}Host / Name:${RESET}  @ or subdomain  (e.g. compliance)"
+echo -e "  ${BOLD}Value:${RESET}        ${BOLD}${CYAN}${SERVER_IP}${RESET}"
+echo -e "  ${BOLD}TTL:${RESET}          300 seconds  (or lowest available)"
+echo ""
+echo "DNS changes typically take 1-10 minutes to propagate."
+echo "This setup will verify the record before requesting your SSL certificate."
+echo ""
+echo "Enter the domain or subdomain you are setting up:"
 echo "Examples:  compliance.masridigital.com   mdcompliance.com"
 echo ""
 while true; do
@@ -84,8 +110,39 @@ while true; do
     fi
 done
 
+# ── DNS verification ──────────────────────────────────────────────────────────
+info "Verifying DNS for ${DOMAIN}..."
+DOMAIN_IP=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 \
+    || dig +short "$DOMAIN" 2>/dev/null | grep -E '^[0-9]+\.' | tail -1 \
+    || echo "")
+
+if [ -z "$DOMAIN_IP" ]; then
+    warn "${DOMAIN} does not resolve yet — DNS has not propagated."
+    warn "Make sure you added the A record pointing to ${SERVER_IP}."
+    prompt "Press Enter to check again, or Ctrl-C to exit and retry later:"
+    read -r _
+    DOMAIN_IP=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 || echo "")
+    if [ -z "$DOMAIN_IP" ]; then
+        warn "Still not resolving. Continuing anyway — SSL may fail if DNS is not ready."
+    fi
+elif [ "$DOMAIN_IP" = "$SERVER_IP" ]; then
+    log "DNS verified — ${DOMAIN} → ${SERVER_IP}"
+else
+    warn "DNS mismatch detected!"
+    warn "  ${DOMAIN} currently resolves to: ${DOMAIN_IP}"
+    warn "  This server's IP is:             ${SERVER_IP}"
+    warn "  Update your A record to ${SERVER_IP} and wait for propagation."
+    prompt "Continue anyway? [y/N]"
+    read -r DNS_OVERRIDE
+    if [[ ! "$DNS_OVERRIDE" =~ ^[Yy]$ ]]; then
+        info "Exiting. Fix your DNS A record, then re-run ./setup.sh"
+        exit 0
+    fi
+fi
+
+
 # ── Step 2: SSL ───────────────────────────────────────────────────────────────
-header "Step 2 of 5 — SSL Certificate"
+header "Step 2 of 4 — SSL Certificate"
 echo "MD Compliance can automatically obtain a free SSL certificate"
 echo "from Let's Encrypt via Certbot."
 echo ""
@@ -285,28 +342,7 @@ log "docker-compose.override.yml written"
 if [ "$USE_SSL" = true ]; then
     echo ""
     header "Obtaining SSL Certificate"
-    info "Checking that ${DOMAIN} resolves to this server..."
-
-    SERVER_IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null || curl -s --max-time 5 https://ifconfig.me 2>/dev/null || echo "unknown")
-    DOMAIN_IP=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 || dig +short "$DOMAIN" 2>/dev/null | tail -1 || echo "unresolved")
-
-    echo "  Server IP : ${SERVER_IP}"
-    echo "  Domain IP : ${DOMAIN_IP}"
-    echo ""
-
-    if [ "$SERVER_IP" != "$DOMAIN_IP" ] && [ "$DOMAIN_IP" != "unresolved" ]; then
-        warn "DNS mismatch detected!"
-        warn "  ${DOMAIN} resolves to ${DOMAIN_IP}"
-        warn "  This server's IP is ${SERVER_IP}"
-        echo ""
-        warn "Let's Encrypt will fail if DNS hasn't propagated yet."
-        prompt "Continue anyway? [y/N]"
-        read -r DNS_CONTINUE
-        if [[ ! "$DNS_CONTINUE" =~ ^[Yy]$ ]]; then
-            warn "Skipping Certbot. Fix DNS, then run: ./scripts/renew-ssl.sh"
-            USE_SSL=false
-        fi
-    fi
+    info "DNS already verified earlier in setup."
 fi
 
 if [ "$USE_SSL" = true ]; then
