@@ -111,9 +111,9 @@ def project_creation(tenant, payload, user):
         for category in category_list:
             filter_list.append(models.Control.category == category)
         controls = (
-            models.Control.query.filter(or_(*filter_list))
+            db.session.execute(db.select(models.Control).filter(or_(*filter_list))
             .filter(models.Control.framework_id == framework.id)
-            .filter(models.Control.is_custom == False)
+            .filter(models.Control.is_custom == False)).scalars()
             .all()
         )
     elif fw_name == "cmmc":
@@ -134,8 +134,8 @@ def project_creation(tenant, payload, user):
         for level in level_list:
             filter_list.append(models.Control.level == level)
         controls = (
-            models.Control.query.filter(or_(*filter_list))
-            .filter(models.Control.framework_id == framework.id)
+            db.session.execute(db.select(models.Control).filter(or_(*filter_list))
+            .filter(models.Control.framework_id == framework.id)).scalars()
             .all()
         )
     elif fw_name == "cmmc_v2":
@@ -152,14 +152,14 @@ def project_creation(tenant, payload, user):
         for level in level_list:
             filter_list.append(models.Control.level == level)
         controls = (
-            models.Control.query.filter(or_(*filter_list))
-            .filter(models.Control.framework_id == framework.id)
+            db.session.execute(db.select(models.Control).filter(or_(*filter_list))
+            .filter(models.Control.framework_id == framework.id)).scalars()
             .all()
         )
     else:
         controls = (
-            models.Control.query.filter(models.Control.framework_id == framework.id)
-            .order_by(models.Control.id.asc())
+            db.session.execute(db.select(models.Control).filter(models.Control.framework_id == framework.id)
+            .order_by(models.Control.id.asc())).scalars()
             .all()
         )
 

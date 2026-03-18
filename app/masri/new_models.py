@@ -664,7 +664,7 @@ class MCPAPIKey(db.Model):
         if not raw_key:
             return None
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        record = cls.query.filter_by(key_hash=key_hash, enabled=True).first()
+        record = db.session.execute(db.select(cls).filter_by(key_hash=key_hash, enabled=True)).scalars().first()
         if record is None:
             return None
         if record.expires_at and datetime.utcnow() > record.expires_at:

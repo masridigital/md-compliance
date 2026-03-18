@@ -130,9 +130,9 @@ def get_vendor_business_units(id):
 @login_required
 def get_vendors_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    vendors = Vendor.query.filter(
+    vendors = db.session.execute(db.select(Vendor).filter(
         Vendor.tenant_id == result["extra"]["tenant"].id
-    ).all()
+    )).scalars().all()
     return jsonify([vendor.as_dict() for vendor in vendors])
 
 
@@ -140,9 +140,9 @@ def get_vendors_for_tenant(id):
 @login_required
 def get_apps_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    applications = VendorApp.query.filter(
+    applications = db.session.execute(db.select(VendorApp).filter(
         VendorApp.tenant_id == result["extra"]["tenant"].id
-    ).all()
+    )).scalars().all()
     return jsonify([application.as_dict() for application in applications])
 
 
@@ -150,9 +150,9 @@ def get_apps_for_tenant(id):
 @login_required
 def get_assessments_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    assessments = Assessment.query.filter(
+    assessments = db.session.execute(db.select(Assessment).filter(
         Assessment.tenant_id == result["extra"]["tenant"].id
-    ).all()
+    )).scalars().all()
     return jsonify([assessment.as_dict() for assessment in assessments])
 
 
@@ -161,7 +161,7 @@ def get_assessments_for_tenant(id):
 def get_risks_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
     data = []
-    for risk in RiskRegister.query.filter(RiskRegister.tenant_id == id).all():
+    for risk in db.session.execute(db.select(RiskRegister).filter(RiskRegister.tenant_id == id)).scalars().all():
         data.append(risk.as_dict())
     return jsonify(data)
 

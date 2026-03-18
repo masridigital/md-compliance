@@ -409,13 +409,13 @@ class NotificationEngine:
         from app.masri.new_models import DueDate
         from app import db
 
-        query = DueDate.query.filter(DueDate.status.in_(["pending", "overdue"]))
+        stmt = db.select(DueDate).filter(DueDate.status.in_(["pending", "overdue"]))
         if tenant_id:
-            query = query.filter_by(tenant_id=tenant_id)
+            stmt = stmt.filter_by(tenant_id=tenant_id)
 
         now = datetime.utcnow()
 
-        for dd in query.all():
+        for dd in db.session.execute(stmt).scalars().all():
             days = dd.days_until_due()
 
             event_type = None
@@ -470,14 +470,16 @@ class NotificationEngine:
         """
         from app.masri.new_models import SettingsNotifications
 
+        from app import db
+
         priority_field = f"{priority}_enabled"
-        query = SettingsNotifications.query.filter_by(enabled=True).filter(
+        stmt = db.select(SettingsNotifications).filter_by(enabled=True).filter(
             (SettingsNotifications.tenant_id == tenant_id) |
             (SettingsNotifications.tenant_id.is_(None))
         )
 
         results = []
-        for record in query.all():
+        for record in db.session.execute(stmt).scalars().all():
             if getattr(record, priority_field, False):
                 results.append(record)
         return results

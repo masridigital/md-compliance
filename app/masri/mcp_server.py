@@ -253,7 +253,7 @@ def _tool_list_frameworks(params: dict, api_key) -> dict:
     if not tenant_id:
         return _missing_param("tenant_id")
 
-    tenant = Tenant.query.get(tenant_id)
+    tenant = db.session.get(Tenant, tenant_id)
     if tenant is None:
         return {"error": {"code": 404, "message": "Tenant not found"}}
 
@@ -261,7 +261,7 @@ def _tool_list_frameworks(params: dict, api_key) -> dict:
     if api_key.tenant_id and api_key.tenant_id != tenant_id:
         return {"error": {"code": 403, "message": "Access denied for this tenant"}}
 
-    frameworks = Framework.query.filter_by(tenant_id=tenant_id).all()
+    frameworks = db.session.execute(db.select(Framework).filter_by(tenant_id=tenant_id)).scalars().all()
     return {
         "tenant_id": tenant_id,
         "frameworks": [fw.as_dict() for fw in frameworks],
@@ -276,7 +276,7 @@ def _tool_get_compliance_status(params: dict, api_key) -> dict:
     if not project_id:
         return _missing_param("project_id")
 
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if project is None:
         return {"error": {"code": 404, "message": "Project not found"}}
 
@@ -303,7 +303,7 @@ def _tool_list_controls(params: dict, api_key) -> dict:
     if not project_id:
         return _missing_param("project_id")
 
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if project is None:
         return {"error": {"code": 404, "message": "Project not found"}}
 
@@ -342,7 +342,7 @@ def _tool_assess_control(params: dict, api_key) -> dict:
     if not evidence_text:
         return _missing_param("evidence_text")
 
-    control = Control.query.get(control_id)
+    control = db.session.get(Control, control_id)
     if control is None:
         return {"error": {"code": 404, "message": "Control not found"}}
 
@@ -379,14 +379,14 @@ def _tool_list_risks(params: dict, api_key) -> dict:
     if not tenant_id:
         return _missing_param("tenant_id")
 
-    tenant = Tenant.query.get(tenant_id)
+    tenant = db.session.get(Tenant, tenant_id)
     if tenant is None:
         return {"error": {"code": 404, "message": "Tenant not found"}}
 
     if api_key.tenant_id and api_key.tenant_id != tenant_id:
         return {"error": {"code": 403, "message": "Access denied for this tenant"}}
 
-    risks = RiskRegister.query.filter_by(tenant_id=tenant_id).all()
+    risks = db.session.execute(db.select(RiskRegister).filter_by(tenant_id=tenant_id)).scalars().all()
     return {
         "tenant_id": tenant_id,
         "risks": [r.as_dict() for r in risks],
@@ -412,12 +412,13 @@ def _tool_get_due_dates(params: dict, api_key) -> dict:
 
     cutoff = datetime.utcnow() + timedelta(days=days_ahead)
     due_dates = (
-        DueDate.query
-        .filter_by(tenant_id=tenant_id)
-        .filter(DueDate.due_date <= cutoff)
-        .filter(DueDate.status.in_(["pending", "overdue"]))
-        .order_by(DueDate.due_date.asc())
-        .all()
+        db.session.execute(
+            db.select(DueDate)
+            .filter_by(tenant_id=tenant_id)
+            .filter(DueDate.due_date <= cutoff)
+            .filter(DueDate.status.in_(["pending", "overdue"]))
+            .order_by(DueDate.due_date.asc())
+        ).scalars().all()
     )
     return {
         "tenant_id": tenant_id,

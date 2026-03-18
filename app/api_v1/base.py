@@ -103,7 +103,7 @@ User endpoints
 def get_users():
     Authorizer(current_user).can_user_manage_platform()
     data = []
-    for user in models.User.query.all():
+    for user in db.session.execute(db.select(models.User)).scalars().all():
         data.append(user.as_dict())
     return jsonify(data)
 
@@ -328,7 +328,7 @@ def get_users_for_tenant(tid):
 @login_required
 def get_roles_for_user_in_tenant(uid, tid):
     result = Authorizer(current_user).can_user_access_tenant(tid)
-    if not (user := models.User.query.get(uid)):
+    if not (user := db.session.get(models.User, uid)):
         abort(404)
     return jsonify(user.all_roles_by_tenant(result["extra"]["tenant"]))
 

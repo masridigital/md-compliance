@@ -172,7 +172,7 @@ def list_storage_providers():
     """GET /api/v1/settings/storage — list all storage provider configs."""
     _require_admin()
     try:
-        providers = SettingsStorage.query.all()
+        providers = db.session.execute(db.select(SettingsStorage)).scalars().all()
         return jsonify([p.as_dict() for p in providers])
     except Exception as e:
         logger.exception("Error listing storage providers")
@@ -185,7 +185,7 @@ def get_storage_provider(provider):
     """GET /api/v1/settings/storage/<provider> — specific provider config."""
     _require_admin()
     try:
-        record = SettingsStorage.query.filter_by(provider=provider).first()
+        record = db.session.execute(db.select(SettingsStorage).filter_by(provider=provider)).scalars().first()
         if record is None:
             return jsonify({"error": f"Storage provider '{provider}' not found"}), 404
         return jsonify(record.as_dict())
@@ -332,10 +332,11 @@ def list_mcp_keys():
     _require_admin()
     try:
         tenant_id = request.args.get("tenant_id")
-        query = MCPAPIKey.query
+        stmt = db.select(MCPAPIKey)
         if tenant_id:
-            query = query.filter_by(tenant_id=tenant_id)
-        keys = query.order_by(MCPAPIKey.date_added.desc()).all()
+            stmt = stmt.filter_by(tenant_id=tenant_id)
+        stmt = stmt.order_by(MCPAPIKey.date_added.desc())
+        keys = db.session.execute(stmt).scalars().all()
         return jsonify([k.as_dict() for k in keys])
     except Exception as e:
         logger.exception("Error listing MCP API keys")
@@ -388,7 +389,7 @@ def delete_mcp_key(key_id):
     """DELETE /api/v1/settings/mcp-keys/<key_id> — revoke/delete an MCP API key."""
     _require_admin()
     try:
-        key = MCPAPIKey.query.get(key_id)
+        key = db.session.get(MCPAPIKey, key_id)
         if key is None:
             return jsonify({"error": "MCP API key not found"}), 404
 

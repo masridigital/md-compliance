@@ -104,8 +104,9 @@ class MasriScheduler:
             try:
                 from app.masri.new_models import DueDate
                 from app.models import Tenant
+                from app import db
 
-                tenants = Tenant.query.all()
+                tenants = db.session.execute(db.select(Tenant)).scalars().all()
                 total_sent = 0
 
                 for tenant in tenants:
@@ -142,7 +143,7 @@ class MasriScheduler:
                 from app.models import Tenant
                 from datetime import timedelta
 
-                tenants = Tenant.query.all()
+                tenants = db.session.execute(db.select(Tenant)).scalars().all()
                 now = datetime.utcnow()
                 drift_threshold = now - timedelta(days=90)
 
@@ -168,20 +169,22 @@ class MasriScheduler:
     def _detect_tenant_drift(self, tenant_id: str, threshold) -> list:
         """Return a list of drift items for a tenant."""
         from app.models import ProjectControl, Project
+        from app import db
 
         drift_items = []
 
         # Find stale controls
-        projects = Project.query.filter_by(tenant_id=tenant_id).all()
+        projects = db.session.execute(db.select(Project).filter_by(tenant_id=tenant_id)).scalars().all()
         for project in projects:
             stale_controls = (
-                ProjectControl.query
-                .filter_by(project_id=project.id)
-                .filter(
-                    (ProjectControl.date_updated < threshold)
-                    | (ProjectControl.date_updated.is_(None))
-                )
-                .all()
+                db.session.execute(
+                    db.select(ProjectControl)
+                    .filter_by(project_id=project.id)
+                    .filter(
+                        (ProjectControl.date_updated < threshold)
+                        | (ProjectControl.date_updated.is_(None))
+                    )
+                ).scalars().all()
             )
             for pc in stale_controls:
                 drift_items.append({

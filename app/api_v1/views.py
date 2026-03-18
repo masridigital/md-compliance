@@ -135,7 +135,7 @@ def get_resp_matrix_summary_for_project(pid):
         .all()
     ):
         if record[0]:
-            if user := models.User.query.get(record[0]):
+            if user := db.session.get(models.User, record[0]):
                 data["operators"].append(
                     {"email": user.email, "user_id": user.id, "subcontrols": record[1]}
                 )
@@ -148,7 +148,7 @@ def get_resp_matrix_summary_for_project(pid):
         .all()
     ):
         if record[0]:
-            if user := models.User.query.get(record[0]):
+            if user := db.session.get(models.User, record[0]):
                 data["owners"].append(
                     {"email": user.email, "user_id": user.id, "subcontrols": record[1]}
                 )
@@ -195,7 +195,7 @@ def add_members_for_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
     data = request.get_json()
     for record in data["members"]:
-        if user := models.User.query.get(record["id"]):
+        if user := db.session.get(models.User, record["id"]):
             result["extra"]["project"].add_member(user, record.get("access_level"))
     return jsonify({"message": "ok"})
 
@@ -213,7 +213,7 @@ def update_access_level_for_user_in_project(pid, uid):
 @login_required
 def delete_user_from_project(pid, uid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    result["extra"]["project"].remove_member(models.User.query.get(uid))
+    result["extra"]["project"].remove_member(db.session.get(models.User, uid))
     return jsonify({"message": "ok"})
 
 
@@ -533,9 +533,9 @@ def create_risk_for_project(pid):
 def get_risks_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
     data = []
-    for risk in models.RiskRegister.query.filter(
+    for risk in db.session.execute(db.select(models.RiskRegister).filter(
         models.RiskRegister.project_id == pid
-    ).all():
+    )).scalars().all():
         data.append(risk.as_dict())
     return jsonify(data)
 
@@ -545,11 +545,11 @@ def get_risks_for_project(pid):
 def update_risk_for_project(pid, rid):
     Authorizer(current_user).can_user_access_project(pid)
     data = request.get_json()
-    risk = (
-        models.RiskRegister.query.filter(models.RiskRegister.project_id == pid)
-        .filter(models.RiskRegister.id == rid)
-        .first_or_404()
-    )
+    risk = db.session.execute(db.select(models.RiskRegister).filter(
+        models.RiskRegister.project_id == pid
+    ).filter(models.RiskRegister.id == rid)).scalars().first()
+    if not risk:
+        abort(404)
     risk.title = data.get("title")
     risk.description = data.get("description")
     risk.status = data.get("status")
