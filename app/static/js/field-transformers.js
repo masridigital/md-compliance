@@ -44,12 +44,15 @@ class numberAndProgressBar {
   init(params) {
     this.eGui = document.createElement('div');
     this.eGui.classList.add('flex', 'items-center');
-    //this.eGui.classList.add('tooltip');
-    //this.eGui.setAttribute('data-tip', params.value);
-    this.eGui.innerHTML = `
-      <p class='flex-none text-xs font-semibold mr-2'>${params.value}</p>
-      <progress class="progress progress-secondary w-32" value="${params.value}" max="100"></progress>
-    `;
+    const labelEl = document.createElement('p');
+    labelEl.className = 'flex-none text-xs font-semibold mr-2';
+    labelEl.textContent = params.value;
+    const progressEl = document.createElement('progress');
+    progressEl.className = 'progress progress-secondary w-32';
+    progressEl.value = params.value;
+    progressEl.max = 100;
+    this.eGui.appendChild(labelEl);
+    this.eGui.appendChild(progressEl);
   }
 
   getGui() {
@@ -73,16 +76,23 @@ class idToButton {
   init(params) {
     this.eGui = document.createElement('div');
     this.eGui.classList.add('flex', 'items-center');
-    let link = params.link.replace("{value}", params.value);
-    if (!params.text) {
-        params.text = "<i class='ti ti-external-link text-lg'></i>"
+    // Substitute value into the link template; encode value to prevent injection
+    let link = params.link.replace("{value}", encodeURIComponent(params.value));
+    // Allow only relative (same-origin) URLs
+    if (/^(https?:|\/\/)/i.test(link)) {
+        link = '#';
     }
-    if (!params.class) {
-        params.class = "btn-sm btn-ghost"
+    const btnClass = params.class || "btn-sm btn-ghost";
+    const anchorEl = document.createElement('a');
+    anchorEl.href = link;
+    anchorEl.className = `btn ${btnClass}`;
+    if (params.text) {
+        // params.text is a server-defined icon HTML string — treat as safe markup
+        anchorEl.innerHTML = params.text;
+    } else {
+        anchorEl.innerHTML = "<i class='ti ti-external-link text-lg'></i>";
     }
-    this.eGui.innerHTML = `
-      <a href='${link}' class='btn ${params.class}'>${params.text ?? "View"}</a>
-    `;
+    this.eGui.appendChild(anchorEl);
   }
 
   getGui() {

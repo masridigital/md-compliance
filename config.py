@@ -241,7 +241,7 @@ class TestingConfig(Config):
     POSTGRES_USER = url.username
     POSTGRES_PASSWORD = url.password
     POSTGRES_DB = url.database
-    WTF_CSRF_ENABLED = False
+    WTF_CSRF_ENABLED = True
 
 
 config = {
