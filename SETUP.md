@@ -6,20 +6,73 @@ This guide covers everything you need to deploy MD Compliance in a production en
 
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [Environment Variables](#environment-variables)
-3. [Docker Deployment](#docker-deployment)
-4. [Database Setup](#database-setup)
-5. [Default Credentials](#default-credentials)
-6. [Updating the App](#updating-the-app)
-7. [Database Backups](#database-backups)
-8. [Storage Integrations](#storage-integrations)
-9. [Microsoft Entra ID](#microsoft-entra-id)
-10. [LLM Configuration](#llm-configuration)
-11. [Teams Notifications](#teams-notifications)
-12. [Scheduler](#scheduler)
-13. [SSL / Reverse Proxy](#ssl--reverse-proxy)
-14. [Multi-Worker Deployment](#multi-worker-deployment)
+1. [Quick Setup (Recommended)](#quick-setup-recommended)
+2. [Prerequisites](#prerequisites)
+3. [Environment Variables](#environment-variables)
+4. [Docker Deployment](#docker-deployment)
+5. [Database Setup](#database-setup)
+6. [Default Credentials](#default-credentials)
+7. [Updating the App](#updating-the-app)
+8. [Database Backups](#database-backups)
+9. [Storage Integrations](#storage-integrations)
+10. [Microsoft Entra ID](#microsoft-entra-id)
+11. [LLM Configuration](#llm-configuration)
+12. [Teams Notifications](#teams-notifications)
+13. [Scheduler](#scheduler)
+14. [SSL Certificate Details](#ssl-certificate-details)
+15. [Multi-Worker Deployment](#multi-worker-deployment)
+
+---
+
+## Quick Setup (Recommended)
+
+The fastest way to get MD Compliance running on your server is the interactive setup script. It will ask for your domain name, obtain a free SSL certificate via Let's Encrypt, generate your `.env` file, configure nginx, and start the app — all in one step.
+
+### Prerequisites
+
+- A Linux server (Ubuntu 22.04+ recommended) with Docker and Docker Compose installed
+- A domain or subdomain pointed at your server's IP address (e.g. `compliance.masridigital.com`)
+- Port 80 and 443 open in your firewall
+- (Optional) An SMTP server for email notifications
+- (Optional) Azure subscription for Blob/SharePoint/Entra features
+
+### Install Docker (if not already installed)
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+### Run the setup wizard
+
+```bash
+git clone https://github.com/masridigital/md-compliance.git
+cd md-compliance
+chmod +x setup.sh
+./setup.sh
+```
+
+The wizard will ask you:
+1. **Domain name** — e.g. `compliance.masridigital.com`
+2. **SSL** — whether to obtain a free Let's Encrypt certificate automatically
+3. **Email** — for SSL renewal notices
+4. **Optional integrations** — Teams webhook, LLM API key
+
+After it completes, your app is running at `https://your-domain.com`.
+
+### What setup.sh creates
+
+| File / Directory | Purpose |
+|------------------|---------|
+| `.env` | All app secrets and configuration |
+| `nginx/conf.d/mdcompliance.conf` | nginx site config for your domain |
+| `docker-compose.override.yml` | Injects DOMAIN into the app container |
+| `nginx/ssl/letsencrypt/` | SSL certificates (managed by certbot) |
+
+### Re-running setup
+
+If you need to change your domain or regenerate config, just run `./setup.sh` again. Existing data is never touched.
 
 ---
 
@@ -398,29 +451,55 @@ Then schedule the reminder check externally:
 
 ---
 
-## SSL / Reverse Proxy
+## SSL Certificate Details
 
-The app does not handle SSL directly. Use a reverse proxy in front of it.
+SSL is handled automatically when you run `./setup.sh` — you do not need to configure nginx or Certbot manually.
 
-### nginx example
+### How it works
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name compliance.masridigital.com;
+1. `setup.sh` generates an nginx config for your domain at `nginx/conf.d/mdcompliance.conf`
+2. It starts nginx and runs Certbot in a temporary container to complete the ACME HTTP-01 challenge
+3. Certificates are saved to `nginx/ssl/letsencrypt/`
+4. A persistent `certbot` container checks for renewal every 12 hours automatically
 
-    ssl_certificate     /etc/letsencrypt/live/compliance.masridigital.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/compliance.masridigital.com/privkey.pem;
+### Manual renewal
 
-    location / {
-        proxy_pass         http://localhost:8000;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-    }
-}
+```bash
+./scripts/renew-ssl.sh
 ```
+
+### Check certificate expiry
+
+```bash
+docker-compose exec certbot certbot certificates
+```
+
+### DNS requirements
+
+Before running `setup.sh`, make sure your domain's DNS A record points to your server's IP. Let's Encrypt will fail if DNS hasn't propagated. You can check with:
+
+```bash
+dig +short your-domain.com
+curl https://api.ipify.org   # your server's public IP
+```
+
+Both should return the same IP address.
+
+### Firewall requirements
+
+| Port | Required for |
+|------|--------------|
+| 80 | Let's Encrypt ACME challenge + HTTP redirect to HTTPS |
+| 443 | HTTPS traffic |
+
+On Ubuntu with UFW:
+```bash
+ufw allow 80
+ufw allow 443
+ufw reload
+```
+
+On AWS/GCP/Azure: open these ports in your security group / firewall rules.
 
 ---
 

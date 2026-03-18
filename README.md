@@ -44,8 +44,9 @@ Manage compliance frameworks, generate WISP documents, track controls, and get A
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Git
+- A Linux server with Docker and Docker Compose installed
+- A domain or subdomain pointed at your server's IP (e.g. `compliance.masridigital.com`)
+- Ports 80 and 443 open
 
 ### 1. Clone the repo
 
@@ -54,43 +55,26 @@ git clone https://github.com/masridigital/md-compliance.git
 cd md-compliance
 ```
 
-### 2. Set up environment variables
+### 2. Run the setup wizard
 
 ```bash
-cp .env.example .env
+chmod +x setup.sh
+./setup.sh
 ```
 
-Open `.env` and set at minimum:
+The wizard will ask for your domain name, set up a free SSL certificate via Let's Encrypt, generate your `.env`, configure nginx, and start the app automatically.
 
-```env
-SECRET_KEY=your-long-random-secret-key
-POSTGRES_PASSWORD=your-db-password
-```
-
-See [Configuration](#configuration) for the full variable reference.
-
-### 3. Start the app
-
-```bash
-docker-compose up -d
-```
-
-The app runs on **http://localhost:8000** by default.
-
-### 4. Run database migrations
-
-```bash
-docker-compose exec app flask db upgrade
-```
-
-### 5. Log in
+### 3. Log in
 
 | Field | Value |
 |-------|-------|
+| URL | `https://your-domain.com` |
 | Email | `admin@example.com` |
 | Password | `admin1234567` |
 
 > **Change the default password immediately** via Settings → Users after first login.
+
+See [`SETUP.md`](SETUP.md) for full details including manual configuration, integrations, and update procedures.
 
 ---
 
