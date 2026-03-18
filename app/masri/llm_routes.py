@@ -16,6 +16,14 @@ import logging
 from flask import Blueprint, jsonify, request, abort, current_app
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app import limiter
+from app.masri.schemas import (
+    validate_payload,
+    ControlAssistSchema,
+    GapNarrativeSchema,
+    RiskScoreSchema,
+    InterpretEvidenceSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +37,7 @@ def _require_llm():
 
 
 @llm_bp.route("/control-assist", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def control_assist():
     """
@@ -45,18 +54,13 @@ def control_assist():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(ControlAssistSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     control_description = data.get("control_description", "")
     evidence_text = data.get("evidence_text", "")
     tenant_id = data.get("tenant_id")
-
-    if not control_description:
-        return jsonify({"error": "control_description is required"}), 400
-    if not evidence_text:
-        return jsonify({"error": "evidence_text is required"}), 400
 
     try:
         from app.masri.llm_service import LLMService
@@ -76,6 +80,7 @@ def control_assist():
 
 
 @llm_bp.route("/gap-narrative", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def gap_narrative():
     """
@@ -93,17 +98,14 @@ def gap_narrative():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(GapNarrativeSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     framework = data.get("framework", "")
     control_ref = data.get("control_ref", "")
     current_state = data.get("current_state", "")
     tenant_id = data.get("tenant_id")
-
-    if not framework or not control_ref:
-        return jsonify({"error": "framework and control_ref are required"}), 400
 
     try:
         from app.masri.llm_service import LLMService
@@ -148,6 +150,7 @@ def gap_narrative():
 
 
 @llm_bp.route("/risk-score", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def risk_score():
     """
@@ -164,16 +167,13 @@ def risk_score():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(RiskScoreSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     risk_description = data.get("risk_description", "")
     context = data.get("context", "")
     tenant_id = data.get("tenant_id")
-
-    if not risk_description:
-        return jsonify({"error": "risk_description is required"}), 400
 
     try:
         from app.masri.llm_service import LLMService
@@ -234,6 +234,7 @@ def risk_score():
 
 
 @llm_bp.route("/interpret-evidence", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def interpret_evidence():
     """
@@ -250,16 +251,13 @@ def interpret_evidence():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(InterpretEvidenceSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     evidence_text = data.get("evidence_text", "")
     control_context = data.get("control_context", "")
     tenant_id = data.get("tenant_id")
-
-    if not evidence_text:
-        return jsonify({"error": "evidence_text is required"}), 400
 
     try:
         from app.masri.llm_service import LLMService
@@ -303,6 +301,7 @@ def interpret_evidence():
 
 
 @llm_bp.route("/usage", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def llm_usage():
     """

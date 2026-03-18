@@ -7,9 +7,23 @@ from app.models import *
 from flask_login import current_user
 from app.utils.authorizer import Authorizer
 from app.utils.decorators import login_required
+from app import limiter
+from app.api_v1.schemas import (
+    validate_payload,
+    VendorCreateSchema,
+    VendorUpdateSchema,
+    VendorAppCreateSchema,
+    VendorNotesSchema,
+    AssessmentCreateSchema,
+    ApplicationUpdateSchema,
+    TenantRiskCreateSchema,
+    TenantRiskUpdateSchema,
+    EmailListSchema,
+)
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendors(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -18,6 +32,7 @@ def get_vendors(id):
 
 
 @api.route("/vendors/<string:id>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
@@ -26,10 +41,13 @@ def get_vendor(id):
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_vendor(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
-    data = request.get_json()
+    data, err = validate_payload(VendorCreateSchema, request.get_json())
+    if err:
+        return err
     vendor = Vendor(
         name=data.get("name"),
         description=data.get("description"),
@@ -48,11 +66,14 @@ def create_vendor(id):
 
 
 @api.route("/vendors/<string:id>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data = request.get_json()
+    data, err = validate_payload(VendorUpdateSchema, request.get_json())
+    if err:
+        return err
     for field in [
         "description",
         "status",
@@ -71,6 +92,7 @@ def update_vendor(id):
 
 
 @api.route("/vendors/<string:id>/applications", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendor_applications(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
@@ -79,11 +101,14 @@ def get_vendor_applications(id):
 
 
 @api.route("/vendors/<string:id>/applications", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_vendor_application(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data = request.get_json()
+    data, err = validate_payload(VendorAppCreateSchema, request.get_json())
+    if err:
+        return err
     app = vendor.create_app(
         name=data.get("name"),
         description=data.get("description"),
@@ -103,6 +128,7 @@ def create_vendor_application(id):
 
 
 @api.route("/vendors/<string:id>/categories", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendor_categories(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
@@ -111,6 +137,7 @@ def get_vendor_categories(id):
 
 
 @api.route("/vendors/<string:id>/assessments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendor_assessments(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
@@ -119,6 +146,7 @@ def get_vendor_assessments(id):
 
 
 @api.route("/vendors/<string:id>/bus", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendor_business_units(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
@@ -127,6 +155,7 @@ def get_vendor_business_units(id):
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_vendors_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -137,6 +166,7 @@ def get_vendors_for_tenant(id):
 
 
 @api.route("/tenants/<string:id>/applications", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_apps_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -147,6 +177,7 @@ def get_apps_for_tenant(id):
 
 
 @api.route("/tenants/<string:id>/assessments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_assessments_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -157,6 +188,7 @@ def get_assessments_for_tenant(id):
 
 
 @api.route("/tenants/<string:id>/risks", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_risks_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -167,21 +199,27 @@ def get_risks_for_tenant(id):
 
 
 @api.route("/vendors/<string:id>/notes", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_notes_for_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data = request.get_json()
+    data, err = validate_payload(VendorNotesSchema, request.get_json())
+    if err:
+        return err
     vendor.notes = data.get("data")
     db.session.commit()
     return jsonify(vendor.as_dict())
 
 
 @api.route("/vendors/<string:id>/assessments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_assessment_for_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    data = request.get_json()
+    data, err = validate_payload(AssessmentCreateSchema, request.get_json())
+    if err:
+        return err
 
     assessment = result["extra"]["vendor"].create_assessment(
         name=data.get("name"),
@@ -194,11 +232,14 @@ def create_assessment_for_vendor(id):
 
 
 @api.route("/applications/<string:id>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_application(id):
     result = Authorizer(current_user).can_user_access_application(id)
     app = result["extra"]["application"]
-    data = request.get_json()
+    data, err = validate_payload(ApplicationUpdateSchema, request.get_json())
+    if err:
+        return err
     for key, value in data.items():
         setattr(app, key, value)
     db.session.commit()
@@ -206,10 +247,13 @@ def update_application(id):
 
 
 @api.route("/tenants/<string:id>/risks", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_risk(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
-    data = request.get_json()
+    data, err = validate_payload(TenantRiskCreateSchema, request.get_json())
+    if err:
+        return err
     risk = result["extra"]["tenant"].create_risk(
         title=data.get("title"),
         description=data.get("description"),
@@ -229,10 +273,13 @@ def create_risk(id):
 
 
 @api.route("/tenants/<string:tid>/risks/<string:rid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_risk(tid, rid):
     result = Authorizer(current_user).can_user_manage_risk(rid)
-    data = request.get_json()
+    data, err = validate_payload(TenantRiskUpdateSchema, request.get_json())
+    if err:
+        return err
     risk = result["extra"]["risk"]
 
     # Update the risk using the model's update method
@@ -251,6 +298,7 @@ def update_risk(tid, rid):
 
 
 @api.route("/tenants/<string:tid>/risks/<string:rid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_risk(tid, rid):
     result = Authorizer(current_user).can_user_manage_risk(rid)
@@ -261,11 +309,16 @@ def delete_risk(tid, rid):
 
 
 @api.route("/tenants/<string:id>/risk-managers", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def set_risk_managers_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    data = request.get_json()
+    raw = request.get_json()
+    validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
+    if err:
+        return err
+    data = validated["emails"]
 
     # remove all risk managers
     mappings = UserRole.get_mappings_for_role_in_tenant("riskmanager", tenant.id)
@@ -283,11 +336,16 @@ def set_risk_managers_for_tenant(id):
 
 
 @api.route("/tenants/<string:id>/risk-viewers", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def set_risk_viewers_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    data = request.get_json()
+    raw = request.get_json()
+    validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
+    if err:
+        return err
+    data = validated["emails"]
 
     # remove all risk viewers
     mappings = UserRole.get_mappings_for_role_in_tenant("riskviewer", tenant.id)
@@ -305,11 +363,16 @@ def set_risk_viewers_for_tenant(id):
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def set_vendors_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    data = request.get_json()
+    raw = request.get_json()
+    validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
+    if err:
+        return err
+    data = validated["emails"]
 
     # remove all risk vendors
     mappings = UserRole.get_mappings_for_role_in_tenant("vendor", tenant.id)

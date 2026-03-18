@@ -11,8 +11,18 @@ from flask import Blueprint, jsonify, request, abort, current_app
 from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.authorizer import Authorizer
-from app import db
+from app import db, limiter
 from app.masri.settings_service import SettingsService
+from app.masri.schemas import (
+    validate_payload,
+    PlatformSettingsUpdateSchema,
+    TenantBrandingUpdateSchema,
+    LLMConfigUpdateSchema,
+    StorageProviderUpdateSchema,
+    SSOConfigUpdateSchema,
+    NotificationChannelUpdateSchema,
+    MCPKeyCreateSchema,
+)
 from app.masri.new_models import (
     PlatformSettings,
     TenantBranding,
@@ -58,6 +68,7 @@ def _get_json_body():
 # ===========================================================================
 
 @settings_bp.route("/platform", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_platform_settings():
     """GET /api/v1/settings/platform — retrieve singleton platform settings."""
@@ -71,11 +82,14 @@ def get_platform_settings():
 
 
 @settings_bp.route("/platform", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_platform_settings():
     """PUT /api/v1/settings/platform — update platform settings fields."""
     _require_admin()
-    data = _get_json_body()
+    data, err = validate_payload(PlatformSettingsUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     try:
         ps = SettingsService.update_platform_settings(data)
         return jsonify(ps.as_dict())
@@ -91,6 +105,7 @@ def update_platform_settings():
 # ===========================================================================
 
 @settings_bp.route("/tenants/<string:tenant_id>/branding", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tenant_branding(tenant_id):
     """GET /api/v1/settings/tenants/<tenant_id>/branding — merged with defaults."""
@@ -104,11 +119,14 @@ def get_tenant_branding(tenant_id):
 
 
 @settings_bp.route("/tenants/<string:tenant_id>/branding", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_tenant_branding(tenant_id):
     """PUT /api/v1/settings/tenants/<tenant_id>/branding — update overrides."""
     Authorizer(current_user).can_user_admin_tenant(tenant_id)
-    data = _get_json_body()
+    data, err = validate_payload(TenantBrandingUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     try:
         tb = SettingsService.update_tenant_branding(tenant_id, data)
         return jsonify(tb.as_dict())
@@ -124,6 +142,7 @@ def update_tenant_branding(tenant_id):
 # ===========================================================================
 
 @settings_bp.route("/llm", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_llm_config():
     """GET /api/v1/settings/llm — active LLM config with masked api_key."""
@@ -144,11 +163,14 @@ def get_llm_config():
 
 
 @settings_bp.route("/llm", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_llm_config():
     """PUT /api/v1/settings/llm — update LLM provider settings."""
     _require_admin()
-    data = _get_json_body()
+    data, err = validate_payload(LLMConfigUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     try:
         llm = SettingsService.update_llm_config(data)
         result = llm.as_dict()
@@ -167,6 +189,7 @@ def update_llm_config():
 # ===========================================================================
 
 @settings_bp.route("/storage", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_storage_providers():
     """GET /api/v1/settings/storage — list all storage provider configs."""
@@ -180,6 +203,7 @@ def list_storage_providers():
 
 
 @settings_bp.route("/storage/<string:provider>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_storage_provider(provider):
     """GET /api/v1/settings/storage/<provider> — specific provider config."""
@@ -195,11 +219,14 @@ def get_storage_provider(provider):
 
 
 @settings_bp.route("/storage/<string:provider>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_storage_provider(provider):
     """PUT /api/v1/settings/storage/<provider> — update provider config."""
     _require_admin()
-    data = _get_json_body()
+    data, err = validate_payload(StorageProviderUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     try:
         record = SettingsService.update_storage_provider(provider, data)
         return jsonify(record.as_dict())
@@ -215,6 +242,7 @@ def update_storage_provider(provider):
 # ===========================================================================
 
 @settings_bp.route("/sso", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_sso_config():
     """GET /api/v1/settings/sso — platform-level SSO configuration."""
@@ -230,11 +258,14 @@ def get_sso_config():
 
 
 @settings_bp.route("/sso", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_sso_config():
     """PUT /api/v1/settings/sso — update platform-level SSO settings."""
     _require_admin()
-    data = _get_json_body()
+    data, err = validate_payload(SSOConfigUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     try:
         sso = SettingsService.update_sso_config(data)
         return jsonify(sso.as_dict())
@@ -250,6 +281,7 @@ def update_sso_config():
 # ===========================================================================
 
 @settings_bp.route("/notifications", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_notification_channels():
     """GET /api/v1/settings/notifications — list channels, optionally by tenant."""
@@ -263,10 +295,13 @@ def get_notification_channels():
 
 
 @settings_bp.route("/notifications/<string:channel>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_notification_channel(channel):
     """PUT /api/v1/settings/notifications/<channel> — update channel config."""
-    data = _get_json_body()
+    data, err = validate_payload(NotificationChannelUpdateSchema, request.get_json(silent=True))
+    if err:
+        return err
     tenant_id = data.pop("tenant_id", None)
     try:
         record = SettingsService.update_notification_channel(
@@ -285,6 +320,7 @@ def update_notification_channel(channel):
 # ===========================================================================
 
 @settings_bp.route("/tenants/<string:tenant_id>/due-dates", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_due_dates(tenant_id):
     """GET /api/v1/settings/tenants/<tenant_id>/due-dates — list due dates."""
@@ -306,6 +342,7 @@ def get_due_dates(tenant_id):
 @settings_bp.route(
     "/tenants/<string:tenant_id>/due-dates/check-overdue", methods=["POST"]
 )
+@limiter.limit("30 per minute")
 @login_required
 def check_overdue(tenant_id):
     """POST /api/v1/settings/tenants/<tenant_id>/due-dates/check-overdue"""
@@ -326,6 +363,7 @@ def check_overdue(tenant_id):
 # ===========================================================================
 
 @settings_bp.route("/mcp-keys", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_mcp_keys():
     """GET /api/v1/settings/mcp-keys — list all MCP API keys for the tenant."""
@@ -344,6 +382,7 @@ def list_mcp_keys():
 
 
 @settings_bp.route("/mcp-keys", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_mcp_key():
     """POST /api/v1/settings/mcp-keys — generate a new MCP API key.
@@ -351,12 +390,11 @@ def create_mcp_key():
     The raw key is returned ONCE in this response and cannot be retrieved again.
     """
     _require_admin()
-    data = _get_json_body()
+    data, err = validate_payload(MCPKeyCreateSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     name = data.get("name")
-    if not name:
-        return jsonify({"error": "Field 'name' is required"}), 400
-
     tenant_id = data.get("tenant_id")
     scopes = data.get("scopes")
     expires_at = data.get("expires_at")
@@ -384,6 +422,7 @@ def create_mcp_key():
 
 
 @settings_bp.route("/mcp-keys/<string:key_id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_mcp_key(key_id):
     """DELETE /api/v1/settings/mcp-keys/<key_id> — revoke/delete an MCP API key."""

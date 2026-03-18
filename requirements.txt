@@ -40,6 +40,10 @@ google-cloud-logging
 # --- Security: Rate limiting ---
 Flask-Limiter>=3.7.0
 
+# --- Security: Request validation ---
+marshmallow>=3.20.0
+flask-marshmallow>=1.2.0
+
 # --- Phase 1: Encryption ---
 cryptography>=42.0.0
 

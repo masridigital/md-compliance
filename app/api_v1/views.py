@@ -7,7 +7,7 @@ from flask import (
     Response,
 )
 from . import api
-from app import models, db
+from app import models, db, limiter
 from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.misc import project_creation, get_users_from_text
@@ -15,8 +15,38 @@ from sqlalchemy import func
 from app.email import send_email
 from app.utils.reports import Report
 from app.utils.authorizer import Authorizer
+from app.api_v1.schemas import (
+    validate_payload,
+    DataFieldSchema,
+    CommentSchema,
+    AddMembersSchema,
+    AccessLevelSchema,
+    ControlCreateSchema,
+    TenantPolicyCreateSchema,
+    ProjectUpdateSchema,
+    PolicyUpdateSchema,
+    ProjectCreateSchema,
+    ProjectSettingsSchema,
+    RiskCreateSchema,
+    PolicyVersionCreateSchema,
+    PolicyVersionUpdateSchema,
+    ProjectPolicyUpdateSchema,
+    ProjectPolicyCreateSchema,
+    ReviewStatusSchema,
+    SubcontrolUpdateSchema,
+    ApplicabilitySchema,
+    EvidenceAssociationSchema,
+    TagsSchema,
+    RiskCommentSchema,
+    AssigneeSchema,
+    FeedbackSchema,
+    FeedbackUpdateSchema,
+    ProjectTagSchema,
+    ProjectControlCreateSchema,
+)
 
 @api.route("/tenants/<string:id>/frameworks", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_frameworks(id):
     data = []
@@ -27,6 +57,7 @@ def get_frameworks(id):
 
 
 @api.route("/projects/<string:id>/reports", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def generate_report_for_project(id):
     result = Authorizer(current_user).can_user_read_project(id)
@@ -35,6 +66,7 @@ def generate_report_for_project(id):
 
 
 @api.route("/projects/<string:id>/scratchpad", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_scratchpad_for_project(id):
     result = Authorizer(current_user).can_user_read_project_scratchpad(id)
@@ -42,22 +74,26 @@ def get_scratchpad_for_project(id):
 
 
 @api.route("/projects/<string:id>/scratchpad", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_scratchpad_for_project(id):
     result = Authorizer(current_user).can_user_write_project_scratchpad(id)
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["project"].notes = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
 
 
 @api.route("/projects/<string:id>/comments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_comment_for_project(id):
     result = Authorizer(current_user).can_user_access_project(id)
-    data = request.get_json()
-    if not data.get("data"):
-        return jsonify({"message": "empty comment"}), 400
+    data, err = validate_payload(CommentSchema, request.get_json())
+    if err:
+        return err
 
     tagged_users = get_users_from_text(
         data["data"], resolve_users=True, tenant=result["extra"]["project"].tenant
@@ -90,6 +126,7 @@ def add_comment_for_project(id):
 
 
 @api.route("/projects/<string:pid>/comments/<string:cid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_comment_for_project(pid, cid):
     result = Authorizer(current_user).can_user_delete_project_comment(cid)
@@ -99,6 +136,7 @@ def delete_comment_for_project(pid, cid):
 
 
 @api.route("/projects/<string:pid>/comments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_comments_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -112,6 +150,7 @@ def get_comments_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/findings", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_findings_for_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
@@ -120,6 +159,7 @@ def get_findings_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/matrix/summary", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_resp_matrix_summary_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -156,6 +196,7 @@ def get_resp_matrix_summary_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/matrix/users/<string:uid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_resp_matrix_for_user(pid, uid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -175,6 +216,7 @@ def get_resp_matrix_for_user(pid, uid):
 
 
 @api.route("/projects/<string:pid>/members")
+@limiter.limit("60 per minute")
 @login_required
 def get_members_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -190,10 +232,13 @@ def get_members_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/members", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_members_for_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(AddMembersSchema, request.get_json())
+    if err:
+        return err
     for record in data["members"]:
         if user := db.session.get(models.User, record["id"]):
             result["extra"]["project"].add_member(user, record.get("access_level"))
@@ -201,15 +246,19 @@ def add_members_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/members/<string:uid>/access", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_access_level_for_user_in_project(pid, uid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(AccessLevelSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["project"].update_member_access(uid, data["access_level"])
     return jsonify({"message": "ok"})
 
 
 @api.route("/projects/<string:pid>/members/<string:uid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_user_from_project(pid, uid):
     result = Authorizer(current_user).can_user_manage_project(pid)
@@ -218,6 +267,7 @@ def delete_user_from_project(pid, uid):
 
 
 @api.route("/tenants/<string:tid>/frameworks", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_frameworks_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
@@ -228,15 +278,19 @@ def get_frameworks_for_tenant(tid):
 
 
 @api.route("/tenants/<string:tid>/controls", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_control_for_tenant(tid):
     Authorizer(current_user).can_user_manage_tenant(tid)
-    payload = request.get_json()
+    payload, err = validate_payload(ControlCreateSchema, request.get_json())
+    if err:
+        return err
     models.Control.create(payload, tid)
     return jsonify({"message": "ok"})
 
 
 @api.route("/tenants/<string:tid>/policies", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_policies_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
@@ -247,10 +301,13 @@ def get_policies_for_tenant(tid):
 
 
 @api.route("/tenants/<string:tid>/policies", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_policy_for_tenant(tid):
     result = Authorizer(current_user).can_user_manage_tenant(tid)
-    payload = request.get_json()
+    payload, err = validate_payload(TenantPolicyCreateSchema, request.get_json())
+    if err:
+        return err
     policy = models.Policy(
         name=payload["name"],
         description=payload.get("description"),
@@ -262,6 +319,7 @@ def create_policy_for_tenant(tid):
 
 
 @api.route("/tenants/<string:tid>/load-frameworks", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def reload_tenant_frameworks(tid):
     result = Authorizer(current_user).can_user_admin_tenant(tid)
@@ -270,6 +328,7 @@ def reload_tenant_frameworks(tid):
 
 
 @api.route("/tenants/<string:tid>/load-policies", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def reload_tenant_policies(tid):
     result = Authorizer(current_user).can_user_admin_tenant(tid)
@@ -278,6 +337,7 @@ def reload_tenant_policies(tid):
 
 
 @api.route("/projects/<string:pid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_project(pid):
     with_summary = False
@@ -288,10 +348,13 @@ def get_project(pid):
 
 
 @api.route("/projects/<string:pid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(ProjectUpdateSchema, request.get_json())
+    if err:
+        return err
     if data.get("name"):
         result["extra"]["project"].name = data.get("name")
     if data.get("description"):
@@ -301,6 +364,7 @@ def update_project(pid):
 
 
 @api.route("/projects/<string:pid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
@@ -310,6 +374,7 @@ def delete_project(pid):
 
 
 @api.route("/policies/<string:pid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_policy(pid):
     result = Authorizer(current_user).can_user_read_policy(pid)
@@ -317,10 +382,13 @@ def get_policy(pid):
 
 
 @api.route("/policies/<string:pid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_policy(pid):
     result = Authorizer(current_user).can_user_manage_policy(pid)
-    data = request.get_json()
+    data, err = validate_payload(PolicyUpdateSchema, request.get_json())
+    if err:
+        return err
     policy = result["extra"]["policy"]
     policy.name = data["name"]
     policy.ref_code = data["ref_code"]
@@ -332,6 +400,7 @@ def update_policy(pid):
 
 
 @api.route("/frameworks/<string:fid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_framework(fid):
     result = Authorizer(current_user).can_user_read_framework(fid)
@@ -339,12 +408,14 @@ def get_framework(fid):
 
 
 @api.route("/evidence/<string:eid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_evidence(eid):
     result = Authorizer(current_user).can_user_read_evidence(eid)
     return jsonify(result["extra"]["evidence"].as_dict())
 
 @api.route("/evidence/<string:id>/file", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_file_for_evidence(id):
     result = Authorizer(current_user).can_user_read_evidence(id)
@@ -358,6 +429,7 @@ def get_file_for_evidence(id):
 
 
 @api.route("/evidence/<string:eid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_evidence(eid):
     result = Authorizer(current_user).can_user_manage_evidence(eid)
@@ -373,6 +445,7 @@ def update_evidence(eid):
 
 
 @api.route("/evidence/<string:eid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_evidence(eid):
     result = Authorizer(current_user).can_user_manage_evidence(eid)
@@ -381,15 +454,19 @@ def delete_evidence(eid):
 
 
 @api.route("/evidence/<string:eid>/controls", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def add_evidence_to_controls(eid):
     result = Authorizer(current_user).can_user_manage_evidence(eid)
-    payload = request.get_json()
+    payload, err = validate_payload(EvidenceAssociationSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["evidence"].associate_with_controls(payload)
     return jsonify({"message": "ok"})
 
 
 @api.route("/policies/<string:pid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_policy(pid):
     result = Authorizer(current_user).can_user_manage_policy(pid)
@@ -399,6 +476,7 @@ def delete_policy(pid):
 
 
 @api.route("/controls/<string:cid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_control(cid):
     result = Authorizer(current_user).can_user_manage_control(cid)
@@ -408,6 +486,7 @@ def delete_control(cid):
 
 
 @api.route("/controls/<string:cid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_control(cid):
     result = Authorizer(current_user).can_user_read_control(cid)
@@ -415,6 +494,7 @@ def get_control(cid):
 
 
 @api.route("/tenants/<string:tid>/projects", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_projects_in_tenant(tid):
     data = []
@@ -426,10 +506,13 @@ def get_projects_in_tenant(tid):
 
 
 @api.route("/tenants/<string:tid>/projects", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_project(tid):
     result = Authorizer(current_user).can_user_manage_tenant(tid)
-    payload = request.get_json()
+    payload, err = validate_payload(ProjectCreateSchema, request.get_json())
+    if err:
+        return err
     result = project_creation(result["extra"]["tenant"], payload, current_user)
     if not result:
         return jsonify({"message": "Failed to create project"}), 400
@@ -437,10 +520,13 @@ def create_project(tid):
 
 
 @api.route("/projects/<string:pid>/settings", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_settings_in_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(ProjectSettingsSchema, request.get_json())
+    if err:
+        return err
     if data.get("name"):
         result["extra"]["project"].name = data["name"]
     if data.get("description"):
@@ -470,6 +556,7 @@ def update_settings_in_project(pid):
 
 
 @api.route("/projects/<string:pid>/history", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_project_completion_history(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -477,6 +564,7 @@ def get_project_completion_history(pid):
 
 
 @api.route("/projects/<string:pid>/controls", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_controls_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -514,10 +602,13 @@ def get_controls_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/risks", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_risk_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(RiskCreateSchema, request.get_json())
+    if err:
+        return err
     risk = result["extra"]["project"].create_risk(
         title=data.get("title"),
         description=data.get("description"),
@@ -529,6 +620,7 @@ def create_risk_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/risks", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_risks_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -541,10 +633,13 @@ def get_risks_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/risks/<string:rid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_risk_for_project(pid, rid):
     Authorizer(current_user).can_user_access_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(RiskCreateSchema, request.get_json())
+    if err:
+        return err
     risk = db.session.execute(db.select(models.RiskRegister).filter(
         models.RiskRegister.project_id == pid
     ).filter(models.RiskRegister.id == rid)).scalars().first()
@@ -560,6 +655,7 @@ def update_risk_for_project(pid, rid):
 
 
 @api.route("/controls/<string:cid>/feedback/<string:fid>/risk", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_risk_from_feedback(cid, fid):
     result = Authorizer(current_user).can_user_manage_project_control_auditor_feedback(
@@ -570,6 +666,7 @@ def create_risk_from_feedback(cid, fid):
 
 
 @api.route("/projects/<string:pid>/policies", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_policies_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -580,6 +677,7 @@ def get_policies_for_project(pid):
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_policy_for_project(pid, ppid):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
@@ -591,6 +689,7 @@ def get_policy_for_project(pid, ppid):
     "/projects/<string:pid>/policies/<string:ppid>/versions/<string:version>",
     methods=["GET"],
 )
+@limiter.limit("60 per minute")
 @login_required
 def get_version_for_policy_in_project(pid, ppid, version):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
@@ -598,10 +697,13 @@ def get_version_for_policy_in_project(pid, ppid, version):
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>/versions", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_version_for_policy_in_project(pid, ppid):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
-    data = request.get_json()
+    data, err = validate_payload(PolicyVersionCreateSchema, request.get_json())
+    if err:
+        return err
     version = result["extra"]["policy"].add_version(data.get("content", ""))
     return jsonify(version.as_dict())
 
@@ -610,6 +712,7 @@ def create_version_for_policy_in_project(pid, ppid):
     "/projects/<string:pid>/policies/<string:ppid>/versions/<string:version>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def delete_version_for_policy_in_project(pid, ppid, version):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
@@ -621,10 +724,13 @@ def delete_version_for_policy_in_project(pid, ppid, version):
     "/projects/<string:pid>/policies/<string:ppid>/versions/<string:version>",
     methods=["PUT"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def update_policy_version_for_project(pid, ppid, version):
     result = Authorizer(current_user).can_user_manage_project_policy(ppid)
-    data = request.get_json()
+    data, err = validate_payload(PolicyVersionUpdateSchema, request.get_json())
+    if err:
+        return err
     version = result["extra"]["policy"].update_version(
         version=version,
         content=data.get("content"),
@@ -635,10 +741,13 @@ def update_policy_version_for_project(pid, ppid, version):
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_policy_for_project(pid, ppid):
     result = Authorizer(current_user).can_user_manage_project_policy(ppid)
-    data = request.get_json()
+    data, err = validate_payload(ProjectPolicyUpdateSchema, request.get_json())
+    if err:
+        return err
     policy = result["extra"]["policy"].update(
         name=data.get("name"),
         description=data.get("description"),
@@ -648,6 +757,7 @@ def update_policy_for_project(pid, ppid):
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_policy_for_project(pid, ppid):
     result = Authorizer(current_user).can_user_delete_policy_from_project(ppid, pid)
@@ -659,6 +769,7 @@ def delete_policy_for_project(pid, ppid):
     "/projects/<string:pid>/policies/<string:ppid>/controls/<string:cid>",
     methods=["PUT"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def add_control_to_policy(pid, ppid, cid):
     result = Authorizer(current_user).can_user_manage_project_policy(ppid)
@@ -670,6 +781,7 @@ def add_control_to_policy(pid, ppid, cid):
     "/projects/<string:pid>/policies/<string:ppid>/controls/<string:cid>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def remove_control_from_policy(pid, ppid, cid):
     result = Authorizer(current_user).can_user_manage_project_policy(ppid)
@@ -678,6 +790,7 @@ def remove_control_from_policy(pid, ppid, cid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_control_for_project(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
@@ -685,6 +798,7 @@ def get_control_for_project(pid, cid):
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_subcontrol_for_project(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
@@ -692,6 +806,7 @@ def get_subcontrol_for_project(pid, sid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/subcontrols", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_subcontrols_for_control_in_project(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
@@ -706,6 +821,7 @@ def get_subcontrols_for_control_in_project(pid, cid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def remove_control_from_project(pid, cid):
     result = Authorizer(current_user).can_user_delete_control_from_project(cid, pid)
@@ -714,10 +830,13 @@ def remove_control_from_project(pid, cid):
 
 
 @api.route("/projects/<string:id>/policies", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_policy_for_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
-    data = request.get_json()
+    data, err = validate_payload(ProjectPolicyCreateSchema, request.get_json())
+    if err:
+        return err
     policy = result["extra"]["project"].create_policy(
         name=data.get("name"),
         description=data.get("description"),
@@ -727,6 +846,7 @@ def create_policy_for_project(id):
 
 
 @api.route("/controls/<string:cid>/projects/<string:pid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def add_control_to_project(cid, pid):
     result = Authorizer(current_user).can_user_add_control_to_project(cid, pid)
@@ -735,44 +855,54 @@ def add_control_to_project(cid, pid):
 
 
 @api.route("/controls/<string:id>/status", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_review_status_for_control(id):
-    payload = request.get_json()
+    payload, err = validate_payload(ReviewStatusSchema, request.get_json())
+    if err:
+        return err
     result = Authorizer(current_user).can_user_manage_project_control_status(
-        id, payload.get("review-status")
+        id, payload.get("review_status")
     )
-    result["extra"]["control"].review_status = payload["review-status"].lower()
+    result["extra"]["control"].review_status = payload["review_status"].lower()
     db.session.commit()
     return jsonify(result["extra"]["control"].as_dict())
 
 
 @api.route("/project-controls/<string:cid>/subcontrols/<string:sid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_subcontrols_in_control_for_project(cid, sid):
     # TODO - update
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
-    payload = request.get_json()
+    payload, err = validate_payload(SubcontrolUpdateSchema, request.get_json())
+    if err:
+        return err
     subcontrol = result["extra"]["subcontrol"].update(
         applicable=payload.get("applicable"),
         implemented=payload.get("implemented"),
         notes=payload.get("notes"),
         context=payload.get("context"),
         evidence=payload.get("evidence"),
-        owner_id=payload.get("owner-id"),
+        owner_id=payload.get("owner_id"),
     )
     return jsonify(subcontrol.as_dict())
 
 
 @api.route("/project-controls/<string:cid>/applicability", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def set_applicability_of_control_for_project(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    payload = request.get_json()
+    payload, err = validate_payload(ApplicabilitySchema, request.get_json())
+    if err:
+        return err
     result["extra"]["control"].set_applicability(payload["applicable"])
     return jsonify(result["extra"]["control"].as_dict())
 
 
 @api.route("/projects/<string:pid>/evidence/controls", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def project_evidence_by_control(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -784,10 +914,13 @@ def project_evidence_by_control(pid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/notes", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_notes_for_control(pid, cid):
     result = Authorizer(current_user).can_user_manage_project_control_notes(cid)
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["control"].notes = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
@@ -796,20 +929,26 @@ def update_notes_for_control(pid, cid):
 @api.route(
     "/projects/<string:pid>/controls/<string:cid>/auditor-notes", methods=["PUT"]
 )
+@limiter.limit("30 per minute")
 @login_required
 def update_auditor_notes_for_control(pid, cid):
     result = Authorizer(current_user).can_user_manage_project_control_auditor_notes(cid)
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["control"].auditor_notes = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/notes", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_notes_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol_notes(sid)
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["subcontrol"].notes = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
@@ -818,34 +957,41 @@ def update_notes_for_subcontrol(pid, sid):
 @api.route(
     "/projects/<string:pid>/subcontrols/<string:sid>/auditor-notes", methods=["PUT"]
 )
+@limiter.limit("30 per minute")
 @login_required
 def update_auditor_notes_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol_auditor_notes(
         sid
     )
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["subcontrol"].auditor_notes = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/context", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_context_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
-    data = request.get_json()
+    data, err = validate_payload(DataFieldSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["subcontrol"].context = data["data"]
     db.session.commit()
     return jsonify({"message": "ok"})
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/comments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_comment_for_control(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
-    data = request.get_json()
-    if not data.get("data"):
-        return jsonify({"message": "empty comment"}), 400
+    data, err = validate_payload(CommentSchema, request.get_json())
+    if err:
+        return err
     comment = models.ControlComment(message=data["data"], owner_id=current_user.id)
     result["extra"]["control"].comments.append(comment)
     db.session.commit()
@@ -889,6 +1035,7 @@ def add_comment_for_control(pid, cid):
     "/projects/<string:pid>/controls/<string:cid>/comments/<string:ccid>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def delete_comment_for_control(pid, cid, ccid):
     result = Authorizer(current_user).can_user_manage_project_control_comment(ccid)
@@ -898,6 +1045,7 @@ def delete_comment_for_control(pid, cid, ccid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/comments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_comments_for_control(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
@@ -911,12 +1059,13 @@ def get_comments_for_control(pid, cid):
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/comments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_comment_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
-    data = request.get_json()
-    if not data.get("data"):
-        return jsonify({"message": "empty comment"}), 400
+    data, err = validate_payload(CommentSchema, request.get_json())
+    if err:
+        return err
     comment = models.SubControlComment(message=data["data"], owner_id=current_user.id)
     result["extra"]["subcontrol"].comments.append(comment)
     db.session.commit()
@@ -960,6 +1109,7 @@ def add_comment_for_subcontrol(pid, sid):
     "/projects/<string:pid>/subcontrols/<string:sid>/comments/<string:cid>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def delete_comment_for_subcontrol(pid, sid, cid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol_comment(cid)
@@ -969,6 +1119,7 @@ def delete_comment_for_subcontrol(pid, sid, cid):
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/comments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_comments_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
@@ -982,6 +1133,7 @@ def get_comments_for_subcontrol(pid, sid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/feedback", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_feedback_for_control(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
@@ -995,10 +1147,13 @@ def get_feedback_for_control(pid, cid):
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/feedback", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_feedback_for_control(pid, cid):
     result = Authorizer(current_user).can_user_add_project_control_feedback(cid)
-    data = request.get_json()
+    data, err = validate_payload(FeedbackSchema, request.get_json())
+    if err:
+        return err
     feedback = result["extra"]["control"].create_feedback(
         title=data.get("title"),
         owner_id=current_user.id,
@@ -1014,10 +1169,13 @@ def add_feedback_for_control(pid, cid):
     "/projects/<string:pid>/controls/<string:cid>/feedback/<string:fid>",
     methods=["PUT"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def update_feedback_for_control(pid, cid, fid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
+    data, err = validate_payload(FeedbackUpdateSchema, request.get_json())
+    if err:
+        return err
     feedback = result["extra"]["control"].update_feedback(
         feedback_id=fid,
         title=data.get("title"),
@@ -1032,6 +1190,7 @@ def update_feedback_for_control(pid, cid, fid):
     "/projects/<string:pid>/controls/<string:cid>/feedback/<string:fid>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def delete_feedback_for_control(pid, cid, fid):
     result = Authorizer(current_user).can_user_add_project_control_feedback(cid)
@@ -1041,6 +1200,7 @@ def delete_feedback_for_control(pid, cid, fid):
 
 
 @api.route("/projects/<string:pid>/evidence", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_evidence_for_project(pid):
     result = Authorizer(current_user).can_user_read_project(pid)
@@ -1051,6 +1211,7 @@ def get_evidence_for_project(pid):
 
 
 @api.route("/projects/<string:id>/evidence", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_evidence_for_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
@@ -1069,6 +1230,7 @@ def create_evidence_for_project(id):
     "/projects/<string:pid>/subcontrols/<string:sid>/evidence/<string:eid>/file",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def remove_file_from_evidence(pid, sid, eid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
@@ -1078,6 +1240,7 @@ def remove_file_from_evidence(pid, sid, eid):
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/evidence", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_evidence_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
@@ -1088,6 +1251,7 @@ def get_evidence_for_subcontrol(pid, sid):
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/evidence", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_evidence_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
@@ -1104,19 +1268,25 @@ def add_evidence_for_subcontrol(pid, sid):
 
 
 @api.route("/subcontrols/<string:sid>/associate-evidence", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def associate_evidence_with_subcontrol(sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
-    data = request.get_json()
+    data, err = validate_payload(EvidenceAssociationSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["subcontrol"].associate_with_evidence(data["evidence"])
     return jsonify(result["extra"]["subcontrol"].as_dict())
 
 
 @api.route("/subcontrols/<string:sid>/disassociate-evidence", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def disassociate_evidence_with_subcontrol(sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
-    data = request.get_json()
+    data, err = validate_payload(EvidenceAssociationSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["subcontrol"].disassociate_with_evidence(data["evidence"])
     return jsonify(result["extra"]["subcontrol"].as_dict())
 
@@ -1125,6 +1295,7 @@ def disassociate_evidence_with_subcontrol(sid):
     "/projects/<string:pid>/subcontrols/<string:sid>/evidence/<string:eid>",
     methods=["DELETE"],
 )
+@limiter.limit("30 per minute")
 @login_required
 def delete_evidence_for_subcontrol(pid, sid, eid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol_evidence(
@@ -1136,32 +1307,39 @@ def delete_evidence_for_subcontrol(pid, sid, eid):
 
 
 @api.route("/controls/<string:cid>/tags", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def add_tag_to_control(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
+    data, err = validate_payload(TagsSchema, request.get_json())
+    if err:
+        return err
     for tag in data.get("tags"):
         result["extra"]["control"].add_tag(tag)
     return jsonify({"message": "ok"})
 
 
 @api.route("/controls/<string:cid>/tags", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def remove_tag_from_control(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
+    data, err = validate_payload(TagsSchema, request.get_json())
+    if err:
+        return err
     for tag in data.get("tags"):
         result["extra"]["control"].remove_tag(tag)
     return jsonify({"message": "ok"})
 
 
 @api.route("/risks/<string:id>/comments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_comment_for_risk(id):
     result = Authorizer(current_user).can_user_manage_risk(id)
-    data = request.get_json()
-    if not data.get("message"):
-        return jsonify({"message": "empty comment"}), 400
+    data, err = validate_payload(RiskCommentSchema, request.get_json())
+    if err:
+        return err
     tenant = result["extra"]["risk"].tenant
     comment = models.RiskComment(
         message=data["message"], owner_id=current_user.id, tenant_id=tenant.id
@@ -1178,19 +1356,25 @@ def add_comment_for_risk(id):
 
 
 @api.route("/project-controls/<string:cid>/assignee", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_control_assignee(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
-    result["extra"]["control"].set_assignee(data.get("assignee-id"))
+    data, err = validate_payload(AssigneeSchema, request.get_json())
+    if err:
+        return err
+    result["extra"]["control"].set_assignee(data.get("assignee_id"))
     return jsonify(result["extra"]["control"].as_dict())
 
 
 @api.route("/project-controls/<string:cid>/applicability", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_control_applicability(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
+    data, err = validate_payload(ApplicabilitySchema, request.get_json())
+    if err:
+        return err
     if not data.get("applicable"):
         return jsonify({"message": "applicability must be true or false"}), 400
 
@@ -1202,15 +1386,19 @@ def update_control_applicability(cid):
 
 
 @api.route("/project-controls/<string:cid>/tags", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_control_tags(cid):
     result = Authorizer(current_user).can_user_manage_project_control(cid)
-    data = request.get_json()
+    data, err = validate_payload(TagsSchema, request.get_json())
+    if err:
+        return err
     result["extra"]["control"].set_tags(data.get("tags"))
     return jsonify(result["extra"]["control"].as_dict())
 
 
 @api.route("/projects/<string:pid>/tags", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_project_tags(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
@@ -1219,18 +1407,24 @@ def get_project_tags(pid):
 
 
 @api.route("/projects/<string:pid>/tags", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_project_tag(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(ProjectTagSchema, request.get_json())
+    if err:
+        return err
     tag = result["extra"]["project"].create_tag(data["name"])
     return jsonify(tag.as_dict())
 
 
 @api.route("/projects/<string:pid>/controls", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_project_control(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    data = request.get_json()
+    data, err = validate_payload(ProjectControlCreateSchema, request.get_json())
+    if err:
+        return err
     control = result["extra"]["project"].add_custom_control(data)
     return jsonify(control.as_dict())
