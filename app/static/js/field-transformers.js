@@ -86,12 +86,14 @@ class idToButton {
     const anchorEl = document.createElement('a');
     anchorEl.href = link;
     anchorEl.className = `btn ${btnClass}`;
-    if (params.text) {
-        // params.text is a server-defined icon HTML string — treat as safe markup
-        anchorEl.innerHTML = params.text;
-    } else {
-        anchorEl.innerHTML = "<i class='ti ti-external-link text-lg'></i>";
-    }
+    // Only allow icon-class shorthand (e.g. "ti ti-external-link") to prevent XSS.
+    // Full HTML strings are rejected; a plain icon class or no value renders the default icon.
+    const iconClass = (params.text && /^[\w\s-]+$/.test(params.text))
+        ? params.text
+        : "ti ti-external-link text-lg";
+    const iconEl = document.createElement('i');
+    iconEl.className = iconClass;
+    anchorEl.appendChild(iconEl);
     this.eGui.appendChild(anchorEl);
   }
 

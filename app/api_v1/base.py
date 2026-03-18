@@ -380,7 +380,6 @@ def add_user_to_tenant(id):
 def post_ai_conversation(id):
     result = Authorizer(current_user).can_user_chat_in_tenant(id)
     data = request.get_json()
-    # print(data.get("messages"))
     return jsonify(
         {"source": "server", "message": "We are still in beta! Coming soon!"}
     )

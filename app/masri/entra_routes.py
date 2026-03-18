@@ -12,11 +12,17 @@ Blueprint: ``entra_bp`` at url_prefix ``/api/v1/entra``
 
 import logging
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, abort
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app.utils.authorizer import Authorizer
 
 logger = logging.getLogger(__name__)
+
+
+def _require_platform_admin():
+    """Abort 403 if the current user is not a platform superuser."""
+    Authorizer(current_user).can_user_manage_platform()
 
 entra_bp = Blueprint("entra_bp", __name__, url_prefix="/api/v1/entra")
 
@@ -52,9 +58,9 @@ def entra_test():
     """
     POST /api/v1/entra/test
 
-    Tests the Microsoft Graph API connection by fetching the
-    organisation profile. Returns connection status and org info.
+    Tests the Microsoft Graph API connection. Requires platform admin.
     """
+    _require_platform_admin()
     try:
         client = _get_entra_client()
         result = client.test_connection()
@@ -72,8 +78,9 @@ def entra_users():
     """
     GET /api/v1/entra/users?limit=100
 
-    Lists users from the Azure AD directory.
+    Lists users from the Azure AD directory. Requires platform admin.
     """
+    _require_platform_admin()
     limit = request.args.get("limit", 100, type=int)
 
     try:
@@ -93,8 +100,9 @@ def entra_mfa_status():
     """
     GET /api/v1/entra/mfa-status
 
-    Returns MFA registration status for all directory users.
+    Returns MFA registration status for all directory users. Requires platform admin.
     """
+    _require_platform_admin()
     try:
         client = _get_entra_client()
         mfa_data = client.get_mfa_status()
@@ -124,9 +132,9 @@ def entra_assess():
     POST /api/v1/entra/assess
 
     Performs a compliance posture assessment based on Entra ID
-    configuration, including MFA adoption, stale accounts, and
-    conditional access policy analysis.
+    configuration. Requires platform admin.
     """
+    _require_platform_admin()
     try:
         client = _get_entra_client()
         assessment = client.assess_compliance()

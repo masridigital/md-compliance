@@ -16,8 +16,19 @@ import logging
 from flask import Blueprint, jsonify, request, abort, current_app
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app.utils.authorizer import Authorizer
 
 logger = logging.getLogger(__name__)
+
+# Max character lengths for LLM input fields to prevent abuse / prompt stuffing
+_MAX_SHORT = 500
+_MAX_LONG = 5000
+
+
+def _validate_tenant_access(tenant_id):
+    """Abort 403 if current_user does not have access to tenant_id."""
+    if tenant_id:
+        Authorizer(current_user).can_user_access_tenant(tenant_id)
 
 llm_bp = Blueprint("llm_bp", __name__, url_prefix="/api/v1/llm")
 
@@ -57,6 +68,12 @@ def control_assist():
         return jsonify({"error": "control_description is required"}), 400
     if not evidence_text:
         return jsonify({"error": "evidence_text is required"}), 400
+    if len(control_description) > _MAX_SHORT:
+        return jsonify({"error": f"control_description exceeds {_MAX_SHORT} character limit"}), 400
+    if len(evidence_text) > _MAX_LONG:
+        return jsonify({"error": f"evidence_text exceeds {_MAX_LONG} character limit"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -104,6 +121,14 @@ def gap_narrative():
 
     if not framework or not control_ref:
         return jsonify({"error": "framework and control_ref are required"}), 400
+    if len(framework) > _MAX_SHORT:
+        return jsonify({"error": f"framework exceeds {_MAX_SHORT} character limit"}), 400
+    if len(control_ref) > _MAX_SHORT:
+        return jsonify({"error": f"control_ref exceeds {_MAX_SHORT} character limit"}), 400
+    if len(current_state) > _MAX_LONG:
+        return jsonify({"error": f"current_state exceeds {_MAX_LONG} character limit"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -174,6 +199,12 @@ def risk_score():
 
     if not risk_description:
         return jsonify({"error": "risk_description is required"}), 400
+    if len(risk_description) > _MAX_LONG:
+        return jsonify({"error": f"risk_description exceeds {_MAX_LONG} character limit"}), 400
+    if len(context) > _MAX_LONG:
+        return jsonify({"error": f"context exceeds {_MAX_LONG} character limit"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -260,6 +291,12 @@ def interpret_evidence():
 
     if not evidence_text:
         return jsonify({"error": "evidence_text is required"}), 400
+    if len(evidence_text) > _MAX_LONG:
+        return jsonify({"error": f"evidence_text exceeds {_MAX_LONG} character limit"}), 400
+    if len(control_context) > _MAX_LONG:
+        return jsonify({"error": f"control_context exceeds {_MAX_LONG} character limit"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -313,6 +350,8 @@ def llm_usage():
     tenant_id = request.args.get("tenant_id")
     if not tenant_id:
         return jsonify({"error": "tenant_id query parameter is required"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService

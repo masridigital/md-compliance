@@ -236,7 +236,6 @@ def update_risk(tid, rid):
     risk = result["extra"]["risk"]
 
     # Update the risk using the model's update method
-    print(data)
     risk.update(**data)
 
     # Add audit log entry
