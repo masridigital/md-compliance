@@ -11,13 +11,15 @@ This guide covers everything you need to deploy MD Compliance in a production en
 3. [Docker Deployment](#docker-deployment)
 4. [Database Setup](#database-setup)
 5. [Default Credentials](#default-credentials)
-6. [Storage Integrations](#storage-integrations)
-7. [Microsoft Entra ID](#microsoft-entra-id)
-8. [LLM Configuration](#llm-configuration)
-9. [Teams Notifications](#teams-notifications)
-10. [Scheduler](#scheduler)
-11. [SSL / Reverse Proxy](#ssl--reverse-proxy)
-12. [Multi-Worker Deployment](#multi-worker-deployment)
+6. [Updating the App](#updating-the-app)
+7. [Database Backups](#database-backups)
+8. [Storage Integrations](#storage-integrations)
+9. [Microsoft Entra ID](#microsoft-entra-id)
+10. [LLM Configuration](#llm-configuration)
+11. [Teams Notifications](#teams-notifications)
+12. [Scheduler](#scheduler)
+13. [SSL / Reverse Proxy](#ssl--reverse-proxy)
+14. [Multi-Worker Deployment](#multi-worker-deployment)
 
 ---
 
@@ -166,6 +168,90 @@ RESET_DB=yes docker-compose up -d
 | Password | `admin1234567` |
 
 **Change the password immediately** after first login via **Settings → Users**.
+
+---
+
+## Updating the App
+
+Pulling new code and rebuilding **will never touch your database**. All your tenants, users, controls, WISP documents, and settings are safe.
+
+### Standard update procedure
+
+```bash
+# 1. Pull the latest code
+git pull origin main
+
+# 2. (Recommended) Back up before updating
+./scripts/db-backup.sh
+
+# 3. Rebuild and restart
+docker-compose up -d --build
+```
+
+That's it. On startup the app will:
+- Detect that your database already exists
+- Run `flask db upgrade` to apply any new schema changes (new columns or tables only — never drops or modifies existing data)
+- Start the server
+
+### How data is protected
+
+| Action | Effect on data |
+|--------|---------------|
+| `git pull` | No effect — code only |
+| `docker-compose up -d --build` | No effect — DB is on a named volume |
+| `docker-compose down` | No effect — named volume persists |
+| `docker-compose restart` | No effect |
+| `docker-compose down -v` | ⚠ **Deletes volume** — intentional wipe |
+| `RESET_DB=yes docker-compose up` | ⚠ **Wipes database** — requires explicit env var |
+
+The only way to lose data is to explicitly run `docker-compose down -v` or set `RESET_DB=yes`.
+
+### Adding a new migration (for developers)
+
+When you add new model columns or tables:
+
+```bash
+# Auto-generate a migration from model changes
+docker-compose exec app flask db migrate -m "describe what changed"
+
+# Review the generated file in migrations/versions/
+# Then apply it
+docker-compose exec app flask db upgrade
+```
+
+Commit the migration file to git — it will be applied automatically on the next `docker-compose up --build`.
+
+---
+
+## Database Backups
+
+### Create a backup
+
+```bash
+./scripts/db-backup.sh
+# Saves to ./backups/mdcompliance_YYYY-MM-DD_HHMMSS.sql.gz
+```
+
+Backup to a specific directory:
+```bash
+./scripts/db-backup.sh /path/to/backups
+```
+
+### Restore a backup
+
+```bash
+./scripts/db-restore.sh backups/mdcompliance_2026-03-17_120000.sql.gz
+```
+
+The restore script will ask for confirmation before overwriting.
+
+### Automated daily backups (optional)
+
+Add to your server's crontab:
+```bash
+# Daily backup at 2am
+0 2 * * * cd /path/to/md-compliance && ./scripts/db-backup.sh >> /var/log/mdcompliance-backup.log 2>&1
+```
 
 ---
 

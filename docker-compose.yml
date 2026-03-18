@@ -6,13 +6,17 @@ services:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - db_nw
       - web_nw
     ports:
       - "8000:5000"
     restart: unless-stopped
+    volumes:
+      # Persist uploaded files across updates
+      - app_uploads:/app/app/uploads
     environment:
       - SQLALCHEMY_DATABASE_URI=postgresql://${POSTGRES_USER:-db1}:${POSTGRES_PASSWORD:-db1}@${POSTGRES_HOST:-postgres}/${POSTGRES_DB:-db1}
       - RESET_DB=${RESET_DB:-no}
@@ -40,24 +44,38 @@ services:
 
   postgres:
     container_name: postgres
-    image: postgres
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-db1}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-db1}
       POSTGRES_DB: ${POSTGRES_DB:-db1}
       PGDATA: /data/postgres
-    #volumes:
-    #   - postgres:/data/postgres
+    volumes:
+      # Named volume — data persists across `docker-compose down`, pulls, and rebuilds
+      # To intentionally wipe: docker-compose down -v  (requires explicit flag)
+      - postgres_data:/data/postgres
     ports:
       - "5432:5432"
     networks:
       - db_nw
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-db1} -d ${POSTGRES_DB:-db1}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 networks:
   db_nw:
     driver: bridge
   web_nw:
     driver: bridge
+
 volumes:
-  dbdata:
+  # postgres_data: data survives restarts, updates, and rebuilds
+  # To wipe intentionally: docker-compose down -v
+  postgres_data:
+    driver: local
+  # app_uploads: user-uploaded evidence files
+  app_uploads:
+    driver: local
