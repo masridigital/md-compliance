@@ -57,9 +57,11 @@ The wizard will ask you:
 1. **Domain name** — e.g. `compliance.masridigital.com`
 2. **SSL** — whether to obtain a free Let's Encrypt certificate automatically
 3. **Email** — for SSL renewal notices
-4. **Optional integrations** — Teams webhook, LLM API key
+4. **Admin credentials** — email address and password for the first login
 
 After it completes, your app is running at `https://your-domain.com`.
+
+> **Everything else** — LLM keys, Teams webhooks, storage providers, SSO, branding, Entra ID — is configured from the **Settings UI** inside the app. No editing config files required.
 
 ### What setup.sh creates
 

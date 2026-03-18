@@ -115,7 +115,7 @@ else
 fi
 
 # ── Step 3: App credentials ───────────────────────────────────────────────────
-header "Step 3 of 5 — App Credentials"
+header "Step 3 of 4 — App Credentials"
 
 # Secret key
 SECRET_KEY=$(openssl rand -hex 32)
@@ -135,40 +135,8 @@ read -rs ADMIN_PASSWORD
 echo ""
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin1234567}
 
-# ── Step 4: Optional integrations ────────────────────────────────────────────
-header "Step 4 of 5 — Optional Integrations"
-echo "Press Enter to skip any integration — you can configure these"
-echo "later from the Settings UI inside the app."
-echo ""
-
-prompt "Teams webhook URL (for alerts and reminders) [optional]:"
-read -r TEAMS_WEBHOOK
-
-prompt "LLM API key — OpenAI or Anthropic [optional]:"
-read -rs LLM_KEY
-echo ""
-
-if [ -n "$LLM_KEY" ]; then
-    echo ""
-    echo "LLM Provider:"
-    echo "  1) OpenAI"
-    echo "  2) Anthropic"
-    echo "  3) Azure OpenAI"
-    prompt "Choice [1]:"
-    read -r LLM_PROVIDER_CHOICE
-    case "$LLM_PROVIDER_CHOICE" in
-        2) LLM_PROVIDER="anthropic" ;;
-        3) LLM_PROVIDER="azure_openai" ;;
-        *) LLM_PROVIDER="openai" ;;
-    esac
-    LLM_ENABLED="true"
-else
-    LLM_PROVIDER="openai"
-    LLM_ENABLED="false"
-fi
-
-# ── Step 5: Generate files ────────────────────────────────────────────────────
-header "Step 5 of 5 — Generating Configuration"
+# ── Step 4: Generate files ────────────────────────────────────────────────────
+header "Step 4 of 4 — Generating Configuration"
 
 # ── .env ─────────────────────────────────────────────────────────────────────
 info "Writing .env..."
@@ -199,25 +167,18 @@ MAIL_PASSWORD=
 MAIL_USE_TLS=true
 SUPPORT_EMAIL=${CERTBOT_EMAIL:-support@masridigital.com}
 
-# ── LLM ───────────────────────────────────────────────────────────────────────
-LLM_ENABLED=${LLM_ENABLED}
-LLM_NAME=${LLM_PROVIDER}
-LLM_TOKEN=${LLM_KEY}
-
-# ── Notifications ─────────────────────────────────────────────────────────────
-TEAMS_WEBHOOK_URL=${TEAMS_WEBHOOK}
-SLACK_WEBHOOK_URL=
-
-# ── Microsoft Entra ID ────────────────────────────────────────────────────────
-ENTRA_TENANT_ID=
-ENTRA_CLIENT_ID=
-ENTRA_CLIENT_SECRET=
-
-# ── Branding ──────────────────────────────────────────────────────────────────
-APP_PRIMARY_COLOR=#0066CC
-
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 MASRI_SCHEDULER_ENABLED=true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# All other settings are configured in the Settings UI after first login:
+#   LLM provider & API keys  → Settings → LLM
+#   Teams / Slack webhooks   → Settings → Notifications
+#   Storage (Azure/S3/etc.)  → Settings → Storage
+#   SSO / OIDC               → Settings → SSO
+#   Branding & colors        → Settings → Branding
+#   Microsoft Entra ID       → Settings → Entra ID
+# ─────────────────────────────────────────────────────────────────────────────
 EOF
 log ".env created"
 
