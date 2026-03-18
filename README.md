@@ -1,195 +1,349 @@
-# Gapps
+# MD Compliance
 
-Gapps is an Security compliance platform that makes it easy to track your progress against various security frameworks.
+**Security & regulatory compliance platform for Masri Digital clients.**
 
-:snowflake: View the [Gapps site](https://web-gapps.pages.dev/)  
-🏠 Interested in contacting me? Please join our [discord](https://discord.gg/9unhWAqadg)
+Manage compliance frameworks, generate WISP documents, track controls, and get AI-assisted gap analysis — all in one clean, mobile-friendly interface built for CPA firms, law firms, mortgage lenders, and financial services companies.
 
-### Table of Contents
-1. [Getting Started](#getting-started)
-2. [FAQ](#faq)
+---
 
-### New Features :snowflake:
-- SOC2, NIST CSF, NIST-800-53, CMMC, HIPAA, ASVS, ISO27001, CSC CIS18, PCI DSS and SSF have been added! That makes 10 total frameworks
-- Multi-tenancy, OIDC (SSO)
-- Collaboration with auditors
-- Risk Register
-- S3/GCS for file storage
+## Table of Contents
 
-### Next big features :snowflake:  
-- Integrations!
+1. [Features](#features)
+2. [Quick Start](#quick-start)
+3. [Frameworks Included](#frameworks-included)
+4. [Configuration](#configuration)
+5. [API Overview](#api-overview)
+6. [Architecture](#architecture)
+7. [Development](#development)
+8. [Deployment](#deployment)
+9. [Support](#support)
 
-#### Captures from the platform
+---
 
-Control Dashboard          |
-:-------------------------:|
-![](img/gapps_2.PNG)  |
+## Features
 
+| Feature | Description |
+|---------|-------------|
+| **Compliance Frameworks** | 18 built-in frameworks (FTC Safeguards, HIPAA, SOC2, NIST, PCI DSS, NY DFS, MA 201 CMR, and more) |
+| **WISP Wizard** | 10-step guided wizard to create a Written Information Security Program with LLM assistance and PDF/DOCX export |
+| **LLM Integration** | AI-assisted control assessment, gap narratives, evidence interpretation (OpenAI, Anthropic, Azure OpenAI, Ollama) |
+| **Settings Hub** | 9-panel admin UI — SSO, LLM, Storage, Branding, Users, Notifications, Frameworks, API/MCP, Billing |
+| **Storage Integrations** | Azure Blob Storage, SharePoint (Graph API), Amazon S3, Egnyte, Local |
+| **Teams Webhooks** | Adaptive Card alerts with action buttons for due dates, control changes, and reminders |
+| **Due Date Tracking** | Per-control due dates with automated 30d / 7d / 1d / on-due / overdue reminder delivery |
+| **Entra ID / M365** | Microsoft Graph API auto-assessment — user list, MFA status, conditional access, Intune posture |
+| **MCP Server** | Model Context Protocol API at `/mcp/v1` with 11 tools and API key scoped access |
+| **Custom Branding** | Fully customizable logo, colors, app name, and support email from the Settings UI |
+| **Mobile PWA** | Responsive design with bottom tab bar, safe area insets, offline support |
+| **Multi-tenancy** | Separate tenant spaces with isolated storage containers and per-tenant settings |
+| **SSO / OIDC** | Single Sign-On via OpenID Connect (configurable per tenant) |
 
-Project Overview          |
-:-------------------------:|
-![](img/gapps_1.PNG)  |
+---
 
-Track Progress of Controls          |
-:-------------------------:|
-![](img/gapps_3.PNG)  |
+## Quick Start
 
-### Getting Started
+### Prerequisites
 
-Follow the documentation [documentation](https://web-gapps.pages.dev/docs)
+- Docker & Docker Compose
+- Git
 
+### 1. Clone the repo
 
-### FAQ
-
-##### If you get a database connection error trying to start Gapps, you need to update (or remove) your env variables
-```
-[INFO] Checking if we can connect to the database server: postgresql://db1:db1@localhost/db1
-[ERROR] could not connect to server: Connection refused
-        Is the server running on host "localhost" (127.0.0.1) and accepting
-        TCP/IP connections on port 5432?
-could not connect to server: Cannot assign requested address
-        Is the server running on host "localhost" (::1) and accepting
-        TCP/IP connections on port 5432?
-```
-
-Can usually be fixed by unsetting two variables if running within docker. If you want to use a external database, see the next FAQ
-```
-unset SQLALCHEMY_DATABASE_URI
-unset POSTGRES_HOST
+```bash
+git clone https://github.com/masridigital/md-compliance.git
+cd md-compliance
 ```
 
-##### Set env variables for the database connection
+### 2. Set up environment variables
 
-The value `db1` is the default value for the username, database and password. If you would like to change it, update `db1` with the respective values and `postgres` for the host.
-```
-export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-db1}
-export POSTGRES_USER=${POSTGRES_USER:-db1}
-export POSTGRES_DB=${POSTGRES_DB:-db1}
-export SQLALCHEMY_DATABASE_URI="postgresql://db1:db1@postgres/db1"
+```bash
+cp .env.example .env
 ```
 
-##### Resetting the database
-When starting Gapps for the first time, it will automatically create the database models. If you want to reset the data (e.g. delete all data), you can set the `RESET_DB` env variable such as `export RESET_DB=yes`.
+Open `.env` and set at minimum:
 
-##### Running Gapps for development
-Sometimes you may want to run Gapps outside of Docker. You can do this by starting the Postgres container and then starting Gapps in the foreground.
-
-1. Uncomment ports declaration [here](https://github.com/bmarsh9/gapps/blob/e8dd926fb946e47fa66f918afa543c535ae212be/docker-compose.yml#L59)
-2. Start the postgres container: `docker-compose up -d postgres`
-3. Set the following env variables:
-```
-export POSTGRES_HOST=${POSTGRES_HOST:-localhost}
-export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-db1}
-export POSTGRES_USER=${POSTGRES_USER:-db1}
-export POSTGRES_DB=${POSTGRES_DB:-db1}
-export SQLALCHEMY_DATABASE_URI="postgresql://db1:db1@localhost/db1"
-```
-4. Run `export FLASK_CONFIG=development;bash run.sh` 
-5. Gapps should be running and connected to the database. You can now make changes to the code.
-
-##### Running with Docker Desktop
-1. Download the [docker-compose.yml](https://github.com/bmarsh9/gapps/blob/main/docker-compose.yml) file
-2. Open up a elevated command prompt and change directories (cd) to where the docker-compose.yml file was downloaded (likely Downloads)
-3. Run `docker compose up`
-
-##### View env variables for debugging
-```
-docker exec -e ONESHOT=yes gapps env
+```env
+SECRET_KEY=your-long-random-secret-key
+POSTGRES_PASSWORD=your-db-password
 ```
 
-##### Perform database migration
-```
-docker exec -e INIT_MIGRATE=yes -e MIGRATE=yes -e ONESHOT=yes gapps bash run.sh
-```
-**OR**
-```
+See [Configuration](#configuration) for the full variable reference.
+
+### 3. Start the app
+
+```bash
 docker-compose up -d
-docker exec -it gapps bash
-python3 manage.py db migrate
-python3 manage.py db stamp head
-python3 manage.py db upgrade
-exit
 ```
 
-##### Creating database manually
+The app runs on **http://localhost:8000** by default.
 
-Warning - this will delete all data in the database!  
-```
-docker exec -it gapps bash
-python3 tools/check_db_connection.py
-python3 tools/check_db_models.py
-python3 manage.py init_db
+### 4. Run database migrations
+
+```bash
+docker-compose exec app flask db upgrade
 ```
 
-##### Upgrading versions
-1.) Edit `docker-compose.yml` file with the desired version from [Docker Hub](https://hub.docker.com/r/bmarsh13/gapps/tags). Anywhere you see the old version in the compose file (should be 4 instances), update it with the desired version. (e.g. bmarsh13/gapps:3.3.9 -> bmarsh13/gapps:3.4.0)  
-2.) `docker-compose up -d`  
-3.) [Perform database migration](https://github.com/bmarsh9/gapps#perform-database-migration) if neccesary 
+### 5. Log in
 
-##### Loading new frameworks into Gapps
+| Field | Value |
+|-------|-------|
+| Email | `admin@example.com` |
+| Password | `admin1234567` |
 
-You can always create a new Framework and controls within the UI - but this would take a long time. Instead, you can load a JSON file into Gapps. 
+> **Change the default password immediately** via Settings → Users after first login.
 
-The format consists of controls and subcontrols. The snippet below shows an example of a control having one (1) subcontrol however you can add as many as you like. It is not a requirement to have subcontrols for a control (you can have zero). However it may make sense if you want to break down a control into specific actions that are trackable. Let's take the CIS 18 framework as an example. You could place all 18 "domains" as controls and the controls within each domain would be a subcontrol within Gapps.
+---
+
+## Frameworks Included
+
+### Financial Services & Mortgage
+
+| Framework | Controls | Description |
+|-----------|----------|-------------|
+| FTC Safeguards Rule (Core) | 15 | FTC 16 CFR Part 314 core requirements |
+| FTC Safeguards — Mortgage | 9 | Mortgage lender & broker specifics |
+| FTC Safeguards — Tax Preparer | 6 | IRS tax preparer requirements |
+| IRS Publication 4557 | 12 | Safeguarding taxpayer data |
+| NY DFS 23 NYCRR 500 | 20 | NY Dept. of Financial Services cybersecurity |
+| MA 201 CMR 17.00 | 10 | Massachusetts personal information protection |
+
+### General Security
+
+| Framework | Description |
+|-----------|-------------|
+| SOC 2 | Service Organization Controls |
+| NIST CSF | NIST Cybersecurity Framework |
+| NIST 800-53 | Federal security controls |
+| CMMC | Cybersecurity Maturity Model Certification |
+| HIPAA | Health data privacy & security |
+| PCI DSS | Payment card industry standard |
+| ISO 27001 | Information security management |
+| CIS Controls v18 | Center for Internet Security top controls |
+| ASVS | Application Security Verification Standard |
+| SSF | Secure Software Framework |
+
+---
+
+## Configuration
+
+All configuration is handled via two methods:
+
+1. **Environment variables** (`.env` file) — infrastructure-level settings
+2. **Settings UI** (Admin → Settings) — app-level settings stored in the database
+
+### Core Environment Variables
+
+```env
+# ── App ──────────────────────────────────────────────────────────────
+SECRET_KEY=change_this_to_a_long_random_string
+APP_NAME=MD Compliance
+APP_ENV=production            # development | production
+PORT=8000
+
+# ── Database ─────────────────────────────────────────────────────────
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=mdcompliance
+POSTGRES_USER=mdcompliance
+POSTGRES_PASSWORD=changeme
+
+# ── Email ─────────────────────────────────────────────────────────────
+MAIL_SERVER=smtp.example.com
+MAIL_PORT=587
+MAIL_USERNAME=notifications@masridigital.com
+MAIL_PASSWORD=
+MAIL_USE_TLS=true
+
+# ── LLM (optional — also configurable in Settings UI) ────────────────
+LLM_ENABLED=false
+
+# ── Microsoft Entra ID (optional) ────────────────────────────────────
+ENTRA_TENANT_ID=
+ENTRA_CLIENT_ID=
+ENTRA_CLIENT_SECRET=
+
+# ── Notifications (optional) ─────────────────────────────────────────
+TEAMS_WEBHOOK_URL=
+SLACK_WEBHOOK_URL=
+
+# ── Scheduler ────────────────────────────────────────────────────────
+MASRI_SCHEDULER_ENABLED=true
+```
+
+For the full variable list, see [`.env.example`](.env.example).
+
+### Settings UI Panels
+
+These are configured inside the app at **Admin → Settings**:
+
+| Panel | What You Configure |
+|-------|--------------------|
+| **Branding** | Logo, app name, primary color, support email |
+| **SSO / OIDC** | Identity provider URL, client ID/secret, auto-provisioning |
+| **LLM** | Provider (OpenAI/Anthropic/Azure/Ollama), API key, model, token budgets |
+| **Storage** | Active provider, credentials, container/folder names |
+| **Notifications** | Teams webhook, email, Slack, SMS; event subscriptions |
+| **Users** | Add/edit/deactivate users, role assignments, API keys |
+| **Frameworks** | Enable/disable frameworks per tenant |
+| **API / MCP** | MCP server toggle, API key management, scope permissions |
+| **Billing** | Subscription tier and usage overview |
+
+---
+
+## API Overview
+
+All endpoints are under `/api/v1/` and require an `Authorization: Bearer <token>` header.
+
+### WISP
 
 ```
-[
-    {
-        "name": "Limit information system access to authorized users, processes acting on behalf of authorized users or",       
-        "description": "Maintain list of authorized users defining their identity and associated role and sync with sys",       
-        "guidance": "List approved users, services, and devices, and have logical controls in place to prevent unauthor",
-        "ref_code": "AC.L1-3.1.1",
-        "system_level": false,
-        "subcategory": "Identity & Access Management (IAM)",
-        "category": "Access Control",
-        "dti": "easy",
-        "dtc": "easy",
-        "meta": {},
-        "subcontrols": [
-            {
-                "ref_code": "3.1.1.a",
-                "name": "Authorized users are identified.",
-                "description": "Authorized users are identified.",
-                "meta": {},
-                "tasks": [
-                    {
-                        "title": "title of the task",
-                        "description": "description of the task"
-                    }
-                ]
-            }
-        ]
-    }
-}
+POST /api/v1/wisp/assist           LLM content generation for wizard steps
+POST /api/v1/wisp/generate         Generate final WISP document
+POST /api/v1/wisp/<id>/export/pdf  Export branded PDF
+POST /api/v1/wisp/<id>/export/docx Export branded DOCX
+POST /api/v1/wisp/<id>/sign        Digital signature capture
+GET  /api/v1/wisp/<id>/versions    Version history
 ```
 
-Next, save the above JSON format into a file (such as `my_framework.json` but it must end with `.json`). The name of your framework will be taken from the filename when Gapps loads it (`my_framework` in this case). Save the file in the `app/files/base_controls/` directory. You can also change the load directory by setting the `FRAMEWORK_FOLDER` env variable. Once your new framework is saved to a file and sitting in the framework directory, you can go ahead and create a new Tenant within the UI. Gapps will load your framework automatically. If you want to add a framework to a existing Tenant, go to the "Tenants" page, edit the Tenant and click the "Reload Frameworks" button.
-
-##### Building and pushing
-```
-docker build -t gapps:3.4.3 .
-docker tag gapps:3.4.3 bmarsh13/gapps:3.4.3
-docker push bmarsh13/gapps:3.4.3
-```
-
-##### API Authentication
-
-You can generate an API token by viewing the following route in your browsers
-```
-# Create token that expires in 15 minutes
-<gapps-host>/api/v1/token
-
-# Create token that expires in 30 seconds
-<gapps-host>/api/v1/token?expiration=30
-
-# Create token that never expires
-<gapps-host>/api/v1/token?expiration=0
-```
-
-And here is how you use the token to authenticate (curl as an example)
+### LLM
 
 ```
-TOKEN="TOKEN HERE"
-curl <gapps-host>/api/v1/tenants -H "token: $TOKEN"
+POST /api/v1/llm/control-assist    Control assessment assistance
+POST /api/v1/llm/gap-narrative     Gap analysis narrative
+POST /api/v1/llm/risk-score        Risk scoring
+POST /api/v1/llm/interpret-evidence Evidence interpretation
+GET  /api/v1/llm/usage             Token usage statistics
 ```
+
+### Notifications
+
+```
+POST /api/v1/notifications/send          Send to any channel
+POST /api/v1/notifications/test-teams    Test Teams webhook
+POST /api/v1/notifications/test-email    Test email
+GET  /api/v1/notifications/logs          Notification history
+POST /api/v1/notifications/check-reminders Trigger reminder check
+```
+
+### Entra ID
+
+```
+POST /api/v1/entra/test     Test Graph API connection
+GET  /api/v1/entra/users    List directory users
+GET  /api/v1/entra/mfa-status MFA registration report
+POST /api/v1/entra/assess   Run compliance posture assessment
+```
+
+### MCP Server
+
+```
+GET  /mcp/v1/tools           Discover available tools
+POST /mcp/v1/tools/<name>    Execute a tool
+```
+
+---
+
+## Architecture
+
+```
+md-compliance/
+├── app/
+│   ├── masri/                  # All MD Compliance additions
+│   │   ├── new_models.py       # Database models
+│   │   ├── settings_service.py # Encrypted settings store
+│   │   ├── settings_routes.py  # Settings API
+│   │   ├── llm_service.py      # Multi-provider LLM facade
+│   │   ├── llm_routes.py       # LLM API
+│   │   ├── mcp_server.py       # MCP protocol server
+│   │   ├── wisp_routes.py      # WISP API
+│   │   ├── wisp_export.py      # PDF/DOCX export
+│   │   ├── notification_engine.py  # Teams/Email/Slack/SMS dispatcher
+│   │   ├── notification_routes.py  # Notification API
+│   │   ├── storage_providers.py    # Azure/SharePoint/S3/Egnyte/Local
+│   │   ├── entra_integration.py    # Microsoft Graph API client
+│   │   ├── entra_routes.py         # Entra ID API
+│   │   ├── scheduler.py            # Background due-date & drift jobs
+│   │   ├── context_processors.py   # Jinja2 branding injection
+│   │   └── frameworks/             # New framework JSON files
+│   ├── files/base_controls/    # All 18 framework definitions (JSON)
+│   ├── templates/              # Jinja2 HTML templates
+│   └── static/
+│       ├── css/masri-design-system.css  # Apple-style design system
+│       └── css/masri-mobile.css         # Mobile/PWA styles
+├── .env.example                # All env vars with comments
+├── docker-compose.yml
+├── Dockerfile
+└── SETUP.md                    # Detailed setup & deployment guide
+```
+
+---
+
+## Development
+
+### Run locally (without Docker)
+
+```bash
+# 1. Start only the database
+docker-compose up -d postgres
+
+# 2. Create a Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Set environment variables
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5432
+export POSTGRES_DB=mdcompliance
+export POSTGRES_USER=mdcompliance
+export POSTGRES_PASSWORD=changeme
+export SECRET_KEY=dev-secret-key
+export APP_ENV=development
+
+# 5. Run migrations
+flask db upgrade
+
+# 6. Start the app
+flask run --port 8000
+```
+
+### Adding a new framework
+
+1. Create a JSON file in `app/files/base_controls/` following the existing format
+2. Register it in `app/masri/frameworks/` if it needs LLM metadata
+3. Run `flask db upgrade` to pick up any schema changes
+
+### Adding a new settings panel
+
+1. Add model fields to `app/masri/new_models.py`
+2. Add service methods to `app/masri/settings_service.py`
+3. Add API routes to `app/masri/settings_routes.py`
+4. Add the UI panel to `app/templates/management/settings_masri.html`
+
+---
+
+## Deployment
+
+See [`SETUP.md`](SETUP.md) for full production deployment instructions including:
+
+- Environment variable checklist
+- SSL/TLS setup
+- Multi-worker configuration
+- Disabling the built-in scheduler for external Celery/cron use
+- Azure Blob managed identity setup
+- SharePoint app registration steps
+- Microsoft Entra ID app registration
+
+---
+
+## Support
+
+- **Email:** support@masridigital.com
+- **Website:** [masridigital.com](https://masridigital.com)
+- **Internal Issues:** Open a GitHub issue in this repo
+
+---
+
+*Built and maintained by [Masri Digital](https://masridigital.com)*
