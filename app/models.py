@@ -1605,6 +1605,15 @@ class ProjectEvidence(db.Model, QueryMixin):
 
         file_name = secure_filename(file_name).lower()
 
+        allowed_extensions = current_app.config.get(
+            "UPLOAD_EXTENSIONS", [".csv", ".jpg", ".jpeg", ".png", ".pdf", ".txt", ".xlsx"]
+        )
+        if isinstance(allowed_extensions, str):
+            allowed_extensions = [e.strip() for e in allowed_extensions.split(",")]
+        _, ext = os.path.splitext(file_name)
+        if ext not in allowed_extensions:
+            abort(400, f"File type '{ext}' is not allowed. Allowed: {', '.join(allowed_extensions)}")
+
         self.file_name = file_name
         self.file_provider = provider
 

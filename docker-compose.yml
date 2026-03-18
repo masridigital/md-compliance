@@ -18,16 +18,16 @@ services:
       # Persist uploaded files across updates
       - app_uploads:/app/app/uploads
     environment:
-      - SQLALCHEMY_DATABASE_URI=postgresql://${POSTGRES_USER:-db1}:${POSTGRES_PASSWORD:-db1}@${POSTGRES_HOST:-postgres}/${POSTGRES_DB:-db1}
+      - SQLALCHEMY_DATABASE_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}/${POSTGRES_DB}
       - RESET_DB=${RESET_DB:-no}
       - VERSION=${VERSION:-1.0.0}
-      - POSTGRES_USER=${POSTGRES_USER:-db1}
+      - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-db1}
-      - POSTGRES_DB=${POSTGRES_DB:-db1}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
       - GUNICORN_WORKERS=2
       # --- Masri Compliance Platform ---
-      - SECRET_KEY=${SECRET_KEY:-change_secret_key}
+      - SECRET_KEY=${SECRET_KEY}
       - LLM_ENABLED=${LLM_ENABLED:-false}
       - LLM_NAME=${LLM_NAME:-}
       - LLM_TOKEN=${LLM_TOKEN:-}
@@ -46,9 +46,9 @@ services:
     container_name: postgres
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-db1}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-db1}
-      POSTGRES_DB: ${POSTGRES_DB:-db1}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /data/postgres
     volumes:
       # Named volume — data persists across `docker-compose down`, pulls, and rebuilds
@@ -60,7 +60,7 @@ services:
       - db_nw
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-db1} -d ${POSTGRES_DB:-db1}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10

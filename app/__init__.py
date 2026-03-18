@@ -6,6 +6,8 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from authlib.integrations.flask_client import OAuth
 from sqlalchemy import exc
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import logging
 
 
@@ -14,6 +16,7 @@ migrate = Migrate()
 mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
 
 def create_app(config_name="default"):
@@ -29,6 +32,7 @@ def create_app(config_name="default"):
     configure_logging(app)
     set_config_options(app)
     configure_masri(app)
+    configure_security_headers(app)
 
     """
     @app.before_request
@@ -115,6 +119,7 @@ def configure_extensions(app):
     mail.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)
+    limiter.init_app(app)
     return
 
 
@@ -209,10 +214,13 @@ def configure_errors(app):
         app.logger.warning(f"Rolling back database session in app. Error: {e}")
         db.session.rollback()
 
-        try:
-            error = str(e.orig)
-        except:
-            error = "Something went wrong"
+        if app.config.get("DEBUG"):
+            try:
+                error = str(e.orig)
+            except Exception:
+                error = "Database error occurred"
+        else:
+            error = "An internal error occurred"
 
         if request.path.startswith("/api/"):
             return jsonify({"ok": False, "message": error, "code": 500}), 500
@@ -262,6 +270,20 @@ def configure_logging(app):
     app.logger.setLevel(app.config["LOG_LEVEL"])
 
     app.logger.info("Enabled standard Flask logging")
+
+
+def configure_security_headers(app):
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not app.config.get("DEBUG"):
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 
 def set_config_options(app):

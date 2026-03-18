@@ -50,7 +50,7 @@ class Config:
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     ENABLE_GCP_LOGGING = os.environ.get("ENABLE_GCP_LOGGING", "false").lower() == "true"
 
-    SECRET_KEY = os.environ.get("SECRET_KEY", "change_secret_key")
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-before-production")
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = False
@@ -69,7 +69,7 @@ class Config:
     )
     DOC_LINK = os.environ.get("DOC_LINK", "https://github.com/bmarsh9/gapps")
     DEFAULT_EMAIL = os.environ.get("DEFAULT_EMAIL", "admin@example.com")
-    DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "admin1234567")
+    DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "")
     HELP_EMAIL = os.environ.get("HELP_EMAIL", DEFAULT_EMAIL)
 
     ENABLE_GOOGLE_AUTH = os.environ.get("ENABLE_GOOGLE_AUTH", "false").lower() == "true"
@@ -82,6 +82,9 @@ class Config:
 
     MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID")
     MICROSOFT_CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET")
+
+    # Max upload size: default 16MB, configurable via env var
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
 
     UPLOAD_FOLDER = os.environ.get(
         "UPLOAD_FOLDER", os.path.join(basedir, "app/files/reports")
@@ -120,7 +123,7 @@ class Config:
 
     # Integrations
     INTEGRATIONS_BASE_URL = os.environ.get("INTEGRATIONS_BASE_URL", "http://localhost:8080")
-    INTEGRATIONS_TOKEN = os.environ.get("INTEGRATIONS_TOKEN", "changeme")
+    INTEGRATIONS_TOKEN = os.environ.get("INTEGRATIONS_TOKEN", "")
 
     # --- Masri Compliance Platform ---
     APP_PRIMARY_COLOR = os.environ.get("APP_PRIMARY_COLOR", "#0066CC")
@@ -181,6 +184,8 @@ class Config:
         if key.lower().startswith("feature_")
     }
 
+    _INSECURE_KEY = "dev-insecure-key-change-before-production"
+
     @staticmethod
     def init_app(app):
         pass
@@ -189,8 +194,23 @@ class Config:
 class ProductionConfig(Config):
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
+
+    @classmethod
+    def init_app(cls, app):
+        Config.init_app(app)
+        _required = {
+            "SECRET_KEY": cls._INSECURE_KEY,
+            "SQLALCHEMY_DATABASE_URI": "postgresql://db1:changeme@postgres/db1",
+        }
+        for var, insecure_default in _required.items():
+            value = app.config.get(var, "")
+            if not value or value == insecure_default:
+                raise ValueError(
+                    f"Production requires {var} to be set to a strong, non-default value. "
+                    f"Generate SECRET_KEY with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host
     POSTGRES_USER = url.username
@@ -201,7 +221,7 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host
@@ -214,7 +234,7 @@ class TestingConfig(Config):
     TESTING = True
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host

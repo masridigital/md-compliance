@@ -4,13 +4,22 @@ from flask import (
     redirect,
     url_for,
 )
+from urllib.parse import urlparse
 from flask_login import current_user, logout_user
 from app.utils.decorators import custom_login, login_required, is_logged_in
+from app import limiter
 from . import auth
 from app.models import *
 from app.email import send_email
 from app.utils import misc
 from app.auth.flows import UserFlow
+
+
+def _safe_next(next_page):
+    """Return next_page only if it's a relative (same-origin) URL."""
+    if next_page and urlparse(next_page).netloc == "":
+        return next_page
+    return None
 
 
 @auth.route("/login", methods=["GET"])
@@ -20,9 +29,10 @@ def get_login():
 
 
 @auth.route("/login", methods=["POST"])
+@limiter.limit("10 per minute; 50 per hour")
 @is_logged_in
 def post_login():
-    next_page = request.args.get("next")
+    next_page = _safe_next(request.args.get("next"))
     return UserFlow(
         request.form, "login", "local", next_page=next_page or url_for("main.home")
     ).handle_flow()
@@ -41,7 +51,6 @@ def confirm_email():
     if current_user.email_confirmed_at:
         flash("User is already confirmed.")
         return redirect(url_for("main.home"))
-    print(current_app.is_email_configured)
     return render_template(
         "auth/confirm_email.html", email_configured=current_app.is_email_configured
     )
@@ -50,7 +59,7 @@ def confirm_email():
 @auth.route("/login/tenants/<string:tid>", methods=["GET", "POST"])
 @is_logged_in
 def login_with_magic_link(tid):
-    next_page = request.args.get("next")
+    next_page = _safe_next(request.args.get("next"))
     if current_user.is_authenticated:
         return redirect(next_page or url_for("main.home"))
 
@@ -105,7 +114,7 @@ def login_with_magic_link(tid):
 @auth.route("/magic-login/<string:token>", methods=["GET"])
 @is_logged_in
 def validate_magic_link(token):
-    next_page = request.args.get("next")
+    next_page = _safe_next(request.args.get("next"))
     if not (vtoken := User.verify_magic_token(token)):
         flash("Token is invalid", "warning")
         return redirect(url_for("auth.get_login"))
@@ -157,7 +166,7 @@ def post_accept():
     """
     POST endpoint for a user accepting invitations
     """
-    next_page = request.args.get("next")
+    next_page = _safe_next(request.args.get("next"))
     attributes = {"token": request.args.get("token")}
     return UserFlow(
         user_info=request.form,
@@ -168,8 +177,9 @@ def post_accept():
 
 
 @auth.route("/reset-password", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 20 per hour")
 def reset_password_request():
-    next_page = request.args.get("next")
+    next_page = _safe_next(request.args.get("next"))
     internal = request.args.get("internal")
     if current_user.is_authenticated and not internal:
         return redirect(next_page or url_for("main.home"))
@@ -267,6 +277,7 @@ def get_register():
 
 
 @auth.route("/register", methods=["POST"])
+@limiter.limit("5 per minute; 20 per hour")
 def post_register():
     """
     POST endpoint for registering new users
