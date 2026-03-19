@@ -1,6 +1,6 @@
 import requests
 from flask import current_app
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, RequestException
 
 def api_get(endpoint: str, params: dict = None):
     base_url = current_app.config["INTEGRATIONS_BASE_URL"]
@@ -11,11 +11,14 @@ def api_get(endpoint: str, params: dict = None):
         "Authorization": token
     }
 
-    response = requests.get(url, headers=headers, params=params, timeout=10)
     try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
     except HTTPError as e:
         current_app.logger.error(f"API Get Failed: {e.response.status_code} - {e.response.text}")
+        raise
+    except RequestException as e:
+        current_app.logger.error(f"API Get network error: {e}")
         raise
     return response.json()
 

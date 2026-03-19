@@ -286,6 +286,11 @@ def update_sso_config():
 def get_notification_channels():
     """GET /api/v1/settings/notifications — list channels, optionally by tenant."""
     tenant_id = request.args.get("tenant_id")
+    if tenant_id:
+        from app.utils.authorizer import Authorizer
+        auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
+        if not auth_result["success"]:
+            return jsonify({"error": "Unauthorized"}), 403
     try:
         channels = SettingsService.get_notification_channels(tenant_id=tenant_id)
         return jsonify([ch.as_dict() for ch in channels])
@@ -303,6 +308,11 @@ def update_notification_channel(channel):
     if err:
         return err
     tenant_id = data.pop("tenant_id", None)
+    if tenant_id:
+        from app.utils.authorizer import Authorizer
+        auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
+        if not auth_result["success"]:
+            return jsonify({"error": "Unauthorized"}), 403
     try:
         record = SettingsService.update_notification_channel(
             channel, data, tenant_id=tenant_id

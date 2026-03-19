@@ -79,6 +79,8 @@ class MasriScheduler:
         def _wrapper():
             if not self._running:
                 return
+            # Remove the current (now-fired) timer from the list before rescheduling
+            self._timers[:] = [t for t in self._timers if t.is_alive()]
             try:
                 logger.debug("Scheduler running task: %s", name)
                 func()
@@ -112,9 +114,9 @@ class MasriScheduler:
                 for tenant in tenants:
                     try:
                         from app.masri.notification_engine import NotificationEngine
-                        engine = NotificationEngine(tenant.id)
-                        sent = engine.check_and_send_due_reminders()
-                        total_sent += sent
+                        engine = NotificationEngine()
+                        sent = engine.check_and_send_due_reminders(tenant_id=tenant.id)
+                        total_sent += (sent or 0)
                     except Exception:
                         logger.exception(
                             "Due reminder check failed for tenant %s", tenant.id
@@ -204,7 +206,7 @@ class MasriScheduler:
         try:
             from app.masri.notification_engine import NotificationEngine
 
-            engine = NotificationEngine(tenant_id)
+            engine = NotificationEngine()
             summary = f"{len(drift_items)} compliance items need attention"
             details = "\n".join(
                 f"- {item['type']}: {item.get('project_name', 'N/A')}"
@@ -213,10 +215,15 @@ class MasriScheduler:
             if len(drift_items) > 10:
                 details += f"\n... and {len(drift_items) - 10} more"
 
-            engine.send_teams(
-                card_type="drift_alert",
-                title="Compliance Drift Detected",
-                body=f"{summary}\n\n{details}",
+            engine.send(
+                event_type="drift_alert",
+                tenant_id=tenant_id,
+                data={
+                    "summary": summary,
+                    "details": details,
+                    "drift_count": len(drift_items),
+                },
+                priority="high",
             )
         except Exception:
             logger.exception("Failed to send drift notification for tenant %s", tenant_id)

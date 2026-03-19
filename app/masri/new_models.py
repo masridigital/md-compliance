@@ -522,7 +522,7 @@ class WISPDocument(db.Model):
         cascade="all, delete-orphan",
     )
 
-    VALID_STATUSES = ["draft", "active", "archived"]
+    VALID_STATUSES = ["draft", "active", "archived", "signed"]
     VALID_FIRM_TYPES = [
         "cpa_firm", "tax_preparer", "law_firm", "mortgage_lender",
         "mortgage_broker", "financial_advisor", "insurance_agency", "other",

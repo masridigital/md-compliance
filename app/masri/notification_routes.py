@@ -53,12 +53,16 @@ def test_teams():
     try:
         from app.masri.notification_engine import NotificationEngine
 
-        engine = NotificationEngine(tenant_id)
-        result = engine.send_teams(
-            card_type="test",
-            title="Test Notification",
-            body="This is a test notification from Masri Digital Compliance Platform.",
-            webhook_url_override=webhook_url,
+        engine = NotificationEngine()
+        result = engine.send(
+            event_type="test",
+            tenant_id=tenant_id,
+            data={
+                "title": "Test Notification",
+                "body": "This is a test notification from Masri Digital Compliance Platform.",
+                "webhook_url_override": webhook_url,
+            },
+            priority="medium",
         )
         return jsonify({"success": True, "result": result})
     except Exception as e:
@@ -87,11 +91,11 @@ def test_email():
     try:
         from app.masri.notification_engine import NotificationEngine
 
-        engine = NotificationEngine(tenant_id)
+        engine = NotificationEngine()
         result = engine.send_email(
-            to=recipient,
+            recipients=[recipient],
             subject="Test Notification — Masri Digital",
-            body="This is a test email from Masri Digital Compliance Platform.",
+            html_body="<p>This is a test email from Masri Digital Compliance Platform.</p>",
         )
         return jsonify({"success": True, "result": result})
     except Exception as e:
@@ -131,33 +135,23 @@ def send_notification():
     try:
         from app.masri.notification_engine import NotificationEngine
 
-        engine = NotificationEngine(tenant_id)
+        engine = NotificationEngine()
+        event_data = {
+            "title": subject,
+            "body": body,
+            "card_type": card_type,
+        }
+        if recipient:
+            event_data["recipients"] = [recipient]
+            event_data["phone"] = recipient
+            event_data["assigned_user_email"] = recipient
 
-        if channel == "teams":
-            result = engine.send_teams(
-                card_type=card_type,
-                title=subject,
-                body=body,
-            )
-        elif channel == "email":
-            if not recipient:
-                return jsonify({"error": "recipient is required for email"}), 400
-            result = engine.send_email(
-                to=recipient,
-                subject=subject,
-                body=body,
-            )
-        elif channel == "slack":
-            result = engine.send_slack(
-                message=f"*{subject}*\n{body}",
-            )
-        elif channel == "sms":
-            if not recipient:
-                return jsonify({"error": "recipient is required for sms"}), 400
-            result = engine.send_sms(
-                to=recipient,
-                message=f"{subject}: {body}",
-            )
+        result = engine.send(
+            event_type=card_type or "general",
+            tenant_id=tenant_id,
+            data=event_data,
+            priority="medium",
+        )
 
         return jsonify({"success": True, "channel": channel, "result": result})
     except Exception as e:
@@ -184,14 +178,14 @@ def notification_logs():
     try:
         from app.masri.new_models import NotificationLog
 
-        query = (
-            NotificationLog.query
+        from app import db as _db
+        logs = _db.session.execute(
+            _db.select(NotificationLog)
             .filter_by(tenant_id=tenant_id)
-            .order_by(NotificationLog.date_created.desc())
+            .order_by(NotificationLog.date_added.desc())
             .offset(offset)
             .limit(limit)
-        )
-        logs = query.all()
+        ).scalars().all()
 
         return jsonify({
             "tenant_id": tenant_id,
@@ -224,8 +218,8 @@ def check_reminders():
     try:
         from app.masri.notification_engine import NotificationEngine
 
-        engine = NotificationEngine(tenant_id)
-        sent_count = engine.check_and_send_due_reminders()
+        engine = NotificationEngine()
+        sent_count = engine.check_and_send_due_reminders(tenant_id=tenant_id)
 
         return jsonify({
             "success": True,

@@ -17,7 +17,7 @@ class Report:
             "project_name": project.name,
             "app_name": config["APP_NAME"],
             "doc_url": config["DOC_LINK"],
-            "console_url": config["CONSOLE_LINK"],
+            "console_url": config.get("CONSOLE_LINK", config.get("HOST_NAME", "")),
             "company": project.tenant.name,
             "contact_email": project.tenant.contact_email,
             "date": arrow.now().strftime("%d %B, %Y"),

@@ -201,7 +201,7 @@ def get_resp_matrix_summary_for_project(pid):
 @login_required
 def get_resp_matrix_for_user(pid, uid):
     result = Authorizer(current_user).can_user_access_project(pid)
-    if uid == 0:
+    if uid in (0, "0", "none", "null", None):
         uid = None
     data = {"owner": [], "operator": []}
     _query = result["extra"]["project"].subcontrols(as_query=True)
@@ -1376,10 +1376,10 @@ def update_control_applicability(cid):
     data, err = validate_payload(ApplicabilitySchema, request.get_json())
     if err:
         return err
-    if not data.get("applicable"):
-        return jsonify({"message": "applicability must be true or false"}), 400
+    if "applicable" not in data:
+        return jsonify({"message": "applicability field is required"}), 400
 
-    if data.get("applicable"):
+    if data["applicable"]:
         result["extra"]["control"].set_as_applicable()
     else:
         result["extra"]["control"].set_as_not_applicable()

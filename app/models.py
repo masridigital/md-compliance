@@ -116,7 +116,7 @@ class VendorFile(db.Model, QueryMixin):
         upload_params = {
             "file": file_object,
             "file_name": f"{self.id}_{self.name}",
-            "folder": self.vendor.get_evidence_folder(storage_method),
+            "folder": self.vendor.get_evidence_folder(),
         }
         file_handler = FileStorageHandler(provider=storage_method)
         return file_handler.upload_file(**upload_params)
@@ -124,7 +124,7 @@ class VendorFile(db.Model, QueryMixin):
     @validates("provider")
     def _validate_provider(self, key, value):
         if value not in current_app.config["STORAGE_PROVIDERS"]:
-            return ValueError(f"Provider:{value} not supported")
+            raise ValueError(f"Provider:{value} not supported")
         return value
 
 
@@ -295,7 +295,7 @@ class VendorApp(db.Model, QueryMixin):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["risk"] = secrets.randbelow(102)
+        data["risk"] = 0
         data["next_review_date"] = self.get_next_review_date()
         data["type"] = "application"
         data["vendor"] = self.vendor.name
@@ -433,11 +433,11 @@ class Vendor(db.Model, QueryMixin):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["risk"] = secrets.randbelow(102)
+        data["risk"] = 0
         if self.data_class_id:
             data["data_classification"] = self.data_class.name
         data["application_count"] = self.apps.count()
-        data["assessment_count"] = self.apps.count()
+        data["assessment_count"] = self.assessments.count()
         data["next_review_date"] = self.get_next_review_date()
         data["days_until_next_review_date"] = self.days_until_next_review()
         data["next_review_date_humanize"] = self.days_until_next_review(humanize=True)
@@ -496,6 +496,8 @@ class Vendor(db.Model, QueryMixin):
 
     @validates("contact_email", "vendor_contact_email")
     def _validate_email(self, key, address):
+        if not address:
+            return address
         try:
             email_validator.validate_email(address, check_deliverability=False)
         except:
@@ -1178,11 +1180,12 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
                     with open(
                         os.path.join(current_app.config["POLICY_FOLDER"], filename)
                     ) as f:
+                        _body = f.read()
                         p = Policy(
                             name=name,
                             description=f"Content for the {name} policy",
-                            content=f.read(),
-                            template=f.read(),
+                            content=_body,
+                            template=_body,
                             tenant_id=self.id,
                         )
                         db.session.add(p)
@@ -1579,7 +1582,10 @@ class ProjectEvidence(db.Model, QueryMixin):
             abort(500, f"File storage backend: {self.file_provider} is not enabled.")
 
         path = os.path.join(
-            self.project.tenant.get_evidence_folder(self.file_provider), self.file_name
+            self.project.tenant.get_evidence_folder(
+                project_id=self.project_id, provider=self.file_provider
+            ),
+            self.file_name,
         )
         file_handler = FileStorageHandler(
             provider=self.file_provider,
@@ -1947,7 +1953,7 @@ class Control(db.Model):
     def policies(self, as_id_list=False):
         policy_id_list = []
         for assoc in db.session.execute(db.select(PolicyAssociation).filter(
-            PolicyAssociation.policy_id == self.id
+            PolicyAssociation.control_id == self.id
         )).scalars().all():
             policy_id_list.append(assoc.policy_id)
         if as_id_list:
@@ -2452,16 +2458,18 @@ class Project(db.Model, DateMixin):
                 return False
             member.access_level = access_level
             db.session.commit()
+            return True
         return False
 
     def get_applicable_control_count(self):
-        applicable_controls_count = (
-            db.session.query(func.count(distinct(ProjectControl.id)))
+        # SA 2.0: use db.session.execute + db.select
+        subq = (
+            db.select(ProjectControl.id)
             .join(
                 ProjectSubControl,
                 ProjectControl.id == ProjectSubControl.project_control_id,
             )
-            .filter(
+            .where(
                 ProjectControl.project_id == self.id,
                 ProjectSubControl.is_applicable == True,
             )
@@ -2469,11 +2477,15 @@ class Project(db.Model, DateMixin):
             .having(
                 func.count(ProjectSubControl.id)
                 == func.sum(
-                    case([(ProjectSubControl.is_applicable == True, 1)], else_=0)
+                    case((ProjectSubControl.is_applicable == True, 1), else_=0)
                 )
             )
-            .count()
+            .subquery()
         )
+        applicable_controls_count = db.session.execute(
+            db.select(func.count()).select_from(subq)
+        ).scalar() or 0
+        _ = applicable_controls_count  # assigned below
         return applicable_controls_count
 
     def evidence_groupings(self):
@@ -2787,9 +2799,8 @@ class ProjectPolicy(db.Model):
         return True
 
     def remove_control(self, id):
-        if self.has_control(id):
-            pa = ProjectPolicyAssociation(policy_id=self.id, control_id=id)
-            db.session.delete(pa)
+        if assoc := self.has_control(id):
+            db.session.delete(assoc)
             db.session.commit()
         return True
 
@@ -3031,7 +3042,8 @@ class AuditorFeedback(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["auditor_email"] = db.session.get(User, self.owner_id).email
+        _owner = db.session.get(User, self.owner_id)
+        data["auditor_email"] = _owner.email if _owner else None
         data["status"] = self.status
         return data
 
@@ -3685,7 +3697,7 @@ class User(db.Model, UserMixin):
         db.session.commit()
         for record in tenants:
             if tenant := db.session.get(Tenant, record["id"]):
-                tenant.add_user(
+                tenant.add_member(
                     user_or_email=new_user,
                     attributes={"roles": record["roles"]},
                     send_notification=False,
@@ -4285,7 +4297,7 @@ class FormSection(db.Model, QueryMixin):
             abort(422, "Title is required")
         if self.title.lower() == "general":
             abort(422, "The 'general' section must not be updated")
-        if self.assessment.get_section(title):
+        if self.form.get_section(title):
             abort(422, f"Title already exists:{title}")
         self.title = title.lower()
         db.session.commit()
@@ -4433,8 +4445,8 @@ class Assessment(db.Model, QueryMixin):
 
     def can_vendor_submit_for_review(self):
         items = self.get_items(flatten=True)
-        are_questions_answered = self.get_vendor_answered_percentage(items=items)
-        if not are_questions_answered:
+        _total, _answered, _pct = self.get_vendor_answered_percentage(items=items)
+        if _pct < 100:
             return (False, "Vendor has incomplete questions")
 
         incomplete_info_required = 0
@@ -4608,13 +4620,12 @@ class Assessment(db.Model, QueryMixin):
             and value.lower() == "pending_review"
         ):
             if self.get_vendor_answered_percentage()[2] != 100:
-                abort(
-                    422,
-                    "All questions must be answered before moving to pending_review",
+                raise ValueError(
+                    "All questions must be answered before moving to pending_review"
                 )
 
         if value.lower() not in self.VALID_REVIEW_STATUS:
-            abort(422, f"Invalid review status: {value}")
+            raise ValueError(f"Invalid review status: {value}")
 
         return value.lower()
 
@@ -4708,7 +4719,10 @@ class Assessment(db.Model, QueryMixin):
         will be marked with access:True
         """
         users = []
-        for user in self.tenant.members.all():
+        for member in self.tenant.members.all():
+            user = member.user
+            if user is None:
+                continue
             record = {"id": user.id, "email": user.email, "access": False}
             if self.can_user_be_added_as_a_guest(user):
                 if self.has_guest(user.email):
@@ -4763,7 +4777,7 @@ class Assessment(db.Model, QueryMixin):
                         guests_to_notify.append(user.email)
             else:
                 # Invite user to the tenant
-                user = self.tenant.add_user(
+                user = self.tenant.add_member(
                     user_or_email=email,
                     attributes={"roles": ["vendor"]},
                     send_notification=False,

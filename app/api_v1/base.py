@@ -47,7 +47,7 @@ def get_feature_flags():
 
 
 @api.route("/users/exist", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("5 per minute")
 def does_user_exist():
     data, err = validate_payload(UserExistSchema, request.get_json())
     if err:
@@ -187,8 +187,8 @@ def update_user(uid):
     if current_user.super and "tenant_limit" in data:
         user.tenant_limit = int(data.get("tenant_limit"))
 
-    if data.get("email_confirmed") is True and not current_user.email_confirmed_at:
-        user.email_confirmed_at = str(arrow.utcnow)
+    if data.get("email_confirmed") is True and not user.email_confirmed_at:
+        user.email_confirmed_at = str(arrow.utcnow())
 
     if data.get("email_confirmed") is False:
         user.email_confirmed_at = None
