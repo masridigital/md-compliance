@@ -402,3 +402,54 @@ class SettingsService:
         """
         from app.masri.new_models import MCPAPIKey
         return MCPAPIKey.validate(raw_key)
+
+    # -----------------------------------------------------------------------
+    # Telivy CSRA integration
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def get_telivy_config() -> dict | None:
+        """
+        Return the current Telivy config as a safe dict (API key masked).
+
+        Returns None if no record exists yet.
+        """
+        from app.masri.new_models import SettingsTelivy
+        from app import db
+        record = db.session.execute(db.select(SettingsTelivy)).scalars().first()
+        if record is None:
+            return None
+        cfg = record.as_dict()
+        # Expose decrypted key only internally for the route helper
+        cfg["api_key"] = record.get_api_key()
+        return cfg
+
+    @staticmethod
+    def update_telivy_config(data: dict) -> dict:
+        """
+        Create or update the Telivy settings record.
+
+        Accepted keys:
+          enabled   (bool)    — enable / disable integration
+          api_key   (str)     — raw Telivy API key (stored encrypted)
+          tenant_id (str|None)— scope to a tenant (None = platform-wide)
+
+        Returns the safe as_dict() (api_key not exposed).
+        """
+        from app.masri.new_models import SettingsTelivy
+        from app import db
+
+        record = db.session.execute(db.select(SettingsTelivy)).scalars().first()
+        if record is None:
+            record = SettingsTelivy()
+            db.session.add(record)
+
+        if "enabled" in data:
+            record.enabled = bool(data["enabled"])
+        if "tenant_id" in data:
+            record.tenant_id = data["tenant_id"] or None
+        if data.get("api_key"):
+            record.set_api_key(data["api_key"])
+
+        db.session.commit()
+        return record.as_dict()

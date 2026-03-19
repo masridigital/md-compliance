@@ -186,3 +186,55 @@ class MCPKeyCreateSchema(Schema):
     tenant_id = fields.Str(load_default=None)
     scopes = fields.Raw(load_default=None)
     expires_at = fields.Str(load_default=None)
+
+
+# ===========================================================================
+# telivy_routes.py schemas
+# ===========================================================================
+
+class TelivyConfigSchema(Schema):
+    """PUT /api/v1/telivy/config — save API key and toggle."""
+    class Meta:
+        unknown = EXCLUDE
+    enabled   = fields.Bool(load_default=None)
+    api_key   = fields.Str(load_default=None, validate=validate.Length(max=512))
+    tenant_id = fields.Str(load_default=None)
+
+
+class TelivyCreateAssessmentSchema(Schema):
+    """POST /api/v1/telivy/risk-assessments or /external-scans — create new."""
+    class Meta:
+        unknown = EXCLUDE
+    organizationName = fields.Str(required=True, validate=validate.Length(min=1, max=255))
+    domain           = fields.Str(required=True, validate=validate.Length(min=1, max=253))
+    clientCategory   = fields.Str(
+        load_default=None,
+        validate=validate.OneOf(["breakfix", "it_only", "security_only", "it_and_security"]),
+    )
+    clientStatus     = fields.Str(
+        load_default=None,
+        validate=validate.OneOf(["suspect", "lead", "client"]),
+    )
+    country          = fields.Str(load_default="US", validate=validate.Length(max=3))
+    isLightScan      = fields.Bool(load_default=None)
+
+
+# Supported framework names (mirrors telivy_mapping.CATEGORY_CONTROLS keys)
+_SUPPORTED_FRAMEWORKS = [
+    "nist_csf", "nist_800_53", "iso27001", "cis_v8", "soc2", "hipaa", "cmmc",
+]
+
+
+class TelivySyncSchema(Schema):
+    """POST /api/v1/telivy/{source}/{id}/sync — sync CSRA data into a project."""
+    class Meta:
+        unknown = EXCLUDE
+    project_id       = fields.Str(required=True, validate=validate.Length(min=1, max=64))
+    tenant_id        = fields.Str(required=True, validate=validate.Length(min=1, max=64))
+    framework        = fields.Str(
+        required=True,
+        validate=validate.OneOf(_SUPPORTED_FRAMEWORKS),
+    )
+    create_evidence  = fields.Bool(load_default=True)
+    create_risks     = fields.Bool(load_default=True)
+    dry_run          = fields.Bool(load_default=False)

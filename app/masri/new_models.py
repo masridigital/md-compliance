@@ -687,3 +687,46 @@ class MCPAPIKey(db.Model):
         data["scopes"] = self.get_scopes()
         data.pop("scopes_json", None)
         return data
+
+
+# ===========================================================================
+# SettingsTelivy — Telivy CSRA integration configuration
+# ===========================================================================
+
+class SettingsTelivy(db.Model):
+    """
+    Stores the Telivy API key (Fernet-encrypted) and integration toggles.
+
+    Singleton — always query .first(); create if none exists.
+    Obtain an API key from: Telivy Portal → Account → Integrations.
+    """
+    __tablename__ = "settings_telivy"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    enabled = db.Column(db.Boolean, default=False)
+    api_key_enc = db.Column(db.Text)  # Fernet encrypted x-api-key value
+    # Optional: scope to a specific tenant (None = platform-wide)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=True)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    def set_api_key(self, raw_key: str):
+        """Encrypt and store the raw Telivy API key."""
+        self.api_key_enc = _encrypt(raw_key)
+
+    def get_api_key(self) -> str:
+        """Return the decrypted API key, or None if not set."""
+        if not self.api_key_enc:
+            return None
+        return _decrypt(self.api_key_enc)
+
+    def as_dict(self) -> dict:
+        """Never expose api_key_enc."""
+        return {
+            "id":          self.id,
+            "enabled":     self.enabled,
+            "has_api_key": bool(self.api_key_enc),
+            "tenant_id":   self.tenant_id,
+            "date_added":  self.date_added.isoformat() if self.date_added else None,
+            "date_updated": self.date_updated.isoformat() if self.date_updated else None,
+        }
