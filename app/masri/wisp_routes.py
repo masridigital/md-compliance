@@ -16,6 +16,7 @@ Blueprint: ``wisp_bp`` at url_prefix ``/api/v1/wisp``
 import json
 import logging
 import os
+import secrets
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, abort, current_app, send_file
@@ -195,7 +196,7 @@ def wisp_export_pdf(wisp_id):
 
     export_dir = os.path.join(current_app.instance_path, "exports")
     os.makedirs(export_dir, exist_ok=True)
-    filename = f"wisp_{wisp_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
+    filename = f"wisp_{secrets.token_hex(16)}.pdf"
     output_path = os.path.join(export_dir, filename)
 
     exporter = WISPExporter(wisp, branding)
@@ -228,7 +229,7 @@ def wisp_export_docx(wisp_id):
 
     export_dir = os.path.join(current_app.instance_path, "exports")
     os.makedirs(export_dir, exist_ok=True)
-    filename = f"wisp_{wisp_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.docx"
+    filename = f"wisp_{secrets.token_hex(16)}.docx"
     output_path = os.path.join(export_dir, filename)
 
     exporter = WISPExporter(wisp, branding)
