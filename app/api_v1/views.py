@@ -1,3 +1,4 @@
+from urllib.parse import quote
 from flask import (
     jsonify,
     request,
@@ -424,7 +425,7 @@ def get_file_for_evidence(id):
     return Response(
         file_bytes,
         mimetype="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={evidence.file_name}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(evidence.file_name)}"},
     )
 
 

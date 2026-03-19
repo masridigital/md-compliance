@@ -442,7 +442,6 @@ def post_ai_conversation(id):
     data, err = validate_payload(AIChatSchema, request.get_json())
     if err:
         return err
-    # print(data.get("messages"))
     return jsonify(
         {"source": "server", "message": "We are still in beta! Coming soon!"}
     )

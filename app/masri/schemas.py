@@ -35,33 +35,33 @@ def validate_payload(schema_class, data):
 class ControlAssistSchema(Schema):
     class Meta:
         unknown = EXCLUDE
-    control_description = fields.Str(required=True, validate=validate.Length(min=1))
-    evidence_text = fields.Str(required=True, validate=validate.Length(min=1))
+    control_description = fields.Str(required=True, validate=validate.Length(min=1, max=500))
+    evidence_text = fields.Str(required=True, validate=validate.Length(min=1, max=5000))
     tenant_id = fields.Str(load_default=None)
 
 
 class GapNarrativeSchema(Schema):
     class Meta:
         unknown = EXCLUDE
-    framework = fields.Str(required=True, validate=validate.Length(min=1))
-    control_ref = fields.Str(required=True, validate=validate.Length(min=1))
-    current_state = fields.Str(load_default="")
+    framework = fields.Str(required=True, validate=validate.Length(min=1, max=500))
+    control_ref = fields.Str(required=True, validate=validate.Length(min=1, max=500))
+    current_state = fields.Str(load_default="", validate=validate.Length(max=5000))
     tenant_id = fields.Str(load_default=None)
 
 
 class RiskScoreSchema(Schema):
     class Meta:
         unknown = EXCLUDE
-    risk_description = fields.Str(required=True, validate=validate.Length(min=1))
-    context = fields.Str(load_default="")
+    risk_description = fields.Str(required=True, validate=validate.Length(min=1, max=5000))
+    context = fields.Str(load_default="", validate=validate.Length(max=5000))
     tenant_id = fields.Str(load_default=None)
 
 
 class InterpretEvidenceSchema(Schema):
     class Meta:
         unknown = EXCLUDE
-    evidence_text = fields.Str(required=True, validate=validate.Length(min=1))
-    control_context = fields.Str(load_default="")
+    evidence_text = fields.Str(required=True, validate=validate.Length(min=1, max=5000))
+    control_context = fields.Str(load_default="", validate=validate.Length(max=5000))
     tenant_id = fields.Str(load_default=None)
 
 

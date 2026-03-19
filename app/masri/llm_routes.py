@@ -16,6 +16,7 @@ import logging
 from flask import Blueprint, jsonify, request, abort, current_app
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app.utils.authorizer import Authorizer
 from app import limiter
 from app.masri.schemas import (
     validate_payload,
@@ -26,6 +27,11 @@ from app.masri.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+def _validate_tenant_access(tenant_id):
+    """Abort 403 if current_user does not have access to tenant_id."""
+    if tenant_id:
+        Authorizer(current_user).can_user_access_tenant(tenant_id)
 
 llm_bp = Blueprint("llm_bp", __name__, url_prefix="/api/v1/llm")
 
@@ -61,6 +67,8 @@ def control_assist():
     control_description = data.get("control_description", "")
     evidence_text = data.get("evidence_text", "")
     tenant_id = data.get("tenant_id")
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -106,6 +114,8 @@ def gap_narrative():
     control_ref = data.get("control_ref", "")
     current_state = data.get("current_state", "")
     tenant_id = data.get("tenant_id")
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -175,6 +185,8 @@ def risk_score():
     context = data.get("context", "")
     tenant_id = data.get("tenant_id")
 
+    _validate_tenant_access(tenant_id)
+
     try:
         from app.masri.llm_service import LLMService
         import json
@@ -210,14 +222,28 @@ def risk_score():
         content = result["content"].strip()
         # Handle markdown code blocks
         if content.startswith("```"):
-            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            parts = content.split("\n", 1)
+            content = parts[1].rsplit("```", 1)[0].strip() if len(parts) > 1 else content
 
         try:
             parsed = json.loads(content)
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, ValueError):
+            parsed = None
+
+        # Validate parsed structure matches expected schema; fall back to safe defaults
+        _valid_severities = {"low", "medium", "high", "critical", "unknown"}
+        if (
+            not isinstance(parsed, dict)
+            or parsed.get("severity") not in _valid_severities
+            or not isinstance(parsed.get("likelihood"), int)
+            or not isinstance(parsed.get("impact"), int)
+        ):
             parsed = {
+                "likelihood": 0,
+                "impact": 0,
+                "overall_score": 0,
                 "severity": "unknown",
-                "explanation": content,
+                "explanation": "Risk score could not be determined.",
                 "mitigations": [],
             }
 
@@ -258,6 +284,8 @@ def interpret_evidence():
     evidence_text = data.get("evidence_text", "")
     control_context = data.get("control_context", "")
     tenant_id = data.get("tenant_id")
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService
@@ -312,6 +340,8 @@ def llm_usage():
     tenant_id = request.args.get("tenant_id")
     if not tenant_id:
         return jsonify({"error": "tenant_id query parameter is required"}), 400
+
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.llm_service import LLMService

@@ -509,7 +509,6 @@ class Authorizer:
         return self.return_response(False, UNAUTHORIZED_MSG, 403)
 
     def can_user_delete_policy_from_project(self, policy, project):
-        print(policy)
         return self.can_user_add_policy_to_project(policy, project)
 
     def can_user_add_control_to_project(self, control, project):

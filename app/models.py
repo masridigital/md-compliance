@@ -27,6 +27,7 @@ import email_validator
 from werkzeug.utils import secure_filename
 import shutil
 import random
+import secrets
 import logging
 import shortuuid
 from app.utils.file_handler import FileStorageHandler
@@ -294,7 +295,7 @@ class VendorApp(db.Model, QueryMixin):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["risk"] = random.randint(0, 101)
+        data["risk"] = secrets.randbelow(102)
         data["next_review_date"] = self.get_next_review_date()
         data["type"] = "application"
         data["vendor"] = self.vendor.name
@@ -432,7 +433,7 @@ class Vendor(db.Model, QueryMixin):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["risk"] = random.randint(0, 101)
+        data["risk"] = secrets.randbelow(102)
         if self.data_class_id:
             data["data_classification"] = self.data_class.name
         data["application_count"] = self.apps.count()
@@ -1610,6 +1611,8 @@ class ProjectEvidence(db.Model, QueryMixin):
             "UPLOAD_EXTENSIONS",
             {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".txt", ".csv"},
         )
+        if isinstance(allowed_extensions, str):
+            allowed_extensions = {e.strip() for e in allowed_extensions.split(",")}
         _, ext = os.path.splitext(file_name)
         if ext not in allowed_extensions:
             abort(400, f"File type '{ext}' is not allowed. Permitted: {', '.join(sorted(allowed_extensions))}")
@@ -2278,7 +2281,7 @@ class Project(db.Model, DateMixin):
         """
         if not isinstance(control, dict):
             abort(400, "Control must be a dictionary")
-        control["ref_code"] = f"cu-{random.randint(1000, 9999)}"
+        control["ref_code"] = f"cu-{secrets.token_hex(3)}"
         data = {"framework": "custom", "controls": [control]}
         control = Control.create(data, tenant_id=self.tenant_id)
         if not control:
@@ -3263,7 +3266,7 @@ class ProjectSubControl(db.Model, SubControlMixin):
     )
     sort_id = db.Column(
         db.Integer,
-        default=lambda: random.randint(0, 999),
+        default=lambda: secrets.randbelow(1000),
     )
     implemented = db.Column(db.Integer(), default=0)
     is_applicable = db.Column(db.Boolean(), default=True)
@@ -3552,7 +3555,7 @@ class User(db.Model, UserMixin):
     email_confirmed_at = db.Column(db.DateTime())
     email_confirm_code = db.Column(
         db.String,
-        default=lambda: str(shortuuid.ShortUUID().random(length=6)).lower(),
+        default=lambda: secrets.token_urlsafe(8),
     )
     password = db.Column(db.String(255), nullable=False, server_default="")
     last_password_change = db.Column(db.DateTime())
@@ -3664,7 +3667,7 @@ class User(db.Model, UserMixin):
         if confirmed:
             email_confirmed_at = datetime.utcnow()
         if not username:
-            username = f'{email.split("@")[0]}_{randrange(100, 1000)}'
+            username = f'{email.split("@")[0]}_{secrets.token_hex(4)}'
 
         new_user = User(
             email=email,

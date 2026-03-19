@@ -6,6 +6,7 @@ from flask import (
     redirect,
     url_for,
 )
+from urllib.parse import urlparse
 from flask_login import current_user, logout_user
 from app.utils.decorators import custom_login, login_required, is_logged_in
 from app import db, limiter
@@ -30,7 +31,7 @@ def get_login():
 
 
 @auth.route("/login", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("10 per minute; 50 per hour")
 @is_logged_in
 def post_login():
     next_page = _safe_next(request.args.get("next"))
@@ -178,7 +179,7 @@ def post_accept():
 
 
 @auth.route("/reset-password", methods=["GET", "POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("5 per minute; 20 per hour")
 def reset_password_request():
     next_page = _safe_next(request.args.get("next"))
     internal = request.args.get("internal")
@@ -278,7 +279,7 @@ def get_register():
 
 
 @auth.route("/register", methods=["POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("5 per minute; 20 per hour")
 def post_register():
     """
     POST endpoint for registering new users

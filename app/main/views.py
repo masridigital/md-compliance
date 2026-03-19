@@ -2,6 +2,7 @@ import os
 
 from flask import (
     send_from_directory,
+    abort,
 )
 from . import main
 from app.utils.decorators import *
@@ -23,11 +24,13 @@ def integrations():
 def download_report(pid, filename):
     result = Authorizer(current_user).can_user_access_project(pid)
     upload_folder = os.path.realpath(current_app.config["UPLOAD_FOLDER"])
-    requested_path = os.path.realpath(os.path.join(upload_folder, filename))
-    if not requested_path.startswith(upload_folder + os.sep) and requested_path != upload_folder:
-        abort(404)
+    # Strip any directory components and resolve to prevent path traversal
+    safe_name = os.path.basename(filename)
+    target_path = os.path.realpath(os.path.join(upload_folder, safe_name))
+    if not target_path.startswith(upload_folder + os.sep) and target_path != upload_folder:
+        abort(403)
     return send_from_directory(
-        directory=upload_folder, path=filename, as_attachment=True
+        directory=upload_folder, path=safe_name, as_attachment=True
     )
 
 

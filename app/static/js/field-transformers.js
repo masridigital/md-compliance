@@ -44,12 +44,15 @@ class numberAndProgressBar {
   init(params) {
     this.eGui = document.createElement('div');
     this.eGui.classList.add('flex', 'items-center');
-    //this.eGui.classList.add('tooltip');
-    //this.eGui.setAttribute('data-tip', params.value);
-    this.eGui.innerHTML = `
-      <p class='flex-none text-xs font-semibold mr-2'>${params.value}</p>
-      <progress class="progress progress-secondary w-32" value="${params.value}" max="100"></progress>
-    `;
+    const labelEl = document.createElement('p');
+    labelEl.className = 'flex-none text-xs font-semibold mr-2';
+    labelEl.textContent = params.value;
+    const progressEl = document.createElement('progress');
+    progressEl.className = 'progress progress-secondary w-32';
+    progressEl.value = params.value;
+    progressEl.max = 100;
+    this.eGui.appendChild(labelEl);
+    this.eGui.appendChild(progressEl);
   }
 
   getGui() {
@@ -73,16 +76,25 @@ class idToButton {
   init(params) {
     this.eGui = document.createElement('div');
     this.eGui.classList.add('flex', 'items-center');
-    let link = params.link.replace("{value}", params.value);
-    if (!params.text) {
-        params.text = "<i class='ti ti-external-link text-lg'></i>"
+    // Substitute value into the link template; encode value to prevent injection
+    let link = params.link.replace("{value}", encodeURIComponent(params.value));
+    // Allow only relative (same-origin) URLs
+    if (/^(https?:|\/\/)/i.test(link)) {
+        link = '#';
     }
-    if (!params.class) {
-        params.class = "btn-sm btn-ghost"
-    }
-    this.eGui.innerHTML = `
-      <a href='${link}' class='btn ${params.class}'>${params.text ?? "View"}</a>
-    `;
+    const btnClass = params.class || "btn-sm btn-ghost";
+    const anchorEl = document.createElement('a');
+    anchorEl.href = link;
+    anchorEl.className = `btn ${btnClass}`;
+    // Only allow icon-class shorthand (e.g. "ti ti-external-link") to prevent XSS.
+    // Full HTML strings are rejected; a plain icon class or no value renders the default icon.
+    const iconClass = (params.text && /^[\w\s-]+$/.test(params.text))
+        ? params.text
+        : "ti ti-external-link text-lg";
+    const iconEl = document.createElement('i');
+    iconEl.className = iconClass;
+    anchorEl.appendChild(iconEl);
+    this.eGui.appendChild(anchorEl);
   }
 
   getGui() {

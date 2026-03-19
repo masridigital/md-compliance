@@ -50,8 +50,8 @@ class Config:
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     ENABLE_GCP_LOGGING = os.environ.get("ENABLE_GCP_LOGGING", "false").lower() == "true"
 
-    SECRET_KEY = os.environ.get("SECRET_KEY", "change_secret_key")
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB upload limit
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-before-production")
+    SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = False
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.googlemail.com")
@@ -83,6 +83,9 @@ class Config:
     MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID")
     MICROSOFT_CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET")
 
+    # Max upload size: default 16MB, configurable via env var
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+
     UPLOAD_FOLDER = os.environ.get(
         "UPLOAD_FOLDER", os.path.join(basedir, "app/files/reports")
     )
@@ -96,7 +99,8 @@ class Config:
         "EVIDENCE_FOLDER", os.path.join(basedir, "app/files/evidence")
     )
     UPLOAD_EXTENSIONS = os.environ.get(
-        "UPLOAD_EXTENSIONS", [".csv", ".jpg", ".png", ".pdf"]
+        "UPLOAD_EXTENSIONS",
+        {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".txt", ".csv"},
     )
 
     STORAGE_PROVIDERS = ["local", "s3", "gcs"]
@@ -181,6 +185,8 @@ class Config:
         if key.lower().startswith("feature_")
     }
 
+    _INSECURE_KEY = "dev-insecure-key-change-before-production"
+
     @staticmethod
     def init_app(app):
         pass
@@ -197,8 +203,23 @@ class ProductionConfig(Config):
         )
 
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
+
+    @classmethod
+    def init_app(cls, app):
+        Config.init_app(app)
+        _required = {
+            "SECRET_KEY": cls._INSECURE_KEY,
+            "SQLALCHEMY_DATABASE_URI": "postgresql://db1:changeme@postgres/db1",
+        }
+        for var, insecure_default in _required.items():
+            value = app.config.get(var, "")
+            if not value or value == insecure_default:
+                raise ValueError(
+                    f"Production requires {var} to be set to a strong, non-default value. "
+                    f"Generate SECRET_KEY with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host
     POSTGRES_USER = url.username
@@ -209,7 +230,7 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host
@@ -222,14 +243,14 @@ class TestingConfig(Config):
     TESTING = True
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:db1@postgres/db1"
+        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host
     POSTGRES_USER = url.username
     POSTGRES_PASSWORD = url.password
     POSTGRES_DB = url.database
-    WTF_CSRF_ENABLED = False
+    WTF_CSRF_ENABLED = True
 
 
 config = {
