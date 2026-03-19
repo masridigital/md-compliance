@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from flask import (
     request,
     flash,
@@ -7,7 +9,7 @@ from flask import (
 from urllib.parse import urlparse
 from flask_login import current_user, logout_user
 from app.utils.decorators import custom_login, login_required, is_logged_in
-from app import limiter
+from app import db, limiter
 from . import auth
 from app.models import *
 from app.email import send_email
@@ -15,11 +17,11 @@ from app.utils import misc
 from app.auth.flows import UserFlow
 
 
-def _safe_next(next_page):
-    """Return next_page only if it's a relative (same-origin) URL."""
-    if next_page and urlparse(next_page).netloc == "":
-        return next_page
-    return None
+def _safe_next(next_url):
+    """Return next_url only if it is a relative path (no external redirect)."""
+    if next_url and urlparse(next_url).netloc == "":
+        return next_url
+    return url_for("main.home")
 
 
 @auth.route("/login", methods=["GET"])
@@ -34,7 +36,7 @@ def get_login():
 def post_login():
     next_page = _safe_next(request.args.get("next"))
     return UserFlow(
-        request.form, "login", "local", next_page=next_page or url_for("main.home")
+        request.form, "login", "local", next_page=next_page
     ).handle_flow()
 
 
@@ -61,12 +63,12 @@ def confirm_email():
 def login_with_magic_link(tid):
     next_page = _safe_next(request.args.get("next"))
     if current_user.is_authenticated:
-        return redirect(next_page or url_for("main.home"))
+        return redirect(next_page)
 
     if not current_app.is_email_configured:
         flash("Email is not configured", "warning")
         abort(404)
-    if not (tenant := Tenant.query.get(tid)):
+    if not (tenant := db.session.get(Tenant, tid)):
         abort(404)
     if not tenant.magic_link_login:
         flash("Feature is not enabled", "warning")
@@ -83,7 +85,7 @@ def login_with_magic_link(tid):
                 message=f"inactive user tried to login:{email}",
                 level="warning",
             )
-            return redirect(next_page or url_for("auth.login_with_magic_link", tid=tid))
+            return redirect(url_for("auth.login_with_magic_link", tid=tid))
         # send email with login
         token = user.generate_magic_link(tid)
         link = f"{current_app.config['HOST_NAME']}magic-login/{token}"
@@ -118,17 +120,17 @@ def validate_magic_link(token):
     if not (vtoken := User.verify_magic_token(token)):
         flash("Token is invalid", "warning")
         return redirect(url_for("auth.get_login"))
-    if not (user := User.query.get(vtoken.get("user_id"))):
+    if not (user := db.session.get(User, vtoken.get("user_id"))):
         flash("Invalid user id", "warning")
         return redirect(url_for("auth.get_login"))
-    if not (tenant := Tenant.query.get(vtoken.get("tenant_id"))):
+    if not (tenant := db.session.get(Tenant, vtoken.get("tenant_id"))):
         flash("Invalid tenant id", "warning")
         return redirect(url_for("auth.get_login"))
     if user.id == tenant.owner_id or user.has_tenant(tenant):
         flash("Welcome")
         Logs.add(message=f"{user.email} logged in via magic link", user_id=user.id)
         custom_login(user)
-        return redirect(next_page or url_for("main.home"))
+        return redirect(next_page)
     flash("User can not access tenant", "warning")
     return redirect(url_for("auth.get_login"))
 
@@ -182,7 +184,7 @@ def reset_password_request():
     next_page = _safe_next(request.args.get("next"))
     internal = request.args.get("internal")
     if current_user.is_authenticated and not internal:
-        return redirect(next_page or url_for("main.home"))
+        return redirect(next_page)
 
     if not current_app.is_email_configured:
         flash("Email is not configured. Please contact your admin.", "warning")
@@ -192,7 +194,7 @@ def reset_password_request():
         email = request.form.get("email")
         if not (user := User.find_by_email(email)):
             flash("Email sent, check your mail")
-            return redirect(next_page or url_for("auth.reset_password_request"))
+            return redirect(url_for("auth.reset_password_request"))
         Logs.add(
             message=f"{email} requested a password reset",
             level="warning",

@@ -74,6 +74,7 @@ def register_context_processors(app):
         current_tenant = None
         try:
             if current_user and current_user.is_authenticated:
+                from app import db
                 from app.models import Tenant
                 # Get tenants the user has access to
                 user_tenants = getattr(current_user, "tenants", [])
@@ -81,7 +82,7 @@ def register_context_processors(app):
                     tenants = user_tenants
                     tenant_id = _get_active_tenant_id()
                     if tenant_id:
-                        current_tenant = Tenant.query.get(tenant_id)
+                        current_tenant = db.session.get(Tenant, tenant_id)
                     if not current_tenant and tenants:
                         current_tenant = tenants[0] if hasattr(tenants[0], "id") else None
         except Exception:

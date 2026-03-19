@@ -69,7 +69,7 @@ class SettingsService:
         from app import db
         from app.masri.new_models import PlatformSettings
 
-        ps = PlatformSettings.query.first()
+        ps = db.session.execute(db.select(PlatformSettings)).scalars().first()
         if ps is None:
             ps = PlatformSettings()
             db.session.add(ps)
@@ -112,6 +112,7 @@ class SettingsService:
         Returns:
             dict with keys: logo_url, primary_color, app_name, etc.
         """
+        from app import db
         from app.masri.new_models import TenantBranding
 
         ps = SettingsService.get_platform_settings()
@@ -128,7 +129,7 @@ class SettingsService:
             "report_header_style": "logo_and_name",
         }
 
-        tb = TenantBranding.query.filter_by(tenant_id=tenant_id).first()
+        tb = db.session.execute(db.select(TenantBranding).filter_by(tenant_id=tenant_id)).scalars().first()
         if tb:
             overrides = tb.as_dict()
             for key in ("logo_url", "primary_color", "subdomain",
@@ -150,7 +151,7 @@ class SettingsService:
         from app import db
         from app.masri.new_models import TenantBranding
 
-        tb = TenantBranding.query.filter_by(tenant_id=tenant_id).first()
+        tb = db.session.execute(db.select(TenantBranding).filter_by(tenant_id=tenant_id)).scalars().first()
         if tb is None:
             tb = TenantBranding(tenant_id=tenant_id)
             db.session.add(tb)
@@ -171,8 +172,9 @@ class SettingsService:
         """
         Returns the first enabled SettingsLLM record, or None.
         """
+        from app import db
         from app.masri.new_models import SettingsLLM
-        return SettingsLLM.query.filter_by(enabled=True).first()
+        return db.session.execute(db.select(SettingsLLM).filter_by(enabled=True)).scalars().first()
 
     @staticmethod
     def update_llm_config(data: dict):
@@ -184,7 +186,7 @@ class SettingsService:
         from app import db
         from app.masri.new_models import SettingsLLM
 
-        llm = SettingsLLM.query.first()
+        llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
         if llm is None:
             llm = SettingsLLM()
             db.session.add(llm)
@@ -210,8 +212,9 @@ class SettingsService:
         Returns decrypted config dict for the named storage provider,
         or None if the provider is not configured.
         """
+        from app import db
         from app.masri.new_models import SettingsStorage
-        record = SettingsStorage.query.filter_by(provider=provider).first()
+        record = db.session.execute(db.select(SettingsStorage).filter_by(provider=provider)).scalars().first()
         if record is None:
             return None
         return record.get_config()
@@ -229,7 +232,7 @@ class SettingsService:
         from app import db
         from app.masri.new_models import SettingsStorage
 
-        record = SettingsStorage.query.filter_by(provider=provider).first()
+        record = db.session.execute(db.select(SettingsStorage).filter_by(provider=provider)).scalars().first()
         if record is None:
             record = SettingsStorage(provider=provider)
             db.session.add(record)
@@ -239,9 +242,11 @@ class SettingsService:
         if "is_default" in data:
             # Unset previous default if this one is becoming default
             if data["is_default"]:
-                SettingsStorage.query.filter(
-                    SettingsStorage.id != record.id
-                ).update({"is_default": False})
+                db.session.execute(
+                    db.update(SettingsStorage).where(
+                        SettingsStorage.id != record.id
+                    ).values(is_default=False)
+                )
             record.is_default = data["is_default"]
         if "config" in data and isinstance(data["config"], dict):
             record.save_config(data["config"])
@@ -252,16 +257,18 @@ class SettingsService:
     @staticmethod
     def get_default_storage_provider():
         """Returns the SettingsStorage marked as default, or None."""
+        from app import db
         from app.masri.new_models import SettingsStorage
-        return SettingsStorage.query.filter_by(is_default=True).first()
+        return db.session.execute(db.select(SettingsStorage).filter_by(is_default=True)).scalars().first()
 
     # ----- SSO -----
 
     @staticmethod
     def get_sso_config():
         """Returns the platform-level SSO config (tenant_id IS NULL)."""
+        from app import db
         from app.masri.new_models import SettingsSSO
-        return SettingsSSO.query.filter_by(tenant_id=None).first()
+        return db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=None)).scalars().first()
 
     @staticmethod
     def update_sso_config(data: dict):
@@ -269,7 +276,7 @@ class SettingsService:
         from app import db
         from app.masri.new_models import SettingsSSO
 
-        sso = SettingsSSO.query.filter_by(tenant_id=None).first()
+        sso = db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=None)).scalars().first()
         if sso is None:
             sso = SettingsSSO()
             db.session.add(sso)
@@ -292,14 +299,15 @@ class SettingsService:
     @staticmethod
     def get_notification_channels(tenant_id: str = None):
         """Returns all notification channel configs, optionally filtered by tenant."""
+        from app import db
         from app.masri.new_models import SettingsNotifications
-        query = SettingsNotifications.query
+        stmt = db.select(SettingsNotifications)
         if tenant_id:
-            query = query.filter(
+            stmt = stmt.filter(
                 (SettingsNotifications.tenant_id == tenant_id) |
                 (SettingsNotifications.tenant_id.is_(None))
             )
-        return query.all()
+        return db.session.execute(stmt).scalars().all()
 
     @staticmethod
     def update_notification_channel(channel: str, data: dict,
@@ -308,9 +316,9 @@ class SettingsService:
         from app import db
         from app.masri.new_models import SettingsNotifications
 
-        record = SettingsNotifications.query.filter_by(
+        record = db.session.execute(db.select(SettingsNotifications).filter_by(
             channel=channel, tenant_id=tenant_id
-        ).first()
+        )).scalars().first()
         if record is None:
             record = SettingsNotifications(channel=channel, tenant_id=tenant_id)
             db.session.add(record)
@@ -343,15 +351,16 @@ class SettingsService:
         Returns:
             list of DueDate instances
         """
+        from app import db
         from app.masri.new_models import DueDate
 
-        query = DueDate.query.filter_by(tenant_id=tenant_id)
+        stmt = db.select(DueDate).filter_by(tenant_id=tenant_id)
         if status:
-            query = query.filter_by(status=status)
+            stmt = stmt.filter_by(status=status)
         if days_ahead is not None:
             cutoff = datetime.utcnow() + timedelta(days=days_ahead)
-            query = query.filter(DueDate.due_date <= cutoff)
-        return query.order_by(DueDate.due_date.asc()).all()
+            stmt = stmt.filter(DueDate.due_date <= cutoff)
+        return db.session.execute(stmt.order_by(DueDate.due_date.asc())).scalars().all()
 
     @staticmethod
     def check_and_flag_overdue(tenant_id: str = None) -> list:
@@ -368,13 +377,13 @@ class SettingsService:
         from app import db
         from app.masri.new_models import DueDate
 
-        query = DueDate.query.filter_by(status="pending").filter(
+        stmt = db.select(DueDate).filter_by(status="pending").filter(
             DueDate.due_date < datetime.utcnow()
         )
         if tenant_id:
-            query = query.filter_by(tenant_id=tenant_id)
+            stmt = stmt.filter_by(tenant_id=tenant_id)
 
-        newly_overdue = query.all()
+        newly_overdue = db.session.execute(stmt).scalars().all()
         for dd in newly_overdue:
             dd.status = "overdue"
         if newly_overdue:

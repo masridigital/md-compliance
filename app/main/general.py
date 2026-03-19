@@ -17,7 +17,7 @@ from app.utils import misc
 @login_required
 def users():
     Authorizer(current_user).can_user_manage_platform()
-    tenants = Tenant.query.all()
+    tenants = db.session.execute(db.select(Tenant)).scalars().all()
     return render_template("management/users.html", tenants=tenants)
 
 
@@ -45,7 +45,7 @@ def get_logs_for_tenant(id):
 @main.route("/users", methods=["GET"])
 @login_required
 def tenant_users():
-    roles = Role.query.all()
+    roles = db.session.execute(db.select(Role)).scalars().all()
     return render_template("management/tenant_users.html", roles=roles)
 
 

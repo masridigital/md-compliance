@@ -1,5 +1,5 @@
 from app import db
-from flask import current_app
+from flask import abort, current_app
 from sqlalchemy.ext.declarative import declared_attr
 from functools import partial
 from app.utils.authorizer import Authorizer
@@ -313,10 +313,10 @@ class SubControlMixin(object):
         data["evidence"] = self.evidence.count()
 
         data["owner"] = (
-            User.query.get(self.owner_id).email if self.owner_id else "Missing Owner"
+            db.session.get(User, self.owner_id).email if self.owner_id else "Missing Owner"
         )
         data["operator"] = (
-            User.query.get(self.operator_id).email
+            db.session.get(User, self.operator_id).email
             if self.operator_id
             else "Missing Operator"
         )
@@ -400,9 +400,9 @@ class SubControlMixin(object):
 
     def remove_evidence(self):
         EvidenceAssociation = current_app.models["EvidenceAssociation"]
-        EvidenceAssociation.query.filter(
+        db.session.execute(db.delete(EvidenceAssociation).where(
             EvidenceAssociation.control_id == self.id
-        ).delete()
+        ))
         db.session.commit()
         return True
 
@@ -413,7 +413,7 @@ class SubControlMixin(object):
             evidence_id_list = [evidence_id_list]
 
         for id in evidence_id_list:
-            if evidence := Evidence.query.get(id):
+            if evidence := db.session.get(Evidence, id):
                 self.evidence.append(evidence)
         db.session.commit()
         return True
@@ -434,7 +434,7 @@ class QueryMixin(object):
 
     @classmethod
     def get_or_404(cls, id):
-        return cls.query.filter(cls.id == str(id)).first_or_404()
+        return db.get_or_404(cls, str(id))
 
     @classmethod
     def find_by(cls, field, value, tenant_id=None, not_found=False):
@@ -442,14 +442,17 @@ class QueryMixin(object):
         Usage:
             User.find_by("email", "test@example.com")
         """
-        _query = cls.query.filter(func.lower(getattr(cls, field)) == func.lower(value))
+        _stmt = db.select(cls).filter(func.lower(getattr(cls, field)) == func.lower(value))
         if tenant_id:
-            _query.filter(getattr(cls, "tenant_id") == tenant_id)
+            _stmt = _stmt.filter(getattr(cls, "tenant_id") == tenant_id)
 
         if not_found:
-            return _query.first_or_404()
+            result = db.session.execute(_stmt).scalars().first()
+            if result is None:
+                abort(404)
+            return result
 
-        return _query.first()
+        return db.session.execute(_stmt).scalars().first()
 
 
 class AuthorizerMixin(object):

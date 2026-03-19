@@ -21,6 +21,14 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, abort, current_app, send_file
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app import limiter
+from app.masri.schemas import (
+    validate_payload,
+    WISPAssistSchema,
+    WISPGenerateSchema,
+    WISPSignSchema,
+    WISPLLMGenerateSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +36,7 @@ wisp_bp = Blueprint("wisp_bp", __name__, url_prefix="/api/v1/wisp")
 
 
 @wisp_bp.route("/assist", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def wisp_assist():
     """
@@ -46,9 +55,9 @@ def wisp_assist():
     if not current_app.config.get("LLM_ENABLED"):
         return jsonify({"error": "LLM features are not enabled"}), 403
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(WISPAssistSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     step = data.get("step")
     step_name = data.get("step_name", "")
@@ -92,6 +101,7 @@ def wisp_assist():
 
 
 @wisp_bp.route("/generate", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def wisp_generate():
     """
@@ -106,23 +116,20 @@ def wisp_generate():
 
     Generates and persists the final WISP document.
     """
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(WISPGenerateSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     wizard_data = data.get("wizard_data", {})
     tenant_id = data.get("tenant_id")
     output_format = data.get("format", "html")
-
-    if not wizard_data:
-        return jsonify({"error": "wizard_data is required"}), 400
 
     try:
         from app.masri.new_models import WISPDocument, WISPVersion
         from app import db
 
         # Create or update WISP document record
-        wisp_doc = WISPDocument.query.filter_by(tenant_id=tenant_id).first()
+        wisp_doc = db.session.execute(db.select(WISPDocument).filter_by(tenant_id=tenant_id)).scalars().first()
         if not wisp_doc:
             wisp_doc = WISPDocument(
                 tenant_id=tenant_id,
@@ -175,13 +182,15 @@ def _build_branding() -> dict:
 
 
 @wisp_bp.route("/<wisp_id>/export/pdf", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def wisp_export_pdf(wisp_id):
     """Export WISP document as branded PDF."""
     from app.masri.new_models import WISPDocument
     from app.masri.wisp_export import WISPExporter
+    from app import db
 
-    wisp = WISPDocument.query.get_or_404(wisp_id)
+    wisp = db.get_or_404(WISPDocument, wisp_id)
     branding = _build_branding()
 
     export_dir = os.path.join(current_app.instance_path, "exports")
@@ -206,13 +215,15 @@ def wisp_export_pdf(wisp_id):
 
 
 @wisp_bp.route("/<wisp_id>/export/docx", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def wisp_export_docx(wisp_id):
     """Export WISP document as branded DOCX."""
     from app.masri.new_models import WISPDocument
     from app.masri.wisp_export import WISPExporter
+    from app import db
 
-    wisp = WISPDocument.query.get_or_404(wisp_id)
+    wisp = db.get_or_404(WISPDocument, wisp_id)
     branding = _build_branding()
 
     export_dir = os.path.join(current_app.instance_path, "exports")
@@ -236,6 +247,7 @@ def wisp_export_docx(wisp_id):
 
 
 @wisp_bp.route("/<wisp_id>/sign", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def wisp_sign(wisp_id):
     """
@@ -249,12 +261,12 @@ def wisp_sign(wisp_id):
     from app.masri.new_models import WISPDocument
     from app import db
 
-    wisp = WISPDocument.query.get_or_404(wisp_id)
+    wisp = db.get_or_404(WISPDocument, wisp_id)
 
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(WISPSignSchema, request.get_json(silent=True))
+    if err:
+        return err
     signature_data = data.get("signature_data")
-    if not signature_data:
-        return jsonify({"error": "signature_data is required"}), 400
 
     wisp.signed_by_user_id = current_user.id
     wisp.signed_at = datetime.utcnow()
@@ -273,6 +285,7 @@ def wisp_sign(wisp_id):
 
 
 @wisp_bp.route("/<wisp_id>/versions", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def wisp_versions(wisp_id):
     """
@@ -281,14 +294,16 @@ def wisp_versions(wisp_id):
     Returns version history for a WISP document.
     """
     from app.masri.new_models import WISPDocument, WISPVersion
+    from app import db
 
-    wisp = WISPDocument.query.get_or_404(wisp_id)
+    wisp = db.get_or_404(WISPDocument, wisp_id)
 
     versions = (
-        WISPVersion.query
-        .filter_by(wisp_id=wisp_id)
-        .order_by(WISPVersion.version.desc())
-        .all()
+        db.session.execute(
+            db.select(WISPVersion)
+            .filter_by(wisp_id=wisp_id)
+            .order_by(WISPVersion.version.desc())
+        ).scalars().all()
     )
 
     return jsonify({
@@ -308,6 +323,7 @@ def wisp_versions(wisp_id):
 
 
 @wisp_bp.route("/<wisp_id>/llm-generate", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def wisp_llm_generate(wisp_id):
     """
@@ -327,9 +343,11 @@ def wisp_llm_generate(wisp_id):
     from app.masri.wisp_export import SECTIONS
     from app import db
 
-    wisp = WISPDocument.query.get_or_404(wisp_id)
+    wisp = db.get_or_404(WISPDocument, wisp_id)
 
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(WISPLLMGenerateSchema, request.get_json(silent=True))
+    if err:
+        return err
     requested_sections = data.get("sections")
 
     # Determine which sections to generate

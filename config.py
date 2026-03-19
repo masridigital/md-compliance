@@ -69,7 +69,7 @@ class Config:
     )
     DOC_LINK = os.environ.get("DOC_LINK", "https://github.com/bmarsh9/gapps")
     DEFAULT_EMAIL = os.environ.get("DEFAULT_EMAIL", "admin@example.com")
-    DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "")
+    DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD")
     HELP_EMAIL = os.environ.get("HELP_EMAIL", DEFAULT_EMAIL)
 
     ENABLE_GOOGLE_AUTH = os.environ.get("ENABLE_GOOGLE_AUTH", "false").lower() == "true"
@@ -99,7 +99,8 @@ class Config:
         "EVIDENCE_FOLDER", os.path.join(basedir, "app/files/evidence")
     )
     UPLOAD_EXTENSIONS = os.environ.get(
-        "UPLOAD_EXTENSIONS", [".csv", ".jpg", ".png", ".pdf"]
+        "UPLOAD_EXTENSIONS",
+        {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".txt", ".csv"},
     )
 
     STORAGE_PROVIDERS = ["local", "s3", "gcs"]
@@ -123,7 +124,7 @@ class Config:
 
     # Integrations
     INTEGRATIONS_BASE_URL = os.environ.get("INTEGRATIONS_BASE_URL", "http://localhost:8080")
-    INTEGRATIONS_TOKEN = os.environ.get("INTEGRATIONS_TOKEN", "")
+    INTEGRATIONS_TOKEN = os.environ.get("INTEGRATIONS_TOKEN")
 
     # --- Masri Compliance Platform ---
     APP_PRIMARY_COLOR = os.environ.get("APP_PRIMARY_COLOR", "#0066CC")
@@ -193,6 +194,14 @@ class Config:
 
 class ProductionConfig(Config):
     DEBUG = False
+
+    _secret = os.environ.get("SECRET_KEY", "")
+    if not _secret or _secret == "change_secret_key":
+        raise RuntimeError(
+            "SECRET_KEY must be set to a strong random value in production. "
+            "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
     )

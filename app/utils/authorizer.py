@@ -1,4 +1,5 @@
 from flask import abort
+from app import db
 from app.utils.misc import get_class_by_tablename
 import logging
 
@@ -32,7 +33,7 @@ class Authorizer:
             if isinstance(object, int):
                 object = str(object)
             if isinstance(object, str):
-                if not (object := model.query.get(object)):
+                if not (object := db.session.get(model, object)):
                     return False
             return object
         except Exception as e:

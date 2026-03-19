@@ -4,6 +4,8 @@ from flask_mail import Mail
 from config import config
 from flask_migrate import Migrate
 from flask_login import LoginManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from authlib.integrations.flask_client import OAuth
 from sqlalchemy import exc
 from flask_limiter import Limiter
@@ -16,7 +18,7 @@ migrate = Migrate()
 mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
 
 
 def create_app(config_name="default"):
@@ -31,6 +33,7 @@ def create_app(config_name="default"):
     configure_errors(app)
     configure_logging(app)
     set_config_options(app)
+    configure_security_headers(app)
     configure_masri(app)
     configure_security_headers(app)
 
@@ -41,6 +44,23 @@ def create_app(config_name="default"):
     """
 
     return app
+
+
+def configure_security_headers(app):
+    """Add security headers to all responses."""
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        if app.config.get("SCHEME") == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
+        return response
 
 
 def configure_masri(app):
@@ -214,7 +234,7 @@ def configure_errors(app):
         app.logger.warning(f"Rolling back database session in app. Error: {e}")
         db.session.rollback()
 
-        if app.config.get("DEBUG"):
+        if app.debug:
             try:
                 error = str(e.orig)
             except Exception:

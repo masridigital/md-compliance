@@ -7,12 +7,25 @@ from flask import (
     session,
 )
 from . import api
-from app import models, db
+from app import models, db, limiter
 from flask_login import current_user
 from app.utils.decorators import login_required
 from app.email import send_email
 from app.utils.authorizer import Authorizer
 from app.utils import misc
+from app.api_v1.schemas import (
+    validate_payload,
+    UserExistSchema,
+    AdminUserCreateSchema,
+    UserUpdateSchema,
+    VerifyConfirmationSchema,
+    PasswordChangeSchema,
+    TenantUpdateSchema,
+    TenantCreateSchema,
+    UserInTenantUpdateSchema,
+    AddUserToTenantSchema,
+    AIChatSchema,
+)
 import arrow
 
 
@@ -22,18 +35,23 @@ Helper endpoints
 
 
 @api.route("/health", methods=["GET"])
+@limiter.exempt
 def get_health():
     return jsonify({"message": "ok"})
 
 @api.route("/feature-flags", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_feature_flags():
     return jsonify(current_app.config["FEATURE_FLAGS"])
 
 
 @api.route("/users/exist", methods=["POST"])
+@limiter.limit("10 per minute")
 def does_user_exist():
-    data = request.get_json()
+    data, err = validate_payload(UserExistSchema, request.get_json())
+    if err:
+        return err
     if not data.get("email"):
         abort(404)
     user = models.User.find_by_email(data.get("email"))
@@ -43,6 +61,7 @@ def does_user_exist():
 
 
 @api.route("/email-check", methods=["GET"])
+@limiter.limit("10 per minute")
 @login_required
 def check_email():
     if not current_user.super:
@@ -72,6 +91,7 @@ def check_email():
 
 
 @api.route("/session", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_session():
     data = {"tenant-id": session.get("tenant-id")}
@@ -79,6 +99,7 @@ def get_session():
 
 
 @api.route("/session/<string:id>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def set_session(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
@@ -87,6 +108,7 @@ def set_session(id):
 
 
 @api.route("/session/delete", methods=["GET", "DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_session():
     session.clear()
@@ -99,20 +121,24 @@ User endpoints
 
 
 @api.route("/admin/users", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_users():
     Authorizer(current_user).can_user_manage_platform()
     data = []
-    for user in models.User.query.all():
+    for user in db.session.execute(db.select(models.User)).scalars().all():
         data.append(user.as_dict())
     return jsonify(data)
 
 
 @api.route("/admin/users", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_admin_user():
     Authorizer(current_user).can_user_manage_platform()
-    data = request.get_json()
+    data, err = validate_payload(AdminUserCreateSchema, request.get_json())
+    if err:
+        return err
 
     tenant = models.Tenant.get_default_tenant()
     if not tenant:
@@ -128,6 +154,7 @@ def create_admin_user():
 
 
 @api.route("/users/<string:id>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_user(id):
     result = Authorizer(current_user).can_user_manage_user(id)
@@ -135,10 +162,13 @@ def get_user(id):
 
 
 @api.route("/users/<string:uid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_user(uid):
     result = Authorizer(current_user).can_user_manage_user(uid)
-    data = request.get_json()
+    data, err = validate_payload(UserUpdateSchema, request.get_json())
+    if err:
+        return err
     user = result["extra"]["user"]
 
     user.username = data.get("username")
@@ -168,6 +198,7 @@ def update_user(uid):
 
 
 @api.route("/users/<string:id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_user(id):
     result = Authorizer(current_user).can_user_manage_user(id)
@@ -177,6 +208,7 @@ def delete_user(id):
 
 
 @api.route("/users/<string:id>/send-confirmation", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def send_user_confirmation(id):
     result = Authorizer(current_user).can_user_send_email_confirmation(id)
@@ -185,10 +217,13 @@ def send_user_confirmation(id):
 
 
 @api.route("/users/<string:id>/verify-confirmation-code", methods=["POST"])
+@limiter.limit("10 per minute")
 @login_required
 def verify_user_confirmation(id):
     result = Authorizer(current_user).can_user_verify_email_confirmation(id)
-    data = request.get_json()
+    data, err = validate_payload(VerifyConfirmationSchema, request.get_json())
+    if err:
+        return err
     if data.get("code", "").strip() != result["extra"]["user"].email_confirm_code:
         abort(403, "Invalid confirmation code")
 
@@ -198,11 +233,14 @@ def verify_user_confirmation(id):
 
 
 @api.route("/users/<string:uid>/password", methods=["PUT"])
+@limiter.limit("10 per minute")
 @login_required
 def change_password(uid):
     result = Authorizer(current_user).can_user_manage_user(uid)
     user = result["extra"]["user"]
-    data = request.get_json()
+    data, err = validate_payload(PasswordChangeSchema, request.get_json())
+    if err:
+        return err
     password = data.get("password")
     password2 = data.get("password2")
     if not misc.perform_pwd_checks(password, password_two=password2):
@@ -213,6 +251,7 @@ def change_password(uid):
 
 
 @api.route("/token", methods=["GET"])
+@limiter.limit("10 per minute")
 @login_required
 def generate_api_token():
     expiration = int(request.args.get("expiration", 600))
@@ -226,6 +265,7 @@ Tenant endpoints
 
 
 @api.route("/tenants/<string:tid>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tenant(tid):
     result = Authorizer(current_user).can_user_access_tenant(tid)
@@ -233,6 +273,7 @@ def get_tenant(tid):
 
 
 @api.route("/tenants/<string:id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_tenant(id):
     result = Authorizer(current_user).can_user_admin_tenant(id)
@@ -241,6 +282,7 @@ def delete_tenant(id):
 
 
 @api.route("/tenants/<string:tid>/info", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tenant_info(tid):
     result = Authorizer(current_user).can_user_access_tenant(tid)
@@ -248,11 +290,14 @@ def get_tenant_info(tid):
 
 
 @api.route("/tenants/<string:tid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_tenant(tid):
     result = Authorizer(current_user).can_user_admin_tenant(tid)
     tenant = result["extra"]["tenant"]
-    data = request.get_json()
+    data, err = validate_payload(TenantUpdateSchema, request.get_json())
+    if err:
+        return err
     if data.get("contact_email"):
         tenant.contact_email = data.get("contact_email")
 
@@ -281,6 +326,7 @@ def update_tenant(tid):
 
 
 @api.route("/tenants", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tenants():
     data = []
@@ -290,10 +336,13 @@ def get_tenants():
 
 
 @api.route("/tenants", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_tenant():
     result = Authorizer(current_user).can_user_create_tenants()
-    data = request.get_json()
+    data, err = validate_payload(TenantCreateSchema, request.get_json())
+    if err:
+        return err
     try:
         tenant = models.Tenant.create(
             current_user,
@@ -308,6 +357,7 @@ def add_tenant():
 
 
 @api.route("/users/<string:uid>/tenants", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tenants_for_user(uid):
     result = Authorizer(current_user).can_user_read_tenants_of_user(uid)
@@ -318,6 +368,7 @@ def get_tenants_for_user(uid):
 
 
 @api.route("/tenants/<string:tid>/users", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_users_for_tenant(tid):
     result = Authorizer(current_user).can_user_access_tenant(tid)
@@ -325,19 +376,23 @@ def get_users_for_tenant(tid):
 
 
 @api.route("/users/<string:uid>/tenants/<string:tid>/roles", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_roles_for_user_in_tenant(uid, tid):
     result = Authorizer(current_user).can_user_access_tenant(tid)
-    if not (user := models.User.query.get(uid)):
+    if not (user := db.session.get(models.User, uid)):
         abort(404)
     return jsonify(user.all_roles_by_tenant(result["extra"]["tenant"]))
 
 
 @api.route("/users/<string:uid>/tenants/<string:tid>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_user_in_tenant(uid, tid):
     result = Authorizer(current_user).can_user_manage_user_roles_in_tenant(uid, tid)
-    data = request.get_json()
+    data, err = validate_payload(UserInTenantUpdateSchema, request.get_json())
+    if err:
+        return err
 
     user = result["extra"]["user"]
     user.username = data.get("username", user.username)
@@ -355,6 +410,7 @@ def update_user_in_tenant(uid, tid):
 
 
 @api.route("/users/<string:uid>/tenants/<string:tid>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_user_in_tenant(uid, tid):
     result = Authorizer(current_user).can_user_manage_user_roles_in_tenant(uid, tid)
@@ -363,10 +419,13 @@ def delete_user_in_tenant(uid, tid):
 
 
 @api.route("/tenants/<string:id>/users", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def add_user_to_tenant(id):
     result = Authorizer(current_user).can_user_admin_tenant(id)
-    data = request.get_json()
+    data, err = validate_payload(AddUserToTenantSchema, request.get_json())
+    if err:
+        return err
     response, user = result["extra"]["tenant"].add_member(
         user_or_email=data.get("email"),
         attributes={"roles": data.get("roles", [])},
@@ -376,16 +435,20 @@ def add_user_to_tenant(id):
 
 
 @api.route("/tenants/<string:id>/chat", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def post_ai_conversation(id):
     result = Authorizer(current_user).can_user_chat_in_tenant(id)
-    data = request.get_json()
+    data, err = validate_payload(AIChatSchema, request.get_json())
+    if err:
+        return err
     return jsonify(
         {"source": "server", "message": "We are still in beta! Coming soon!"}
     )
 
 
 @api.route("/tenants/<string:tid>/tags", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_tags_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
@@ -396,6 +459,7 @@ def get_tags_for_tenant(tid):
 
 
 @api.route("/tenants/<string:tid>/labels", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_labels_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
@@ -406,6 +470,7 @@ def get_labels_for_tenant(tid):
 
 
 @api.route("/logs")
+@limiter.limit("60 per minute")
 @login_required
 def get_logs():
     Authorizer(current_user).can_user_manage_platform()
@@ -413,6 +478,7 @@ def get_logs():
 
 
 @api.route("/tenants/<string:id>/logs")
+@limiter.limit("60 per minute")
 @login_required
 def get_logs_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)

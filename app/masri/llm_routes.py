@@ -17,13 +17,16 @@ from flask import Blueprint, jsonify, request, abort, current_app
 from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.authorizer import Authorizer
+from app import limiter
+from app.masri.schemas import (
+    validate_payload,
+    ControlAssistSchema,
+    GapNarrativeSchema,
+    RiskScoreSchema,
+    InterpretEvidenceSchema,
+)
 
 logger = logging.getLogger(__name__)
-
-# Max character lengths for LLM input fields to prevent abuse / prompt stuffing
-_MAX_SHORT = 500
-_MAX_LONG = 5000
-
 
 def _validate_tenant_access(tenant_id):
     """Abort 403 if current_user does not have access to tenant_id."""
@@ -40,6 +43,7 @@ def _require_llm():
 
 
 @llm_bp.route("/control-assist", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def control_assist():
     """
@@ -56,22 +60,13 @@ def control_assist():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(ControlAssistSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     control_description = data.get("control_description", "")
     evidence_text = data.get("evidence_text", "")
     tenant_id = data.get("tenant_id")
-
-    if not control_description:
-        return jsonify({"error": "control_description is required"}), 400
-    if not evidence_text:
-        return jsonify({"error": "evidence_text is required"}), 400
-    if len(control_description) > _MAX_SHORT:
-        return jsonify({"error": f"control_description exceeds {_MAX_SHORT} character limit"}), 400
-    if len(evidence_text) > _MAX_LONG:
-        return jsonify({"error": f"evidence_text exceeds {_MAX_LONG} character limit"}), 400
 
     _validate_tenant_access(tenant_id)
 
@@ -93,6 +88,7 @@ def control_assist():
 
 
 @llm_bp.route("/gap-narrative", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def gap_narrative():
     """
@@ -110,23 +106,14 @@ def gap_narrative():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(GapNarrativeSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     framework = data.get("framework", "")
     control_ref = data.get("control_ref", "")
     current_state = data.get("current_state", "")
     tenant_id = data.get("tenant_id")
-
-    if not framework or not control_ref:
-        return jsonify({"error": "framework and control_ref are required"}), 400
-    if len(framework) > _MAX_SHORT:
-        return jsonify({"error": f"framework exceeds {_MAX_SHORT} character limit"}), 400
-    if len(control_ref) > _MAX_SHORT:
-        return jsonify({"error": f"control_ref exceeds {_MAX_SHORT} character limit"}), 400
-    if len(current_state) > _MAX_LONG:
-        return jsonify({"error": f"current_state exceeds {_MAX_LONG} character limit"}), 400
 
     _validate_tenant_access(tenant_id)
 
@@ -173,6 +160,7 @@ def gap_narrative():
 
 
 @llm_bp.route("/risk-score", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def risk_score():
     """
@@ -189,20 +177,13 @@ def risk_score():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(RiskScoreSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     risk_description = data.get("risk_description", "")
     context = data.get("context", "")
     tenant_id = data.get("tenant_id")
-
-    if not risk_description:
-        return jsonify({"error": "risk_description is required"}), 400
-    if len(risk_description) > _MAX_LONG:
-        return jsonify({"error": f"risk_description exceeds {_MAX_LONG} character limit"}), 400
-    if len(context) > _MAX_LONG:
-        return jsonify({"error": f"context exceeds {_MAX_LONG} character limit"}), 400
 
     _validate_tenant_access(tenant_id)
 
@@ -241,14 +222,28 @@ def risk_score():
         content = result["content"].strip()
         # Handle markdown code blocks
         if content.startswith("```"):
-            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            parts = content.split("\n", 1)
+            content = parts[1].rsplit("```", 1)[0].strip() if len(parts) > 1 else content
 
         try:
             parsed = json.loads(content)
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, ValueError):
+            parsed = None
+
+        # Validate parsed structure matches expected schema; fall back to safe defaults
+        _valid_severities = {"low", "medium", "high", "critical", "unknown"}
+        if (
+            not isinstance(parsed, dict)
+            or parsed.get("severity") not in _valid_severities
+            or not isinstance(parsed.get("likelihood"), int)
+            or not isinstance(parsed.get("impact"), int)
+        ):
             parsed = {
+                "likelihood": 0,
+                "impact": 0,
+                "overall_score": 0,
                 "severity": "unknown",
-                "explanation": content,
+                "explanation": "Risk score could not be determined.",
                 "mitigations": [],
             }
 
@@ -265,6 +260,7 @@ def risk_score():
 
 
 @llm_bp.route("/interpret-evidence", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def interpret_evidence():
     """
@@ -281,20 +277,13 @@ def interpret_evidence():
     """
     _require_llm()
 
-    data = request.get_json(silent=True)
-    if not data:
-        abort(400, description="Request body must be valid JSON")
+    data, err = validate_payload(InterpretEvidenceSchema, request.get_json(silent=True))
+    if err:
+        return err
 
     evidence_text = data.get("evidence_text", "")
     control_context = data.get("control_context", "")
     tenant_id = data.get("tenant_id")
-
-    if not evidence_text:
-        return jsonify({"error": "evidence_text is required"}), 400
-    if len(evidence_text) > _MAX_LONG:
-        return jsonify({"error": f"evidence_text exceeds {_MAX_LONG} character limit"}), 400
-    if len(control_context) > _MAX_LONG:
-        return jsonify({"error": f"control_context exceeds {_MAX_LONG} character limit"}), 400
 
     _validate_tenant_access(tenant_id)
 
@@ -340,6 +329,7 @@ def interpret_evidence():
 
 
 @llm_bp.route("/usage", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def llm_usage():
     """

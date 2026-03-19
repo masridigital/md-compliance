@@ -204,7 +204,7 @@ class Form(db.Model, QueryMixin):
         for section in self.sections.all():
             data["sections"].append(section.as_dict())
 
-        if assessment := Assessment.query.filter(Assessment.form_id == self.id).first():
+        if assessment := db.session.execute(db.select(Assessment).filter(Assessment.form_id == self.id)).scalars().first():
             data["assessment_name"] = assessment.name
             data["assessment_id"] = assessment.id
         return data
@@ -530,22 +530,20 @@ class Vendor(db.Model, QueryMixin):
         return record
 
     def get_assessments(self):
-        return Assessment.query.filter(Assessment.vendor_id == self.id).all()
+        return db.session.execute(db.select(Assessment).filter(Assessment.vendor_id == self.id)).scalars().all()
 
     def get_categories(self):
-        records = (
-            VendorApp.query.filter(VendorApp.tenant_id == self.tenant_id)
+        records = db.session.execute(
+            db.select(VendorApp).filter(VendorApp.tenant_id == self.tenant_id)
             .distinct(VendorApp.category)
-            .all()
-        )
+        ).scalars().all()
         return [record.category for record in records]
 
     def get_bus(self):
-        records = (
-            VendorApp.query.filter(VendorApp.tenant_id == self.tenant_id)
+        records = db.session.execute(
+            db.select(VendorApp).filter(VendorApp.tenant_id == self.tenant_id)
             .distinct(VendorApp.business_unit)
-            .all()
-        )
+        ).scalars().all()
         return [record.business_unit for record in records]
 
     def create_assessment(
@@ -558,8 +556,8 @@ class Vendor(db.Model, QueryMixin):
         clone_from=None,
     ):
         if (
-            Assessment.query.filter(Assessment.vendor_id == self.id)
-            .filter(func.lower(Assessment.name) == func.lower(name))
+            db.session.execute(db.select(Assessment).filter(Assessment.vendor_id == self.id)
+            .filter(func.lower(Assessment.name) == func.lower(name))).scalars()
             .first()
         ):
             abort(422, f"Name already exists: {name}")
@@ -592,8 +590,8 @@ class Vendor(db.Model, QueryMixin):
         if not name:
             abort(422, "Name is required")
         if (
-            VendorApp.query.filter(VendorApp.vendor_id == self.id)
-            .filter(func.lower(VendorApp.name) == func.lower(name))
+            db.session.execute(db.select(VendorApp).filter(VendorApp.vendor_id == self.id)
+            .filter(func.lower(VendorApp.name) == func.lower(name))).scalars()
             .first()
         ):
             abort(422, f"Name already exists: {name}")
@@ -740,7 +738,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
 
     @staticmethod
     def get_default_tenant():
-        return Tenant.query.filter(Tenant.is_default).first()
+        return db.session.execute(db.select(Tenant).filter(Tenant.is_default)).scalars().first()
 
     def get_members(self):
         members = []
@@ -925,9 +923,9 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         :param user: User object to update
         :param role_names: List of role names (strings) to add
         """
-        member = TenantMember.query.filter_by(
+        member = db.session.execute(db.select(TenantMember).filter_by(
             user_id=user.id, tenant_id=self.id
-        ).first()
+        )).scalars().first()
 
         if not member:
             raise ValueError(f"User {user.email} is not a member of {self.name}")
@@ -947,9 +945,9 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         :param user: User object to update
         :param role_names: List of role names (strings) to remove
         """
-        member = TenantMember.query.filter_by(
+        member = db.session.execute(db.select(TenantMember).filter_by(
             user_id=user.id, tenant_id=self.id
-        ).first()
+        )).scalars().first()
 
         if not member:
             raise ValueError(f"User {user.email} is not a member of {self.name}")
@@ -1121,7 +1119,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         return vendor
 
     def get_owner_email(self):
-        if not (user := User.query.get(self.owner_id)):
+        if not (user := db.session.get(User, self.owner_id)):
             return "unknown"
         return user.email
 
@@ -1229,9 +1227,10 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
 
     def remove_user_from_assessments(self, user):
         for assessment in self.assessments:
-            AssessmentGuest.query.filter(
-                AssessmentGuest.assessment_id == assessment.id
-            ).filter(AssessmentGuest.user_id == user.id).delete()
+            db.session.execute(db.delete(AssessmentGuest).where(
+                AssessmentGuest.assessment_id == assessment.id,
+                AssessmentGuest.user_id == user.id
+            ))
             db.session.commit()
         return True
 
@@ -1491,13 +1490,14 @@ class ProjectEvidence(db.Model, QueryMixin):
 
     def remove_controls(self, control_ids: List[int] = []):
         if control_ids:
-            EvidenceAssociation.query.filter(
-                EvidenceAssociation.evidence_id == self.id
-            ).filter(EvidenceAssociation.control_id.in_(control_ids)).delete()
+            db.session.execute(db.delete(EvidenceAssociation).where(
+                EvidenceAssociation.evidence_id == self.id,
+                EvidenceAssociation.control_id.in_(control_ids)
+            ))
         else:
-            EvidenceAssociation.query.filter(
+            db.session.execute(db.delete(EvidenceAssociation).where(
                 EvidenceAssociation.evidence_id == self.id
-            ).delete()
+            ))
         db.session.commit()
 
     def associate_with_controls(self, control_ids: List[int]):
@@ -1517,16 +1517,16 @@ class ProjectEvidence(db.Model, QueryMixin):
     def get_controls(self):
         id_list = [
             x.control_id
-            for x in EvidenceAssociation.query.filter(
+            for x in db.session.execute(db.select(EvidenceAssociation).filter(
                 EvidenceAssociation.evidence_id == self.id
-            ).all()
+            )).scalars().all()
         ]
-        return ProjectSubControl.query.filter(ProjectSubControl.id.in_(id_list)).all()
+        return db.session.execute(db.select(ProjectSubControl).filter(ProjectSubControl.id.in_(id_list))).scalars().all()
 
     def control_count(self):
-        return EvidenceAssociation.query.filter(
+        return db.session.execute(db.select(db.func.count()).select_from(EvidenceAssociation).filter(
             EvidenceAssociation.evidence_id == self.id
-        ).count()
+        )).scalar()
 
     def has_control(self, control_id):
         return EvidenceAssociation.exists(control_id, self.id)
@@ -1565,9 +1565,9 @@ class ProjectEvidence(db.Model, QueryMixin):
             abort(500, "Evidence does not contain a file")
 
         if safe_delete:
-            file_assoc = ProjectEvidence.query.filter(
+            file_assoc = db.session.execute(db.select(db.func.count()).select_from(ProjectEvidence).filter(
                 ProjectEvidence.file_name == self.file_name
-            ).count()
+            )).scalar()
             if file_assoc > 1:
                 abort(
                     500,
@@ -1606,14 +1606,16 @@ class ProjectEvidence(db.Model, QueryMixin):
 
         file_name = secure_filename(file_name).lower()
 
+        # Validate file extension against allowlist
         allowed_extensions = current_app.config.get(
-            "UPLOAD_EXTENSIONS", [".csv", ".jpg", ".jpeg", ".png", ".pdf", ".txt", ".xlsx"]
+            "UPLOAD_EXTENSIONS",
+            {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".txt", ".csv"},
         )
         if isinstance(allowed_extensions, str):
-            allowed_extensions = [e.strip() for e in allowed_extensions.split(",")]
+            allowed_extensions = {e.strip() for e in allowed_extensions.split(",")}
         _, ext = os.path.splitext(file_name)
         if ext not in allowed_extensions:
-            abort(400, f"File type '{ext}' is not allowed. Allowed: {', '.join(allowed_extensions)}")
+            abort(400, f"File type '{ext}' is not allowed. Permitted: {', '.join(sorted(allowed_extensions))}")
 
         self.file_name = file_name
         self.file_provider = provider
@@ -1681,13 +1683,12 @@ class EvidenceAssociation(db.Model):
 
     @staticmethod
     def exists(control_id, evidence_id):
-        return (
-            EvidenceAssociation.query.filter(
+        return db.session.execute(
+            db.select(EvidenceAssociation).filter(
                 EvidenceAssociation.control_id == control_id
             )
             .filter(EvidenceAssociation.evidence_id == evidence_id)
-            .first()
-        )
+        ).scalars().first()
 
     @staticmethod
     def add(control_ids, evidence_id, commit=True):
@@ -1775,11 +1776,10 @@ class Framework(db.Model):
 
     @staticmethod
     def find_by_name(name, tenant_id):
-        framework_exists = (
-            Framework.query.filter(Framework.tenant_id == tenant_id)
+        framework_exists = db.session.execute(
+            db.select(Framework).filter(Framework.tenant_id == tenant_id)
             .filter(func.lower(Framework.name) == func.lower(name))
-            .first()
-        )
+        ).scalars().first()
         if framework_exists:
             return framework_exists
         return False
@@ -1838,31 +1838,29 @@ class Policy(db.Model):
 
     @staticmethod
     def find_by_name(name, tenant_id):
-        policy_exists = (
-            Policy.query.filter(Policy.tenant_id == tenant_id)
+        policy_exists = db.session.execute(
+            db.select(Policy).filter(Policy.tenant_id == tenant_id)
             .filter(func.lower(Policy.name) == func.lower(name))
-            .first()
-        )
+        ).scalars().first()
         if policy_exists:
             return policy_exists
         return False
 
     def controls(self, as_id_list=False):
         control_id_list = []
-        for assoc in PolicyAssociation.query.filter(
+        for assoc in db.session.execute(db.select(PolicyAssociation).filter(
             PolicyAssociation.policy_id == self.id
-        ).all():
+        )).scalars().all():
             control_id_list.append(assoc.control_id)
         if as_id_list:
             return control_id_list
-        return Control.query.filter(Control.id.in_(control_id_list)).all()
+        return db.session.execute(db.select(Control).filter(Control.id.in_(control_id_list))).scalars().all()
 
     def has_control(self, id):
-        return (
-            PolicyAssociation.query.filter(PolicyAssociation.policy_id == self.id)
+        return db.session.execute(
+            db.select(PolicyAssociation).filter(PolicyAssociation.policy_id == self.id)
             .filter(PolicyAssociation.control_id == id)
-            .first()
-        )
+        ).scalars().first()
 
     def add_control(self, id):
         if not self.has_control(id):
@@ -1942,19 +1940,19 @@ class Control(db.Model):
         if not framework or not ref_code:
             raise ValueError("framework and ref_code is required")
         abs_ref_code = f"{framework.lower()}__{ref_code}"
-        return Control.query.filter(
+        return db.session.execute(db.select(Control).filter(
             func.lower(Control.abs_ref_code) == func.lower(abs_ref_code)
-        ).first()
+        )).scalars().first()
 
     def policies(self, as_id_list=False):
         policy_id_list = []
-        for assoc in PolicyAssociation.query.filter(
+        for assoc in db.session.execute(db.select(PolicyAssociation).filter(
             PolicyAssociation.policy_id == self.id
-        ).all():
+        )).scalars().all():
             policy_id_list.append(assoc.policy_id)
         if as_id_list:
             return policy_id_list
-        return Policy.query.filter(Policy.id.in_(policy_id_list)).all()
+        return db.session.execute(db.select(Policy).filter(Policy.id.in_(policy_id_list))).scalars().all()
 
     def in_policy(self, policy_id):
         return policy_id in self.policies(as_id_list=True)
@@ -2100,7 +2098,7 @@ class ProjectMember(db.Model):
     VALID_ACCESS_LEVELS = ["manager", "contributor", "viewer", "auditor"]
 
     def user(self):
-        return User.query.get(self.user_id)
+        return db.session.get(User, self.user_id)
 
 
 class CompletionHistory(db.Model):
@@ -2390,15 +2388,14 @@ class Project(db.Model, DateMixin):
 
     def review_summary(self):
         data = {"total": 0}
-        for record in (
-            ProjectControl.query.with_entities(
+        for record in db.session.execute(
+            db.select(
                 ProjectControl.review_status,
                 func.count(ProjectControl.review_status),
             )
             .group_by(ProjectControl.review_status)
             .filter(ProjectControl.project_id == self.id)
-            .all()
-        ):
+        ).all():
             data[record[0]] = record[1]
             data["total"] += record[1]
         return data
@@ -2574,8 +2571,8 @@ class Project(db.Model, DateMixin):
 
     def remove_policy(self, id):
         policy = self.policies.filter_by(id=id).first_or_404()
-        PolicyVersion.query.filter_by(policy_id=policy.id).delete()
-        ProjectPolicyAssociation.query.filter_by(policy_id=policy.id).delete()
+        db.session.execute(db.delete(PolicyVersion).where(PolicyVersion.policy_id == policy.id))
+        db.session.execute(db.delete(ProjectPolicyAssociation).where(ProjectPolicyAssociation.policy_id == policy.id))
         db.session.delete(policy)
         db.session.commit()
         return True
@@ -2675,8 +2672,8 @@ class ProjectPolicy(db.Model):
         return has_version
 
     def delete(self):
-        PolicyVersion.query.filter_by(policy_id=self.id).delete()
-        ProjectPolicyAssociation.query.filter_by(policy_id=self.id).delete()
+        db.session.execute(db.delete(PolicyVersion).where(PolicyVersion.policy_id == self.id))
+        db.session.execute(db.delete(ProjectPolicyAssociation).where(ProjectPolicyAssociation.policy_id == self.id))
         db.session.delete(self)
         db.session.commit()
         return True
@@ -2770,18 +2767,17 @@ class ProjectPolicy(db.Model):
         return new_version
 
     def get_controls(self):
-        return ProjectPolicyAssociation.query.filter(
+        return db.session.execute(db.select(ProjectPolicyAssociation).filter(
             ProjectPolicyAssociation.policy_id == self.id
-        ).all()
+        )).scalars().all()
 
     def has_control(self, id):
-        return (
-            ProjectPolicyAssociation.query.filter(
+        return db.session.execute(
+            db.select(ProjectPolicyAssociation).filter(
                 ProjectPolicyAssociation.policy_id == self.id
             )
             .filter(ProjectPolicyAssociation.control_id == id)
-            .first()
-        )
+        ).scalars().first()
 
     def add_control(self, id):
         if not self.has_control(id):
@@ -2798,12 +2794,12 @@ class ProjectPolicy(db.Model):
         return True
 
     def owner_email(self):
-        if user := User.query.get(self.owner_id):
+        if user := db.session.get(User, self.owner_id):
             return user.email
         return None
 
     def reviewer_email(self):
-        if user := User.query.get(self.reviewer_id):
+        if user := db.session.get(User, self.reviewer_id):
             return user.email
         return None
 
@@ -2814,7 +2810,7 @@ class ProjectPolicy(db.Model):
         template["organization"] = self.project.tenant.name
         template["owner_email"] = self.owner_email()
         template["reviewer_email"] = self.reviewer_email()
-        for label in PolicyLabel.query.all():
+        for label in db.session.execute(db.select(PolicyLabel)).scalars().all():
             template[label.key] = label.value
         return template
 
@@ -2863,11 +2859,10 @@ class PolicyVersion(db.Model):
         return data
 
     def is_latest(self):
-        latest = (
-            PolicyVersion.query.filter(PolicyVersion.policy_id == self.policy_id)
+        latest = db.session.execute(
+            db.select(PolicyVersion).filter(PolicyVersion.policy_id == self.policy_id)
             .order_by(PolicyVersion.version.desc())
-            .first()
-        )
+        ).scalars().first()
         if latest == self:
             return True
         return False
@@ -2955,7 +2950,7 @@ class ProjectControl(db.Model, ControlMixin):
         return has_tag
 
     def set_tags(self, tag_names):
-        ControlTags.query.filter(ControlTags.control_id == self.id).delete()
+        db.session.execute(db.delete(ControlTags).where(ControlTags.control_id == self.id))
         db.session.commit()
         # Add new tags
         for tag_name in tag_names:
@@ -3036,7 +3031,7 @@ class AuditorFeedback(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["auditor_email"] = User.query.get(self.owner_id).email
+        data["auditor_email"] = db.session.get(User, self.owner_id).email
         data["status"] = self.status
         return data
 
@@ -3076,7 +3071,7 @@ class SubControlComment(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["author_email"] = User.query.get(self.owner_id).email
+        data["author_email"] = db.session.get(User, self.owner_id).email
         return data
 
 
@@ -3098,7 +3093,7 @@ class ControlComment(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["author_email"] = User.query.get(self.owner_id).email
+        data["author_email"] = db.session.get(User, self.owner_id).email
         return data
 
 
@@ -3118,7 +3113,7 @@ class ProjectComment(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["author_email"] = User.query.get(self.owner_id).email
+        data["author_email"] = db.session.get(User, self.owner_id).email
         return data
 
 
@@ -3139,7 +3134,7 @@ class RiskComment(db.Model):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["author_email"] = User.query.get(self.owner_id).email
+        data["author_email"] = db.session.get(User, self.owner_id).email
         return data
 
 
@@ -3189,10 +3184,10 @@ class RiskRegister(db.Model):
         data["created_at"] = parsed_date.format("MMM D, YYYY")
         if self.project_id:
             data["scope"] = "project"
-            data["project"] = Project.query.get(self.project_id).name
+            data["project"] = db.session.get(Project, self.project_id).name
 
         if self.vendor_id:
-            data["vendor"] = Vendor.query.get(self.vendor_id).name
+            data["vendor"] = db.session.get(Vendor, self.vendor_id).name
 
         data["comments"] = [comment.as_dict() for comment in self.comments.all()]
         data["tags"] = []
@@ -3314,7 +3309,7 @@ class ProjectSubControl(db.Model, SubControlMixin):
 
     @property
     def project(self):
-        return Project.query.get(self.project_id)
+        return db.session.get(Project, self.project_id)
 
     def associate_with_evidence(self, evidence_id):
         if isinstance(evidence_id, str):
@@ -3381,7 +3376,7 @@ class RiskTags(db.Model):
     tag_id = db.Column(db.String(), db.ForeignKey("tags.id", ondelete="CASCADE"))
 
     def as_dict(self):
-        tag = Tag.query.get(self.tag_id)
+        tag = db.session.get(Tag, self.tag_id)
         return {"name": tag.name, "color": tag.color}
 
 
@@ -3399,7 +3394,7 @@ class ProjectTags(db.Model):
     tag_id = db.Column(db.String(), db.ForeignKey("tags.id", ondelete="CASCADE"))
 
     def as_dict(self):
-        tag = Tag.query.get(self.tag_id)
+        tag = db.session.get(Tag, self.tag_id)
         return {"name": tag.name, "color": tag.color}
 
 
@@ -3444,13 +3439,13 @@ class Role(db.Model):
 
     @staticmethod
     def find_by_name(name):
-        return Role.query.filter(func.lower(Role.name) == func.lower(name)).first()
+        return db.session.execute(db.select(Role).filter(func.lower(Role.name) == func.lower(name))).scalars().first()
 
     @staticmethod
     def ids_to_names(list_of_role_ids):
         roles = []
         for role_id in list_of_role_ids:
-            if role := Role.query.get(role_id):
+            if role := db.session.get(Role, role_id):
                 roles.append(role.name)
         return roles
 
@@ -3526,13 +3521,12 @@ class UserRole(db.Model):
     @staticmethod
     def get_roles_for_user_in_tenant(user_id, tenant_id):
         roles = []
-        role_mappings = (
-            UserRole.query.filter(UserRole.user_id == user_id)
+        role_mappings = db.session.execute(
+            db.select(UserRole).filter(UserRole.user_id == user_id)
             .filter(UserRole.tenant_id == tenant_id)
-            .all()
-        )
+        ).scalars().all()
         for mapping in role_mappings:
-            role = Role.query.get(mapping.role_id)
+            role = db.session.get(Role, mapping.role_id)
             roles.append({"name": role.name.lower(), "user_role_id": mapping.id})
         return roles
 
@@ -3541,11 +3535,10 @@ class UserRole(db.Model):
         role = Role.find_by_name(role_name)
         if not role:
             return []
-        return (
-            UserRole.query.filter(UserRole.role_id == role.id)
+        return db.session.execute(
+            db.select(UserRole).filter(UserRole.role_id == role.id)
             .filter(UserRole.tenant_id == tenant_id)
-            .all()
-        )
+        ).scalars().all()
 
 
 class User(db.Model, UserMixin):
@@ -3691,7 +3684,7 @@ class User(db.Model, UserMixin):
         db.session.add(new_user)
         db.session.commit()
         for record in tenants:
-            if tenant := Tenant.query.get(record["id"]):
+            if tenant := db.session.get(Tenant, record["id"]):
                 tenant.add_user(
                     user_or_email=new_user,
                     attributes={"roles": record["roles"]},
@@ -3767,17 +3760,17 @@ class User(db.Model, UserMixin):
 
     @staticmethod
     def find_by_email(email):
-        if user := User.query.filter(
+        if user := db.session.execute(db.select(User).filter(
             func.lower(User.email) == func.lower(email)
-        ).first():
+        )).scalars().first():
             return user
         return False
 
     @staticmethod
     def find_by_username(username):
-        if user := User.query.filter(
+        if user := db.session.execute(db.select(User).filter(
             func.lower(User.username) == func.lower(username)
-        ).first():
+        )).scalars().first():
             return user
         return False
 
@@ -3786,7 +3779,7 @@ class User(db.Model, UserMixin):
         data = misc.verify_jwt(token)
         if data is False:
             return False
-        return User.query.get(data["id"])
+        return db.session.get(User, data["id"])
 
     def generate_auth_token(self, expiration=600):
         data = {"id": self.id}
@@ -3842,13 +3835,13 @@ class User(db.Model, UserMixin):
 
     def get_tenants(self, own=False):
         if own:
-            return Tenant.query.filter(Tenant.owner_id == self.id).all()
+            return db.session.execute(db.select(Tenant).filter(Tenant.owner_id == self.id)).scalars().all()
         if self.super:
-            return Tenant.query.all()
+            return db.session.execute(db.select(Tenant)).scalars().all()
 
         tenants_user_is_member_of = [member.tenant for member in self.memberships.all()]
 
-        for tenant in Tenant.query.filter(Tenant.owner_id == self.id).all():
+        for tenant in db.session.execute(db.select(Tenant).filter(Tenant.owner_id == self.id)).scalars().all():
             if tenant not in tenants_user_is_member_of:
                 tenants_user_is_member_of.append(tenant)
         return tenants_user_is_member_of
@@ -3877,7 +3870,7 @@ class User(db.Model, UserMixin):
 
     def all_roles_by_tenant(self, tenant):
         data = []
-        for role in Role.query.all():
+        for role in db.session.execute(db.select(Role)).scalars().all():
             enabled = True if tenant.has_member_with_role(self, role.name) else False
             data.append(
                 {"role_name": role.name, "role_id": role.id, "enabled": enabled}
@@ -3888,7 +3881,7 @@ class User(db.Model, UserMixin):
         return tenant.get_roles_for_member(self)
 
     def roles_for_tenant_by_id(self, tenant_id):
-        tenant = Tenant.query.get(str(tenant_id))
+        tenant = db.session.get(Tenant, str(tenant_id))
         if not tenant:
             return []
         return self.roles_for_tenant(tenant)
@@ -3954,11 +3947,10 @@ class Tag(db.Model):
 
     @staticmethod
     def find_by_name(name, tenant_id):
-        tag_exists = (
-            Tag.query.filter(Tag.tenant_id == tenant_id)
+        tag_exists = db.session.execute(
+            db.select(Tag).filter(Tag.tenant_id == tenant_id)
             .filter(func.lower(Tag.name) == func.lower(name))
-            .first()
-        )
+        ).scalars().first()
         if tag_exists:
             return tag_exists
         return False
@@ -4007,7 +3999,7 @@ class FormItemMessage(db.Model, QueryMixin):
 
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["author"] = User.query.get(self.owner_id).email
+        data["author"] = db.session.get(User, self.owner_id).email
         return data
 
 
@@ -4362,7 +4354,7 @@ class Assessment(db.Model, QueryMixin):
         data["guests"] = self.get_available_guests()
         if self.vendor_id:
             data["vendor"] = self.vendor.name
-        data["owner"] = User.query.get(self.owner_id).email
+        data["owner"] = db.session.get(User, self.owner_id).email
         data["is_review_complete"] = self.is_review_complete()
         data["is_complete"] = self.is_complete()
 
@@ -4571,19 +4563,19 @@ class Assessment(db.Model, QueryMixin):
         return mapping.get(self.review_status)
 
     def create_section(self, title, order=1):
-        form = Form.query.get(self.form_id)
+        form = db.session.get(Form, self.form_id)
         return form.create_section(title, order)
 
     def get_section(self, title):
         if not self.form_id:
             return None
-        form = Form.query.get(self.form_id)
+        form = db.session.get(Form, self.form_id)
         return form.get_section(title)
 
     def get_items(self, edit_mode=None, flatten=False):
         if not self.form_id:
             return []
-        form = Form.query.get(self.form_id)
+        form = db.session.get(Form, self.form_id)
         return form.get_items(edit_mode=edit_mode, flatten=flatten)
 
     def is_review_complete(self):
@@ -4813,7 +4805,7 @@ class ConfigStore(db.Model):
 
     @staticmethod
     def find(key):
-        return ConfigStore.query.filter(ConfigStore.key == key).first()
+        return db.session.execute(db.select(ConfigStore).filter(ConfigStore.key == key)).scalars().first()
 
     @staticmethod
     def upsert(key, value):
@@ -4853,9 +4845,9 @@ class Logs(db.Model):
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if self.user_id:
-            data["user_email"] = User.query.get(self.user_id).email
+            data["user_email"] = db.session.get(User, self.user_id).email
         if self.tenant_id:
-            data["tenant_name"] = Tenant.query.get(self.tenant_id).name
+            data["tenant_name"] = db.session.get(Tenant, self.tenant_id).name
         return data
 
     def as_readable(self):
@@ -4943,7 +4935,7 @@ class Logs(db.Model):
         """
         get_logs(level='error', namespace="my_namespace", meta={"key":"value":"key2":"value2"})
         """
-        _query = Logs.query.order_by(Logs.date_added.desc()).limit(limit)
+        _query = db.select(Logs).order_by(Logs.date_added.desc()).limit(limit)
 
         if id:
             _query = _query.filter(Logs.id == id)
@@ -4976,17 +4968,17 @@ class Logs(db.Model):
         if as_query:
             return _query
         if as_count:
-            return _query.count()
+            return db.session.execute(db.select(func.count()).select_from(_query.subquery())).scalar()
         if paginate:
-            return _query.paginate(page=page, per_page=10)
+            return db.paginate(_query, page=page, per_page=10)
         if as_dict:
-            return [log.as_dict() for log in _query.all()]
-        return _query.all()
+            return [log.as_dict() for log in db.session.execute(_query).scalars().all()]
+        return db.session.execute(_query).scalars().all()
 
 
 @login.user_loader
 def load_user(user_id):
-    return User.query.get(user_id)
+    return db.session.get(User, user_id)
 
 
 @listens_for(FormItem.remediation_vendor_agreed, "set")

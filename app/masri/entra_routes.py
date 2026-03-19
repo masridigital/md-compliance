@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify, request, current_app, abort
 from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.authorizer import Authorizer
+from app import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def _get_entra_client():
 
 
 @entra_bp.route("/test", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def entra_test():
     """
@@ -73,6 +75,7 @@ def entra_test():
 
 
 @entra_bp.route("/users", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def entra_users():
     """
@@ -95,6 +98,7 @@ def entra_users():
 
 
 @entra_bp.route("/mfa-status", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def entra_mfa_status():
     """
@@ -126,6 +130,7 @@ def entra_mfa_status():
 
 
 @entra_bp.route("/assess", methods=["POST"])
+@limiter.limit("5 per minute")
 @login_required
 def entra_assess():
     """

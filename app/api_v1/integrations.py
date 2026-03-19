@@ -7,27 +7,40 @@ from app.utils.decorators import login_required
 from app.utils.integrations import api_get, api_post, api_put, api_delete
 from app.utils.authorizer import Authorizer
 from flask_login import current_user
+from app import limiter
+from app.api_v1.schemas import (
+    validate_payload,
+    IntegrationCreateSchema,
+    DeploymentCreateSchema,
+    DeploymentUpdateSchema,
+    DeploymentIdsSchema,
+)
 
 # -------------------------
 # Integration Endpoints
 # -------------------------
 
 @api.route("/integrations", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_integrations():
     response = api_get("integrations")
     return jsonify(response)
 
 @api.route("/integrations/<string:id>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_integration(id):
     response = api_get(f"integrations/{id}")
     return jsonify(response)
 
 @api.route("/integrations", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_integration():
-    data = request.get_json()
+    data, err = validate_payload(IntegrationCreateSchema, request.get_json())
+    if err:
+        return err
     response = api_post(f"integrations", payload=data)
     return jsonify(response)
 
@@ -36,6 +49,7 @@ def create_integration():
 # -------------------------
 
 @api.route("/tenants/<string:tenant_id>/deployments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_deployments(tenant_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -43,22 +57,29 @@ def list_deployments(tenant_id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def create_deployment(tenant_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
-    data = request.get_json()
+    data, err = validate_payload(DeploymentCreateSchema, request.get_json())
+    if err:
+        return err
     response = api_post(f"tenants/{tenant_id}/deployments", payload=data)
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:deployment_id>", methods=["PUT"])
+@limiter.limit("30 per minute")
 @login_required
 def update_deployment(tenant_id, deployment_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
-    data = request.get_json()
+    data, err = validate_payload(DeploymentUpdateSchema, request.get_json())
+    if err:
+        return err
     response = api_put(f"tenants/{tenant_id}/deployments/{deployment_id}", data)
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:id>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_deployment(tenant_id, id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -66,6 +87,7 @@ def get_deployment(tenant_id, id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:id>", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_deployment(tenant_id, id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -73,6 +95,7 @@ def delete_deployment(tenant_id, id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:id>/violations", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_violations_for_deployment(tenant_id, id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -80,6 +103,7 @@ def list_violations_for_deployment(tenant_id, id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:id>/jobs", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_jobs_for_deployment(tenant_id, id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -87,6 +111,7 @@ def list_jobs_for_deployment(tenant_id, id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/deployments/<string:deployment_id>/jobs", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def execute_manual_deployment(tenant_id, deployment_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -101,6 +126,7 @@ def execute_manual_deployment(tenant_id, deployment_id):
 # -------------------------
 
 @api.route("/tenants/<string:tenant_id>/jobs", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_jobs(tenant_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -110,6 +136,7 @@ def list_jobs(tenant_id):
     return jsonify(response)
 
 @api.route("/tenants/<string:tenant_id>/jobs/<string:job_id>", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_job(tenant_id, job_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -121,6 +148,7 @@ def get_job(tenant_id, job_id):
 # -------------------------
 
 @api.route("/tenants/<string:tenant_id>/violations", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def list_violations(tenant_id):
     Authorizer(current_user).can_user_manage_tenant(tenant_id)
@@ -132,6 +160,7 @@ def list_violations(tenant_id):
 # -------------------------
 
 @api.route("/init-integrations", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def deploy_integrations():
     response = api_post(f"init-integrations")
@@ -141,6 +170,7 @@ def deploy_integrations():
 # Project Endpoints
 # -------------------------
 @api.route("/projects/<string:id>/deployments", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def get_deployments_for_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
@@ -153,33 +183,27 @@ def get_deployments_for_project(id):
     return jsonify(deployments)
 
 @api.route("/projects/<string:id>/deployments", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def update_deployments_for_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
-    data = request.get_json()
-    if not data or 'deployment_ids' not in data:
-        return jsonify({'message': 'deployment_ids is required'}), 400
+    data, err = validate_payload(DeploymentIdsSchema, request.get_json())
+    if err:
+        return err
 
-    deployment_ids = data['deployment_ids']
-    if not isinstance(deployment_ids, list) or len(deployment_ids) == 0:
-        return jsonify({'message': 'deployment_ids must be a non-empty list'}), 400
-
-    payload = {"deployment_ids": deployment_ids}
+    payload = {"deployment_ids": data["deployment_ids"]}
     response = api_post(f"/projects/{id}/deployments", payload=payload)
     return jsonify(response)
 
 @api.route("/projects/<string:id>/deployments", methods=["DELETE"])
+@limiter.limit("30 per minute")
 @login_required
 def delete_deployment_from_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
-    data = request.get_json()
-    if not data or 'deployment_ids' not in data:
-        return jsonify({'message': 'deployment_ids is required'}), 400
+    data, err = validate_payload(DeploymentIdsSchema, request.get_json())
+    if err:
+        return err
 
-    deployment_ids = data['deployment_ids']
-    if not isinstance(deployment_ids, list) or len(deployment_ids) == 0:
-        return jsonify({'message': 'deployment_ids must be a non-empty list'}), 400
-
-    payload = {"deployment_ids": deployment_ids}
+    payload = {"deployment_ids": data["deployment_ids"]}
     response = api_delete(f"/projects/{id}/deployments", payload=payload)
     return jsonify(response)

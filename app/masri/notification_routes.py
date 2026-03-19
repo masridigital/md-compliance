@@ -16,6 +16,14 @@ import logging
 from flask import Blueprint, jsonify, request, abort
 from flask_login import current_user
 from app.utils.decorators import login_required
+from app import limiter
+from app.masri.schemas import (
+    validate_payload,
+    TestTeamsSchema,
+    TestEmailSchema,
+    SendNotificationSchema,
+    CheckRemindersSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +33,7 @@ notification_bp = Blueprint(
 
 
 @notification_bp.route("/test-teams", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def test_teams():
     """
@@ -35,12 +44,11 @@ def test_teams():
 
     Sends a test Microsoft Teams adaptive card notification.
     """
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(TestTeamsSchema, request.get_json(silent=True))
+    if err:
+        return err
     tenant_id = data.get("tenant_id")
     webhook_url = data.get("webhook_url")
-
-    if not tenant_id:
-        return jsonify({"error": "tenant_id is required"}), 400
 
     try:
         from app.masri.notification_engine import NotificationEngine
@@ -59,6 +67,7 @@ def test_teams():
 
 
 @notification_bp.route("/test-email", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def test_email():
     """
@@ -69,14 +78,11 @@ def test_email():
 
     Sends a test email notification.
     """
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(TestEmailSchema, request.get_json(silent=True))
+    if err:
+        return err
     tenant_id = data.get("tenant_id")
     recipient = data.get("recipient")
-
-    if not tenant_id:
-        return jsonify({"error": "tenant_id is required"}), 400
-    if not recipient:
-        return jsonify({"error": "recipient email is required"}), 400
 
     try:
         from app.masri.notification_engine import NotificationEngine
@@ -94,6 +100,7 @@ def test_email():
 
 
 @notification_bp.route("/send", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def send_notification():
     """
@@ -111,20 +118,15 @@ def send_notification():
 
     Sends a notification through the specified channel.
     """
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(SendNotificationSchema, request.get_json(silent=True))
+    if err:
+        return err
     tenant_id = data.get("tenant_id")
     channel = data.get("channel", "")
     subject = data.get("subject", "Notification")
     body = data.get("body", "")
     recipient = data.get("recipient")
     card_type = data.get("card_type", "general")
-
-    if not tenant_id:
-        return jsonify({"error": "tenant_id is required"}), 400
-    if not channel:
-        return jsonify({"error": "channel is required"}), 400
-    if channel not in ("teams", "email", "slack", "sms"):
-        return jsonify({"error": "channel must be teams, email, slack, or sms"}), 400
 
     try:
         from app.masri.notification_engine import NotificationEngine
@@ -164,6 +166,7 @@ def send_notification():
 
 
 @notification_bp.route("/logs", methods=["GET"])
+@limiter.limit("60 per minute")
 @login_required
 def notification_logs():
     """
@@ -202,6 +205,7 @@ def notification_logs():
 
 
 @notification_bp.route("/check-reminders", methods=["POST"])
+@limiter.limit("30 per minute")
 @login_required
 def check_reminders():
     """
@@ -212,11 +216,10 @@ def check_reminders():
 
     Manually triggers a due-date reminder check for the tenant.
     """
-    data = request.get_json(silent=True) or {}
+    data, err = validate_payload(CheckRemindersSchema, request.get_json(silent=True))
+    if err:
+        return err
     tenant_id = data.get("tenant_id")
-
-    if not tenant_id:
-        return jsonify({"error": "tenant_id is required"}), 400
 
     try:
         from app.masri.notification_engine import NotificationEngine

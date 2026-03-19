@@ -71,7 +71,7 @@ def create_default_users():
 
     default_user = current_app.config.get("DEFAULT_EMAIL", "admin@example.com")
     default_password = current_app.config.get("DEFAULT_PASSWORD", "admin1234567")
-    if not User.query.filter(User.email == default_user).first():
+    if not db.session.execute(db.select(User).filter(User.email == default_user)).scalars().first():
         user = User.add(
             default_user,
             password=default_password,
