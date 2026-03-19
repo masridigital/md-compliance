@@ -12,6 +12,16 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 
+def _validate_webhook_url(url: str, name: str = "webhook") -> None:
+    """Raise ValueError if URL is not a safe HTTPS URL (prevents SSRF)."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.scheme not in ("https",):
+        raise ValueError(f"{name} must use HTTPS (got: {parsed.scheme!r})")
+    if not parsed.netloc:
+        raise ValueError(f"{name} has no host")
+
+
 class NotificationEngine:
     """
     Multi-channel notification dispatcher.
@@ -117,6 +127,7 @@ class NotificationEngine:
     # ----- Channel senders -----
 
     def send_teams(self, webhook_url: str, card: dict) -> bool:
+        _validate_webhook_url(webhook_url, "Teams webhook URL")
         """POST Adaptive Card JSON to Teams webhook. Returns success bool."""
         import requests
         payload = {
@@ -165,6 +176,7 @@ class NotificationEngine:
             return False
 
     def send_slack(self, webhook_url: str, event_type: str, data: dict) -> bool:
+        _validate_webhook_url(webhook_url, "Slack webhook URL")
         """POST a formatted message to a Slack Incoming Webhook."""
         import requests
         text = self._build_slack_text(event_type, data)

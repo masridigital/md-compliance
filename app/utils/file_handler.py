@@ -285,8 +285,8 @@ class FileStorageHandler:
 
         try:
             if isinstance(file, str):
-                if not os.path.isfile(abs_path):
-                    raise ValueError(f"File not found:{abs_path}")
+                if not os.path.isfile(file):
+                    raise ValueError(f"File not found:{file}")
                 self.s3_client.upload_file(file, self.s3_bucket_name, abs_path)
             else:
                 self.s3_client.upload_fileobj(file, self.s3_bucket_name, abs_path)

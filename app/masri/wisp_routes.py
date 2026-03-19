@@ -192,6 +192,11 @@ def wisp_export_pdf(wisp_id):
     from app import db
 
     wisp = db.get_or_404(WISPDocument, wisp_id)
+    # Enforce tenant ownership — any authenticated user who knows the ID should not
+    # be able to access another tenant's WISP document
+    if wisp.tenant_id != current_user.tenant_id and not current_user.super:
+        from flask import abort as _abort
+        _abort(403, "Access denied")
     branding = _build_branding()
 
     export_dir = os.path.join(current_app.instance_path, "exports")
@@ -225,6 +230,11 @@ def wisp_export_docx(wisp_id):
     from app import db
 
     wisp = db.get_or_404(WISPDocument, wisp_id)
+    # Enforce tenant ownership — any authenticated user who knows the ID should not
+    # be able to access another tenant's WISP document
+    if wisp.tenant_id != current_user.tenant_id and not current_user.super:
+        from flask import abort as _abort
+        _abort(403, "Access denied")
     branding = _build_branding()
 
     export_dir = os.path.join(current_app.instance_path, "exports")
@@ -263,6 +273,11 @@ def wisp_sign(wisp_id):
     from app import db
 
     wisp = db.get_or_404(WISPDocument, wisp_id)
+    # Enforce tenant ownership — any authenticated user who knows the ID should not
+    # be able to access another tenant's WISP document
+    if wisp.tenant_id != current_user.tenant_id and not current_user.super:
+        from flask import abort as _abort
+        _abort(403, "Access denied")
 
     data, err = validate_payload(WISPSignSchema, request.get_json(silent=True))
     if err:
@@ -298,6 +313,11 @@ def wisp_versions(wisp_id):
     from app import db
 
     wisp = db.get_or_404(WISPDocument, wisp_id)
+    # Enforce tenant ownership — any authenticated user who knows the ID should not
+    # be able to access another tenant's WISP document
+    if wisp.tenant_id != current_user.tenant_id and not current_user.super:
+        from flask import abort as _abort
+        _abort(403, "Access denied")
 
     versions = (
         db.session.execute(
@@ -316,7 +336,7 @@ def wisp_versions(wisp_id):
                 "version": v.version,
                 "change_summary": v.change_summary,
                 "created_by_user_id": v.created_by_user_id,
-                "date_created": v.date_created.isoformat() if v.date_created else None,
+                "date_added": v.date_added.isoformat() if v.date_added else None,
             }
             for v in versions
         ],
@@ -345,6 +365,11 @@ def wisp_llm_generate(wisp_id):
     from app import db
 
     wisp = db.get_or_404(WISPDocument, wisp_id)
+    # Enforce tenant ownership — any authenticated user who knows the ID should not
+    # be able to access another tenant's WISP document
+    if wisp.tenant_id != current_user.tenant_id and not current_user.super:
+        from flask import abort as _abort
+        _abort(403, "Access denied")
 
     data, err = validate_payload(WISPLLMGenerateSchema, request.get_json(silent=True))
     if err:

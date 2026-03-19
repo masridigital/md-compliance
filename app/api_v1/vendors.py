@@ -45,7 +45,7 @@ def get_vendor(id):
 @login_required
 def create_vendor(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
-    data, err = validate_payload(VendorCreateSchema, request.get_json())
+    data, err = validate_payload(VendorCreateSchema, request.get_json(silent=True))
     if err:
         return err
     vendor = Vendor(
@@ -71,7 +71,7 @@ def create_vendor(id):
 def update_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data, err = validate_payload(VendorUpdateSchema, request.get_json())
+    data, err = validate_payload(VendorUpdateSchema, request.get_json(silent=True))
     if err:
         return err
     for field in [
@@ -106,7 +106,7 @@ def get_vendor_applications(id):
 def create_vendor_application(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data, err = validate_payload(VendorAppCreateSchema, request.get_json())
+    data, err = validate_payload(VendorAppCreateSchema, request.get_json(silent=True))
     if err:
         return err
     app = vendor.create_app(
@@ -154,15 +154,7 @@ def get_vendor_business_units(id):
     return jsonify(vendor.get_bus())
 
 
-@api.route("/tenants/<string:id>/vendors", methods=["GET"])
-@limiter.limit("60 per minute")
-@login_required
-def get_vendors_for_tenant(id):
-    result = Authorizer(current_user).can_user_access_tenant(id)
-    vendors = db.session.execute(db.select(Vendor).filter(
-        Vendor.tenant_id == result["extra"]["tenant"].id
-    )).scalars().all()
-    return jsonify([vendor.as_dict() for vendor in vendors])
+# Duplicate route removed — get_vendors (above) handles GET /tenants/<id>/vendors
 
 
 @api.route("/tenants/<string:id>/applications", methods=["GET"])
@@ -204,7 +196,7 @@ def get_risks_for_tenant(id):
 def update_notes_for_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
     vendor = result["extra"]["vendor"]
-    data, err = validate_payload(VendorNotesSchema, request.get_json())
+    data, err = validate_payload(VendorNotesSchema, request.get_json(silent=True))
     if err:
         return err
     vendor.notes = data.get("data")
@@ -217,7 +209,7 @@ def update_notes_for_vendor(id):
 @login_required
 def create_assessment_for_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    data, err = validate_payload(AssessmentCreateSchema, request.get_json())
+    data, err = validate_payload(AssessmentCreateSchema, request.get_json(silent=True))
     if err:
         return err
 
@@ -237,7 +229,7 @@ def create_assessment_for_vendor(id):
 def update_application(id):
     result = Authorizer(current_user).can_user_access_application(id)
     app = result["extra"]["application"]
-    data, err = validate_payload(ApplicationUpdateSchema, request.get_json())
+    data, err = validate_payload(ApplicationUpdateSchema, request.get_json(silent=True))
     if err:
         return err
     for key, value in data.items():
@@ -251,7 +243,7 @@ def update_application(id):
 @login_required
 def create_risk(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
-    data, err = validate_payload(TenantRiskCreateSchema, request.get_json())
+    data, err = validate_payload(TenantRiskCreateSchema, request.get_json(silent=True))
     if err:
         return err
     risk = result["extra"]["tenant"].create_risk(
@@ -277,12 +269,13 @@ def create_risk(id):
 @login_required
 def update_risk(tid, rid):
     result = Authorizer(current_user).can_user_manage_risk(rid)
-    data, err = validate_payload(TenantRiskUpdateSchema, request.get_json())
+    data, err = validate_payload(TenantRiskUpdateSchema, request.get_json(silent=True))
     if err:
         return err
     risk = result["extra"]["risk"]
 
     # Update the risk using the model's update method
+    print(data)
     risk.update(**data)
 
     # Add audit log entry
@@ -313,7 +306,7 @@ def delete_risk(tid, rid):
 def set_risk_managers_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    raw = request.get_json()
+    raw = request.get_json(silent=True)
     validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
     if err:
         return err
@@ -340,7 +333,7 @@ def set_risk_managers_for_tenant(id):
 def set_risk_viewers_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    raw = request.get_json()
+    raw = request.get_json(silent=True)
     validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
     if err:
         return err
@@ -367,7 +360,7 @@ def set_risk_viewers_for_tenant(id):
 def set_vendors_for_tenant(id):
     result = Authorizer(current_user).can_user_manage_tenant(id)
     tenant = result["extra"]["tenant"]
-    raw = request.get_json()
+    raw = request.get_json(silent=True)
     validated, err = validate_payload(EmailListSchema, {"emails": raw if isinstance(raw, list) else []})
     if err:
         return err

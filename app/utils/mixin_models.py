@@ -259,7 +259,7 @@ class ControlMixin(object):
         if only_applicable:
             _query = _query.filter(ProjectSubControl.is_applicable == True)
         if filter == "not_applicable":
-            _query = self.filter(ProjectSubControl.is_applicable == False)
+            _query = _query.filter(ProjectSubControl.is_applicable == False)
         for subcontrol in _query.all():
             if filter == "not_implemented":
                 if not subcontrol.is_implemented():

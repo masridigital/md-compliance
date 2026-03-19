@@ -1,10 +1,6 @@
 from flask import current_app, abort
 from app import models, db
-from itsdangerous import (
-    TimedJSONWebSignatureSerializer as Serializer,
-    BadSignature,
-    SignatureExpired,
-)
+from itsdangerous import URLSafeTimedSerializer as Serializer, BadSignature, SignatureExpired
 from sqlalchemy import or_
 import re
 
@@ -46,7 +42,7 @@ def verify_jwt(token):
         return False
     s = Serializer(current_app.config["SECRET_KEY"])
     try:
-        data = s.loads(token)
+        data = s.loads(token, max_age=86400, salt="jwt")
     except SignatureExpired:
         current_app.logger.warning("SignatureExpired while verifying JWT")
         return False
@@ -57,8 +53,8 @@ def verify_jwt(token):
 
 
 def generate_jwt(data={}, expiration=6000):
-    s = Serializer(current_app.config["SECRET_KEY"], expires_in=expiration)
-    return s.dumps(data).decode("utf-8")
+    s = Serializer(current_app.config["SECRET_KEY"])
+    return s.dumps(data, salt="jwt")
 
 
 def request_to_json(request):

@@ -234,7 +234,7 @@ def reset_password(token):
         Logs.add(
             message="invalid or missing token for password reset",
             level="warning",
-            user_id=user.id,
+            user_id=None,
         )
         flash("Missing or invalid token", "warning")
         return redirect(url_for("auth.reset_password_request"))

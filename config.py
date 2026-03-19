@@ -54,6 +54,13 @@ class Config:
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = False
+
+    # Session cookie hardening
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    # SESSION_COOKIE_SECURE is set dynamically in ProductionConfig
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SECURE = False  # overridden in ProductionConfig
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.googlemail.com")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
@@ -194,6 +201,8 @@ class Config:
 
 class ProductionConfig(Config):
     DEBUG = False
+    SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SECURE = True
 
     _secret = os.environ.get("SECRET_KEY", "")
     if not _secret or _secret == "change_secret_key":

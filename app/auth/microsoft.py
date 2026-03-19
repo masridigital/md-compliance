@@ -21,6 +21,9 @@ def microsoft_auth(flow):
     nonce = secrets.token_urlsafe(16)
     session["nonce"] = nonce
     session["flow_type"] = flow
+    # Mirror Google flow: persist invite token so authorize_with_microsoft can use it
+    if token := request.args.get("token"):
+        session["token"] = token
     redirect_uri = url_for(
         "auth.authorize_with_microsoft",
         _external=True,

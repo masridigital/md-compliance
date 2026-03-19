@@ -42,8 +42,15 @@ def encrypt_value(value: str, app=None) -> str:
 
 def decrypt_value(encrypted: str, app=None) -> str:
     """Decrypt a Fernet token back to plaintext."""
+    from cryptography.fernet import InvalidToken
     f = _get_fernet(app)
-    return f.decrypt(encrypted.encode()).decode()
+    try:
+        return f.decrypt(encrypted.encode()).decode()
+    except InvalidToken:
+        raise ValueError(
+            "Unable to decrypt stored value — key mismatch or data corruption. "
+            "Re-encrypt the setting after rotating SECRET_KEY."
+        )
 
 
 # ---------------------------------------------------------------------------
