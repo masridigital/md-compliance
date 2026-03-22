@@ -55,16 +55,35 @@ git clone https://github.com/masridigital/md-compliance.git
 cd md-compliance
 ```
 
-### 2. Run the setup wizard
+### 2. Configure your environment
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in at minimum:
+- `SECRET_KEY` — generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — choose strong values
+- `DEFAULT_PASSWORD` — the initial admin account password
+
+> **Required before `docker compose up`.** The app will refuse to start in production mode without a real `SECRET_KEY`.
+
+### 3. Run the setup wizard (recommended for production)
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-The wizard will ask for your domain name, set up a free SSL certificate via Let's Encrypt, generate your `.env`, configure nginx, and start the app automatically.
+The wizard will ask for your domain name, set up a free SSL certificate via Let's Encrypt, validate your `.env`, configure nginx, and start the app automatically.
 
-### 3. Log in
+**For local/development use only (no SSL, no nginx):**
+
+```bash
+docker compose up -d --build
+```
+
+### 4. Log in
 
 | Field | Value |
 |-------|-------|
