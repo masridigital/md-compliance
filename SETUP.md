@@ -76,8 +76,9 @@ chmod +x setup.sh
 The wizard will ask you:
 1. **Domain name** — e.g. `compliance.masridigital.com`
 2. **SSL** — whether to obtain a free Let's Encrypt certificate automatically
-3. **Email** — for SSL renewal notices
-4. **Admin credentials** — email address and password for the first login (written to `.env` and used on first start)
+3. **Verification method** — HTTP (port 80 must be open) or DNS TXT record (works behind firewalls)
+4. **Email** — for SSL renewal notices
+5. **Admin credentials** — email address and password for the first login (written to `.env` and used on first start)
 
 After it completes, your app is running at `https://your-domain.com`.
 
@@ -133,7 +134,7 @@ POSTGRES_PASSWORD=replace-with-a-strong-password
 | `SECRET_KEY` | *(required)* | Flask secret — used for session encryption and Fernet-encrypted settings |
 | `APP_NAME` | `MD Compliance` | Display name shown in the UI and emails |
 | `APP_PRIMARY_COLOR` | `#0066CC` | Brand hex color (overridable in Settings UI) |
-| `SUPPORT_EMAIL` | `support@masridigital.com` | Support contact shown in the UI |
+| `SUPPORT_EMAIL` | `inquiry@masridigital.com` | Support contact shown in the UI |
 | `APP_ENV` | `production` | `development` or `production` |
 | `PORT` | `8000` | HTTP port the app listens on |
 
@@ -493,28 +494,53 @@ Then schedule the reminder check externally:
 
 SSL is handled automatically when you run `./setup.sh` — you do not need to configure nginx or Certbot manually.
 
-### How it works
+### Verification methods
 
-1. `setup.sh` generates an nginx config for your domain at `nginx/conf.d/mdcompliance.conf`
-2. It starts nginx and runs Certbot in a temporary container to complete the ACME HTTP-01 challenge
+The wizard asks you to choose one:
+
+| Method | How it works | When to use |
+|--------|-------------|-------------|
+| **HTTP (webroot)** | Certbot places a challenge file on port 80 for Let's Encrypt to fetch | Default — use when port 80 is open |
+| **DNS TXT record** | You add a `_acme-challenge` TXT record to your DNS; the wizard shows you exactly what to add and waits for your confirmation before verifying | Use when port 80 is blocked by a firewall or proxy |
+
+### How it works (HTTP method)
+
+1. `setup.sh` generates a temporary HTTP nginx config for your domain
+2. It starts nginx and runs Certbot in a Docker container to complete the ACME HTTP-01 challenge
 3. Certificates are saved to `nginx/ssl/letsencrypt/`
-4. A persistent `certbot` container checks for renewal every 12 hours automatically
+4. nginx is reloaded with the full HTTPS config
+5. A persistent `certbot` container checks for renewal every 12 hours automatically
+
+### How it works (DNS TXT method)
+
+1. Certbot generates a unique TXT record value
+2. The wizard displays the exact `_acme-challenge.<domain>` TXT record to add to your DNS
+3. You add the record, wait for propagation (1–3 min), then press Enter
+4. Certbot verifies the record and issues the certificate
+5. Renewal requires re-running `./scripts/renew-ssl.sh --dns`
 
 ### Manual renewal
 
 ```bash
+# HTTP method (automated, non-interactive)
 ./scripts/renew-ssl.sh
+
+# DNS TXT method (interactive — you'll be prompted to add a TXT record)
+./scripts/renew-ssl.sh --dns
+
+# Check certificate expiry dates
+./scripts/renew-ssl.sh --status
 ```
 
 ### Check certificate expiry
 
 ```bash
-docker-compose exec certbot certbot certificates
+./scripts/renew-ssl.sh --status
 ```
 
 ### DNS requirements
 
-Before running `setup.sh`, make sure your domain's DNS A record points to your server's IP. Let's Encrypt will fail if DNS hasn't propagated. You can check with:
+Before running `setup.sh`, make sure your domain's DNS A record points to your server's IP. You can verify with:
 
 ```bash
 dig +short your-domain.com
@@ -527,8 +553,10 @@ Both should return the same IP address.
 
 | Port | Required for |
 |------|--------------|
-| 80 | Let's Encrypt ACME challenge + HTTP redirect to HTTPS |
+| 80 | HTTP verification method + HTTP→HTTPS redirect |
 | 443 | HTTPS traffic |
+
+> **Port 80 is only required for the HTTP verification method.** If you use the DNS TXT method, port 80 can remain closed during setup — though you'll still want 443 open for the app itself.
 
 On Ubuntu with UFW:
 ```bash
@@ -600,9 +628,9 @@ docker compose version   # should print v2.x
 
 ### SSL certificate fails
 
-Certbot requires that:
-- Port 80 is open and reachable from the internet
-- Your domain's DNS A record points to the server's public IP
+**HTTP method** — Certbot requires port 80 to be open and your domain's DNS A record to point to the server's public IP.
+
+**DNS TXT method** — Certbot requires you to add the displayed TXT record and wait for it to propagate before pressing Enter.
 
 Check DNS propagation:
 ```bash
@@ -610,9 +638,18 @@ dig +short your-domain.com    # should match your server IP
 curl https://api.ipify.org    # your server's public IP
 ```
 
-If DNS isn't ready, re-run the wizard after propagation:
+If the HTTP method fails because port 80 is blocked, re-run the wizard and choose option 2 (DNS TXT):
 ```bash
 ./setup.sh
+```
+
+To retry SSL only (without re-running the full setup):
+```bash
+# HTTP method
+./scripts/renew-ssl.sh
+
+# DNS TXT method
+./scripts/renew-ssl.sh --dns
 ```
 
 ### Database connection refused after update
@@ -627,4 +664,4 @@ docker-compose logs -f app
 
 ---
 
-*Questions? Email support@masridigital.com or open a GitHub issue.*
+*Questions? Email inquiry@masridigital.com or open a GitHub issue.*

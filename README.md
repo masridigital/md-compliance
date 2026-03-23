@@ -62,7 +62,7 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-The wizard will ask for your domain name, set up a free SSL certificate via Let's Encrypt, generate your `.env`, configure nginx, and start the app automatically.
+The wizard will ask for your domain name, your preferred SSL verification method (HTTP or DNS TXT record), set up a free Let's Encrypt certificate, generate your `.env`, configure nginx, and start the app automatically.
 
 ### 3. Log in
 
@@ -325,7 +325,7 @@ See [`SETUP.md`](SETUP.md) for full production deployment instructions including
 
 ## Support
 
-- **Email:** support@masridigital.com
+- **Email:** inquiry@masridigital.com
 - **Website:** [masridigital.com](https://masridigital.com)
 - **Internal Issues:** Open a GitHub issue in this repo
 

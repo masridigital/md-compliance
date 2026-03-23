@@ -42,7 +42,7 @@ def register_context_processors(app):
             "login_headline": "",
             "login_subheadline": "",
             "login_bg_color": "#F5F5F7",
-            "support_email": app.config.get("SUPPORT_EMAIL", "support@masridigital.com"),
+            "support_email": app.config.get("SUPPORT_EMAIL", "inquiry@masridigital.com"),
         }
 
         # --- Tenant-level overrides from database ---

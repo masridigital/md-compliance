@@ -177,7 +177,7 @@ def _build_branding() -> dict:
         "app_name": current_app.config.get("APP_NAME", "Masri Digital"),
         "logo_url": current_app.config.get("APP_LOGO_URL", "/static/img/logo.svg"),
         "primary_color": current_app.config.get("APP_PRIMARY_COLOR", "#0066CC"),
-        "support_email": current_app.config.get("SUPPORT_EMAIL", "support@masridigital.com"),
+        "support_email": current_app.config.get("SUPPORT_EMAIL", "inquiry@masridigital.com"),
     }
 
 
