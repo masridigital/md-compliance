@@ -288,10 +288,12 @@ def get_notification_channels():
     """GET /api/v1/settings/notifications — list channels, optionally by tenant."""
     tenant_id = request.args.get("tenant_id")
     if tenant_id:
-        from app.utils.authorizer import Authorizer
         auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
         if not auth_result["success"]:
             return jsonify({"error": "Unauthorized"}), 403
+    else:
+        # No tenant scope → platform-level config; requires platform admin.
+        _require_admin()
     try:
         channels = SettingsService.get_notification_channels(tenant_id=tenant_id)
         return jsonify([ch.as_dict() for ch in channels])
@@ -310,10 +312,12 @@ def update_notification_channel(channel):
         return err
     tenant_id = data.pop("tenant_id", None)
     if tenant_id:
-        from app.utils.authorizer import Authorizer
         auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
         if not auth_result["success"]:
             return jsonify({"error": "Unauthorized"}), 403
+    else:
+        # No tenant scope → platform-level config; requires platform admin.
+        _require_admin()
     try:
         record = SettingsService.update_notification_channel(
             channel, data, tenant_id=tenant_id
@@ -461,6 +465,7 @@ def delete_mcp_key(key_id):
 @login_required
 def get_entra_config():
     """GET /api/v1/settings/entra — return Entra config status (no raw credentials)."""
+    from flask import current_app
     _require_admin()
     record = db.session.execute(
         db.select(SettingsEntra).filter_by(tenant_id=None)
@@ -468,7 +473,6 @@ def get_entra_config():
 
     if record is None:
         # Check env var fallback so the UI can show what source is active
-        from flask import current_app
         has_env = all([
             current_app.config.get("ENTRA_TENANT_ID"),
             current_app.config.get("ENTRA_CLIENT_ID"),

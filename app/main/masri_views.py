@@ -81,7 +81,7 @@ def vendors():
 
 @main.route("/settings", methods=["GET"])
 @login_required
-def settings():
+def masri_settings():
     """Settings hub (macOS-style settings page)."""
     return render_template("management/settings_masri.html")
 

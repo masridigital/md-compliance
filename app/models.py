@@ -1,6 +1,7 @@
 from sqlalchemy import func, distinct, case
 from sqlalchemy.orm import validates
 from app.masri.settings_service import EncryptedText
+import hashlib
 from app.utils.mixin_models import (
     DateMixin,
     SubControlMixin,
@@ -674,16 +675,16 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    name = db.Column(EncryptedText, nullable=False)
+    name = db.Column(db.String, nullable=False)  # plaintext — used in SQL queries and display
     logo_ref = db.Column(db.String())
-    contact_email = db.Column(EncryptedText)
+    contact_email = db.Column(EncryptedText)  # encrypted — PII
     license = db.Column(
         db.String(),
         server_default="gold",
         info={"authorizer": {"update": Authorizer.can_user_manage_platform}},
     )
     is_default = db.Column(db.Boolean(), default=False)
-    approved_domains = db.Column(EncryptedText)
+    approved_domains = db.Column(db.String())  # plaintext — used for domain-matching auth logic
     magic_link_login = db.Column(db.Boolean(), default=False)
     ai_enabled = db.Column(db.Boolean(), default=True)
     ai_token_usage = db.Column(db.Integer(), default=0)
@@ -3153,14 +3154,20 @@ class RiskComment(db.Model):
 
 class RiskRegister(db.Model):
     __tablename__ = "risk_register"
-    __table_args__ = (db.UniqueConstraint("title", "tenant_id"),)
+    # Uniqueness is enforced via title_hash (deterministic SHA-256 of title+tenant_id)
+    # so that the title column itself can be Fernet-encrypted (non-deterministic).
+    __table_args__ = (db.UniqueConstraint("title_hash", "tenant_id", name="uq_risk_title_hash_tenant"),)
     id = db.Column(
         db.String,
         primary_key=True,
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    title = db.Column(db.String, nullable=False)  # not encrypted — part of UniqueConstraint
+    # title_hash: deterministic SHA-256(title.lower() + "|" + tenant_id) for uniqueness checks.
+    # Never expose this column to the client — it reveals nothing about the plaintext title
+    # but it allows the DB to enforce per-tenant uniqueness without requiring plaintext storage.
+    title_hash = db.Column(db.String(64), nullable=True)
+    title = db.Column(EncryptedText, nullable=False)
     description = db.Column(EncryptedText, default="No description")
     remediation = db.Column(EncryptedText)
     enabled = db.Column(db.Boolean(), default=True)
@@ -3190,8 +3197,29 @@ class RiskRegister(db.Model):
     ALLOWED_PRIORITY = ["unknown", "low", "moderate", "high"]
     ALLOWED_STATUS = ["new", "in_progress", "accepted", "mitigated"]
 
+    @staticmethod
+    def _compute_title_hash(title: str, tenant_id: str) -> str:
+        """SHA-256(title.lower() + '|' + tenant_id) — deterministic, safe to index."""
+        raw = f"{title.lower()}|{tenant_id or ''}".encode()
+        return hashlib.sha256(raw).hexdigest()
+
+    @validates("title")
+    def _set_title_hash_on_title(self, key, value):
+        """Keep title_hash in sync whenever title is set."""
+        if value and self.tenant_id:
+            self.title_hash = self._compute_title_hash(value, self.tenant_id)
+        return value
+
+    @validates("tenant_id")
+    def _set_title_hash_on_tenant(self, key, value):
+        """Recompute title_hash when tenant_id is set (handles construction order)."""
+        if value and self.title:
+            self.title_hash = self._compute_title_hash(self.title, value)
+        return value
+
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data.pop("title_hash", None)  # internal deduplication aid — never expose to clients
         data["scope"] = "tenant"
         parsed_date = arrow.get(self.date_added)
         data["created_at"] = parsed_date.format("MMM D, YYYY")

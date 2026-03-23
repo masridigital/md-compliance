@@ -4,19 +4,27 @@ Masri Digital Compliance Platform — Settings Service Layer
 Centralised service for reading/writing platform settings, tenant branding,
 storage configs, LLM configs, due dates, and MCP API keys.
 
-All encryption uses Fernet derived from Flask SECRET_KEY.
+All encryption uses Fernet derived from Flask SECRET_KEY via PBKDF2-HMAC-SHA256.
 """
 
 import json
 import base64
 import hashlib
+import hmac
 import logging
 from datetime import datetime, timedelta
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 from sqlalchemy import Text
 from sqlalchemy.types import TypeDecorator
 
 logger = logging.getLogger(__name__)
+
+# Fixed application-level salt — NOT secret, just ensures key space separation.
+# Never changes between deployments so key rotation (SECRET_KEY change) works predictably.
+_KDF_SALT = b"masri-digital-compliance-v1-salt"
+_KDF_ITERATIONS = 260_000  # OWASP 2023 minimum for PBKDF2-HMAC-SHA256
 
 
 # ---------------------------------------------------------------------------
@@ -25,14 +33,26 @@ logger = logging.getLogger(__name__)
 
 def _get_fernet(app=None):
     """
-    Derive a Fernet key from the Flask SECRET_KEY.
+    Derive a Fernet key from the Flask SECRET_KEY using PBKDF2-HMAC-SHA256.
 
-    Fernet requires a URL-safe base64 32-byte key. We SHA-256 the SECRET_KEY
-    to guarantee exactly 32 bytes, then base64-encode it.
+    Fernet requires a URL-safe base64 32-byte key.  Using a proper KDF (not
+    raw SHA-256) means:
+      - Key space is fully utilised regardless of SECRET_KEY length/entropy.
+      - Multiple invocations with the same SECRET_KEY always produce the
+        same Fernet key → deterministic, no per-call state needed.
     """
     from flask import current_app
-    secret = (app or current_app).config["SECRET_KEY"].encode()
-    key = base64.urlsafe_b64encode(hashlib.sha256(secret).digest())
+    secret = (app or current_app).config["SECRET_KEY"]
+    if isinstance(secret, str):
+        secret = secret.encode()
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=_KDF_SALT,
+        iterations=_KDF_ITERATIONS,
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(secret))
     return Fernet(key)
 
 
@@ -44,35 +64,38 @@ def encrypt_value(value: str, app=None) -> str:
 
 def decrypt_value(encrypted: str, app=None) -> str:
     """Decrypt a Fernet token back to plaintext."""
-    from cryptography.fernet import InvalidToken
     f = _get_fernet(app)
     try:
         return f.decrypt(encrypted.encode()).decode()
     except InvalidToken:
         raise ValueError(
-            "Unable to decrypt stored value — key mismatch or data corruption. "
-            "Re-encrypt the setting after rotating SECRET_KEY."
+            "Unable to decrypt value — key mismatch or data corruption. "
+            "If SECRET_KEY was rotated, re-encrypt data with the new key."
         )
 
 
 def is_encrypted(value: str) -> bool:
     """
-    Return True if ``value`` looks like a Fernet token.
+    Return True if *value* is a valid Fernet token produced by this app.
 
-    Fernet tokens are URL-safe base64 and always start with the version byte
-    (0x80) which encodes to ``gA`` in base64. All real tokens are much longer
-    than 32 characters, so a quick length + prefix check is a reliable heuristic.
+    Fernet token structure (before base64):
+      version(1) | timestamp(8) | iv(16) | ciphertext(>=0) | hmac(32)
+
+    Minimum raw bytes = 1+8+16+0+32 = 57 → minimum base64 length = 76 chars.
+    All tokens start with 0x80 (version byte) → first base64 char is 'g',
+    second is 'A', 'B', 'C' or 'D' (only top 2 bits of second byte matter).
+    We fully decode the base64 to confirm valid padding and structure, which
+    eliminates false positives from arbitrary plaintext starting with 'gA'.
     """
     if not value or not isinstance(value, str):
         return False
-    if len(value) < 32:
+    if len(value) < 76:
         return False
     try:
-        import base64 as _b64
-        raw = _b64.urlsafe_b64decode(value[:4] + "==")
-        return raw[0] == 0x80
+        raw = base64.urlsafe_b64decode(value.encode())
     except Exception:
         return False
+    return len(raw) >= 57 and raw[0] == 0x80
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +133,7 @@ class EncryptedText(TypeDecorator):
         if value is None:
             return value
         value = str(value)
-        # Already encrypted (e.g. value passed through twice) — don't double-encrypt.
+        # Already encrypted — don't double-encrypt.
         if is_encrypted(value):
             return value
         return encrypt_value(value)
@@ -124,10 +147,14 @@ class EncryptedText(TypeDecorator):
             return value
         try:
             return decrypt_value(value)
-        except Exception:
-            # Key rotation or corruption: surface the raw token rather than crashing.
-            logger.warning("EncryptedText: failed to decrypt value, returning raw token.")
+        except (InvalidToken, ValueError) as exc:
+            # Key rotation or corruption: log and return the raw token rather than crashing.
+            logger.warning("EncryptedText: failed to decrypt column value: %s", exc)
             return value
+        except Exception as exc:
+            # Unexpected error — re-raise so real bugs aren't silently swallowed.
+            logger.error("EncryptedText: unexpected decryption error: %s", exc)
+            raise
 
 
 # ---------------------------------------------------------------------------

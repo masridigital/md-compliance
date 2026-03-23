@@ -715,7 +715,7 @@ class MCPAPIKey(db.Model):
         Returns:
             tuple[MCPAPIKey, str]: Model instance and the raw key (shown once).
         """
-        raw_key = f"mcp_{secrets.token_urlsafe(32)}"
+        raw_key = f"mcp_{secrets.token_urlsafe(64)}"
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
         key_prefix = raw_key[:8]
 

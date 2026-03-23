@@ -51,9 +51,8 @@ def _get_entra_client():
 
         if not all([tenant_id, client_id, client_secret]):
             raise RuntimeError(
-                "Entra ID not configured. Either save credentials via "
-                "POST /api/v1/settings/entra, or set ENTRA_TENANT_ID, "
-                "ENTRA_CLIENT_ID, and ENTRA_CLIENT_SECRET in your .env."
+                "Microsoft Entra ID is not configured. "
+                "Contact your platform administrator."
             )
 
         creds = {
