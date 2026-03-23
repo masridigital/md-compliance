@@ -304,13 +304,17 @@ class SettingsService:
 
         safe_fields = {"provider", "model_name", "azure_endpoint",
                         "azure_deployment", "ollama_base_url", "enabled",
-                        "token_budget_per_tenant", "rate_limit_per_hour"}
+                        "token_budget_per_tenant", "rate_limit_per_hour",
+                        "llm_client_id"}
         for key, value in data.items():
             if key in safe_fields:
                 setattr(llm, key, value)
 
         if "api_key" in data and data["api_key"]:
             llm.set_api_key(data["api_key"])
+
+        if "llm_client_secret" in data and data["llm_client_secret"]:
+            llm.set_client_secret(data["llm_client_secret"])
 
         db.session.commit()
         return llm
@@ -525,12 +529,18 @@ class SettingsService:
         return record.get_credentials()
 
     @staticmethod
-    def update_entra_config(entra_tenant_id: str, client_id: str, client_secret: str):
+    def update_entra_config(entra_tenant_id: str, client_id: str, client_secret: str,
+                            multi_tenant: bool = False):
         """
         Create or update the platform-level Entra credential record.
 
-        All three values are Fernet-encrypted before storage.
+        All three credential values are Fernet-encrypted before storage.
         Pass an empty string for client_secret to leave it unchanged.
+
+        Args:
+            multi_tenant: When True the integration uses the /common authority
+                so clients from any Azure AD tenant can authenticate with the
+                same app registration.
 
         Returns:
             SettingsEntra instance.
@@ -546,7 +556,13 @@ class SettingsService:
             record = SettingsEntra()
             db.session.add(record)
 
-        record.set_credentials(entra_tenant_id, client_id, client_secret)
+        if client_secret == "__preserve__":
+            # Keep the existing encrypted secret; only update the other fields.
+            record.entra_tenant_id_enc = _encrypt(entra_tenant_id)
+            record.entra_client_id_enc = _encrypt(client_id)
+        else:
+            record.set_credentials(entra_tenant_id, client_id, client_secret)
+        record.multi_tenant = bool(multi_tenant)
         record.enabled = True
         db.session.commit()
         return record

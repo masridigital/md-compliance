@@ -193,6 +193,8 @@ class SettingsLLM(db.Model):
     )
     provider = db.Column(db.String, default="openai")
     api_key_enc = db.Column(db.Text)  # Fernet encrypted
+    llm_client_id = db.Column(db.String)           # OAuth2 client ID (optional)
+    llm_client_secret_enc = db.Column(db.Text)     # Fernet encrypted client secret
     model_name = db.Column(db.String, default="gpt-4o")
     azure_endpoint = db.Column(db.String)
     azure_deployment = db.Column(db.String)
@@ -219,11 +221,21 @@ class SettingsLLM(db.Model):
             return None
         return _decrypt(self.api_key_enc)
 
+    def set_client_secret(self, raw_secret: str):
+        self.llm_client_secret_enc = _encrypt(raw_secret)
+
+    def get_client_secret(self) -> str:
+        if not self.llm_client_secret_enc:
+            return None
+        return _decrypt(self.llm_client_secret_enc)
+
     def as_dict(self):
-        """Never expose api_key_enc."""
+        """Never expose encrypted fields."""
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         data.pop("api_key_enc", None)
+        data.pop("llm_client_secret_enc", None)
         data["has_api_key"] = bool(self.api_key_enc)
+        data["has_client_secret"] = bool(self.llm_client_secret_enc)
         return data
 
 
@@ -630,6 +642,7 @@ class SettingsEntra(db.Model):
     entra_tenant_id_enc = db.Column(db.Text)
     entra_client_id_enc = db.Column(db.Text)
     entra_client_secret_enc = db.Column(db.Text)
+    multi_tenant = db.Column(db.Boolean, default=False)  # use /common authority
     enabled = db.Column(db.Boolean, default=True)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -642,16 +655,17 @@ class SettingsEntra(db.Model):
 
     def get_credentials(self) -> dict:
         """
-        Decrypt and return all three credential fields.
+        Decrypt and return all three credential fields plus multi_tenant flag.
 
         Returns:
             dict with keys 'entra_tenant_id', 'client_id', 'client_secret',
-            or None values for any field that hasn't been set.
+            'multi_tenant', or None values for any credential not yet set.
         """
         return {
             "entra_tenant_id": _decrypt(self.entra_tenant_id_enc) if self.entra_tenant_id_enc else None,
             "client_id": _decrypt(self.entra_client_id_enc) if self.entra_client_id_enc else None,
             "client_secret": _decrypt(self.entra_client_secret_enc) if self.entra_client_secret_enc else None,
+            "multi_tenant": bool(self.multi_tenant),
         }
 
     def is_fully_configured(self) -> bool:
@@ -667,6 +681,7 @@ class SettingsEntra(db.Model):
         return {
             "id": self.id,
             "tenant_id": self.tenant_id,
+            "multi_tenant": bool(self.multi_tenant),
             "enabled": self.enabled,
             "has_entra_tenant_id": bool(self.entra_tenant_id_enc),
             "has_client_id": bool(self.entra_client_id_enc),

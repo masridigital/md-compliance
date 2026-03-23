@@ -80,6 +80,7 @@
   .settings-nav-icon-sso { background: #FDE8D4; color: #B55A00; }
   .settings-nav-icon-notifications { background: #FFE5E5; color: #CC0000; }
   .settings-nav-icon-apikeys { background: #FFF4E5; color: #7D4A00; }
+  .settings-nav-icon-entra { background: #D4E8FB; color: #004A9F; }
 
   /* Right Content Panel */
   .settings-content {
@@ -377,6 +378,12 @@
               @click="activeSection = 'apikeys'">
         <span class="settings-nav-icon settings-nav-icon-apikeys"><i class="ti ti-key"></i></span>
         API Keys
+      </button>
+
+      <button class="settings-nav-item" :class="{ 'is-active': activeSection === 'entra' }"
+              @click="activeSection = 'entra'; loadEntra()">
+        <span class="settings-nav-icon settings-nav-icon-entra"><i class="ti ti-brand-azure"></i></span>
+        Entra ID
       </button>
     </div>
 
@@ -767,6 +774,21 @@
               <div class="settings-form-hint">Your API key is encrypted at rest and never exposed in the UI.</div>
             </div>
 
+            <div class="settings-form-row">
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client ID <span style="font-weight:400; color: var(--text-tertiary);">(optional)</span></label>
+                <input type="text" class="md-input" x-model="llm.llm_client_id"
+                       placeholder="OAuth2 client ID">
+                <div class="settings-form-hint">Required by some providers (Azure AD, custom OAuth2 endpoints).</div>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-form-label">Client Secret <span style="font-weight:400; color: var(--text-tertiary);">(optional)</span></label>
+                <input type="password" class="md-input" x-model="llm.llm_client_secret"
+                       :placeholder="llm.has_client_secret ? '••••••••' : 'OAuth2 client secret'">
+                <div class="settings-form-hint">Encrypted at rest. Leave blank to keep the current secret.</div>
+              </div>
+            </div>
+
             <!-- Azure OpenAI conditional fields -->
             <template x-if="llm.provider === 'azure_openai'">
               <div>
@@ -1149,8 +1171,28 @@
            ============================================================ -->
       <div x-show="activeSection === 'apikeys'" x-cloak>
         <div class="settings-content-header">
-          <h2>API Keys</h2>
-          <p>Manage MCP API keys for external integrations and programmatic access.</p>
+          <h2>API Keys &amp; MCP Server</h2>
+          <p>Connect AI assistants and external tools to this platform via the public MCP endpoint.</p>
+        </div>
+
+        <!-- MCP Connection Info -->
+        <div class="settings-section-card" style="margin-bottom: var(--space-lg);">
+          <h3 style="margin: 0 0 var(--space-sm) 0; font-size: var(--font-body); font-weight: 600;">MCP Server Endpoint</h3>
+          <p style="margin: 0 0 var(--space-md) 0; font-size: var(--font-small); color: var(--text-secondary);">
+            Connect any MCP-compatible AI client (Claude Desktop, Cursor, Continue, custom apps) directly to this platform from anywhere.
+          </p>
+          <div style="display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md);">
+            <code style="flex: 1; background: var(--surface-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; word-break: break-all;"
+                  x-text="window.location.origin + '/mcp/v1'"></code>
+            <button class="md-btn md-btn-secondary md-btn-sm" style="flex-shrink: 0;"
+                    @click="navigator.clipboard.writeText(window.location.origin + '/mcp/v1').then(() => Alpine.store('app').showToast('Copied', 'success'))">
+              <i class="ti ti-copy" style="font-size: 15px;"></i>
+            </button>
+          </div>
+          <div class="md-alert md-alert-block" style="font-size: var(--font-small); margin: 0;">
+            <i class="ti ti-info-circle" style="font-size: 15px; flex-shrink: 0;"></i>
+            <span>Authentication: <code style="background: none; padding: 0;">Authorization: Bearer &lt;your-api-key&gt;</code> header. Generate a key below and add it to your client config.</span>
+          </div>
         </div>
 
         <div class="settings-section-card">
@@ -1213,6 +1255,97 @@
             <i class="ti ti-key-off" style="font-size: 36px; color: var(--text-tertiary); margin-bottom: var(--space-md);"></i>
             <h3>No API Keys</h3>
             <p>Generate your first API key to enable programmatic access to the platform.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ENTRA ID
+           ============================================================ -->
+      <div x-show="activeSection === 'entra'" x-cloak>
+        <div class="settings-content-header">
+          <h2>Microsoft Entra ID</h2>
+          <p>Connect to Microsoft Graph API for user lists, MFA status, conditional access, and Intune posture.</p>
+        </div>
+
+        <div class="settings-section-card" style="margin-bottom: var(--space-lg);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
+            <div>
+              <span class="settings-form-label" style="margin-bottom: 4px;">Multi-Tenant App Registration</span>
+              <div class="settings-form-hint" style="margin-top: 2px;">When enabled, the platform uses the <code>/common</code> authority so clients from <em>any</em> Azure AD tenant can authenticate with the same app registration. Set your app registration to <strong>Accounts in any organizational directory</strong> in Azure.</div>
+            </div>
+            <label class="md-toggle" style="flex-shrink: 0; margin-left: var(--space-md);">
+              <input type="checkbox" x-model="entra.multi_tenant">
+              <span class="md-toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="settings-form-row">
+            <div class="settings-form-group">
+              <label class="settings-form-label">Tenant ID <span x-show="entra.multi_tenant" style="font-weight: 400; color: var(--text-tertiary);">(your own tenant)</span></label>
+              <input type="text" class="md-input" x-model="entra.entra_tenant_id"
+                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              <div class="settings-form-hint">Directory (tenant) ID from your Azure app registration.</div>
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-form-label">Client ID</label>
+              <input type="text" class="md-input" x-model="entra.client_id"
+                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              <div class="settings-form-hint">Application (client) ID from your Azure app registration.</div>
+            </div>
+          </div>
+
+          <div class="settings-form-group">
+            <label class="settings-form-label">Client Secret</label>
+            <input type="password" class="md-input" x-model="entra.client_secret"
+                   :placeholder="entra.has_client_secret ? '••••••••  (saved — leave blank to keep)' : 'Paste your client secret value'">
+            <div class="settings-form-hint">Encrypted at rest. Leave blank to keep the currently saved secret.</div>
+          </div>
+
+          <template x-if="entra.source === 'env_vars'">
+            <div class="md-alert md-alert-block" style="margin-bottom: var(--space-md); font-size: var(--font-small);">
+              <i class="ti ti-info-circle" style="font-size: 15px; flex-shrink: 0;"></i>
+              <span>Credentials are currently loaded from environment variables. Saving here will store them in the database and take precedence.</span>
+            </div>
+          </template>
+
+          <div class="settings-save-row" style="display: flex; gap: var(--space-sm); align-items: center;">
+            <button class="md-btn md-btn-primary" @click="saveEntra()" :disabled="saving.entra">
+              <span x-show="!saving.entra">Save Entra Settings</span>
+              <span x-show="saving.entra"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+            <button class="md-btn md-btn-ghost" style="color: var(--text-secondary);"
+                    @click="testEntra()" :disabled="saving.entraTest">
+              <i class="ti ti-plug" style="font-size: 16px;"></i>
+              <span x-show="!saving.entraTest">Test Connection</span>
+              <span x-show="saving.entraTest"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
+            </button>
+            <button class="md-btn md-btn-ghost" style="color: var(--danger);"
+                    @click="deleteEntra()" x-show="entra.is_fully_configured">
+              Remove Credentials
+            </button>
+          </div>
+        </div>
+
+        <!-- Required permissions info -->
+        <div class="settings-section-card">
+          <h3 style="margin: 0 0 var(--space-sm) 0; font-size: var(--font-body); font-weight: 600;">Required Graph API Permissions</h3>
+          <p style="margin: 0 0 var(--space-md) 0; font-size: var(--font-small); color: var(--text-secondary);">
+            Add these <strong>Application</strong> permissions in Azure Portal → App registrations → API permissions, then click <em>Grant admin consent</em>.
+          </p>
+          <table class="md-table" style="font-size: var(--font-small);">
+            <thead><tr><th>Permission</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>User.Read.All</code></td><td>List directory users</td></tr>
+              <tr><td><code>Policy.Read.All</code></td><td>Conditional access policies</td></tr>
+              <tr><td><code>Reports.Read.All</code></td><td>MFA registration reports</td></tr>
+              <tr><td><code>DeviceManagementManagedDevices.Read.All</code></td><td>Intune device compliance (optional)</td></tr>
+            </tbody>
+          </table>
+          <div class="md-alert md-alert-block" style="margin-top: var(--space-md); font-size: var(--font-small);">
+            <i class="ti ti-info-circle" style="font-size: 15px; flex-shrink: 0;"></i>
+            <span x-show="!entra.multi_tenant">For a <strong>single-tenant</strong> app registration, set <em>Supported account types</em> to <strong>Accounts in this organizational directory only</strong>.</span>
+            <span x-show="entra.multi_tenant">For a <strong>multi-tenant</strong> app registration, set <em>Supported account types</em> to <strong>Accounts in any organizational directory</strong>. This lets any client's Azure AD tenant authenticate with the same app.</span>
           </div>
         </div>
       </div>
@@ -1284,6 +1417,7 @@ function settingsHub() {
     mcpKeys: [],
     newKeyName: '',
     newKeyRaw: null,
+    entra: { multi_tenant: false, entra_tenant_id: '', client_id: '', client_secret: '' },
 
     /* Saving flags */
     saving: {
@@ -1300,7 +1434,9 @@ function settingsHub() {
       notif_email: false,
       notif_slack: false,
       notif_sms: false,
-      generateKey: false
+      generateKey: false,
+      entra: false,
+      entraTest: false
     },
 
     /* ── Lifecycle ── */
@@ -1484,6 +1620,62 @@ function settingsHub() {
           Alpine.store('app').showToast('Failed to copy', 'error');
         });
       }
+    },
+
+    /* ── Entra ID ── */
+    loadEntra() {
+      request('GET', '/api/v1/settings/entra', (data) => {
+        this.entra = Object.assign({ entra_tenant_id: '', client_id: '', client_secret: '' }, data || {});
+      }, () => {});
+    },
+
+    saveEntra() {
+      if (!this.entra.entra_tenant_id || !this.entra.client_id) {
+        Alpine.store('app').showToast('Tenant ID and Client ID are required', 'error');
+        return;
+      }
+      if (!this.entra.has_client_secret && !this.entra.client_secret) {
+        Alpine.store('app').showToast('Client Secret is required', 'error');
+        return;
+      }
+      this.saving.entra = true;
+      const payload = {
+        entra_tenant_id: this.entra.entra_tenant_id,
+        client_id: this.entra.client_id,
+        multi_tenant: this.entra.multi_tenant,
+      };
+      if (this.entra.client_secret) payload.client_secret = this.entra.client_secret;
+      else payload.client_secret = '__keep__';
+      request('POST', '/api/v1/settings/entra', (data) => {
+        this.saving.entra = false;
+        this.entra = Object.assign(this.entra, data || {});
+        this.entra.client_secret = '';
+        Alpine.store('app').showToast('Entra settings saved', 'success');
+      }, () => {
+        this.saving.entra = false;
+        Alpine.store('app').showToast('Failed to save Entra settings', 'error');
+      }, payload);
+    },
+
+    testEntra() {
+      this.saving.entraTest = true;
+      request('POST', '/api/v1/entra/test', (data) => {
+        this.saving.entraTest = false;
+        Alpine.store('app').showToast('Connection successful', 'success');
+      }, (err) => {
+        this.saving.entraTest = false;
+        Alpine.store('app').showToast('Connection failed — check credentials', 'error');
+      }, {});
+    },
+
+    deleteEntra() {
+      if (!confirm('Remove stored Entra credentials? The integration will fall back to environment variables if configured.')) return;
+      request('DELETE', '/api/v1/settings/entra', () => {
+        this.entra = { multi_tenant: false, entra_tenant_id: '', client_id: '', client_secret: '' };
+        Alpine.store('app').showToast('Entra credentials removed', 'success');
+      }, () => {
+        Alpine.store('app').showToast('Failed to remove Entra credentials', 'error');
+      });
     },
 
     /* ── Helpers ── */

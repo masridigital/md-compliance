@@ -65,6 +65,7 @@ def _get_entra_client():
         tenant_id=creds["entra_tenant_id"],
         client_id=creds["client_id"],
         client_secret=creds["client_secret"],
+        multi_tenant=creds.get("multi_tenant", False),
     )
 
 

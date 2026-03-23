@@ -512,12 +512,28 @@ def update_entra_config():
     entra_tenant_id = data.get("entra_tenant_id", "").strip()
     client_id = data.get("client_id", "").strip()
     client_secret = data.get("client_secret", "").strip()
+    multi_tenant = bool(data.get("multi_tenant", False))
 
-    if not all([entra_tenant_id, client_id, client_secret]):
-        return jsonify({"error": "entra_tenant_id, client_id, and client_secret are all required"}), 400
+    if not all([entra_tenant_id, client_id]):
+        return jsonify({"error": "entra_tenant_id and client_id are required"}), 400
+
+    # '__keep__' sentinel means "don't change the stored secret"
+    if client_secret == "__keep__":
+        existing = db.session.execute(
+            db.select(SettingsEntra).filter_by(tenant_id=None)
+        ).scalars().first()
+        if existing and existing.entra_client_secret_enc:
+            client_secret = "__preserve__"  # signal service to skip re-encryption
+        else:
+            return jsonify({"error": "client_secret is required"}), 400
+
+    if not client_secret:
+        return jsonify({"error": "client_secret is required"}), 400
 
     try:
-        record = SettingsService.update_entra_config(entra_tenant_id, client_id, client_secret)
+        record = SettingsService.update_entra_config(
+            entra_tenant_id, client_id, client_secret, multi_tenant=multi_tenant
+        )
         return jsonify(record.as_dict())
     except Exception:
         logger.exception("Error saving Entra credentials")

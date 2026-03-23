@@ -14,11 +14,36 @@ import logging
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Blueprint, jsonify, request, abort
+from flask import Blueprint, jsonify, request, abort, make_response
 
 logger = logging.getLogger(__name__)
 
 mcp_bp = Blueprint("mcp", __name__, url_prefix="/mcp/v1")
+
+_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "86400",
+}
+
+
+@mcp_bp.after_request
+def _add_cors(response):
+    """Attach CORS headers to every MCP response so remote clients can connect."""
+    for header, value in _CORS_HEADERS.items():
+        response.headers[header] = value
+    return response
+
+
+@mcp_bp.route("/tools", methods=["OPTIONS"])
+@mcp_bp.route("/tools/<path:tool_name>", methods=["OPTIONS"])
+def _cors_preflight(**kwargs):
+    """Handle CORS preflight requests from browser-based MCP clients."""
+    resp = make_response("", 204)
+    for header, value in _CORS_HEADERS.items():
+        resp.headers[header] = value
+    return resp
 
 
 # ---------------------------------------------------------------------------

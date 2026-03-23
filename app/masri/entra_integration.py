@@ -29,10 +29,12 @@ class EntraIntegration:
     GRAPH_BASE = "https://graph.microsoft.com/v1.0"
     AUTHORITY_BASE = "https://login.microsoftonline.com"
 
-    def __init__(self, tenant_id: str, client_id: str, client_secret: str):
+    def __init__(self, tenant_id: str, client_id: str, client_secret: str,
+                 multi_tenant: bool = False):
         self.tenant_id = tenant_id
         self.client_id = client_id
         self.client_secret = client_secret
+        self.multi_tenant = multi_tenant
         self._token_cache = None
 
     def _get_access_token(self) -> str:
@@ -45,7 +47,10 @@ class EntraIntegration:
                 "Install with: pip install msal"
             )
 
-        authority = f"{self.AUTHORITY_BASE}/{self.tenant_id}"
+        # Multi-tenant app registrations use /common so any Azure AD tenant works.
+        # Single-tenant registrations must use the specific tenant ID.
+        authority_segment = "common" if self.multi_tenant else self.tenant_id
+        authority = f"{self.AUTHORITY_BASE}/{authority_segment}"
         app = msal.ConfidentialClientApplication(
             self.client_id,
             authority=authority,
