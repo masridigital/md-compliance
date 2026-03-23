@@ -12,6 +12,7 @@ Follows exact patterns from gapps models.py:
 from datetime import datetime
 from sqlalchemy.orm import validates
 from app import db
+from app.masri.settings_service import EncryptedText
 import shortuuid
 import json
 import hashlib
@@ -36,6 +37,8 @@ def _decrypt(value: str) -> str:
     """Decrypt a Fernet-encrypted string."""
     from app.masri.settings_service import decrypt_value
     return decrypt_value(value)
+
+
 
 
 # ===========================================================================
@@ -476,33 +479,33 @@ class WISPDocument(db.Model):
     version = db.Column(db.Integer, default=1)
     status = db.Column(db.String, default="draft")
 
-    # Firm info (Step 1)
-    firm_name = db.Column(db.String)
+    # Firm info (Step 1) — encrypted: contains PII and sensitive org data
+    firm_name = db.Column(EncryptedText)
     firm_type = db.Column(db.String, nullable=False)
     state_of_incorporation = db.Column(db.String)
     employee_count_range = db.Column(db.String)
     client_record_count_range = db.Column(db.String)
 
-    # Qualified Individual (Step 2)
-    qi_name = db.Column(db.String)
-    qi_email = db.Column(db.String)
-    qi_title = db.Column(db.String)
+    # Qualified Individual (Step 2) — encrypted: personal contact info
+    qi_name = db.Column(EncryptedText)
+    qi_email = db.Column(EncryptedText)
+    qi_title = db.Column(EncryptedText)
     qi_is_third_party = db.Column(db.Boolean, default=False)
 
-    # Wizard section data stored as JSON Text (Steps 3–9)
-    asset_inventory_json = db.Column(db.Text)
-    risk_assessment_json = db.Column(db.Text)
-    access_control_answers_json = db.Column(db.Text)
-    encryption_answers_json = db.Column(db.Text)
-    third_party_vendors_json = db.Column(db.Text)
-    incident_response_json = db.Column(db.Text)
-    training_program_json = db.Column(db.Text)
-    physical_security_json = db.Column(db.Text)
-    business_continuity_json = db.Column(db.Text)
-    annual_review_json = db.Column(db.Text)
+    # Wizard section data stored as JSON Text (Steps 3–9) — encrypted: security posture details
+    asset_inventory_json = db.Column(EncryptedText)
+    risk_assessment_json = db.Column(EncryptedText)
+    access_control_answers_json = db.Column(EncryptedText)
+    encryption_answers_json = db.Column(EncryptedText)
+    third_party_vendors_json = db.Column(EncryptedText)
+    incident_response_json = db.Column(EncryptedText)
+    training_program_json = db.Column(EncryptedText)
+    physical_security_json = db.Column(EncryptedText)
+    business_continuity_json = db.Column(EncryptedText)
+    annual_review_json = db.Column(EncryptedText)
 
-    # LLM-generated policy text per section
-    generated_text_json = db.Column(db.Text)
+    # LLM-generated policy text per section — encrypted: contains org-specific policy content
+    generated_text_json = db.Column(EncryptedText)
 
     # Outputs
     signed_by_user_id = db.Column(
@@ -586,7 +589,7 @@ class WISPVersion(db.Model):
     )
     version = db.Column(db.Integer, nullable=False)
     change_summary = db.Column(db.Text)
-    snapshot_json = db.Column(db.Text)
+    snapshot_json = db.Column(EncryptedText)
     created_by_user_id = db.Column(db.String, db.ForeignKey("users.id"))
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -598,6 +601,80 @@ class WISPVersion(db.Model):
             except (json.JSONDecodeError, TypeError):
                 pass
         return data
+
+
+# ===========================================================================
+# SettingsEntra — encrypted Microsoft Entra ID / Azure AD credentials
+# ===========================================================================
+
+class SettingsEntra(db.Model):
+    """
+    Stores Microsoft Entra ID (Azure AD) credentials encrypted at rest.
+
+    Replaces the plain-text ENTRA_* env vars for production deployments.
+    The ``entra_routes.py`` helper falls back to env vars when no DB record
+    exists so that existing deployments without a DB row keep working.
+    """
+    __tablename__ = "settings_entra"
+
+    id = db.Column(
+        db.String,
+        primary_key=True,
+        default=_short_id,
+        unique=True,
+    )
+    tenant_id = db.Column(
+        db.String, db.ForeignKey("tenants.id"), nullable=True
+    )  # null = platform-level
+    # All three credential fields are Fernet-encrypted at rest
+    entra_tenant_id_enc = db.Column(db.Text)
+    entra_client_id_enc = db.Column(db.Text)
+    entra_client_secret_enc = db.Column(db.Text)
+    enabled = db.Column(db.Boolean, default=True)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    def set_credentials(self, entra_tenant_id: str, client_id: str, client_secret: str):
+        """Encrypt and store all three Entra credential fields."""
+        self.entra_tenant_id_enc = _encrypt(entra_tenant_id)
+        self.entra_client_id_enc = _encrypt(client_id)
+        self.entra_client_secret_enc = _encrypt(client_secret)
+
+    def get_credentials(self) -> dict:
+        """
+        Decrypt and return all three credential fields.
+
+        Returns:
+            dict with keys 'entra_tenant_id', 'client_id', 'client_secret',
+            or None values for any field that hasn't been set.
+        """
+        return {
+            "entra_tenant_id": _decrypt(self.entra_tenant_id_enc) if self.entra_tenant_id_enc else None,
+            "client_id": _decrypt(self.entra_client_id_enc) if self.entra_client_id_enc else None,
+            "client_secret": _decrypt(self.entra_client_secret_enc) if self.entra_client_secret_enc else None,
+        }
+
+    def is_fully_configured(self) -> bool:
+        """Return True only if all three credential fields are set."""
+        return bool(
+            self.entra_tenant_id_enc
+            and self.entra_client_id_enc
+            and self.entra_client_secret_enc
+        )
+
+    def as_dict(self):
+        """Never expose raw encrypted values — return masked representation."""
+        return {
+            "id": self.id,
+            "tenant_id": self.tenant_id,
+            "enabled": self.enabled,
+            "has_entra_tenant_id": bool(self.entra_tenant_id_enc),
+            "has_client_id": bool(self.entra_client_id_enc),
+            "has_client_secret": bool(self.entra_client_secret_enc),
+            "is_fully_configured": self.is_fully_configured(),
+            "date_added": self.date_added,
+            "date_updated": self.date_updated,
+        }
 
 
 # ===========================================================================

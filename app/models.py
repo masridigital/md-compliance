@@ -1,5 +1,6 @@
 from sqlalchemy import func, distinct, case
 from sqlalchemy.orm import validates
+from app.masri.settings_service import EncryptedText
 from app.utils.mixin_models import (
     DateMixin,
     SubControlMixin,
@@ -673,16 +674,16 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(EncryptedText, nullable=False)
     logo_ref = db.Column(db.String())
-    contact_email = db.Column(db.String())
+    contact_email = db.Column(EncryptedText)
     license = db.Column(
         db.String(),
         server_default="gold",
         info={"authorizer": {"update": Authorizer.can_user_manage_platform}},
     )
     is_default = db.Column(db.Boolean(), default=False)
-    approved_domains = db.Column(db.String())
+    approved_domains = db.Column(EncryptedText)
     magic_link_login = db.Column(db.Boolean(), default=False)
     ai_enabled = db.Column(db.Boolean(), default=True)
     ai_token_usage = db.Column(db.Integer(), default=0)
@@ -2887,8 +2888,8 @@ class ProjectControl(db.Model, ControlMixin):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    notes = db.Column(db.String())
-    auditor_notes = db.Column(db.String())
+    notes = db.Column(EncryptedText)
+    auditor_notes = db.Column(EncryptedText)
     review_status = db.Column(db.String(), default="infosec action")
     comments = db.relationship(
         "ControlComment",
@@ -3073,7 +3074,7 @@ class SubControlComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     subcontrol_id = db.Column(
         db.String, db.ForeignKey("project_subcontrols.id"), nullable=False
@@ -3095,7 +3096,7 @@ class ControlComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     control_id = db.Column(
         db.String, db.ForeignKey("project_controls.id"), nullable=False
@@ -3117,7 +3118,7 @@ class ProjectComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
@@ -3137,7 +3138,7 @@ class RiskComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     risk_id = db.Column(db.String, db.ForeignKey("risk_register.id"), nullable=False)
     tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
@@ -3159,9 +3160,9 @@ class RiskRegister(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    title = db.Column(db.String, nullable=False)
-    description = db.Column(db.String, default="No description")
-    remediation = db.Column(db.String)
+    title = db.Column(db.String, nullable=False)  # not encrypted — part of UniqueConstraint
+    description = db.Column(EncryptedText, default="No description")
+    remediation = db.Column(EncryptedText)
     enabled = db.Column(db.Boolean(), default=True)
     risk = db.Column(db.String, default="unknown", nullable=False)
     status = db.Column(db.String, default="new", nullable=False)
@@ -3282,13 +3283,13 @@ class ProjectSubControl(db.Model, SubControlMixin):
     )
     implemented = db.Column(db.Integer(), default=0)
     is_applicable = db.Column(db.Boolean(), default=True)
-    context = db.Column(db.String())
-    notes = db.Column(db.String())
+    context = db.Column(EncryptedText)
+    notes = db.Column(EncryptedText)
     """
     framework specific fields
     """
     # SOC2
-    auditor_feedback = db.Column(db.String())
+    auditor_feedback = db.Column(EncryptedText)
     # CMMC
     process_maturity = db.Column(db.Integer(), default=0)
 

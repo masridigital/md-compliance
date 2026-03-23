@@ -30,26 +30,42 @@ entra_bp = Blueprint("entra_bp", __name__, url_prefix="/api/v1/entra")
 
 def _get_entra_client():
     """
-    Build an EntraIntegration instance from app config.
+    Build an EntraIntegration instance.
 
-    Raises RuntimeError if Entra ID is not configured.
+    Credential resolution order:
+      1. SettingsEntra DB record (Fernet-encrypted, preferred)
+      2. ENTRA_* environment variables / app.config (legacy fallback)
+
+    Raises RuntimeError if no credentials are found in either source.
     """
     from app.masri.entra_integration import EntraIntegration
+    from app.masri.settings_service import SettingsService
 
-    tenant_id = current_app.config.get("ENTRA_TENANT_ID")
-    client_id = current_app.config.get("ENTRA_CLIENT_ID")
-    client_secret = current_app.config.get("ENTRA_CLIENT_SECRET")
+    creds = SettingsService.get_entra_config()
 
-    if not all([tenant_id, client_id, client_secret]):
-        raise RuntimeError(
-            "Entra ID not configured. Set ENTRA_TENANT_ID, "
-            "ENTRA_CLIENT_ID, and ENTRA_CLIENT_SECRET."
-        )
+    # Fall back to env vars if the DB record is absent or incomplete
+    if not creds or not all(creds.values()):
+        tenant_id = current_app.config.get("ENTRA_TENANT_ID")
+        client_id = current_app.config.get("ENTRA_CLIENT_ID")
+        client_secret = current_app.config.get("ENTRA_CLIENT_SECRET")
+
+        if not all([tenant_id, client_id, client_secret]):
+            raise RuntimeError(
+                "Entra ID not configured. Either save credentials via "
+                "POST /api/v1/settings/entra, or set ENTRA_TENANT_ID, "
+                "ENTRA_CLIENT_ID, and ENTRA_CLIENT_SECRET in your .env."
+            )
+
+        creds = {
+            "entra_tenant_id": tenant_id,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
 
     return EntraIntegration(
-        tenant_id=tenant_id,
-        client_id=client_id,
-        client_secret=client_secret,
+        tenant_id=creds["entra_tenant_id"],
+        client_id=creds["client_id"],
+        client_secret=creds["client_secret"],
     )
 
 

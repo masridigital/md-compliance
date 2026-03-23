@@ -13,6 +13,8 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
+from sqlalchemy import Text
+from sqlalchemy.types import TypeDecorator
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,81 @@ def decrypt_value(encrypted: str, app=None) -> str:
             "Unable to decrypt stored value — key mismatch or data corruption. "
             "Re-encrypt the setting after rotating SECRET_KEY."
         )
+
+
+def is_encrypted(value: str) -> bool:
+    """
+    Return True if ``value`` looks like a Fernet token.
+
+    Fernet tokens are URL-safe base64 and always start with the version byte
+    (0x80) which encodes to ``gA`` in base64. All real tokens are much longer
+    than 32 characters, so a quick length + prefix check is a reliable heuristic.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    if len(value) < 32:
+        return False
+    try:
+        import base64 as _b64
+        raw = _b64.urlsafe_b64decode(value[:4] + "==")
+        return raw[0] == 0x80
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# EncryptedText — SQLAlchemy TypeDecorator for transparent field encryption
+# ---------------------------------------------------------------------------
+
+class EncryptedText(TypeDecorator):
+    """
+    A SQLAlchemy column type that transparently Fernet-encrypts values on
+    write and decrypts on read.
+
+    Usage in a model::
+
+        from app.masri.settings_service import EncryptedText
+        notes = db.Column(EncryptedText)
+
+    Behaviour:
+    - On write: plaintext → Fernet token stored in the DB
+    - On read:  if the stored value is already a Fernet token → decrypt it
+                if the stored value is plaintext (pre-migration row) → return as-is
+    - NULL values pass through untouched.
+
+    Searchability: because Fernet uses a random nonce, encrypted values cannot
+    be used in WHERE / ORDER BY / LIKE clauses. Index the column only if you
+    need exact-match on the raw (encrypted) bytes — which is never useful.
+    For columns that must be queryable (e.g. unique constraints) keep them
+    plaintext or use a deterministic hash side-column.
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Encrypt before writing to the DB."""
+        if value is None:
+            return value
+        value = str(value)
+        # Already encrypted (e.g. value passed through twice) — don't double-encrypt.
+        if is_encrypted(value):
+            return value
+        return encrypt_value(value)
+
+    def process_result_value(self, value, dialect):
+        """Decrypt after reading from the DB; fall back to plaintext for legacy rows."""
+        if value is None:
+            return value
+        if not is_encrypted(value):
+            # Pre-migration plaintext row — return as-is; will be encrypted on next save.
+            return value
+        try:
+            return decrypt_value(value)
+        except Exception:
+            # Key rotation or corruption: surface the raw token rather than crashing.
+            logger.warning("EncryptedText: failed to decrypt value, returning raw token.")
+            return value
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +473,56 @@ class SettingsService:
         if newly_overdue:
             db.session.commit()
         return newly_overdue
+
+    # ----- Entra ID -----
+
+    @staticmethod
+    def get_entra_config() -> dict:
+        """
+        Return decrypted Entra credentials from the DB, or None if not configured.
+
+        Returns:
+            dict with 'entra_tenant_id', 'client_id', 'client_secret', or None.
+        """
+        from app import db
+        from app.masri.new_models import SettingsEntra
+
+        record = db.session.execute(
+            db.select(SettingsEntra)
+            .filter_by(enabled=True, tenant_id=None)
+        ).scalars().first()
+
+        if record is None or not record.is_fully_configured():
+            return None
+
+        return record.get_credentials()
+
+    @staticmethod
+    def update_entra_config(entra_tenant_id: str, client_id: str, client_secret: str):
+        """
+        Create or update the platform-level Entra credential record.
+
+        All three values are Fernet-encrypted before storage.
+        Pass an empty string for client_secret to leave it unchanged.
+
+        Returns:
+            SettingsEntra instance.
+        """
+        from app import db
+        from app.masri.new_models import SettingsEntra
+
+        record = db.session.execute(
+            db.select(SettingsEntra).filter_by(tenant_id=None)
+        ).scalars().first()
+
+        if record is None:
+            record = SettingsEntra()
+            db.session.add(record)
+
+        record.set_credentials(entra_tenant_id, client_id, client_secret)
+        record.enabled = True
+        db.session.commit()
+        return record
 
     # ----- MCP API Keys -----
 

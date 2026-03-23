@@ -1,9 +1,10 @@
 """Database management CLI.
 
 Usage:
-  python manage.py init_db     # Create all tables and seed default admin + roles
-  python manage.py create_db   # Create tables only (no drop), seed defaults
-  python manage.py migrate_db  # Apply Alembic migrations to head
+  python manage.py init_db          # Create all tables and seed default admin + roles
+  python manage.py create_db        # Create tables only (no drop), seed defaults
+  python manage.py migrate_db       # Apply Alembic migrations to head
+  python manage.py encrypt_existing # Encrypt all existing plaintext data in DB
 """
 
 import sys
@@ -21,6 +22,7 @@ def run_command(cmd_name):
         MigrateDbCommand,
         DataImportCommand,
         ForceDropTablesCommand,
+        EncryptExistingCommand,
     )
 
     commands = {
@@ -29,6 +31,7 @@ def run_command(cmd_name):
         "migrate_db": MigrateDbCommand,
         "import": DataImportCommand,
         "force_drop_db": ForceDropTablesCommand,
+        "encrypt_existing": EncryptExistingCommand,
     }
 
     if cmd_name not in commands:
