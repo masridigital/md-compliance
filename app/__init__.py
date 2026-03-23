@@ -35,6 +35,7 @@ def create_app(config_name="default"):
     set_config_options(app)
     configure_masri(app)
     configure_security_headers(app)
+    _validate_secret_key(app)
 
     """
     @app.before_request
@@ -43,6 +44,25 @@ def create_app(config_name="default"):
     """
 
     return app
+
+
+def _validate_secret_key(app):
+    """
+    Warn (or raise in non-debug, non-testing mode) if SECRET_KEY is too short.
+
+    Fernet key derivation via PBKDF2 can handle short keys, but short keys
+    dramatically reduce the effective key space.  We require at least 32 chars.
+    """
+    key = app.config.get("SECRET_KEY", "")
+    if len(key) < 32:
+        msg = (
+            "SECRET_KEY is too short (%d chars). "
+            "Generate a strong key with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        ) % len(key)
+        if app.debug or app.testing:
+            app.logger.warning("SECURITY WARNING: %s", msg)
+        else:
+            raise RuntimeError(msg)
 
 
 def configure_masri(app):

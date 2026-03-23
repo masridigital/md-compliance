@@ -30,6 +30,7 @@ from app.masri.new_models import (
     SettingsStorage,
     SettingsSSO,
     SettingsNotifications,
+    SettingsEntra,
     DueDate,
     MCPAPIKey,
 )
@@ -287,10 +288,12 @@ def get_notification_channels():
     """GET /api/v1/settings/notifications — list channels, optionally by tenant."""
     tenant_id = request.args.get("tenant_id")
     if tenant_id:
-        from app.utils.authorizer import Authorizer
         auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
         if not auth_result["success"]:
             return jsonify({"error": "Unauthorized"}), 403
+    else:
+        # No tenant scope → platform-level config; requires platform admin.
+        _require_admin()
     try:
         channels = SettingsService.get_notification_channels(tenant_id=tenant_id)
         return jsonify([ch.as_dict() for ch in channels])
@@ -309,10 +312,12 @@ def update_notification_channel(channel):
         return err
     tenant_id = data.pop("tenant_id", None)
     if tenant_id:
-        from app.utils.authorizer import Authorizer
         auth_result = Authorizer(current_user).can_user_admin_tenant(tenant_id)
         if not auth_result["success"]:
             return jsonify({"error": "Unauthorized"}), 403
+    else:
+        # No tenant scope → platform-level config; requires platform admin.
+        _require_admin()
     try:
         record = SettingsService.update_notification_channel(
             channel, data, tenant_id=tenant_id
@@ -449,3 +454,90 @@ def delete_mcp_key(key_id):
         logger.exception("Error deleting MCP API key %s", key_id)
         db.session.rollback()
         return jsonify({"error": "Failed to delete MCP API key"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Entra ID credentials (encrypted at rest)
+# ---------------------------------------------------------------------------
+
+@settings_bp.route("/entra", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_entra_config():
+    """GET /api/v1/settings/entra — return Entra config status (no raw credentials)."""
+    from flask import current_app
+    _require_admin()
+    record = db.session.execute(
+        db.select(SettingsEntra).filter_by(tenant_id=None)
+    ).scalars().first()
+
+    if record is None:
+        # Check env var fallback so the UI can show what source is active
+        has_env = all([
+            current_app.config.get("ENTRA_TENANT_ID"),
+            current_app.config.get("ENTRA_CLIENT_ID"),
+            current_app.config.get("ENTRA_CLIENT_SECRET"),
+        ])
+        return jsonify({
+            "configured": False,
+            "source": "env_vars" if has_env else "none",
+            "has_env_vars": has_env,
+        })
+
+    data = record.as_dict()
+    data["source"] = "database"
+    data["has_env_vars"] = all([
+        current_app.config.get("ENTRA_TENANT_ID"),
+        current_app.config.get("ENTRA_CLIENT_ID"),
+        current_app.config.get("ENTRA_CLIENT_SECRET"),
+    ])
+    return jsonify(data)
+
+
+@settings_bp.route("/entra", methods=["POST"])
+@limiter.limit("20 per minute")
+@login_required
+def update_entra_config():
+    """
+    POST /api/v1/settings/entra — save Entra credentials encrypted in the DB.
+
+    Body (JSON):
+        entra_tenant_id  (str, required)
+        client_id        (str, required)
+        client_secret    (str, required)
+    """
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+
+    entra_tenant_id = data.get("entra_tenant_id", "").strip()
+    client_id = data.get("client_id", "").strip()
+    client_secret = data.get("client_secret", "").strip()
+
+    if not all([entra_tenant_id, client_id, client_secret]):
+        return jsonify({"error": "entra_tenant_id, client_id, and client_secret are all required"}), 400
+
+    try:
+        record = SettingsService.update_entra_config(entra_tenant_id, client_id, client_secret)
+        return jsonify(record.as_dict())
+    except Exception:
+        logger.exception("Error saving Entra credentials")
+        db.session.rollback()
+        return jsonify({"error": "Failed to save Entra credentials"}), 500
+
+
+@settings_bp.route("/entra", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def delete_entra_config():
+    """DELETE /api/v1/settings/entra — remove stored Entra credentials from the DB."""
+    _require_admin()
+    record = db.session.execute(
+        db.select(SettingsEntra).filter_by(tenant_id=None)
+    ).scalars().first()
+
+    if record is None:
+        return jsonify({"message": "No Entra credentials stored in database"}), 200
+
+    db.session.delete(record)
+    db.session.commit()
+    return jsonify({"message": "Entra credentials removed from database"})

@@ -1,5 +1,7 @@
 from sqlalchemy import func, distinct, case
 from sqlalchemy.orm import validates
+from app.masri.settings_service import EncryptedText
+import hashlib
 from app.utils.mixin_models import (
     DateMixin,
     SubControlMixin,
@@ -673,16 +675,16 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(db.String, nullable=False)  # plaintext — used in SQL queries and display
     logo_ref = db.Column(db.String())
-    contact_email = db.Column(db.String())
+    contact_email = db.Column(EncryptedText)  # encrypted — PII
     license = db.Column(
         db.String(),
         server_default="gold",
         info={"authorizer": {"update": Authorizer.can_user_manage_platform}},
     )
     is_default = db.Column(db.Boolean(), default=False)
-    approved_domains = db.Column(db.String())
+    approved_domains = db.Column(db.String())  # plaintext — used for domain-matching auth logic
     magic_link_login = db.Column(db.Boolean(), default=False)
     ai_enabled = db.Column(db.Boolean(), default=True)
     ai_token_usage = db.Column(db.Integer(), default=0)
@@ -2887,8 +2889,8 @@ class ProjectControl(db.Model, ControlMixin):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    notes = db.Column(db.String())
-    auditor_notes = db.Column(db.String())
+    notes = db.Column(EncryptedText)
+    auditor_notes = db.Column(EncryptedText)
     review_status = db.Column(db.String(), default="infosec action")
     comments = db.relationship(
         "ControlComment",
@@ -3073,7 +3075,7 @@ class SubControlComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     subcontrol_id = db.Column(
         db.String, db.ForeignKey("project_subcontrols.id"), nullable=False
@@ -3095,7 +3097,7 @@ class ControlComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     control_id = db.Column(
         db.String, db.ForeignKey("project_controls.id"), nullable=False
@@ -3117,7 +3119,7 @@ class ProjectComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
@@ -3137,7 +3139,7 @@ class RiskComment(db.Model):
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    message = db.Column(db.String())
+    message = db.Column(EncryptedText)
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     risk_id = db.Column(db.String, db.ForeignKey("risk_register.id"), nullable=False)
     tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
@@ -3152,16 +3154,22 @@ class RiskComment(db.Model):
 
 class RiskRegister(db.Model):
     __tablename__ = "risk_register"
-    __table_args__ = (db.UniqueConstraint("title", "tenant_id"),)
+    # Uniqueness is enforced via title_hash (deterministic SHA-256 of title+tenant_id)
+    # so that the title column itself can be Fernet-encrypted (non-deterministic).
+    __table_args__ = (db.UniqueConstraint("title_hash", "tenant_id", name="uq_risk_title_hash_tenant"),)
     id = db.Column(
         db.String,
         primary_key=True,
         default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
         unique=True,
     )
-    title = db.Column(db.String, nullable=False)
-    description = db.Column(db.String, default="No description")
-    remediation = db.Column(db.String)
+    # title_hash: deterministic SHA-256(title.lower() + "|" + tenant_id) for uniqueness checks.
+    # Never expose this column to the client — it reveals nothing about the plaintext title
+    # but it allows the DB to enforce per-tenant uniqueness without requiring plaintext storage.
+    title_hash = db.Column(db.String(64), nullable=True)
+    title = db.Column(EncryptedText, nullable=False)
+    description = db.Column(EncryptedText, default="No description")
+    remediation = db.Column(EncryptedText)
     enabled = db.Column(db.Boolean(), default=True)
     risk = db.Column(db.String, default="unknown", nullable=False)
     status = db.Column(db.String, default="new", nullable=False)
@@ -3189,8 +3197,29 @@ class RiskRegister(db.Model):
     ALLOWED_PRIORITY = ["unknown", "low", "moderate", "high"]
     ALLOWED_STATUS = ["new", "in_progress", "accepted", "mitigated"]
 
+    @staticmethod
+    def _compute_title_hash(title: str, tenant_id: str) -> str:
+        """SHA-256(title.lower() + '|' + tenant_id) — deterministic, safe to index."""
+        raw = f"{title.lower()}|{tenant_id or ''}".encode()
+        return hashlib.sha256(raw).hexdigest()
+
+    @validates("title")
+    def _set_title_hash_on_title(self, key, value):
+        """Keep title_hash in sync whenever title is set."""
+        if value and self.tenant_id:
+            self.title_hash = self._compute_title_hash(value, self.tenant_id)
+        return value
+
+    @validates("tenant_id")
+    def _set_title_hash_on_tenant(self, key, value):
+        """Recompute title_hash when tenant_id is set (handles construction order)."""
+        if value and self.title:
+            self.title_hash = self._compute_title_hash(self.title, value)
+        return value
+
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data.pop("title_hash", None)  # internal deduplication aid — never expose to clients
         data["scope"] = "tenant"
         parsed_date = arrow.get(self.date_added)
         data["created_at"] = parsed_date.format("MMM D, YYYY")
@@ -3282,13 +3311,13 @@ class ProjectSubControl(db.Model, SubControlMixin):
     )
     implemented = db.Column(db.Integer(), default=0)
     is_applicable = db.Column(db.Boolean(), default=True)
-    context = db.Column(db.String())
-    notes = db.Column(db.String())
+    context = db.Column(EncryptedText)
+    notes = db.Column(EncryptedText)
     """
     framework specific fields
     """
     # SOC2
-    auditor_feedback = db.Column(db.String())
+    auditor_feedback = db.Column(EncryptedText)
     # CMMC
     process_maturity = db.Column(db.Integer(), default=0)
 

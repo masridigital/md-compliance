@@ -21,6 +21,7 @@ This guide covers everything you need to deploy MD Compliance in a production en
 13. [Scheduler](#scheduler)
 14. [SSL Certificate Details](#ssl-certificate-details)
 15. [Multi-Worker Deployment](#multi-worker-deployment)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -36,12 +37,31 @@ The fastest way to get MD Compliance running on your server is the interactive s
 - (Optional) An SMTP server for email notifications
 - (Optional) Azure subscription for Blob/SharePoint/Entra features
 
-### Install Docker (if not already installed)
+### Install Docker on Ubuntu
 
 ```bash
+# Install Docker Engine + Compose plugin in one step
 curl -fsSL https://get.docker.com | sh
+
+# Add your user to the docker group (no sudo needed going forward)
 sudo usermod -aG docker $USER
+
+# Apply group membership without logging out
 newgrp docker
+
+# Verify both are installed
+docker --version
+docker compose version
+```
+
+> Docker Compose v2 (`docker compose`) is required. The setup script detects it automatically. If you only have the older `docker-compose` (v1) binary, install the Compose plugin: `sudo apt-get install docker-compose-plugin`
+
+### Open firewall ports (Ubuntu UFW)
+
+```bash
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw reload
 ```
 
 ### Run the setup wizard
@@ -57,7 +77,7 @@ The wizard will ask you:
 1. **Domain name** — e.g. `compliance.masridigital.com`
 2. **SSL** — whether to obtain a free Let's Encrypt certificate automatically
 3. **Email** — for SSL renewal notices
-4. **Admin credentials** — email address and password for the first login
+4. **Admin credentials** — email address and password for the first login (written to `.env` and used on first start)
 
 After it completes, your app is running at `https://your-domain.com`.
 
@@ -201,10 +221,22 @@ docker-compose up -d --build
 
 ## Database Setup
 
-On first launch, the app creates tables automatically. If you need to run migrations manually:
+On first launch inside Docker, the app initialises the database automatically via `run.sh`:
+
+1. Waits for PostgreSQL to be ready
+2. Detects whether the database is empty or already has tables
+3. **Empty database:** runs `python manage.py init_db` — creates all tables and seeds the admin user + default roles
+4. **Existing database:** runs `flask db upgrade` — applies any new migration files only, never touches existing data
+5. Starts Gunicorn
+
+### Manual database initialisation (local / non-Docker)
 
 ```bash
-docker-compose exec app flask db upgrade
+# Create all tables and seed defaults (fresh install only)
+python manage.py init_db
+
+# Apply new migrations on an existing database
+flask db upgrade
 ```
 
 ### Reset the database (⚠ deletes all data)
@@ -216,6 +248,10 @@ RESET_DB=yes docker-compose up -d
 ---
 
 ## Default Credentials
+
+The admin account is created using the email and password you enter in **Step 3** of `./setup.sh`. There are no hardcoded credentials.
+
+If you skipped the setup wizard and started the app directly without setting `DEFAULT_EMAIL` / `DEFAULT_PASSWORD` in your `.env`, the fallback credentials are:
 
 | Field | Value |
 |-------|-------|
@@ -518,6 +554,76 @@ When using multiple workers:
 - Set `MASRI_SCHEDULER_ENABLED=false` and use an external scheduler (see [Scheduler](#scheduler))
 - Use a shared storage provider (Azure Blob, SharePoint, or S3) — not Local
 - Use Redis for session storage if sticky sessions are not available
+
+---
+
+## Troubleshooting
+
+### App container exits immediately on first run
+
+Check the logs:
+
+```bash
+docker-compose logs app
+```
+
+Common causes and fixes:
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `ModuleNotFoundError: No module named 'flask_script'` | Stale image with old code | `docker-compose build --no-cache && docker-compose up -d` |
+| `SECRET_KEY must be set` | No `.env` file | Run `./setup.sh` or copy `.env.example` to `.env` and set `SECRET_KEY` |
+| `could not connect to server` | Postgres not ready | Wait 10–15 seconds and restart: `docker-compose restart app` |
+| `role "mdcompliance" does not exist` | Postgres env vars not passed | Ensure `.env` has `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` |
+| `permission denied` on `run.sh` | Script not executable | `chmod +x run.sh` then rebuild |
+
+### Setup wizard hangs at "Waiting for the app to be ready"
+
+The health check polls `http://localhost:5000` up to 12 times (60 seconds). If it never responds:
+
+```bash
+# Check what the app container is doing
+docker-compose logs app
+
+# Common fix — the DB took too long to start; just restart the app
+docker-compose restart app
+```
+
+### `docker compose` not found (Ubuntu)
+
+The setup script supports both `docker compose` (v2, plugin) and `docker-compose` (v1, standalone). Install the plugin:
+
+```bash
+sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+docker compose version   # should print v2.x
+```
+
+### SSL certificate fails
+
+Certbot requires that:
+- Port 80 is open and reachable from the internet
+- Your domain's DNS A record points to the server's public IP
+
+Check DNS propagation:
+```bash
+dig +short your-domain.com    # should match your server IP
+curl https://api.ipify.org    # your server's public IP
+```
+
+If DNS isn't ready, re-run the wizard after propagation:
+```bash
+./setup.sh
+```
+
+### Database connection refused after update
+
+If you see `could not connect to server: Connection refused` after a `git pull`:
+
+```bash
+# Postgres might still be starting — give it a moment, then restart the app
+docker-compose restart app
+docker-compose logs -f app
+```
 
 ---
 

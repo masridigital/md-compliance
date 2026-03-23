@@ -146,9 +146,14 @@ header "Step 2 of 4 — SSL Certificate"
 echo "MD Compliance can automatically obtain a free SSL certificate"
 echo "from Let's Encrypt via Certbot."
 echo ""
-echo "  Requirements:"
-echo "   • Port 80 and 443 must be open on this server"
-echo "   • The domain DNS must already point to this server's IP"
+echo "  Two verification methods are available:"
+echo ""
+echo -e "  ${BOLD}1) HTTP (webroot)${RESET}  — Certbot places a file on port 80 for verification."
+echo "     Requires port 80 to be open and reachable from the internet."
+echo ""
+echo -e "  ${BOLD}2) DNS (TXT record)${RESET} — Certbot gives you a TXT record to add to your DNS."
+echo "     Works even if port 80 is blocked by a firewall."
+echo "     You will be prompted to add the record, then press Enter to continue."
 echo ""
 prompt "Set up SSL automatically with Let's Encrypt? [Y/n]"
 read -r SSL_CHOICE
@@ -166,8 +171,20 @@ if [[ "$SSL_CHOICE" =~ ^[Yy]$ ]]; then
             error "Please enter a valid email address."
         fi
     done
+    echo ""
+    prompt "Which verification method? [1=HTTP / 2=DNS] (default: 1):"
+    read -r SSL_METHOD_CHOICE
+    SSL_METHOD_CHOICE=${SSL_METHOD_CHOICE:-1}
+    if [[ "$SSL_METHOD_CHOICE" == "2" ]]; then
+        SSL_METHOD="dns"
+        warn "DNS challenge selected. You will need to add a TXT record to your DNS."
+    else
+        SSL_METHOD="http"
+        info "HTTP (webroot) challenge selected. Ensure port 80 is open."
+    fi
 else
     USE_SSL=false
+    SSL_METHOD=""
     warn "Skipping SSL — the app will run on HTTP only. Not recommended for production."
 fi
 
@@ -219,6 +236,9 @@ POSTGRES_PASSWORD=${DB_PASSWORD}
 # ── Admin credentials ─────────────────────────────────────────────────────────
 DEFAULT_EMAIL=${ADMIN_EMAIL}
 DEFAULT_PASSWORD=${ADMIN_PASSWORD}
+
+# ── SSL / Certbot ─────────────────────────────────────────────────────────────
+CERTBOT_EMAIL=${CERTBOT_EMAIL:-}
 
 # ── Email ─────────────────────────────────────────────────────────────────────
 MAIL_SERVER=
@@ -347,32 +367,152 @@ if [ "$USE_SSL" = true ]; then
     echo ""
     header "Obtaining SSL Certificate"
     info "DNS already verified earlier in setup."
-fi
 
-if [ "$USE_SSL" = true ]; then
-    info "Starting nginx (port 80 needed for ACME challenge)..."
-    $COMPOSE up -d nginx 2>/dev/null || true
+    mkdir -p nginx/ssl/letsencrypt nginx/certbot-webroot
 
-    info "Running Certbot..."
-    docker run --rm \
-        -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
-        -v "$(pwd)/nginx/certbot-webroot:/var/www/certbot" \
-        certbot/certbot certonly \
-            --webroot \
-            --webroot-path=/var/www/certbot \
-            --email "$CERTBOT_EMAIL" \
-            --agree-tos \
-            --no-eff-email \
-            -d "$DOMAIN" \
-            --non-interactive
+    CERTBOT_EXIT=0
 
-    if [ $? -eq 0 ]; then
+    if [ "$SSL_METHOD" = "dns" ]; then
+        # ── DNS-01 manual challenge ──────────────────────────────────────────
+        echo ""
+        warn "DNS challenge: Certbot will display a TXT record you must add to your DNS."
+        warn "Do NOT press Enter until you have added the record and it has propagated."
+        echo ""
+        info "Running Certbot (DNS-01 / manual)..."
+        TTY_FLAG=$([ -t 0 ] && printf '-it' || printf '-i')
+        docker run $TTY_FLAG --rm \
+            -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+            certbot/certbot certonly \
+                --manual \
+                --preferred-challenges dns \
+                --email "$CERTBOT_EMAIL" \
+                --agree-tos \
+                --no-eff-email \
+                -d "$DOMAIN" \
+            || CERTBOT_EXIT=$?
+    else
+        # ── HTTP-01 webroot challenge ────────────────────────────────────────
+        # Write a temporary HTTP-only bootstrap nginx config (no SSL references)
+        info "Writing temporary bootstrap nginx config for ACME challenge..."
+        cat > nginx/conf.d/mdcompliance.conf <<BOOTSTRAPEOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass         http://app:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300;
+    }
+}
+BOOTSTRAPEOF
+
+        info "Starting nginx (port 80 needed for ACME challenge)..."
+        $COMPOSE up -d nginx
+
+        info "Running Certbot (HTTP-01 / webroot)..."
+        docker run --rm \
+            -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+            -v "$(pwd)/nginx/certbot-webroot:/var/www/certbot" \
+            certbot/certbot certonly \
+                --webroot \
+                --webroot-path=/var/www/certbot \
+                --email "$CERTBOT_EMAIL" \
+                --agree-tos \
+                --no-eff-email \
+                -d "$DOMAIN" \
+                --non-interactive \
+            || CERTBOT_EXIT=$?
+
+        if [ "$CERTBOT_EXIT" -eq 0 ]; then
+            # Cert obtained — write the real HTTPS config and reload nginx
+            info "Writing full HTTPS nginx config..."
+            cat > nginx/conf.d/mdcompliance.conf <<HTTPSEOF
+# MD Compliance — nginx configuration
+# Domain: ${DOMAIN}
+# Generated by setup.sh
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    # Let's Encrypt challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# HTTPS
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache   shared:SSL:10m;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+
+    # Security headers
+    add_header X-Frame-Options           SAMEORIGIN always;
+    add_header X-Content-Type-Options    nosniff    always;
+    add_header X-XSS-Protection          "1; mode=block" always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass         http://app:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300;
+    }
+}
+HTTPSEOF
+            info "Reloading nginx with HTTPS config..."
+            $COMPOSE exec nginx nginx -s reload || docker exec nginx nginx -s reload
+        fi
+    fi
+
+    if [ "$CERTBOT_EXIT" -eq 0 ]; then
         log "SSL certificate obtained for ${DOMAIN}"
     else
-        error "Certbot failed. Check that:"
-        error "  1. Port 80 is open and reachable from the internet"
-        error "  2. ${DOMAIN} DNS points to this server"
-        error "  3. No other service is using port 80"
+        error "Certbot failed."
+        if [ "$SSL_METHOD" = "http" ]; then
+            error "For HTTP challenge, check that:"
+            error "  1. Port 80 is open and reachable from the internet"
+            error "  2. ${DOMAIN} DNS points to this server (${SERVER_IP})"
+            error "  3. No other service is using port 80"
+            error ""
+            error "If port 80 is blocked by your firewall/host, re-run setup.sh"
+            error "and choose option 2 (DNS challenge) instead."
+        else
+            error "For DNS challenge, check that:"
+            error "  1. You added the _acme-challenge TXT record to your DNS"
+            error "  2. The record propagated before pressing Enter"
+        fi
         echo ""
         warn "To retry SSL setup later, run: ./scripts/renew-ssl.sh"
         warn "Falling back to HTTP for now..."
@@ -400,15 +540,24 @@ fi
 # ── Start the app ─────────────────────────────────────────────────────────────
 header "Starting MD Compliance"
 info "Building and starting all services..."
-$COMPOSE up -d --build
+if [ "$USE_SSL" = true ]; then
+    $COMPOSE --profile production up -d --build
+else
+    $COMPOSE up -d --build
+fi
 
 info "Waiting for the app to be ready..."
 sleep 8
 
 # Health check
 APP_UP=false
+if [ "$USE_SSL" = true ]; then
+    HEALTH_URL="http://localhost"
+else
+    HEALTH_URL="http://localhost:8000"
+fi
 for i in {1..12}; do
-    if curl -sf "http://localhost:5000" &>/dev/null; then
+    if curl -sf "$HEALTH_URL" &>/dev/null; then
         APP_UP=true
         break
     fi
@@ -444,8 +593,8 @@ if [ "$USE_SSL" = true ]; then
 fi
 
 echo -e "  ${BOLD}Useful commands:${RESET}"
-echo "   View logs:          docker-compose logs -f app"
-echo "   Stop:               docker-compose down"
+echo "   View logs:          $COMPOSE logs -f app"
+echo "   Stop:               $COMPOSE down"
 echo "   Update app:         git pull && ./scripts/update.sh"
 echo "   Backup database:    ./scripts/db-backup.sh"
 echo ""
