@@ -22,7 +22,7 @@ MASRI_CONFIG = {
     "APP_LOGO_URL": os.environ.get("APP_LOGO_URL", "/static/img/logo.svg"),
     "APP_FAVICON_URL": os.environ.get("APP_FAVICON_URL", "/static/img/favicon.ico"),
     "APP_PRIMARY_COLOR": os.environ.get("APP_PRIMARY_COLOR", "#0066CC"),
-    "SUPPORT_EMAIL": os.environ.get("SUPPORT_EMAIL", "support@masridigital.com"),
+    "SUPPORT_EMAIL": os.environ.get("SUPPORT_EMAIL", "inquiry@masridigital.com"),
 
     # ---- Storage ----
     "STORAGE_PROVIDERS": ["local", "s3", "azure_blob", "sharepoint", "egnyte"],
