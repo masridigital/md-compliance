@@ -60,16 +60,12 @@ if [ "$MODE" = "status" ]; then
     exit 0
 fi
 
-# ── DNS-01 manual re-issue ────────────────────────────────────────────────────
+# ── DNS-01 re-issue via auth hook ─────────────────────────────────────────────
 if [ "$MODE" = "dns" ]; then
     if [ -z "$DOMAIN" ]; then
         warn "Could not read DOMAIN from .env — you will be prompted by Certbot."
     else
-        log "Re-issuing certificate for ${DOMAIN} via DNS-01 challenge..."
-        echo ""
-        warn "Certbot will display a TXT record to add to your DNS."
-        warn "Do NOT press Enter until the record has propagated."
-        echo ""
+        log "Re-issuing certificate for ${DOMAIN} via DNS-01 (TXT record)..."
     fi
 
     EMAIL_ARG=""
@@ -78,11 +74,41 @@ if [ "$MODE" = "dns" ]; then
         [ -n "$CERTBOT_EMAIL" ] && EMAIL_ARG="--email ${CERTBOT_EMAIL}"
     fi
 
+    # Write the DNS auth hook (displays TXT record and pauses for confirmation)
+    mkdir -p nginx/certbot-hooks
+    cat > nginx/certbot-hooks/dns-auth-hook.sh <<'DNSAUTHEOF'
+#!/bin/sh
+printf '\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '  ACTION REQUIRED — ADD THIS DNS TXT RECORD TO YOUR DNS PROVIDER\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '\n'
+printf '  Record Type:  TXT\n'
+printf '  Host / Name:  _acme-challenge.%s\n' "$CERTBOT_DOMAIN"
+printf '  Value:        %s\n' "$CERTBOT_VALIDATION"
+printf '  TTL:          60  (or the lowest value your provider allows)\n'
+printf '\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '\n'
+printf 'Steps:\n'
+printf '  1. Log in to your DNS provider\n'
+printf '  2. Create a TXT record exactly as shown above\n'
+printf '  3. Wait 1-3 minutes for the record to propagate\n'
+printf '  4. Press Enter here — certbot will then verify and issue your cert\n'
+printf '\n'
+printf 'Waiting... Press Enter once the TXT record has been added: '
+read -r _
+DNSAUTHEOF
+    chmod +x nginx/certbot-hooks/dns-auth-hook.sh
+
     docker run -it --rm \
         -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+        -v "$(pwd)/nginx/certbot-hooks:/certbot-hooks" \
         certbot/certbot certonly \
             --manual \
             --preferred-challenges dns \
+            --manual-auth-hook /certbot-hooks/dns-auth-hook.sh \
+            --manual-public-ip-logging-ok \
             ${EMAIL_ARG} \
             --agree-tos \
             --no-eff-email \

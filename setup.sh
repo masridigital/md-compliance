@@ -146,21 +146,38 @@ header "Step 2 of 4 — SSL Certificate"
 echo "MD Compliance can automatically obtain a free SSL certificate"
 echo "from Let's Encrypt via Certbot."
 echo ""
-echo "  Two verification methods are available:"
-echo ""
-echo -e "  ${BOLD}1) HTTP (webroot)${RESET}  — Certbot places a file on port 80 for verification."
-echo "     Requires port 80 to be open and reachable from the internet."
-echo ""
-echo -e "  ${BOLD}2) DNS (TXT record)${RESET} — Certbot gives you a TXT record to add to your DNS."
-echo "     Works even if port 80 is blocked by a firewall."
-echo "     You will be prompted to add the record, then press Enter to continue."
-echo ""
 prompt "Set up SSL automatically with Let's Encrypt? [Y/n]"
 read -r SSL_CHOICE
 SSL_CHOICE=${SSL_CHOICE:-Y}
 
 if [[ "$SSL_CHOICE" =~ ^[Yy]$ ]]; then
     USE_SSL=true
+
+    echo ""
+    echo "  Two verification methods are available:"
+    echo ""
+    echo -e "  ${BOLD}1) HTTP (webroot)${RESET}"
+    echo "     Certbot places a small file on port 80 for Let's Encrypt to fetch."
+    echo "     Requires port 80 to be open and reachable from the internet."
+    echo ""
+    echo -e "  ${BOLD}2) DNS TXT record${RESET}"
+    echo "     You add a TXT record to your DNS to prove domain ownership."
+    echo "     Works even if port 80 is blocked by a firewall or proxy."
+    echo "     The script will display the exact record to add and pause"
+    echo "     until you confirm it has been added before verifying."
+    echo ""
+    prompt "Which verification method? [1=HTTP / 2=DNS TXT] (default: 1):"
+    read -r SSL_METHOD_CHOICE
+    SSL_METHOD_CHOICE=${SSL_METHOD_CHOICE:-1}
+    if [[ "$SSL_METHOD_CHOICE" == "2" ]]; then
+        SSL_METHOD="dns"
+        log "DNS TXT record challenge selected."
+    else
+        SSL_METHOD="http"
+        log "HTTP (webroot) challenge selected. Ensure port 80 is open."
+    fi
+
+    echo ""
     while true; do
         prompt "Email address for SSL certificate renewal notices:"
         read -r CERTBOT_EMAIL
@@ -171,17 +188,6 @@ if [[ "$SSL_CHOICE" =~ ^[Yy]$ ]]; then
             error "Please enter a valid email address."
         fi
     done
-    echo ""
-    prompt "Which verification method? [1=HTTP / 2=DNS] (default: 1):"
-    read -r SSL_METHOD_CHOICE
-    SSL_METHOD_CHOICE=${SSL_METHOD_CHOICE:-1}
-    if [[ "$SSL_METHOD_CHOICE" == "2" ]]; then
-        SSL_METHOD="dns"
-        warn "DNS challenge selected. You will need to add a TXT record to your DNS."
-    else
-        SSL_METHOD="http"
-        info "HTTP (webroot) challenge selected. Ensure port 80 is open."
-    fi
 else
     USE_SSL=false
     SSL_METHOD=""
@@ -373,18 +379,48 @@ if [ "$USE_SSL" = true ]; then
     CERTBOT_EXIT=0
 
     if [ "$SSL_METHOD" = "dns" ]; then
-        # ── DNS-01 manual challenge ──────────────────────────────────────────
+        # ── DNS-01 challenge via auth hook ───────────────────────────────────
+        # Write a hook script that certbot will call with CERTBOT_DOMAIN and
+        # CERTBOT_VALIDATION set.  The hook displays the TXT record details and
+        # waits for the operator to add the record before certbot verifies it.
+        mkdir -p nginx/certbot-hooks
+        cat > nginx/certbot-hooks/dns-auth-hook.sh <<'DNSAUTHEOF'
+#!/bin/sh
+printf '\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '  ACTION REQUIRED — ADD THIS DNS TXT RECORD TO YOUR DNS PROVIDER\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '\n'
+printf '  Record Type:  TXT\n'
+printf '  Host / Name:  _acme-challenge.%s\n' "$CERTBOT_DOMAIN"
+printf '  Value:        %s\n' "$CERTBOT_VALIDATION"
+printf '  TTL:          60  (or the lowest value your provider allows)\n'
+printf '\n'
+printf '══════════════════════════════════════════════════════════════════════\n'
+printf '\n'
+printf 'Steps:\n'
+printf '  1. Log in to your DNS provider\n'
+printf '  2. Create a TXT record exactly as shown above\n'
+printf '  3. Wait 1-3 minutes for the record to propagate\n'
+printf '  4. Press Enter here — certbot will then verify and issue your cert\n'
+printf '\n'
+printf 'Waiting... Press Enter once the TXT record has been added: '
+read -r _
+DNSAUTHEOF
+        chmod +x nginx/certbot-hooks/dns-auth-hook.sh
+
         echo ""
-        warn "DNS challenge: Certbot will display a TXT record you must add to your DNS."
-        warn "Do NOT press Enter until you have added the record and it has propagated."
+        info "Running Certbot (DNS-01 / TXT record)..."
         echo ""
-        info "Running Certbot (DNS-01 / manual)..."
         TTY_FLAG=$([ -t 0 ] && printf '-it' || printf '-i')
         docker run $TTY_FLAG --rm \
             -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+            -v "$(pwd)/nginx/certbot-hooks:/certbot-hooks" \
             certbot/certbot certonly \
                 --manual \
                 --preferred-challenges dns \
+                --manual-auth-hook /certbot-hooks/dns-auth-hook.sh \
+                --manual-public-ip-logging-ok \
                 --email "$CERTBOT_EMAIL" \
                 --agree-tos \
                 --no-eff-email \
@@ -503,15 +539,15 @@ HTTPSEOF
         if [ "$SSL_METHOD" = "http" ]; then
             error "For HTTP challenge, check that:"
             error "  1. Port 80 is open and reachable from the internet"
-            error "  2. ${DOMAIN} DNS points to this server (${SERVER_IP})"
+            error "  2. ${DOMAIN} DNS A record points to this server (${SERVER_IP})"
             error "  3. No other service is using port 80"
             error ""
-            error "If port 80 is blocked by your firewall/host, re-run setup.sh"
-            error "and choose option 2 (DNS challenge) instead."
+            error "If port 80 is blocked, re-run setup.sh and choose option 2 (DNS TXT)."
         else
-            error "For DNS challenge, check that:"
-            error "  1. You added the _acme-challenge TXT record to your DNS"
-            error "  2. The record propagated before pressing Enter"
+            error "For DNS TXT challenge, check that:"
+            error "  1. You added the _acme-challenge.${DOMAIN} TXT record"
+            error "  2. The record had fully propagated before pressing Enter"
+            error "  3. The TXT value you added matched the value shown on screen"
         fi
         echo ""
         warn "To retry SSL setup later, run: ./scripts/renew-ssl.sh"
