@@ -29,7 +29,7 @@ log "Backup complete"
 
 # 2. Pull latest code
 log "Pulling latest code from GitHub..."
-git pull origin main
+git pull
 
 # 3. Rebuild and restart (migrations run automatically on startup)
 log "Rebuilding and restarting services..."

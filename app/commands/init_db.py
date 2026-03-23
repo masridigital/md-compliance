@@ -129,7 +129,7 @@ def encrypt_existing_data():
     values in process_bind_param, so this is fully idempotent.
 
     Tables and columns covered:
-      tenants              : name, contact_email, approved_domains
+      tenants              : contact_email
       project_controls     : notes, auditor_notes
       project_subcontrols  : context, notes, auditor_feedback
       risk_register        : description, remediation
@@ -157,7 +157,7 @@ def encrypt_existing_data():
     from app.masri.new_models import WISPDocument, WISPVersion
 
     targets = [
-        (Tenant, ["name", "contact_email", "approved_domains"]),
+        (Tenant, ["contact_email"]),
         (ProjectControl, ["notes", "auditor_notes"]),
         (ProjectSubControl, ["context", "notes", "auditor_feedback"]),
         (RiskRegister, ["description", "remediation"]),
