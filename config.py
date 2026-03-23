@@ -137,7 +137,7 @@ class Config:
     APP_PRIMARY_COLOR = os.environ.get("APP_PRIMARY_COLOR", "#0066CC")
     APP_LOGO_URL = os.environ.get("APP_LOGO_URL", "/static/img/logo.svg")
     APP_FAVICON_URL = os.environ.get("APP_FAVICON_URL", "/static/img/favicon.ico")
-    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "support@masridigital.com")
+    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "inquiry@masridigital.com")
 
     # Masri Scheduler
     MASRI_SCHEDULER_ENABLED = os.environ.get("MASRI_SCHEDULER_ENABLED", "true").lower() == "true"

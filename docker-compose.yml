@@ -42,7 +42,7 @@ services:
       - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}
       - ENTRA_CLIENT_SECRET=${ENTRA_CLIENT_SECRET:-}
       - APP_PRIMARY_COLOR=${APP_PRIMARY_COLOR:-#0066CC}
-      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-support@masridigital.com}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
     env_file:
       - .env

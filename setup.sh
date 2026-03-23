@@ -252,7 +252,7 @@ MAIL_PORT=587
 MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_USE_TLS=true
-SUPPORT_EMAIL=${CERTBOT_EMAIL:-support@masridigital.com}
+SUPPORT_EMAIL=${CERTBOT_EMAIL:-inquiry@masridigital.com}
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 MASRI_SCHEDULER_ENABLED=true
