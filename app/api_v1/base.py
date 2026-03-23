@@ -188,7 +188,7 @@ def update_user(uid):
         user.tenant_limit = int(data.get("tenant_limit"))
 
     if data.get("email_confirmed") is True and not user.email_confirmed_at:
-        user.email_confirmed_at = str(arrow.utcnow())
+        user.email_confirmed_at = arrow.utcnow().datetime
 
     if data.get("email_confirmed") is False:
         user.email_confirmed_at = None
@@ -227,7 +227,7 @@ def verify_user_confirmation(id):
     if data.get("code", "").strip() != result["extra"]["user"].email_confirm_code:
         abort(403, "Invalid confirmation code")
 
-    result["extra"]["user"].email_confirmed_at = str(arrow.utcnow())
+    result["extra"]["user"].email_confirmed_at = arrow.utcnow().datetime
     db.session.commit()
     return jsonify({"message": "ok"})
 

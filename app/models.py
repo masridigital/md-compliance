@@ -3933,13 +3933,13 @@ class User(db.Model, UserMixin):
 
         self.password = generate_password_hash(password)
         if set_pwd_change:
-            self.last_password_change = str(datetime.utcnow())
+            self.last_password_change = datetime.utcnow()
 
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
     def set_confirmation(self):
-        self.email_confirmed_at = str(arrow.utcnow())
+        self.email_confirmed_at = arrow.utcnow().datetime
 
 
 class PolicyLabel(db.Model):
