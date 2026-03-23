@@ -216,6 +216,10 @@ POSTGRES_DB=mdcompliance
 POSTGRES_USER=mdcompliance
 POSTGRES_PASSWORD=${DB_PASSWORD}
 
+# ── Admin credentials ─────────────────────────────────────────────────────────
+DEFAULT_EMAIL=${ADMIN_EMAIL}
+DEFAULT_PASSWORD=${ADMIN_PASSWORD}
+
 # ── Email ─────────────────────────────────────────────────────────────────────
 MAIL_SERVER=
 MAIL_PORT=587
@@ -425,7 +429,7 @@ else
 fi
 
 echo ""
-echo -e "  ${BOLD}Login:${RESET}    admin@example.com  /  admin1234567"
+echo -e "  ${BOLD}Login:${RESET}    ${ADMIN_EMAIL}  /  (your chosen password)"
 echo -e "  ${BOLD}Note:${RESET}     Change the password immediately after first login"
 echo ""
 echo -e "  ${BOLD}Settings stored in:${RESET}  .env"

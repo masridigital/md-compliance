@@ -1,32 +1,48 @@
-"""This file sets up a command line manager.
-Use "python manage.py" for a list of available commands.
-Use "python manage.py runserver" to start the development web server on localhost:5000.
-Use "python manage.py runserver --help" for a list of runserver options.
+"""Database management CLI.
+
+Usage:
+  python manage.py init_db     # Create all tables and seed default admin + roles
+  python manage.py create_db   # Create tables only (no drop), seed defaults
+  python manage.py migrate_db  # Apply Alembic migrations to head
 """
 
-from flask_migrate import MigrateCommand
-from flask_script import Manager
+import sys
+import os
 
-from app import create_app
-from app.commands import (
-    InitDbCommand,
-    CreateDbCommand,
-    MigrateDbCommand,
-    DataImportCommand,
-    ForceDropTablesCommand,
-)
+# Ensure project root is on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Setup Flask-Script with command line commands
-manager = Manager(create_app)
-manager.add_command("db", MigrateCommand)
-manager.add_command("init_db", InitDbCommand)
-manager.add_command("create_db", CreateDbCommand)
-manager.add_command("migrate_db", MigrateDbCommand)
-manager.add_command("import", DataImportCommand)
-manager.add_command("force_drop_db", ForceDropTablesCommand)
+
+def run_command(cmd_name):
+    from app import create_app, db
+    from app.commands.init_db import (
+        InitDbCommand,
+        CreateDbCommand,
+        MigrateDbCommand,
+        DataImportCommand,
+        ForceDropTablesCommand,
+    )
+
+    commands = {
+        "init_db": InitDbCommand,
+        "create_db": CreateDbCommand,
+        "migrate_db": MigrateDbCommand,
+        "import": DataImportCommand,
+        "force_drop_db": ForceDropTablesCommand,
+    }
+
+    if cmd_name not in commands:
+        print(f"Unknown command: {cmd_name}")
+        print(f"Available commands: {', '.join(commands)}")
+        sys.exit(1)
+
+    app = create_app(os.getenv("FLASK_CONFIG") or "default")
+    with app.app_context():
+        commands[cmd_name]().run()
 
 
 if __name__ == "__main__":
-    # python manage.py                      # shows available commands
-    # python manage.py runserver --help     # shows available runserver options
-    manager.run()
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    run_command(sys.argv[1])

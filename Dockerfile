@@ -9,23 +9,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python packages
+# Install Python packages into a prefix so we can copy them cleanly
 COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --prefix=/install -r requirements.txt
 
-# Final application image
+# ── Final application image ───────────────────────────────────────────────────
 FROM python:3.9-slim AS app
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Runtime system dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy pre-installed Python packages from builder
-COPY --from=builder /usr/local /usr/local/
+COPY --from=builder /install /usr/local
 
+# Copy application source
 COPY . .
+
+# Ensure startup script is executable
+RUN chmod +x run.sh
+
 CMD ["/bin/bash", "run.sh"]

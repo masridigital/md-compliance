@@ -1,51 +1,54 @@
 from flask import current_app
-from flask_script import Command
 from flask_migrate import Migrate
 from alembic import command
-from app.models import *
+from app.models import User, Tenant, Role
 from app import db
 
 
-class InitDbCommand(Command):
-    """Initialize the database."""
+# ── Command classes (plain Python — no flask_script dependency) ───────────────
+
+class InitDbCommand:
+    """Drop all tables and recreate from SQLAlchemy models, then seed defaults."""
 
     def run(self):
         init_db()
         print("[INFO] Database has been initialized.")
 
 
-class CreateDbCommand(Command):
-    """Migrate the database."""
+class CreateDbCommand:
+    """Create tables without dropping existing ones, then seed defaults."""
 
     def run(self):
         create_db()
         print("[INFO] Database has been created.")
 
 
-class MigrateDbCommand(Command):
-    """Migrate the database."""
+class MigrateDbCommand:
+    """Apply pending Alembic migrations."""
 
     def run(self):
         migrate_db()
         print("[INFO] Database has been migrated.")
 
 
-class DataImportCommand(Command):
-    """Perform data import tasks"""
+class DataImportCommand:
+    """Placeholder for data import tasks."""
 
     def run(self):
-        raise ValueError("Not implemented")
+        raise NotImplementedError("DataImportCommand is not implemented.")
 
 
-class ForceDropTablesCommand(Command):
-    """Force Drop all tables in the database"""
+class ForceDropTablesCommand:
+    """Drop all tables — DESTRUCTIVE."""
 
     def run(self):
         force_drop_all_tables()
 
 
+# ── Implementation functions ──────────────────────────────────────────────────
+
 def init_db():
-    """Initialize the database. Will delete and recreate"""
+    """Drop everything and rebuild from models, then seed defaults."""
     db.drop_all()
     db.create_all()
     create_default_users()
@@ -53,27 +56,30 @@ def init_db():
 
 
 def create_db():
-    """Create the database. Will not update models if they already exist"""
+    """Create tables that don't already exist, then seed defaults."""
     db.create_all()
     create_default_users()
     create_default_roles()
 
 
 def migrate_db():
-    """Migrate the database."""
-    config = Migrate(current_app, db).get_config()
-    command.upgrade(config, "head")
+    """Apply Alembic migrations to head."""
+    cfg = Migrate(current_app, db).get_config()
+    command.upgrade(cfg, "head")
 
 
 def create_default_users():
-    """Create users"""
-    # Create default tenant and add the user
+    """Seed the default admin user and default tenant."""
+    default_email = current_app.config.get("DEFAULT_EMAIL", "admin@example.com")
+    default_password = current_app.config.get("DEFAULT_PASSWORD") or "admin1234567"
 
-    default_user = current_app.config.get("DEFAULT_EMAIL", "admin@example.com")
-    default_password = current_app.config.get("DEFAULT_PASSWORD", "admin1234567")
-    if not db.session.execute(db.select(User).filter(User.email == default_user)).scalars().first():
+    existing = db.session.execute(
+        db.select(User).filter(User.email == default_email)
+    ).scalars().first()
+
+    if not existing:
         user = User.add(
-            default_user,
+            default_email,
             password=default_password,
             confirmed=True,
             built_in=True,
@@ -81,16 +87,17 @@ def create_default_users():
             require_pwd_change=True,
             return_user_object=True,
         )
-        Tenant.create(user, "Default", default_user, is_default=True, init_data=True)
+        Tenant.create(user, "Default", default_email, is_default=True, init_data=True)
     return True
 
 
 def create_default_roles():
-    """Create roles"""
-    for role in Role.VALID_ROLE_NAMES:
-        r = Role(name=role.lower(), label=role)
-        db.session.add(r)
-        db.session.commit()
+    """Seed the built-in roles (skips any that already exist)."""
+    for role_name in Role.VALID_ROLE_NAMES:
+        if not Role.find_by_name(role_name):
+            r = Role(name=role_name.lower(), label=role_name)
+            db.session.add(r)
+    db.session.commit()
     return True
 
 
