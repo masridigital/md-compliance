@@ -146,9 +146,14 @@ header "Step 2 of 4 — SSL Certificate"
 echo "MD Compliance can automatically obtain a free SSL certificate"
 echo "from Let's Encrypt via Certbot."
 echo ""
-echo "  Requirements:"
-echo "   • Port 80 and 443 must be open on this server"
-echo "   • The domain DNS must already point to this server's IP"
+echo "  Two verification methods are available:"
+echo ""
+echo -e "  ${BOLD}1) HTTP (webroot)${RESET}  — Certbot places a file on port 80 for verification."
+echo "     Requires port 80 to be open and reachable from the internet."
+echo ""
+echo -e "  ${BOLD}2) DNS (TXT record)${RESET} — Certbot gives you a TXT record to add to your DNS."
+echo "     Works even if port 80 is blocked by a firewall."
+echo "     You will be prompted to add the record, then press Enter to continue."
 echo ""
 prompt "Set up SSL automatically with Let's Encrypt? [Y/n]"
 read -r SSL_CHOICE
@@ -166,8 +171,20 @@ if [[ "$SSL_CHOICE" =~ ^[Yy]$ ]]; then
             error "Please enter a valid email address."
         fi
     done
+    echo ""
+    prompt "Which verification method? [1=HTTP / 2=DNS] (default: 1):"
+    read -r SSL_METHOD_CHOICE
+    SSL_METHOD_CHOICE=${SSL_METHOD_CHOICE:-1}
+    if [[ "$SSL_METHOD_CHOICE" == "2" ]]; then
+        SSL_METHOD="dns"
+        warn "DNS challenge selected. You will need to add a TXT record to your DNS."
+    else
+        SSL_METHOD="http"
+        info "HTTP (webroot) challenge selected. Ensure port 80 is open."
+    fi
 else
     USE_SSL=false
+    SSL_METHOD=""
     warn "Skipping SSL — the app will run on HTTP only. Not recommended for production."
 fi
 
@@ -350,29 +367,64 @@ if [ "$USE_SSL" = true ]; then
 fi
 
 if [ "$USE_SSL" = true ]; then
-    info "Starting nginx (port 80 needed for ACME challenge)..."
-    $COMPOSE up -d nginx 2>/dev/null || true
+    mkdir -p nginx/ssl/letsencrypt nginx/certbot-webroot
 
-    info "Running Certbot..."
-    docker run --rm \
-        -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
-        -v "$(pwd)/nginx/certbot-webroot:/var/www/certbot" \
-        certbot/certbot certonly \
-            --webroot \
-            --webroot-path=/var/www/certbot \
-            --email "$CERTBOT_EMAIL" \
-            --agree-tos \
-            --no-eff-email \
-            -d "$DOMAIN" \
-            --non-interactive
+    if [ "$SSL_METHOD" = "dns" ]; then
+        # ── DNS-01 manual challenge ──────────────────────────────────────────
+        echo ""
+        warn "DNS challenge: Certbot will display a TXT record you must add to your DNS."
+        warn "Do NOT press Enter until you have added the record and it has propagated."
+        echo ""
+        info "Running Certbot (DNS-01 / manual)..."
+        docker run -it --rm \
+            -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+            certbot/certbot certonly \
+                --manual \
+                --preferred-challenges dns \
+                --email "$CERTBOT_EMAIL" \
+                --agree-tos \
+                --no-eff-email \
+                -d "$DOMAIN"
 
-    if [ $? -eq 0 ]; then
+        CERTBOT_EXIT=$?
+    else
+        # ── HTTP-01 webroot challenge ────────────────────────────────────────
+        info "Starting nginx (port 80 needed for ACME challenge)..."
+        $COMPOSE up -d nginx 2>/dev/null || true
+
+        info "Running Certbot (HTTP-01 / webroot)..."
+        docker run --rm \
+            -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
+            -v "$(pwd)/nginx/certbot-webroot:/var/www/certbot" \
+            certbot/certbot certonly \
+                --webroot \
+                --webroot-path=/var/www/certbot \
+                --email "$CERTBOT_EMAIL" \
+                --agree-tos \
+                --no-eff-email \
+                -d "$DOMAIN" \
+                --non-interactive
+
+        CERTBOT_EXIT=$?
+    fi
+
+    if [ "$CERTBOT_EXIT" -eq 0 ]; then
         log "SSL certificate obtained for ${DOMAIN}"
     else
-        error "Certbot failed. Check that:"
-        error "  1. Port 80 is open and reachable from the internet"
-        error "  2. ${DOMAIN} DNS points to this server"
-        error "  3. No other service is using port 80"
+        error "Certbot failed."
+        if [ "$SSL_METHOD" = "http" ]; then
+            error "For HTTP challenge, check that:"
+            error "  1. Port 80 is open and reachable from the internet"
+            error "  2. ${DOMAIN} DNS points to this server (${SERVER_IP})"
+            error "  3. No other service is using port 80"
+            error ""
+            error "If port 80 is blocked by your firewall/host, re-run setup.sh"
+            error "and choose option 2 (DNS challenge) instead."
+        else
+            error "For DNS challenge, check that:"
+            error "  1. You added the _acme-challenge TXT record to your DNS"
+            error "  2. The record propagated before pressing Enter"
+        fi
         echo ""
         warn "To retry SSL setup later, run: ./scripts/renew-ssl.sh"
         warn "Falling back to HTTP for now..."
