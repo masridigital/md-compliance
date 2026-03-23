@@ -69,10 +69,10 @@ The wizard will ask for your domain name, set up a free SSL certificate via Let'
 | Field | Value |
 |-------|-------|
 | URL | `https://your-domain.com` |
-| Email | `admin@example.com` |
-| Password | `admin1234567` |
+| Email | The email you entered in Step 3 of the wizard |
+| Password | The password you entered in Step 3 of the wizard |
 
-> **Change the default password immediately** via Settings → Users after first login.
+> **Change the password** via Settings → Users after first login if you used a temporary one.
 
 See [`SETUP.md`](SETUP.md) for full details including manual configuration, integrations, and update procedures.
 
@@ -277,20 +277,21 @@ source venv/bin/activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Set environment variables
+# 4. Set environment variables (copy the example and fill in values)
+cp .env.example .env
+export $(grep -v '^#' .env | xargs)
 export POSTGRES_HOST=localhost
-export POSTGRES_PORT=5432
-export POSTGRES_DB=mdcompliance
-export POSTGRES_USER=mdcompliance
-export POSTGRES_PASSWORD=changeme
-export SECRET_KEY=dev-secret-key
 export APP_ENV=development
+export FLASK_CONFIG=development
 
-# 5. Run migrations
+# 5a. Fresh database — create all tables and seed the admin user
+python manage.py init_db
+
+# 5b. Existing database — apply any new migrations
 flask db upgrade
 
 # 6. Start the app
-flask run --port 8000
+flask run --port 5000
 ```
 
 ### Adding a new framework
