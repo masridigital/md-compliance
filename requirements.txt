@@ -38,7 +38,8 @@ gunicorn>=22.0.0
 Werkzeug>=3.0.3
 shortuuid>=1.0.13
 google-cloud-storage>=2.17.0
-boto3>=1.35.0authlib>=1.3.1
+boto3>=1.35.0
+authlib>=1.3.1
 
 # --- Security: Request validation ---
 cryptography>=42.0.0
