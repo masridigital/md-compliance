@@ -11,7 +11,6 @@ nginx/conf.d/
 # Docs and local tooling
 *.md
 img/
-tools/
 tests/
 tl_src/
 server_config/
