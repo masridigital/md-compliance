@@ -227,7 +227,7 @@ cat > .env <<EOF
 
 # ── App ───────────────────────────────────────────────────────────────────────
 SECRET_KEY=${SECRET_KEY}
-APP_NAME=MD Compliance
+APP_NAME="MD Compliance"
 APP_ENV=production
 DOMAIN=${DOMAIN}
 PORT=5000
@@ -585,15 +585,10 @@ fi
 info "Waiting for the app to be ready..."
 sleep 8
 
-# Health check
+# Health check — probe the app container directly (port 8000 is not exposed)
 APP_UP=false
-if [ "$USE_SSL" = true ]; then
-    HEALTH_URL="http://localhost"
-else
-    HEALTH_URL="http://localhost:8000"
-fi
 for i in {1..12}; do
-    if curl -sf "$HEALTH_URL" &>/dev/null; then
+    if $COMPOSE exec -T app curl -sf http://localhost:5000 &>/dev/null; then
         APP_UP=true
         break
     fi

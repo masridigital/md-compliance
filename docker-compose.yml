@@ -13,11 +13,6 @@ services:
     networks:
       - db_nw
       - web_nw
-    # Port 8000 is only exposed for direct access / development.
-    # In production, nginx proxies to app:5000 internally.
-    # Remove or comment this out once nginx is running.
-    ports:
-      - "8000:5000"
     restart: unless-stopped
     volumes:
       - app_uploads:/app/app/uploads
@@ -30,6 +25,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - GUNICORN_WORKERS=2
+      - PYTHONUNBUFFERED=1
       # --- Masri Compliance Platform ---
       - SECRET_KEY=${SECRET_KEY}
       - LLM_ENABLED=${LLM_ENABLED:-false}
@@ -44,6 +40,8 @@ services:
       - APP_PRIMARY_COLOR=${APP_PRIMARY_COLOR:-#0066CC}
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
+      - DEFAULT_EMAIL=${DEFAULT_EMAIL:-}
+      - DEFAULT_PASSWORD=${DEFAULT_PASSWORD:-}
     env_file:
       - .env
 
@@ -58,9 +56,6 @@ services:
       PGDATA: /data/postgres
     volumes:
       - postgres_data:/data/postgres
-    # Expose postgres port for external DB tools (optional — remove in production)
-    ports:
-      - "5432:5432"
     networks:
       - db_nw
     restart: unless-stopped

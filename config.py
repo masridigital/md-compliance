@@ -211,23 +211,27 @@ class ProductionConfig(Config):
             "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
         )
 
-    SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("SQLALCHEMY_DATABASE_URI") or "postgresql://db1:changeme@postgres/db1"
-    )
+    _db_uri = os.environ.get("SQLALCHEMY_DATABASE_URI", "")
+    if not _db_uri:
+        raise RuntimeError(
+            "SQLALCHEMY_DATABASE_URI must be set in production. "
+            "Set POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB in .env "
+            "or set SQLALCHEMY_DATABASE_URI directly."
+        )
+    SQLALCHEMY_DATABASE_URI = _db_uri
 
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
         _required = {
             "SECRET_KEY": cls._INSECURE_KEY,
-            "SQLALCHEMY_DATABASE_URI": "postgresql://db1:changeme@postgres/db1",
         }
         for var, insecure_default in _required.items():
             value = app.config.get(var, "")
             if not value or value == insecure_default:
                 raise ValueError(
                     f"Production requires {var} to be set to a strong, non-default value. "
-                    f"Generate SECRET_KEY with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                    f"Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
                 )
     url = make_url(SQLALCHEMY_DATABASE_URI)
     POSTGRES_HOST = url.host

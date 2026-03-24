@@ -43,7 +43,7 @@ start_server() {
 
 wait_for_db() {
     log "Waiting for PostgreSQL..."
-    until python3 tools/check_db_connection.py 2>/dev/null; do
+    until python3 -u tools/check_db_connection.py; do
         warn "Database unavailable — retrying in 3s..."
         sleep 3
     done
