@@ -16,7 +16,13 @@ migrate = Migrate()
 mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
-limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+import os as _os
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=_os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
 
 
 def create_app(config_name="default"):
@@ -291,6 +297,22 @@ def configure_logging(app):
 
     app.logger.info("Enabled standard Flask logging")
 
+
+
+def configure_security_headers(app):
+    """Add security headers to every response."""
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not app.debug:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 
 def set_config_options(app):

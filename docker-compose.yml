@@ -10,6 +10,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - db_nw
       - web_nw
@@ -44,6 +46,7 @@ services:
       - APP_PRIMARY_COLOR=${APP_PRIMARY_COLOR:-#0066CC}
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
+      - RATELIMIT_STORAGE_URI=redis://redis:6379/0
     env_file:
       - .env
 
@@ -66,6 +69,19 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis (rate-limit backend) ──────────────────────────────────────────────
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    networks:
+      - db_nw
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
