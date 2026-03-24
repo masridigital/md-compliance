@@ -1,0 +1,34 @@
+# SSL certificates and certbot data (root-owned, not needed in image)
+nginx/ssl/
+nginx/certbot-webroot/
+nginx/certbot-hooks/
+nginx/conf.d/
+
+# Git
+.git/
+.gitignore
+
+# Docs and local tooling
+*.md
+img/
+tools/
+tests/
+tl_src/
+server_config/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment files (secrets must never go into the image)
+.env
+.env.*
+
+# Docker override files
+docker-compose.override.yml
+docker-compose*.yml
+
+# OS artifacts
+.DS_Store
