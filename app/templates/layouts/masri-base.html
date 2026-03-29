@@ -64,10 +64,8 @@
 
   <!-- Existing gapps helpers (if available) -->
   {% block include_helpers %}
-  {% if "helpers/src_macros.html" is template %}
-    {% import "helpers/src_macros.html" as macro %}
-    {{ macro.filehelper(sanitize=True) }}
-  {% endif %}
+  {% import "helpers/src_macros.html" as macro %}
+  {{ macro.filehelper(sanitize=True) }}
   {% endblock %}
 
   <title>{% block title %}{{ branding.app_name | default(config.APP_NAME) | default('Masri Digital Compliance') }}{% endblock %}</title>
