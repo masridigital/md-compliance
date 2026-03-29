@@ -136,7 +136,7 @@ elif db_is_initialized; then
     log "Existing database detected"
 
     # Check if migration history table exists; if not, stamp first
-    python3 - <<'EOF'
+    if ! python3 - <<'EOF'
 import sys, os
 sys.path.insert(0, ".")
 from app import create_app, db
@@ -146,7 +146,7 @@ with app.app_context():
     inspector = inspect(db.engine)
     sys.exit(0 if "alembic_version" in inspector.get_table_names() else 1)
 EOF
-    if [ $? -ne 0 ]; then
+    then
         warn "No migration history found on existing database — stamping to head first"
         stamp_migrations_to_head
     fi
