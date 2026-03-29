@@ -112,9 +112,10 @@ done
 
 # ── DNS verification ──────────────────────────────────────────────────────────
 info "Verifying DNS for ${DOMAIN}..."
-DOMAIN_IP=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1 \
-    || dig +short "$DOMAIN" 2>/dev/null | grep -E '^[0-9]+\.' | tail -1 \
-    || echo "")
+DOMAIN_IP=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+if [ -z "$DOMAIN_IP" ]; then
+    DOMAIN_IP=$(dig +short "$DOMAIN" 2>/dev/null | grep -E '^[0-9]+\.' | tail -1 || true)
+fi
 
 if [ -z "$DOMAIN_IP" ]; then
     warn "${DOMAIN} does not resolve yet — DNS has not propagated."
@@ -413,7 +414,7 @@ DNSAUTHEOF
         info "Running Certbot (DNS-01 / TXT record)..."
         echo ""
         TTY_FLAG=$([ -t 0 ] && printf '%s' '-it' || printf '%s' '-i')
-        docker run $TTY_FLAG --rm \
+        docker run "$TTY_FLAG" --rm \
             -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
             -v "$(pwd)/nginx/certbot-hooks:/certbot-hooks" \
             certbot/certbot certonly \
@@ -453,7 +454,11 @@ server {
 BOOTSTRAPEOF
 
         info "Starting nginx (port 80 needed for ACME challenge)..."
-        $COMPOSE up -d nginx
+        $COMPOSE up -d nginx || {
+            error "Failed to start nginx. Check if port 80 is already in use."
+            error "Run: sudo lsof -i :80   or   sudo ss -tlnp | grep :80"
+            exit 1
+        }
 
         info "Running Certbot (HTTP-01 / webroot)..."
         docker run --rm \
@@ -528,7 +533,7 @@ server {
 }
 HTTPSEOF
             info "Reloading nginx with HTTPS config..."
-            $COMPOSE exec nginx nginx -s reload || docker exec nginx nginx -s reload
+            $COMPOSE exec -T nginx nginx -s reload || docker exec nginx nginx -s reload || true
         fi
     fi
 
@@ -577,9 +582,15 @@ fi
 header "Starting MD Compliance"
 info "Building and starting all services..."
 if [ "$USE_SSL" = true ]; then
-    $COMPOSE --profile production up -d --build
+    $COMPOSE --profile production up -d --build || {
+        error "Failed to start services. Check docker logs for details."
+        exit 1
+    }
 else
-    $COMPOSE up -d --build
+    $COMPOSE up -d --build || {
+        error "Failed to start services. Check docker logs for details."
+        exit 1
+    }
 fi
 
 info "Waiting for the app to be ready..."
@@ -592,7 +603,7 @@ if [ "$USE_SSL" = true ]; then
 else
     HEALTH_URL="http://localhost:8000"
 fi
-for i in {1..12}; do
+for _ in {1..12}; do
     if curl -sf "$HEALTH_URL" &>/dev/null; then
         APP_UP=true
         break
@@ -602,9 +613,17 @@ done
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}${GREEN}║           MD Compliance is running!              ║${RESET}"
-echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${RESET}"
+if [ "$APP_UP" = true ]; then
+    echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BOLD}${GREEN}║           MD Compliance is running!              ║${RESET}"
+    echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${RESET}"
+else
+    echo -e "${BOLD}${YELLOW}╔══════════════════════════════════════════════════╗${RESET}"
+    echo -e "${BOLD}${YELLOW}║     MD Compliance started (may still be loading) ║${RESET}"
+    echo -e "${BOLD}${YELLOW}╚══════════════════════════════════════════════════╝${RESET}"
+    warn "Health check did not pass yet. The app may need more time to start."
+    warn "Check logs: $COMPOSE logs -f app"
+fi
 echo ""
 
 if [ "$USE_SSL" = true ]; then
