@@ -136,7 +136,8 @@ elif db_is_initialized; then
     log "Existing database detected"
 
     # Check if migration history table exists; if not, stamp first
-    if ! python3 - <<'EOF'
+    HAS_ALEMBIC=false
+    python3 - <<'CHECKEOF' && HAS_ALEMBIC=true || true
 import sys, os
 sys.path.insert(0, ".")
 from app import create_app, db
@@ -145,13 +146,18 @@ app = create_app(os.getenv("FLASK_CONFIG") or "default")
 with app.app_context():
     inspector = inspect(db.engine)
     sys.exit(0 if "alembic_version" in inspector.get_table_names() else 1)
-EOF
-    then
+CHECKEOF
+
+    if [ "$HAS_ALEMBIC" = false ]; then
         warn "No migration history found on existing database — stamping to head first"
         stamp_migrations_to_head
     fi
 
-    run_migrations
+    run_migrations || {
+        err "Migration failed — attempting to stamp and retry"
+        stamp_migrations_to_head
+        run_migrations
+    }
 else
     # ── Fresh database: create schema + stamp ────────────────────────────────
     initialize_fresh_db
