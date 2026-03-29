@@ -2,14 +2,27 @@ import requests
 from flask import current_app
 from requests.exceptions import HTTPError, RequestException
 
-def api_get(endpoint: str, params: dict = None):
-    base_url = current_app.config["INTEGRATIONS_BASE_URL"]
-    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
-    token = f"Bearer {current_app.config['INTEGRATIONS_TOKEN']}"
-    headers = {
-        "Authorization": token
-    }
+class IntegrationsNotConfiguredError(Exception):
+    """Raised when the integrations platform is not configured."""
+    pass
+
+
+def _get_base_url_and_headers():
+    """Return (base_url, headers) or raise IntegrationsNotConfiguredError."""
+    base_url = current_app.config.get("INTEGRATIONS_BASE_URL")
+    token = current_app.config.get("INTEGRATIONS_TOKEN")
+    if not base_url or not token:
+        raise IntegrationsNotConfiguredError(
+            "Integrations platform is not configured. "
+            "Set INTEGRATIONS_BASE_URL and INTEGRATIONS_TOKEN in your environment."
+        )
+    return base_url, {"Authorization": f"Bearer {token}"}
+
+
+def api_get(endpoint: str, params: dict = None):
+    base_url, headers = _get_base_url_and_headers()
+    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=10)
@@ -23,13 +36,9 @@ def api_get(endpoint: str, params: dict = None):
     return response.json()
 
 def api_post(endpoint: str, payload: dict = None, params: dict = None):
-    base_url = current_app.config["INTEGRATIONS_BASE_URL"]
+    base_url, headers = _get_base_url_and_headers()
     url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
-    token = f"Bearer {current_app.config['INTEGRATIONS_TOKEN']}"
-    headers = {
-        "Authorization": token
-    }
     response = requests.post(url, headers=headers, params=params, json=payload, timeout=10)
     try:
         response.raise_for_status()
@@ -39,13 +48,9 @@ def api_post(endpoint: str, payload: dict = None, params: dict = None):
     return response.json()
 
 def api_put(endpoint: str, payload: dict = None, params: dict = None):
-    base_url = current_app.config["INTEGRATIONS_BASE_URL"]
+    base_url, headers = _get_base_url_and_headers()
     url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
-    token = f"Bearer {current_app.config['INTEGRATIONS_TOKEN']}"
-    headers = {
-        "Authorization": token
-    }
     response = requests.put(url, headers=headers, params=params, json=payload, timeout=10)
     try:
         response.raise_for_status()
@@ -55,13 +60,9 @@ def api_put(endpoint: str, payload: dict = None, params: dict = None):
     return response.json()
 
 def api_delete(endpoint: str, payload: dict = None, params: dict = None):
-    base_url = current_app.config["INTEGRATIONS_BASE_URL"]
+    base_url, headers = _get_base_url_and_headers()
     url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
-    token = f"Bearer {current_app.config['INTEGRATIONS_TOKEN']}"
-    headers = {
-        "Authorization": token
-    }
     response = requests.delete(url, headers=headers, json=payload, params=params, timeout=10)
     try:
         response.raise_for_status()

@@ -1304,7 +1304,9 @@ function page(){
                 this.activeTab = hash;
             }
             await this.loadAll();
+            // Only poll if integrations platform is healthy
             setInterval(() => {
+                if (this.integrationsHealth !== 'healthy') return;
                 if (this.activeTab === 'deployments') {
                     this.loadDeployments();
                 } else if (this.activeTab === 'jobs') {
@@ -1427,8 +1429,12 @@ function page(){
             this.loading = true;
             this.error = null;
             try {
+                // Check integrations health first — skip other calls if not configured
+                await this.loadIntegrations();
+                if (this.integrationsHealth === "unhealthy") {
+                    return;
+                }
                 await Promise.all([
-                    this.loadIntegrations(),
                     this.loadDeployments(),
                     this.loadJobs()
                 ]);
@@ -1446,8 +1452,6 @@ function page(){
                 const response = await fetch(`/api/v1/integrations`);
                 if (!response.ok) {
                     this.integrationsHealth = "unhealthy";
-                    toast('Failed to load integrations', "error");
-                    toast("test")
                 } else {
                     this.integrations = await response.json();
                     this.integrationsHealth = "healthy";
@@ -1455,7 +1459,6 @@ function page(){
             } catch (err) {
                 console.error('Error loading integrations:', err);
                 this.integrationsHealth = "unhealthy";
-                throw err;
             }
         },
 

@@ -4,10 +4,15 @@ from flask import (
 )
 from . import api
 from app.utils.decorators import login_required
-from app.utils.integrations import api_get, api_post, api_put, api_delete
+from app.utils.integrations import api_get, api_post, api_put, api_delete, IntegrationsNotConfiguredError
 from app.utils.authorizer import Authorizer
 from flask_login import current_user
 from app import limiter
+
+
+@api.errorhandler(IntegrationsNotConfiguredError)
+def handle_integrations_not_configured(e):
+    return jsonify({"error": str(e), "code": "integrations_not_configured"}), 503
 from app.api_v1.schemas import (
     validate_payload,
     IntegrationCreateSchema,
