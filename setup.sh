@@ -412,7 +412,7 @@ DNSAUTHEOF
         echo ""
         info "Running Certbot (DNS-01 / TXT record)..."
         echo ""
-        TTY_FLAG=$([ -t 0 ] && printf '-it' || printf '-i')
+        TTY_FLAG=$([ -t 0 ] && printf '%s' '-it' || printf '%s' '-i')
         docker run $TTY_FLAG --rm \
             -v "$(pwd)/nginx/ssl/letsencrypt:/etc/letsencrypt" \
             -v "$(pwd)/nginx/certbot-hooks:/certbot-hooks" \
