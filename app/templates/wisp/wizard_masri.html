@@ -497,7 +497,7 @@ function wispWizard() {
     currentStep: 0,
     furthestStep: 0,
     lastSaved: '',
-    llmEnabled: {{ (config.LLM_ENABLED | default(false)) | tojson }},
+    llmEnabled: {{ (feature_flags.LLM_ENABLED | default(false)) | tojson }},
     llmLoading: false,
     llmResponse: '',
     generating: false,

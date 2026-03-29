@@ -95,9 +95,13 @@ def register_context_processors(app):
 
     @app.context_processor
     def inject_config_flags():
-        """Expose selected config flags to templates."""
+        """Expose selected config flags to templates.
+
+        NOTE: Do NOT override ``config`` — Flask already injects its
+        full config object as ``config``.  Use a separate key instead.
+        """
         return {
-            "config": {
+            "feature_flags": {
                 "LLM_ENABLED": app.config.get("LLM_ENABLED", False),
                 "WISP_ENABLED": app.config.get("WISP_ENABLED", True),
                 "MCP_ENABLED": app.config.get("MCP_ENABLED", False),
