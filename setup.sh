@@ -198,13 +198,29 @@ fi
 # ── Step 3: App credentials ───────────────────────────────────────────────────
 header "Step 3 of 4 — App Credentials"
 
-# Secret key
-SECRET_KEY=$(openssl rand -hex 32)
-log "Generated SECRET_KEY (random 256-bit)"
+# Secret key — reuse from existing .env if present, so re-runs are safe
+if [ -f .env ]; then
+    EXISTING_SECRET=$(grep -E '^SECRET_KEY=' .env 2>/dev/null | cut -d= -f2-)
+    EXISTING_DB_PW=$(grep -E '^POSTGRES_PASSWORD=' .env 2>/dev/null | cut -d= -f2-)
+fi
 
-# Database password
-DB_PASSWORD=$(openssl rand -hex 16)
-log "Generated database password (random)"
+if [ -n "$EXISTING_SECRET" ]; then
+    SECRET_KEY="$EXISTING_SECRET"
+    log "Reusing existing SECRET_KEY from .env"
+else
+    SECRET_KEY=$(openssl rand -hex 32)
+    log "Generated SECRET_KEY (random 256-bit)"
+fi
+
+# Database password — MUST reuse on re-runs; Postgres stores the password on
+# first init and a new random value would cause auth failures.
+if [ -n "$EXISTING_DB_PW" ]; then
+    DB_PASSWORD="$EXISTING_DB_PW"
+    log "Reusing existing database password from .env"
+else
+    DB_PASSWORD=$(openssl rand -hex 16)
+    log "Generated database password (random)"
+fi
 
 echo ""
 prompt "Admin email address (used to log in):"
@@ -580,6 +596,13 @@ fi
 
 # ── Start the app ─────────────────────────────────────────────────────────────
 header "Starting MD Compliance"
+
+# Stop any existing containers from a previous run to avoid conflicts
+if $COMPOSE ps -q 2>/dev/null | grep -q .; then
+    info "Stopping existing containers from previous run..."
+    $COMPOSE --profile production down 2>/dev/null || true
+fi
+
 info "Building and starting all services..."
 if [ "$USE_SSL" = true ]; then
     $COMPOSE --profile production up -d --build || {
