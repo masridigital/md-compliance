@@ -17,8 +17,7 @@ from app.utils import misc
 @login_required
 def users():
     Authorizer(current_user).can_user_manage_platform()
-    tenants = db.session.execute(db.select(Tenant)).scalars().all()
-    return render_template("management/users.html", tenants=tenants)
+    return redirect(url_for("main.tenant_users"))
 
 
 @main.route("/admin/settings", methods=["GET"])
@@ -52,7 +51,7 @@ def tenant_users():
 @main.route("/tenants", methods=["GET"])
 @login_required
 def tenants():
-    return redirect(url_for("main.workspace"))
+    return render_template("management/tenants.html")
 
 
 @main.route("/users/<string:uid>/password", methods=["POST"])

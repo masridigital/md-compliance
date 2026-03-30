@@ -314,6 +314,15 @@
 function table(){
     return {
         availableTenants: [],
+        _tenantId() {
+          // Safe tenant ID accessor — never throws
+          try {
+            if (this.formData.tenant_id) return this.formData.tenant_id;
+            if (this.$store.currentUser && this.$store.currentUser.selectedTenant) return this.$store.currentUser.selectedTenant.id;
+            if (this.availableTenants.length > 0) return this.availableTenants[0].id;
+          } catch(e) {}
+          return null;
+        },
         init() {
           this.isSidebarOpen = true;
           this.$watch(
@@ -321,8 +330,7 @@ function table(){
                 this.drawTable({"selector": "#table_1", "tableData":newValue})
           })
 
-          this.getItems()
-          this.getFrameworks()
+          // Load tenants first, then items and frameworks once we have a tenant ID
           this.loadTenants()
         },
         loadTenants() {
@@ -335,8 +343,20 @@ function table(){
               } else if (this.availableTenants.length > 0) {
                 this.formData.tenant_id = this.availableTenants[0].id;
               }
+              // Now safe to load items
+              if (this._tenantId()) {
+                this.getItems();
+                this.getFrameworks();
+              } else {
+                this.loading = false;
+                this.hasProjects = false;
+              }
             },
-            error => { console.debug('Could not load tenants:', error); }
+            error => {
+              console.debug('Could not load tenants:', error);
+              this.loading = false;
+              this.hasProjects = false;
+            }
           );
         },
         loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
@@ -545,9 +565,11 @@ function table(){
           return filteredData
         },
         getItems: function() {
+          const tid = this._tenantId();
+          if (!tid) { this.loading = false; this.hasProjects = false; return; }
           this.loading = true,
           request("GET",
-            `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/projects?exclude-timely=true`,
+            `/api/v1/tenants/${tid}/projects?exclude-timely=true`,
             data => {
               this.items = data;
               this.loading = false;
@@ -563,8 +585,10 @@ function table(){
           );
         },
         getFrameworks: function() {
+          const tid = this._tenantId();
+          if (!tid) return;
           request("GET",
-            `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/frameworks`,
+            `/api/v1/tenants/${tid}/frameworks`,
             data => {
                 this.frameworks = data.map(item => ({
                   ...item,
