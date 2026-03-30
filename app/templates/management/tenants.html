@@ -56,7 +56,7 @@
                             class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕
                     </button>
                 </form>
-                <h3 class="font-bold text-lg" x-text="'Are you sure you want to delete Tenant: ' + selectedItem.name + '? You will lose all data within the tenant and this action can not be undone.'"></h3>
+                <h3 class="font-bold text-lg capitalize" x-text="'Are you sure you want to delete Tenant: ' + selectedItem.name + '? You will lose all data within the tenant and this action can not be undone.'"></h3>
                 <div class="modal-action">
                     <button class="btn" @click="showDeleteModal = false">Close</button>
                     <button class="btn btn-error" :class='{"btn-disabled": buttonDisabled}'
@@ -257,22 +257,37 @@ function table(){
         modalFields: [],
         tableHeaders: [
           {"field": "id", "headerName": "#", "width": 100, "filter": "agTextColumnFilter", "hide": true, "modal": {"disable": true}},
-          {"field": "name", "headerName": "Name", "filter": "agTextColumnFilter", "modal": {"disable": true}},
+          {"field": "name", "headerName": "Name", "filter": "agTextColumnFilter", "cellClass": "capitalize", "modal": {"disable": true}},
           {"field": "contact_email", "headerName": "Contact", "filter": "agTextColumnFilter"},
           {"field": "license", "headerName": "License", "filter": "agTextColumnFilter", "cellClass": "capitalize"},
           {"field": "user_cap", "headerName": "User Cap", "filter": "agNumberColumnFilter"},
           {"field": "id", "headerName": "Users", "width": 100, "filter": "agTextColumnFilter", "cellRenderer": idToButton, "cellRendererParams": {"text": "View", "class": "btn-xs bg-base-100", "link": "/users"}},
-          {"field": "id", "headerName": "Actions", "width": 220, "sortable": false, "filter": false,
+          {"field": "id", "headerName": "Actions", "width": 180, "sortable": false, "filter": false,
             "cellRenderer": (params) => {
               const id = params.value;
               const div = document.createElement('div');
               div.className = 'flex gap-1';
-              div.innerHTML = `
-                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Edit" onclick="document.dispatchEvent(new CustomEvent('tenant-edit', {detail:'${id}'}))"><i class="ti ti-edit text-info"></i></button>
-                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Archive" onclick="document.dispatchEvent(new CustomEvent('tenant-archive', {detail:'${id}'}))"><i class="ti ti-archive text-warning"></i></button>
-                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Delete" onclick="document.dispatchEvent(new CustomEvent('tenant-delete', {detail:'${id}'}))"><i class="ti ti-trash text-error"></i></button>
-                <a href="/workspace" class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Open Workspace"><i class="ti ti-external-link"></i></a>
-              `;
+              const editBtn = document.createElement('button');
+              editBtn.className = 'btn btn-xs btn-ghost border border-base-300 tooltip';
+              editBtn.setAttribute('data-tip', 'Edit');
+              editBtn.innerHTML = '<i class="ti ti-edit text-info"></i>';
+              editBtn.addEventListener('click', () => document.dispatchEvent(new CustomEvent('tenant-edit', {detail: id})));
+
+              const archiveBtn = document.createElement('button');
+              archiveBtn.className = 'btn btn-xs btn-ghost border border-base-300 tooltip';
+              archiveBtn.setAttribute('data-tip', 'Archive');
+              archiveBtn.innerHTML = '<i class="ti ti-archive text-warning"></i>';
+              archiveBtn.addEventListener('click', () => document.dispatchEvent(new CustomEvent('tenant-archive', {detail: id})));
+
+              const deleteBtn = document.createElement('button');
+              deleteBtn.className = 'btn btn-xs btn-ghost border border-base-300 tooltip';
+              deleteBtn.setAttribute('data-tip', 'Delete');
+              deleteBtn.innerHTML = '<i class="ti ti-trash text-error"></i>';
+              deleteBtn.addEventListener('click', () => document.dispatchEvent(new CustomEvent('tenant-delete', {detail: id})));
+
+              div.appendChild(editBtn);
+              div.appendChild(archiveBtn);
+              div.appendChild(deleteBtn);
               return div;
             }
           },

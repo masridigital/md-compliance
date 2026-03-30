@@ -42,18 +42,18 @@
             <div class="grid grid-cols-6 gap-4">
                 <template x-for="project in items" :key="project.id">
                     <div class="col-span-2">
-                        <div class="border border-base-300 rounded-lg p-8 bg-base-200 capitalize">
+                        <a :href="'/projects/' + project.id" class="block border border-base-300 rounded-lg p-8 bg-base-200 capitalize hover:border-primary hover:shadow-lg transition-all cursor-pointer" style="text-decoration: none; color: inherit;">
                             <div class="w-full h-full block">
                                 <div class="flex justify-between">
-                                    <a class="hover:underline flex flex-row my-auto" :href="'/projects/' + project.id">
+                                    <div class="flex flex-row my-auto">
                                         <h3 class="text-lg font-semibold" x-text="project.name"></h3>
-                                        <i class="ti ti-external-link ml-1 my-auto"></i>
-                                    </a>
+                                        <i class="ti ti-external-link ml-1 my-auto opacity-50"></i>
+                                    </div>
 
-                                    <details class="dropdown">
+                                    <details class="dropdown" @click.stop>
                                       <summary class="btn btn-sm m-1"><i class="ti ti-dots-vertical text-lg"></i></summary>
                                       <ul class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-                                          <li><button class="text-sm text-error" @click="openDeleteModal(project)">Delete</button></li>
+                                          <li><button class="text-sm text-error" @click.prevent="openDeleteModal(project)">Delete</button></li>
                                       </ul>
                                     </details>
                                 </div>
@@ -99,8 +99,8 @@
                                         </div>
                                     </div>
                                 </div>
-                            </a>
-                        </div>
+                            </div>
+                        </a>
                     </div>
                 </template>
             </div>
@@ -179,7 +179,7 @@
                                 <label class="block text-sm font-medium mb-2">Tenant</label>
                                 <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full">
                                   <template x-for="t in availableTenants" :key="t.id">
-                                    <option :value="t.id" x-text="t.name" :selected="t.id === $store.currentUser.selectedTenant.id"></option>
+                                    <option :value="t.id" x-text="t.name" :selected="t.id === $store.currentUser.selectedTenant.id" class="capitalize"></option>
                                   </template>
                                 </select>
                             </div>

@@ -4533,11 +4533,19 @@ function project(){
 			this.integrationsLoading = true;
 			try {
 				const response = await fetch(`/api/v1/projects/${this.projectId}/deployments`);
-				if (!response.ok) throw new Error(`HTTP ${response.status}`);
+				if (!response.ok) {
+					if (response.status === 503) {
+						console.debug('Integrations service not configured');
+						this.projectDeployments = [];
+						return;
+					}
+					throw new Error(`HTTP ${response.status}`);
+				}
 				this.projectDeployments = await response.json();
 				await this.loadProjectViolations();
 			} catch (err) {
-				console.error('Failed to load project deployments:', err);
+				console.debug('Project deployments unavailable:', err.message);
+				this.projectDeployments = [];
 			} finally {
 				this.integrationsLoading = false;
 			}
@@ -4654,7 +4662,11 @@ function project(){
 				// Also keep allDeployments in sync for name resolution
 				this.allDeployments = deployments;
 			} catch (err) {
-				this.addIntegrationError = 'Failed to load deployments: ' + err.message;
+				if (err.message && err.message.includes('503')) {
+					this.addIntegrationError = 'Integrations service is not configured. Configure deployments in Settings > Integrations first.';
+				} else {
+					this.addIntegrationError = 'Failed to load deployments: ' + err.message;
+				}
 			} finally {
 				this.addIntegrationLoading = false;
 			}
