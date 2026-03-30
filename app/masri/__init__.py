@@ -6,7 +6,7 @@ This package contains all Phase 1 Masri extensions:
   - settings_service: Service layer for settings CRUD + encryption
   - settings_routes: Flask blueprint for /api/v1/settings/*
   - wisp_routes: Flask blueprint for /api/v1/wisp/*
-  - mcp_server: Flask blueprint for /mcp/v1/*
+  - mcp_server: Flask blueprint for /mcp/*
   - storage_providers: Multi-provider file storage abstraction
   - notification_engine: Multi-channel notification dispatcher
   - llm_service: Multi-provider LLM abstraction

@@ -6,7 +6,7 @@ JSON-over-HTTP API.  Authentication uses bearer tokens backed by
 MCPAPIKey records.  Each tool is registered as a discoverable definition
 with JSON-Schema-style parameter metadata.
 
-Blueprint: ``mcp`` at url_prefix ``/mcp/v1``
+Blueprint: ``mcp`` at url_prefix ``/mcp``
 """
 
 import json
@@ -21,7 +21,7 @@ from flask import Blueprint, jsonify, request, abort
 
 logger = logging.getLogger(__name__)
 
-mcp_bp = Blueprint("mcp", __name__, url_prefix="/mcp/v1")
+mcp_bp = Blueprint("mcp", __name__, url_prefix="/mcp")
 
 
 # ---------------------------------------------------------------------------
@@ -868,7 +868,7 @@ def _authenticate():
 
     Accepts either:
       1. A raw MCP API key (``mcp_...``)
-      2. An OAuth access token (``mcp_at_...``) issued by POST /mcp/v1/token
+      2. An OAuth access token (``mcp_at_...``) issued by POST /mcp/token
 
     Returns the ``MCPAPIKey`` record on success. Aborts 401 on failure.
     """
@@ -876,7 +876,7 @@ def _authenticate():
 
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        abort(401, description="Missing or malformed Authorization header. Use OAuth: POST /mcp/v1/token with client_credentials grant, or pass an API key directly.")
+        abort(401, description="Missing or malformed Authorization header. Use OAuth: POST /mcp/token with client_credentials grant, or pass an API key directly.")
 
     token = auth_header[7:].strip()
     if not token:
@@ -886,7 +886,7 @@ def _authenticate():
     if token.startswith("mcp_at_"):
         key_record = _validate_oauth_token(token)
         if key_record is None:
-            abort(401, description="Invalid or expired OAuth access token. Request a new one via POST /mcp/v1/token.")
+            abort(401, description="Invalid or expired OAuth access token. Request a new one via POST /mcp/token.")
         return key_record
 
     # Fall back to raw API key
@@ -915,7 +915,7 @@ def oauth_metadata():
     LLM clients and MCP-compatible tools discover the token endpoint
     and supported grant types from this well-known URL.
     """
-    base = request.host_url.rstrip("/") + "/mcp/v1"
+    base = request.host_url.rstrip("/") + "/mcp"
     return jsonify({
         "issuer": base,
         "token_endpoint": base + "/token",
@@ -1025,13 +1025,13 @@ def oauth_token():
 @mcp_bp.route("/docs", methods=["GET"])
 def public_docs():
     """
-    GET /mcp/v1/docs — Public API documentation endpoint.
+    GET /mcp/docs — Public API documentation endpoint.
 
     Returns the full MCP tool catalogue with parameter schemas,
     authentication requirements, and usage examples.
     No authentication required.
     """
-    base = request.host_url.rstrip("/") + "/mcp/v1"
+    base = request.host_url.rstrip("/") + "/mcp"
     return jsonify({
         "name": "Masri Digital Compliance MCP Server",
         "version": "1.0",
@@ -1069,10 +1069,10 @@ def public_docs():
         },
         "quick_start": {
             "step_1": "Generate an API key in Integrations > MCP Server",
-            "step_2": "POST /mcp/v1/token with grant_type=client_credentials&client_secret=YOUR_KEY",
+            "step_2": "POST /mcp/token with grant_type=client_credentials&client_secret=YOUR_KEY",
             "step_3": "Use the returned access_token as: Authorization: Bearer <access_token>",
-            "step_4": "GET /mcp/v1/tools to discover available tools",
-            "step_5": "POST /mcp/v1/tools/<name> with JSON params to execute",
+            "step_4": "GET /mcp/tools to discover available tools",
+            "step_5": "POST /mcp/tools/<name> with JSON params to execute",
         },
         "tools": TOOL_DEFINITIONS,
         "rate_limiting": "Configurable per API key via scopes.rate_limit (requests per minute)",

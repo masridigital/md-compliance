@@ -23,7 +23,7 @@ from app.utils.authorizer import Authorizer
 @main.route("/.well-known/oauth-authorization-server", methods=["GET"])
 def oauth_discovery_root():
     """Root-level OAuth discovery — redirects to MCP server metadata."""
-    base = request.host_url.rstrip("/") + "/mcp/v1"
+    base = request.host_url.rstrip("/") + "/mcp"
     return jsonify({
         "issuer": base,
         "token_endpoint": base + "/token",
