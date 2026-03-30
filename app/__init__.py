@@ -41,6 +41,7 @@ def create_app(config_name="default"):
     configure_security_headers(app)
     _validate_secret_key(app)
     _load_smtp_from_db(app)
+    _write_boot_stamp(app)
 
     @app.before_request
     def enforce_session_timeout():
@@ -68,21 +69,18 @@ def create_app(config_name="default"):
         if not (current_user and current_user.is_authenticated):
             return
 
-        # Force logout after platform update
-        try:
-            from app.models import ConfigStore
-            update_stamp = ConfigStore.find("last_update_stamp")
-            if update_stamp and update_stamp.value:
-                session_stamp = session.get("_update_stamp", "")
-                if session_stamp != update_stamp.value:
-                    session["_update_stamp"] = update_stamp.value
-                    # First request after update — force re-login
-                    if session_stamp:  # Only force logout if they had an OLD stamp
-                        logout_user()
-                        session.clear()
-                        return redirect(url_for("auth.get_login"))
-        except Exception:
-            pass
+        # ── Force logout on server reboot or update ──
+        # The boot stamp changes on every server start. If the session
+        # has a different stamp, the server has restarted since login.
+        boot_stamp = app.config.get("_BOOT_STAMP", "")
+        session_boot = session.get("_boot_stamp", "")
+        if boot_stamp and session_boot and session_boot != boot_stamp:
+            logout_user()
+            session.clear()
+            return redirect(url_for("auth.get_login"))
+        # Stamp new sessions so the check works on their NEXT request
+        if not session_boot and boot_stamp:
+            session["_boot_stamp"] = boot_stamp
 
         # Determine timeout (default 30 min)
         timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 30)
@@ -144,6 +142,23 @@ def _validate_secret_key(app):
             app.logger.warning("SECURITY WARNING: %s", msg)
         else:
             raise RuntimeError(msg)
+
+
+def _write_boot_stamp(app):
+    """Write a fresh boot stamp to ConfigStore on every server start.
+
+    Any session whose _boot_stamp doesn't match will be forced to re-login.
+    This guarantees ALL users are logged out after a server restart or update.
+    """
+    import time
+    stamp = str(int(time.time()))
+    try:
+        with app.app_context():
+            from app.models import ConfigStore
+            ConfigStore.upsert("server_boot_stamp", stamp)
+            app.config["_BOOT_STAMP"] = stamp
+    except Exception:
+        app.config["_BOOT_STAMP"] = stamp
 
 
 def _load_smtp_from_db(app):
