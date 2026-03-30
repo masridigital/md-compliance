@@ -6,42 +6,39 @@
 
 {%block head%}
 <style>
-  /* Grid */
-  .int-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
-
-  /* Category Section */
-  .int-section { margin-bottom: 2.5rem; }
-  .int-section-header {
-    display: flex; align-items: center; gap: .75rem;
-    padding: .75rem 1rem; margin-bottom: 1rem;
-    background: oklch(var(--b2)); border-radius: .75rem;
-    border: 1px solid oklch(var(--bc) / .08);
+  /* Flat 4-column grid */
+  .int-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
   }
-  .int-section-icon {
-    width: 36px; height: 36px; border-radius: .5rem;
-    display: flex; align-items: center; justify-content: center;
-    background: oklch(var(--p) / .1); color: oklch(var(--p));
-    font-size: 1.25rem; flex-shrink: 0;
-  }
-  .int-section-title { font-size: 1rem; font-weight: 700; }
-  .int-section-count { font-size: .75rem; font-weight: 400; opacity: .5; }
+  @media (max-width: 1200px) { .int-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 900px)  { .int-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px)  { .int-grid { grid-template-columns: 1fr; } }
 
   /* Cards */
   .int-card {
-    border: 1px solid oklch(var(--bc) / .12); border-radius: .75rem;
-    padding: 1.5rem; cursor: pointer;
+    border: 1px solid oklch(var(--bc) / .10); border-radius: .75rem;
+    padding: 1.25rem; cursor: pointer;
     transition: border-color .15s, box-shadow .15s, transform .1s;
-    display: flex; flex-direction: column; min-height: 140px;
+    display: flex; flex-direction: column;
+    background: oklch(var(--b2));
   }
-  .int-card:hover { border-color: oklch(var(--p)); box-shadow: 0 0 0 1px oklch(var(--p) / .3); transform: translateY(-1px); }
-  .int-card.is-active { border-color: oklch(var(--su)); background: oklch(var(--su) / .03); }
+  .int-card:hover { border-color: oklch(var(--p)); box-shadow: 0 2px 12px oklch(var(--p) / .08); transform: translateY(-2px); }
+  .int-card.is-active { border-color: oklch(var(--su)); }
   .int-card-icon {
-    width: 40px; height: 40px; border-radius: .5rem;
+    width: 42px; height: 42px; border-radius: .625rem;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.5rem; flex-shrink: 0;
+    font-size: 1.35rem; flex-shrink: 0;
     background: oklch(var(--bc) / .06);
   }
   .int-card.is-active .int-card-icon { background: oklch(var(--su) / .12); color: oklch(var(--su)); }
+  .int-card-cat {
+    font-size: .65rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 4px;
+    background: oklch(var(--bc) / .06); color: oklch(var(--bc) / .5);
+    white-space: nowrap;
+  }
 
   /* Status */
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
@@ -60,9 +57,18 @@
 {%block content%}
 <div x-data="integrationsHub()" x-init="init()">
 
-  <!-- Search -->
-  <div class="mb-6">
-    <input type="text" x-model="search" placeholder="Search integrations..." class="input input-bordered input-sm w-full max-w-xs" />
+  <!-- Toolbar: Search + Category Filter -->
+  <div class="flex items-center gap-3 mb-6 flex-wrap">
+    <input type="text" x-model="search" placeholder="Search integrations..." class="input input-bordered input-sm flex-1 min-w-[200px] max-w-sm" />
+    <select class="select select-bordered select-sm w-48" x-model="categoryFilter">
+      <option value="">All Categories</option>
+      <template x-for="cat in categories" :key="'filter-'+cat.id">
+        <option :value="cat.id" x-text="cat.label"></option>
+      </template>
+    </select>
+    <div class="flex items-center gap-2 ml-auto text-xs opacity-50">
+      <span x-text="allFiltered.length + ' integration' + (allFiltered.length !== 1 ? 's' : '')"></span>
+    </div>
   </div>
 
   <!-- Loading -->
@@ -70,41 +76,31 @@
     <span class="loading loading-spinner loading-lg"></span>
   </div>
 
-  <!-- Categories -->
-  <template x-for="cat in categories" :key="cat.id">
-    <div x-show="loaded && filteredByCategory(cat.id).length > 0" class="int-section">
-      <!-- Section Header -->
-      <div class="int-section-header">
-        <div class="int-section-icon"><i :class="'ti ' + cat.icon"></i></div>
-        <div>
-          <span class="int-section-title" x-text="cat.label"></span>
-          <span class="int-section-count" x-text="'  (' + filteredByCategory(cat.id).length + ')'"></span>
+  <!-- Flat 4-Column Grid -->
+  <div class="int-grid" x-show="loaded">
+    <template x-for="item in allFiltered" :key="item.id">
+      <div class="int-card" :class="{ 'is-active': getStatus(item.id).configured && getStatus(item.id).enabled }" @click="openDrawer(item)">
+        <!-- Top: icon + name + status -->
+        <div class="flex items-start gap-3 mb-3">
+          <div class="int-card-icon"><i :class="'ti ' + item.icon"></i></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm leading-tight" x-text="item.name"></div>
+            <div class="flex items-center gap-1.5 mt-1">
+              <span class="status-dot" :class="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'green' : 'amber') : 'gray'"></span>
+              <span class="text-xs opacity-50" x-text="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'Active' : 'Disabled') : 'Not configured'"></span>
+            </div>
+          </div>
+        </div>
+        <!-- Description -->
+        <p class="text-xs opacity-50 leading-relaxed flex-1 mb-3" x-text="item.description"></p>
+        <!-- Footer: category badge + detail -->
+        <div class="flex items-center justify-between mt-auto pt-2 border-t border-base-content/5">
+          <span class="int-card-cat" x-text="getCategoryLabel(item.category)"></span>
+          <span x-show="getStatus(item.id).detail" class="text-xs opacity-40 truncate ml-2" x-text="getStatus(item.id).detail"></span>
         </div>
       </div>
-      <!-- Cards Grid -->
-      <div class="int-grid">
-        <template x-for="item in filteredByCategory(cat.id)" :key="item.id">
-          <div class="int-card" :class="{ 'is-active': getStatus(item.id).configured && getStatus(item.id).enabled }" @click="openDrawer(item)">
-            <div class="flex items-start gap-3 mb-3">
-              <div class="int-card-icon"><i :class="'ti ' + item.icon"></i></div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between">
-                  <div class="font-semibold text-sm" x-text="item.name"></div>
-                  <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <span class="status-dot" :class="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'green' : 'amber') : 'gray'"></span>
-                    <span class="text-xs opacity-60" x-text="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'Active' : 'Disabled') : 'Not configured'"></span>
-                  </div>
-                </div>
-                <div x-show="item.provider" class="text-xs opacity-40 mt-0.5" x-text="item.provider || ''"></div>
-              </div>
-            </div>
-            <p class="text-xs opacity-60 leading-relaxed flex-1" x-text="item.description"></p>
-            <div x-show="getStatus(item.id).detail" class="mt-3 pt-2 border-t border-base-content/5 text-xs opacity-50" x-text="getStatus(item.id).detail"></div>
-          </div>
-        </template>
-      </div>
-    </div>
-  </template>
+    </template>
+  </div>
 
   <div x-show="loaded && allFiltered.length === 0" class="text-center py-12 opacity-50">
     <i class="ti ti-puzzle text-4xl"></i>
@@ -835,6 +831,7 @@
 function integrationsHub() {
   return {
     search: '',
+    categoryFilter: '',
     loaded: false,
     drawerOpen: false,
     selected: null,
@@ -992,9 +989,15 @@ function integrationsHub() {
     },
 
     get allFiltered() {
-      if (!this.search) return this.integrations;
-      const q = this.search.toLowerCase();
-      return this.integrations.filter(i => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || i.category.includes(q));
+      let items = this.integrations;
+      if (this.categoryFilter) {
+        items = items.filter(i => i.category === this.categoryFilter);
+      }
+      if (this.search) {
+        const q = this.search.toLowerCase();
+        items = items.filter(i => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || i.category.includes(q));
+      }
+      return items;
     },
 
     filteredByCategory(catId) {
