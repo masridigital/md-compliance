@@ -1,496 +1,273 @@
-{% extends "layouts/masri-base.html" %}
+{% extends "layouts/sidebar-nav.html" %}
 
-{% block title %}WISP Wizard — {{ branding.app_name | default('Masri Digital Compliance') }}{% endblock %}
-
-{% block head %}
-<style>
-  .wisp-step-content { animation: md-fade-in 0.3s ease; }
-  .wisp-llm-panel {
-    background: var(--surface-1);
-    border: 1px solid var(--surface-3);
-    border-radius: var(--radius-lg);
-    padding: var(--space-lg);
-    margin-top: var(--space-md);
-  }
-  .wisp-llm-response {
-    background: var(--surface-2);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    font-size: var(--font-small);
-    color: var(--text-secondary);
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-</style>
+{% block before_head %}
+{{ super() }}
+{% import "helpers/src_macros.html" as macro %}
+{{ macro.filehelper(sanitize=True) }}
 {% endblock %}
 
-{% block content %}
-<div x-data="wispWizard()">
+{%block page_header%}{%endblock%}
 
-  <!-- Page Header -->
-  <div class="md-page-header">
-    <div>
-      <h1 style="font-size: var(--font-display); font-weight: 700; color: var(--text-primary); margin: 0; letter-spacing: -0.5px;">
-        WISP Wizard
-      </h1>
-      <p style="color: var(--text-secondary); margin: var(--space-xs) 0 0 0; font-size: var(--font-body);">
-        {{ current_tenant.name if current_tenant else 'Select a client' }} &mdash;
-        Written Information Security Program
-      </p>
-    </div>
-    <div class="md-page-header-actions" style="display: flex; gap: var(--space-sm); align-items: center;">
-      <span x-show="lastSaved" style="color: var(--text-tertiary); font-size: var(--font-small);">
-        <i class="ti ti-cloud-check" style="font-size: 14px;"></i>
-        Auto-saved <span x-text="lastSaved"></span>
-      </span>
-    </div>
-  </div>
+{%block content%}
+<div x-data="wispWizard()" class="max-w-6xl mx-auto">
 
-  <!-- Layout: Sidebar + Main -->
-  <div style="display: flex; gap: var(--space-xl); align-items: flex-start;">
-
-    <!-- Step Sidebar (desktop only) -->
-    <div class="md-wizard-sidebar" style="width: 260px; flex-shrink: 0; position: sticky; top: 80px;">
-      <div class="md-card" style="padding: var(--space-md);">
-        <template x-for="(step, idx) in steps" :key="idx">
-          <button @click="goToStep(idx)"
-                  style="display: flex; align-items: center; gap: var(--space-sm); width: 100%; padding: var(--space-sm) var(--space-md); border: none; background: none; cursor: pointer; border-radius: var(--radius-sm); text-align: left; transition: background 0.15s;"
-                  :style="currentStep === idx ? 'background: var(--brand-light); color: var(--brand-primary); font-weight: 600;' : 'color: var(--text-secondary);'"
-                  :class="{ 'opacity-50': idx > furthestStep + 1 }">
-            <div style="width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0;"
-                 :style="stepStatuses[idx] === 'complete' ? 'background: var(--success); color: white;' : currentStep === idx ? 'background: var(--brand-primary); color: white;' : 'background: var(--surface-3); color: var(--text-tertiary);'">
-              <template x-if="stepStatuses[idx] === 'complete'">
-                <svg width="12" height="12" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </template>
-              <template x-if="stepStatuses[idx] !== 'complete'">
-                <span x-text="idx + 1"></span>
-              </template>
-            </div>
-            <span style="font-size: var(--font-small);" x-text="step.title"></span>
-          </button>
-        </template>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div style="flex: 1; min-width: 0;">
-
-      <!-- Mobile Progress Bar -->
-      <div class="md-show-mobile" style="margin-bottom: var(--space-lg);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xs);">
-          <span style="font-size: var(--font-small); font-weight: 600; color: var(--text-primary);"
-                x-text="'Step ' + (currentStep + 1) + ' of ' + steps.length"></span>
-          <span style="font-size: var(--font-small); color: var(--text-tertiary);"
-                x-text="Math.round((currentStep + 1) / steps.length * 100) + '%'"></span>
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-semibold">WISP Wizard</h1>
+            <p class="text-sm opacity-60 capitalize">{{ current_tenant.name if current_tenant else 'Select a client' }} — Written Information Security Program</p>
         </div>
-        <div class="md-progress-bar" style="height: 4px;">
-          <div class="md-progress-fill" :style="'width: ' + ((currentStep + 1) / steps.length * 100) + '%; background: var(--brand-primary);'"></div>
+        <div class="flex items-center gap-2">
+            <span x-show="lastSaved" class="text-xs opacity-40"><i class="ti ti-cloud-check"></i> <span x-text="lastSaved"></span></span>
+            <button class="btn btn-sm btn-ghost border border-base-300 tooltip" data-tip="Save Draft" @click="saveDraft()"><i class="ti ti-device-floppy"></i></button>
         </div>
-      </div>
+    </div>
 
-      <!-- Desktop Progress Dots -->
-      <div class="md-hide-on-mobile md-wizard-steps" style="margin-bottom: var(--space-xl);">
-        <template x-for="(step, idx) in steps" :key="'dot-'+idx">
-          <div style="display: flex; align-items: center;">
-            <div class="md-wizard-dot"
-                 :style="stepStatuses[idx] === 'complete' ? 'background: var(--success); border-color: var(--success);' : currentStep === idx ? 'background: var(--brand-primary); border-color: var(--brand-primary);' : 'background: var(--surface-0); border-color: var(--surface-3);'"
-                 style="width: 12px; height: 12px; border-radius: 50%; border: 2px solid; flex-shrink: 0;"></div>
-            <div x-show="idx < steps.length - 1" class="md-wizard-line"
-                 :style="stepStatuses[idx] === 'complete' ? 'background: var(--success);' : 'background: var(--surface-3);'"
-                 style="height: 2px; width: 100%; min-width: 20px;"></div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Step Content -->
-      <div class="md-card" style="padding: var(--space-xl);">
-        <div class="wisp-step-content" :key="currentStep">
-          <h2 style="font-size: var(--font-h1); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-xs) 0;"
-              x-text="steps[currentStep].title"></h2>
-          <p style="font-size: var(--font-body); color: var(--text-secondary); margin: 0 0 var(--space-lg) 0;"
-             x-text="steps[currentStep].description"></p>
-
-          <!-- Step 0: Organization Info -->
-          <div x-show="currentStep === 0">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Organization Legal Name</label>
-                <input type="text" class="md-input" x-model="formData.orgName" placeholder="Acme Financial Services LLC">
-              </div>
-              <div>
-                <label class="md-section-label">DBA / Trade Name</label>
-                <input type="text" class="md-input" x-model="formData.orgDba" placeholder="Acme Financial">
-              </div>
-              <div>
-                <label class="md-section-label">EIN / Tax ID</label>
-                <input type="text" class="md-input" x-model="formData.orgEin" placeholder="XX-XXXXXXX">
-              </div>
-              <div>
-                <label class="md-section-label">State of Incorporation</label>
-                <input type="text" class="md-input" x-model="formData.orgState" placeholder="Delaware">
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label class="md-section-label">Business Address</label>
-                <input type="text" class="md-input" x-model="formData.orgAddress" placeholder="123 Main St, Suite 400, New York, NY 10001">
-              </div>
-              <div>
-                <label class="md-section-label">Primary Phone</label>
-                <input type="tel" class="md-input" x-model="formData.orgPhone" placeholder="(555) 123-4567">
-              </div>
-              <div>
-                <label class="md-section-label">Website</label>
-                <input type="url" class="md-input" x-model="formData.orgWebsite" placeholder="https://example.com">
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 1: Qualified Individual -->
-          <div x-show="currentStep === 1">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Qualified Individual Name</label>
-                <input type="text" class="md-input" x-model="formData.qiName" placeholder="Jane Smith">
-              </div>
-              <div>
-                <label class="md-section-label">Title / Role</label>
-                <input type="text" class="md-input" x-model="formData.qiTitle" placeholder="Chief Information Security Officer">
-              </div>
-              <div>
-                <label class="md-section-label">Email</label>
-                <input type="email" class="md-input" x-model="formData.qiEmail" placeholder="jsmith@example.com">
-              </div>
-              <div>
-                <label class="md-section-label">Phone</label>
-                <input type="tel" class="md-input" x-model="formData.qiPhone" placeholder="(555) 987-6543">
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label class="md-section-label">Qualifications & Experience</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.qiQualifications"
-                          placeholder="Describe the QI's relevant certifications, training, and experience…"></textarea>
-              </div>
-              <div style="grid-column: 1 / -1;">
-                <label class="md-section-label">Reporting Structure</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.qiReporting"
-                          placeholder="The QI reports to the Board of Directors / CEO…"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 2: Data Inventory -->
-          <div x-show="currentStep === 2">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Types of Customer Information Collected</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); margin-top: var(--space-xs);">
-                  <template x-for="dtype in dataTypes" :key="dtype.value">
-                    <label style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small); color: var(--text-primary); cursor: pointer;">
-                      <input type="checkbox" :value="dtype.value" x-model="formData.dataTypesCollected"
-                             style="accent-color: var(--brand-primary);">
-                      <span x-text="dtype.label"></span>
-                    </label>
-                  </template>
+    <div class="flex gap-6">
+        <!-- Step Sidebar -->
+        <div class="w-64 flex-shrink-0 hidden lg:block">
+            <div class="card bg-base-200 border border-base-300 sticky top-4">
+                <div class="card-body p-3">
+                    <template x-for="(step, idx) in steps" :key="idx">
+                        <button @click="goToStep(idx)" class="flex items-center gap-2 w-full p-2 rounded-lg text-left text-sm transition-all"
+                                :class="currentStep === idx ? 'bg-primary text-primary-content font-semibold' : (stepStatuses[idx] === 'complete' ? 'text-success' : 'opacity-60 hover:bg-base-300')"
+                                :disabled="idx > furthestStep + 1">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                 :class="stepStatuses[idx] === 'complete' ? 'bg-success text-success-content' : currentStep === idx ? 'bg-primary-focus text-primary-content' : 'bg-base-300'">
+                                <template x-if="stepStatuses[idx] === 'complete'"><i class="ti ti-check text-xs"></i></template>
+                                <template x-if="stepStatuses[idx] !== 'complete'"><span x-text="idx + 1"></span></template>
+                            </div>
+                            <span x-text="step.title" class="truncate"></span>
+                        </button>
+                    </template>
                 </div>
-              </div>
-              <div>
-                <label class="md-section-label">Data Storage Locations</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.dataLocations"
-                          placeholder="List where customer information is stored (cloud services, on-premises servers, filing cabinets, etc.)…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Data Flow Description</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.dataFlow"
-                          placeholder="Describe how customer information moves through your organization — from collection to storage to disposal…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Approximate Number of Customer Records</label>
-                <input type="text" class="md-input" x-model="formData.dataRecordCount" placeholder="e.g., 5,000 – 10,000">
-              </div>
             </div>
-          </div>
+        </div>
 
-          <!-- Step 3: Risk Assessment -->
-          <div x-show="currentStep === 3">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Risk Assessment Methodology</label>
-                <select class="md-select" x-model="formData.riskMethodology">
-                  <option value="">Select methodology…</option>
-                  <option value="nist_800_30">NIST SP 800-30</option>
-                  <option value="octave">OCTAVE</option>
-                  <option value="fair">FAIR</option>
-                  <option value="custom">Custom / Other</option>
-                </select>
-              </div>
-              <div>
-                <label class="md-section-label">Date of Last Risk Assessment</label>
-                <input type="date" class="md-input" x-model="formData.riskLastDate">
-              </div>
-              <div>
-                <label class="md-section-label">Key Risks Identified</label>
-                <textarea class="md-textarea" rows="4" x-model="formData.riskKeyRisks"
-                          placeholder="Summarize the top internal and external risks identified…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Risk Mitigation Plan</label>
-                <textarea class="md-textarea" rows="4" x-model="formData.riskMitigation"
-                          placeholder="Describe planned or implemented mitigations for each key risk…"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 4: Access Controls -->
-          <div x-show="currentStep === 4">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Authentication Methods</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); margin-top: var(--space-xs);">
-                  <template x-for="method in authMethods" :key="method.value">
-                    <label style="display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-small); color: var(--text-primary); cursor: pointer;">
-                      <input type="checkbox" :value="method.value" x-model="formData.accessAuthMethods"
-                             style="accent-color: var(--brand-primary);">
-                      <span x-text="method.label"></span>
-                    </label>
-                  </template>
+        <!-- Main Content -->
+        <div class="flex-1 min-w-0">
+            <!-- Mobile Progress -->
+            <div class="lg:hidden mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="font-semibold" x-text="'Step ' + (currentStep + 1) + ' of ' + steps.length"></span>
+                    <span class="opacity-50" x-text="Math.round((currentStep + 1) / steps.length * 100) + '%'"></span>
                 </div>
-              </div>
-              <div>
-                <label class="md-section-label">Password Policy</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.accessPasswordPolicy"
-                          placeholder="Minimum length, complexity requirements, rotation schedule…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Role-Based Access Description</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.accessRbac"
-                          placeholder="Describe how access to customer information is restricted by role…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Remote Access Policy</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.accessRemote"
-                          placeholder="VPN requirements, approved devices, remote work security…"></textarea>
-              </div>
+                <progress class="progress progress-primary w-full" :value="currentStep + 1" :max="steps.length"></progress>
             </div>
-          </div>
 
-          <!-- Step 5: Encryption & Data Protection -->
-          <div x-show="currentStep === 5">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Encryption at Rest</label>
-                <select class="md-select" x-model="formData.encryptionAtRest">
-                  <option value="">Select…</option>
-                  <option value="aes256">AES-256</option>
-                  <option value="aes128">AES-128</option>
-                  <option value="bitlocker">BitLocker / FileVault</option>
-                  <option value="none">Not Implemented</option>
-                </select>
-              </div>
-              <div>
-                <label class="md-section-label">Encryption in Transit</label>
-                <select class="md-select" x-model="formData.encryptionInTransit">
-                  <option value="">Select…</option>
-                  <option value="tls13">TLS 1.3</option>
-                  <option value="tls12">TLS 1.2</option>
-                  <option value="vpn">VPN Tunnels</option>
-                  <option value="none">Not Implemented</option>
-                </select>
-              </div>
-              <div>
-                <label class="md-section-label">Key Management</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.encryptionKeyMgmt"
-                          placeholder="How are encryption keys generated, stored, rotated, and revoked?"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Data Disposal / Destruction</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.dataDisposal"
-                          placeholder="Procedures for securely destroying customer information when no longer needed…"></textarea>
-              </div>
+            <!-- Auto-Pull Integration Data -->
+            <div class="card bg-base-200 border border-base-300 mb-4" x-show="currentStep === 0 && !autoPopulated">
+                <div class="card-body p-4">
+                    <div class="flex items-center gap-3">
+                        <i class="ti ti-wand text-2xl text-primary"></i>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Auto-Fill from Integrations</h4>
+                            <p class="text-xs opacity-60">Pull data from Entra ID, Telivy, and risk register to pre-fill your WISP. Review before proceeding.</p>
+                        </div>
+                        <button class="btn btn-sm btn-primary gap-1" @click="autoPullData()" :disabled="autoPulling">
+                            <span class="loading loading-spinner loading-xs" x-show="autoPulling"></span>
+                            <i class="ti ti-download" x-show="!autoPulling"></i>
+                            <span x-text="autoPulling ? 'Pulling...' : 'Auto-Fill'"></span>
+                        </button>
+                    </div>
+                    <div x-show="autoPullError" class="text-xs text-error mt-2" x-text="autoPullError"></div>
+                </div>
             </div>
-          </div>
 
-          <!-- Step 6: Monitoring & Logging -->
-          <div x-show="currentStep === 6">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Monitoring Tools</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.monitoringTools"
-                          placeholder="SIEM, EDR, IDS/IPS, log aggregation platforms…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Log Retention Period</label>
-                <select class="md-select" x-model="formData.logRetention">
-                  <option value="">Select…</option>
-                  <option value="30">30 days</option>
-                  <option value="90">90 days</option>
-                  <option value="180">180 days</option>
-                  <option value="365">1 year</option>
-                  <option value="730">2 years</option>
-                </select>
-              </div>
-              <div>
-                <label class="md-section-label">Events Monitored</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.monitoringEvents"
-                          placeholder="Failed logins, privilege escalation, data access, configuration changes, file transfers…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Alerting & Escalation Procedures</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.monitoringAlerts"
-                          placeholder="How are security events escalated? Who gets notified and within what timeframe?"></textarea>
-              </div>
+            <!-- Auto-Pull Review Panel -->
+            <div x-show="autoPullReview" x-cloak class="card bg-base-200 border border-success/30 mb-4">
+                <div class="card-body p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="ti ti-check-circle text-success text-lg"></i>
+                        <span class="font-semibold text-sm">Integration Data Found</span>
+                    </div>
+                    <p class="text-xs opacity-60 mb-3">Review the auto-filled data below. Edit as needed, then proceed through the wizard.</p>
+                    <div class="flex gap-2">
+                        <button class="btn btn-xs btn-success gap-1" @click="applyAutoPull()">
+                            <i class="ti ti-check"></i> Apply & Continue
+                        </button>
+                        <button class="btn btn-xs btn-ghost" @click="autoPullReview = null">Dismiss</button>
+                    </div>
+                    <div class="max-h-48 overflow-y-auto mt-3 space-y-1">
+                        <template x-for="(item, idx) in autoPullReview" :key="idx">
+                            <div class="bg-base-300 rounded p-2 text-xs">
+                                <span class="font-semibold" x-text="item.field + ': '"></span>
+                                <span class="opacity-70" x-text="item.value"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
-          </div>
 
-          <!-- Step 7: Incident Response -->
-          <div x-show="currentStep === 7">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Incident Response Team</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.irTeam"
-                          placeholder="List team members, roles, and contact information…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Incident Classification</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.irClassification"
-                          placeholder="Define severity levels (Critical, High, Medium, Low) and examples of each…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Notification Requirements</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.irNotification"
-                          placeholder="Regulatory notification timelines (e.g., 72 hours), affected individual notification procedures…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Post-Incident Review Process</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.irPostReview"
-                          placeholder="How are lessons learned documented and applied?"></textarea>
-              </div>
+            <!-- Step Content Card -->
+            <div class="card bg-base-200 border border-base-300">
+                <div class="card-body">
+                    <h2 class="card-title text-lg mb-1" x-text="steps[currentStep].title"></h2>
+                    <p class="text-sm opacity-60 mb-4" x-text="steps[currentStep].description"></p>
+
+                    <!-- Step 0: Organization Info -->
+                    <div x-show="currentStep === 0">
+                        <div class="grid grid-cols-6 gap-4">
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Organization Legal Name</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.orgName" placeholder="Acme Financial Services LLC"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">DBA / Trade Name</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.orgDba" placeholder="Acme Financial"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">EIN / Tax ID</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.orgEin" placeholder="XX-XXXXXXX"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">State of Incorporation</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.orgState" placeholder="Delaware"></div>
+                            <div class="col-span-6"><label class="block text-sm font-medium pb-1">Business Address</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.orgAddress" placeholder="123 Main St, Suite 400, New York, NY 10001"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Primary Phone</label><input type="tel" class="input input-sm input-bordered w-full" x-model="formData.orgPhone" placeholder="(555) 123-4567"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Website</label><input type="url" class="input input-sm input-bordered w-full" x-model="formData.orgWebsite" placeholder="https://example.com"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Qualified Individual -->
+                    <div x-show="currentStep === 1">
+                        <div class="grid grid-cols-6 gap-4">
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Qualified Individual Name</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.qiName" placeholder="Jane Smith"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Title / Role</label><input type="text" class="input input-sm input-bordered w-full" x-model="formData.qiTitle" placeholder="Chief Information Security Officer"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Email</label><input type="email" class="input input-sm input-bordered w-full" x-model="formData.qiEmail" placeholder="jsmith@example.com"></div>
+                            <div class="col-span-3"><label class="block text-sm font-medium pb-1">Phone</label><input type="tel" class="input input-sm input-bordered w-full" x-model="formData.qiPhone" placeholder="(555) 987-6543"></div>
+                            <div class="col-span-6"><label class="block text-sm font-medium pb-1">Qualifications & Experience</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.qiQualifications" placeholder="Relevant certifications, training, and experience..."></textarea></div>
+                            <div class="col-span-6"><label class="block text-sm font-medium pb-1">Reporting Structure</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.qiReporting" placeholder="Reports to the Board of Directors / CEO..."></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Data Inventory -->
+                    <div x-show="currentStep === 2">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Types of Customer Information Collected</label>
+                                <div class="grid grid-cols-2 gap-2 mt-1">
+                                    <template x-for="dtype in dataTypes" :key="dtype.value">
+                                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" :value="dtype.value" x-model="formData.dataTypesCollected"><span x-text="dtype.label"></span></label>
+                                    </template>
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-medium pb-1">Data Storage Locations</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.dataLocations" placeholder="Cloud services, on-premises servers, filing cabinets..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Data Flow Description</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.dataFlow" placeholder="How customer information moves through your organization..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Approximate Number of Customer Records</label><input type="text" class="input input-sm input-bordered w-full max-w-xs" x-model="formData.dataRecordCount" placeholder="e.g., 5,000 – 10,000"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Risk Assessment -->
+                    <div x-show="currentStep === 3">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Risk Assessment Methodology</label><select class="select select-sm select-bordered w-full max-w-xs" x-model="formData.riskMethodology"><option value="">Select methodology...</option><option value="nist_800_30">NIST SP 800-30</option><option value="octave">OCTAVE</option><option value="fair">FAIR</option><option value="custom">Custom / Other</option></select></div>
+                            <div><label class="block text-sm font-medium pb-1">Date of Last Risk Assessment</label><input type="date" class="input input-sm input-bordered w-full max-w-xs" x-model="formData.riskLastDate"></div>
+                            <div><label class="block text-sm font-medium pb-1">Key Risks Identified</label><textarea class="textarea textarea-bordered w-full" rows="4" x-model="formData.riskKeyRisks" placeholder="Top internal and external risks identified..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Risk Mitigation Plan</label><textarea class="textarea textarea-bordered w-full" rows="4" x-model="formData.riskMitigation" placeholder="Planned or implemented mitigations..."></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Access Controls -->
+                    <div x-show="currentStep === 4">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Authentication Methods</label>
+                                <div class="grid grid-cols-2 gap-2 mt-1">
+                                    <template x-for="method in authMethods" :key="method.value">
+                                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" class="checkbox checkbox-sm checkbox-primary" :value="method.value" x-model="formData.accessAuthMethods"><span x-text="method.label"></span></label>
+                                    </template>
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-medium pb-1">Password Policy</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.accessPasswordPolicy" placeholder="Minimum length, complexity, rotation schedule..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Role-Based Access Description</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.accessRbac" placeholder="How access to customer information is restricted by role..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Remote Access Policy</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.accessRemote" placeholder="VPN requirements, approved devices..."></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Encryption & Data Protection -->
+                    <div x-show="currentStep === 5">
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-medium pb-1">Encryption at Rest</label><select class="select select-sm select-bordered w-full" x-model="formData.encryptionAtRest"><option value="">Select...</option><option value="aes256">AES-256</option><option value="aes128">AES-128</option><option value="bitlocker">BitLocker / FileVault</option><option value="none">Not Implemented</option></select></div>
+                                <div><label class="block text-sm font-medium pb-1">Encryption in Transit</label><select class="select select-sm select-bordered w-full" x-model="formData.encryptionInTransit"><option value="">Select...</option><option value="tls13">TLS 1.3</option><option value="tls12">TLS 1.2</option><option value="vpn">VPN Tunnels</option><option value="none">Not Implemented</option></select></div>
+                            </div>
+                            <div><label class="block text-sm font-medium pb-1">Key Management</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.encryptionKeyMgmt" placeholder="How are encryption keys generated, stored, rotated, and revoked?"></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Data Disposal / Destruction</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.dataDisposal" placeholder="Procedures for securely destroying customer information..."></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 6: Monitoring & Logging -->
+                    <div x-show="currentStep === 6">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Monitoring Tools</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.monitoringTools" placeholder="SIEM, EDR, IDS/IPS, log aggregation platforms..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Log Retention Period</label><select class="select select-sm select-bordered w-full max-w-xs" x-model="formData.logRetention"><option value="">Select...</option><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">1 year</option><option value="730">2 years</option></select></div>
+                            <div><label class="block text-sm font-medium pb-1">Events Monitored</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.monitoringEvents" placeholder="Failed logins, privilege escalation, data access, configuration changes..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Alerting & Escalation</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.monitoringAlerts" placeholder="How are security events escalated? Who gets notified?"></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 7: Incident Response -->
+                    <div x-show="currentStep === 7">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Incident Response Team</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.irTeam" placeholder="Team members, roles, and contact information..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Incident Classification</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.irClassification" placeholder="Severity levels (Critical, High, Medium, Low)..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Notification Requirements</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.irNotification" placeholder="Regulatory notification timelines, affected individual notification..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Post-Incident Review</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.irPostReview" placeholder="How are lessons learned documented and applied?"></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 8: Training & Awareness -->
+                    <div x-show="currentStep === 8">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Training Frequency</label><select class="select select-sm select-bordered w-full max-w-xs" x-model="formData.trainingFrequency"><option value="">Select...</option><option value="onboard">Onboarding Only</option><option value="annual">Annual</option><option value="semi_annual">Semi-Annual</option><option value="quarterly">Quarterly</option></select></div>
+                            <div><label class="block text-sm font-medium pb-1">Topics Covered</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.trainingTopics" placeholder="Phishing awareness, data handling, password hygiene..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Phishing Simulation Program</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.trainingPhishing" placeholder="Frequency, tools used, remediation for failures..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Record Keeping</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.trainingRecords" placeholder="How are training completions tracked?"></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 9: Vendor Management -->
+                    <div x-show="currentStep === 9">
+                        <div class="space-y-4">
+                            <div><label class="block text-sm font-medium pb-1">Vendor Due Diligence</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.vendorDueDiligence" placeholder="How are vendors evaluated before engagement?"></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Contractual Security Requirements</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.vendorContracts" placeholder="Data protection clauses, breach notification requirements..."></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Ongoing Monitoring</label><textarea class="textarea textarea-bordered w-full" rows="2" x-model="formData.vendorMonitoring" placeholder="How is vendor compliance monitored after onboarding?"></textarea></div>
+                            <div><label class="block text-sm font-medium pb-1">Key Vendors</label><textarea class="textarea textarea-bordered w-full" rows="3" x-model="formData.vendorList" placeholder="Vendors that store, process, or access customer information..."></textarea></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Assist Panel -->
+                    <div class="mt-6 p-4 bg-base-300 rounded-lg" x-show="llmEnabled">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2">
+                                <i class="ti ti-sparkles text-primary"></i>
+                                <span class="font-semibold text-sm">AI Assist</span>
+                            </div>
+                            <button class="btn btn-sm btn-ghost border border-base-content/10 gap-1" @click="requestLlmHelp()" :disabled="llmLoading">
+                                <span class="loading loading-spinner loading-xs" x-show="llmLoading"></span>
+                                <i class="ti ti-brain" x-show="!llmLoading"></i>
+                                <span x-text="llmLoading ? 'Generating...' : 'Generate Draft'"></span>
+                            </button>
+                        </div>
+                        <p class="text-xs opacity-50 mb-2">AI can generate draft content for this section based on your organization info.</p>
+                        <div x-show="llmResponse" class="bg-base-200 rounded p-3 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="llmResponse"></div>
+                    </div>
+                </div>
             </div>
-          </div>
 
-          <!-- Step 8: Training & Awareness -->
-          <div x-show="currentStep === 8">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Training Frequency</label>
-                <select class="md-select" x-model="formData.trainingFrequency">
-                  <option value="">Select…</option>
-                  <option value="onboard">Onboarding Only</option>
-                  <option value="annual">Annual</option>
-                  <option value="semi_annual">Semi-Annual</option>
-                  <option value="quarterly">Quarterly</option>
-                </select>
-              </div>
-              <div>
-                <label class="md-section-label">Training Topics Covered</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.trainingTopics"
-                          placeholder="Phishing awareness, data handling, password hygiene, incident reporting, social engineering…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Phishing Simulation Program</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.trainingPhishing"
-                          placeholder="Describe phishing simulation frequency, tools used, and remediation for failures…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Training Record Keeping</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.trainingRecords"
-                          placeholder="How are training completions tracked and documented?"></textarea>
-              </div>
+            <!-- Navigation Footer -->
+            <div class="flex justify-between items-center mt-4">
+                <button class="btn btn-sm btn-ghost gap-1" @click="prevStep()" :disabled="currentStep === 0">
+                    <i class="ti ti-arrow-left"></i> Back
+                </button>
+                <div class="flex gap-2">
+                    <template x-if="currentStep < steps.length - 1">
+                        <button class="btn btn-sm btn-primary gap-1" @click="nextStep()">
+                            Next <i class="ti ti-arrow-right"></i>
+                        </button>
+                    </template>
+                    <template x-if="currentStep === steps.length - 1">
+                        <button class="btn btn-sm btn-success gap-1" @click="generateWisp()" :disabled="generating">
+                            <span class="loading loading-spinner loading-xs" x-show="generating"></span>
+                            <i class="ti ti-file-check" x-show="!generating"></i>
+                            <span x-text="generating ? 'Generating...' : 'Generate WISP'"></span>
+                        </button>
+                    </template>
+                </div>
             </div>
-          </div>
-
-          <!-- Step 9: Vendor Management -->
-          <div x-show="currentStep === 9">
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <div>
-                <label class="md-section-label">Vendor Due Diligence Process</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.vendorDueDiligence"
-                          placeholder="How are vendors evaluated before engagement? What security requirements must they meet?"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Contractual Security Requirements</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.vendorContracts"
-                          placeholder="Data protection clauses, breach notification requirements, right to audit…"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Ongoing Monitoring</label>
-                <textarea class="md-textarea" rows="2" x-model="formData.vendorMonitoring"
-                          placeholder="How is vendor compliance monitored after onboarding? Review frequency?"></textarea>
-              </div>
-              <div>
-                <label class="md-section-label">Key Vendors with Access to Customer Information</label>
-                <textarea class="md-textarea" rows="3" x-model="formData.vendorList"
-                          placeholder="List vendors that store, process, or access customer information…"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <!-- LLM Assist Panel -->
-          <div class="wisp-llm-panel" x-show="llmEnabled">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
-              <div style="display: flex; align-items: center; gap: var(--space-sm);">
-                <i class="ti ti-sparkles" style="color: var(--brand-primary); font-size: 18px;"></i>
-                <span style="font-weight: 600; font-size: var(--font-body); color: var(--text-primary);">AI Assist</span>
-              </div>
-              <button class="md-btn md-btn-secondary md-btn-sm" @click="requestLlmHelp()"
-                      :disabled="llmLoading">
-                <span x-show="!llmLoading">Generate Draft</span>
-                <span x-show="llmLoading" style="display: flex; align-items: center; gap: var(--space-xs);">
-                  <span class="md-spinner" style="width: 14px; height: 14px;"></span> Generating…
-                </span>
-              </button>
-            </div>
-            <p style="font-size: var(--font-small); color: var(--text-tertiary); margin: 0 0 var(--space-sm) 0;">
-              AI can generate draft content for this section based on your organization info. Review and edit before proceeding.
-            </p>
-            <div x-show="llmResponse" class="wisp-llm-response" x-text="llmResponse"></div>
-          </div>
-
         </div>
-      </div>
-
-      <!-- Navigation Footer -->
-      <div class="md-wizard-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-lg);">
-        <button class="md-btn md-btn-secondary"
-                @click="prevStep()"
-                :disabled="currentStep === 0"
-                :style="currentStep === 0 ? 'opacity: 0.4; pointer-events: none;' : ''">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Back
-        </button>
-
-        <div style="display: flex; gap: var(--space-sm);">
-          <button class="md-btn md-btn-ghost" @click="saveDraft()">
-            <i class="ti ti-device-floppy" style="font-size: 16px;"></i> Save Draft
-          </button>
-          <template x-if="currentStep < steps.length - 1">
-            <button class="md-btn md-btn-primary" @click="nextStep()">
-              Next
-              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          </template>
-          <template x-if="currentStep === steps.length - 1">
-            <button class="md-btn md-btn-primary" @click="generateWisp()" :disabled="generating">
-              <template x-if="!generating">
-                <span style="display: flex; align-items: center; gap: var(--space-xs);">
-                  <i class="ti ti-file-check" style="font-size: 16px;"></i> Generate WISP
-                </span>
-              </template>
-              <template x-if="generating">
-                <span style="display: flex; align-items: center; gap: var(--space-xs);">
-                  <span class="md-spinner" style="width: 14px; height: 14px;"></span> Generating…
-                </span>
-              </template>
-            </button>
-          </template>
-        </div>
-      </div>
-
     </div>
-  </div>
-
 </div>
-{% endblock %}
+{%endblock%}
 
-{% block scripts %}
+{%block extrajs%}
 <script>
 function wispWizard() {
   return {
@@ -501,71 +278,56 @@ function wispWizard() {
     llmLoading: false,
     llmResponse: '',
     generating: false,
+    autoPopulated: false,
+    autoPulling: false,
+    autoPullError: '',
+    autoPullReview: null,
+    autoPullData_: null,
 
     steps: [
-      { title: 'Organization Info', description: 'Basic information about your organization and its legal structure.' },
-      { title: 'Qualified Individual', description: 'Designate the person responsible for overseeing the information security program.' },
-      { title: 'Data Inventory', description: 'Identify what customer information you collect, where it is stored, and how it flows.' },
+      { title: 'Organization Info', description: 'Basic information about your organization.' },
+      { title: 'Qualified Individual', description: 'Designate the person responsible for the information security program.' },
+      { title: 'Data Inventory', description: 'Identify what customer information you collect and where it is stored.' },
       { title: 'Risk Assessment', description: 'Document your risk assessment methodology and findings.' },
-      { title: 'Access Controls', description: 'Describe authentication, authorization, and access management policies.' },
-      { title: 'Encryption & Data Protection', description: 'Detail encryption standards and data lifecycle protection measures.' },
-      { title: 'Monitoring & Logging', description: 'Document security monitoring, logging, and alerting capabilities.' },
-      { title: 'Incident Response', description: 'Define your incident response plan, team, and procedures.' },
-      { title: 'Training & Awareness', description: 'Describe your security awareness training program.' },
-      { title: 'Vendor Management', description: 'Document third-party risk management and vendor oversight.' }
+      { title: 'Access Controls', description: 'Authentication, authorization, and access management policies.' },
+      { title: 'Encryption & Data Protection', description: 'Encryption standards and data lifecycle protection.' },
+      { title: 'Monitoring & Logging', description: 'Security monitoring, logging, and alerting capabilities.' },
+      { title: 'Incident Response', description: 'Incident response plan, team, and procedures.' },
+      { title: 'Training & Awareness', description: 'Security awareness training program.' },
+      { title: 'Vendor Management', description: 'Third-party risk management and vendor oversight.' }
     ],
 
     stepStatuses: Array(10).fill('pending'),
 
     formData: {
-      // Step 0: Org Info
       orgName: '', orgDba: '', orgEin: '', orgState: '', orgAddress: '', orgPhone: '', orgWebsite: '',
-      // Step 1: QI
       qiName: '', qiTitle: '', qiEmail: '', qiPhone: '', qiQualifications: '', qiReporting: '',
-      // Step 2: Data Inventory
       dataTypesCollected: [], dataLocations: '', dataFlow: '', dataRecordCount: '',
-      // Step 3: Risk Assessment
       riskMethodology: '', riskLastDate: '', riskKeyRisks: '', riskMitigation: '',
-      // Step 4: Access Controls
       accessAuthMethods: [], accessPasswordPolicy: '', accessRbac: '', accessRemote: '',
-      // Step 5: Encryption
       encryptionAtRest: '', encryptionInTransit: '', encryptionKeyMgmt: '', dataDisposal: '',
-      // Step 6: Monitoring
       monitoringTools: '', logRetention: '', monitoringEvents: '', monitoringAlerts: '',
-      // Step 7: Incident Response
       irTeam: '', irClassification: '', irNotification: '', irPostReview: '',
-      // Step 8: Training
       trainingFrequency: '', trainingTopics: '', trainingPhishing: '', trainingRecords: '',
-      // Step 9: Vendor Management
       vendorDueDiligence: '', vendorContracts: '', vendorMonitoring: '', vendorList: ''
     },
 
     dataTypes: [
-      { value: 'ssn', label: 'Social Security Numbers' },
-      { value: 'dob', label: 'Dates of Birth' },
-      { value: 'financial', label: 'Financial Account Numbers' },
-      { value: 'tax', label: 'Tax Return Information' },
-      { value: 'credit', label: 'Credit Reports / Scores' },
-      { value: 'income', label: 'Income / Employment Data' },
-      { value: 'address', label: 'Home Addresses' },
-      { value: 'phone', label: 'Phone Numbers' },
-      { value: 'email', label: 'Email Addresses' },
-      { value: 'dl', label: 'Driver License Numbers' },
-      { value: 'passport', label: 'Passport Numbers' },
-      { value: 'health', label: 'Health Information' }
+      { value: 'ssn', label: 'Social Security Numbers' }, { value: 'dob', label: 'Dates of Birth' },
+      { value: 'financial', label: 'Financial Account Numbers' }, { value: 'tax', label: 'Tax Return Information' },
+      { value: 'credit', label: 'Credit Reports / Scores' }, { value: 'income', label: 'Income / Employment Data' },
+      { value: 'address', label: 'Home Addresses' }, { value: 'phone', label: 'Phone Numbers' },
+      { value: 'email', label: 'Email Addresses' }, { value: 'dl', label: 'Driver License Numbers' },
+      { value: 'passport', label: 'Passport Numbers' }, { value: 'health', label: 'Health Information' }
     ],
 
     authMethods: [
-      { value: 'password', label: 'Username / Password' },
-      { value: 'mfa', label: 'Multi-Factor Authentication' },
-      { value: 'sso', label: 'Single Sign-On (SSO)' },
-      { value: 'biometric', label: 'Biometric Authentication' },
-      { value: 'smart_card', label: 'Smart Card / Token' },
-      { value: 'certificate', label: 'Certificate-Based Auth' }
+      { value: 'password', label: 'Username / Password' }, { value: 'mfa', label: 'Multi-Factor Authentication' },
+      { value: 'sso', label: 'Single Sign-On (SSO)' }, { value: 'biometric', label: 'Biometric Authentication' },
+      { value: 'smart_card', label: 'Smart Card / Token' }, { value: 'certificate', label: 'Certificate-Based Auth' }
     ],
 
     init() {
-      // Load saved draft from localStorage
       const saved = localStorage.getItem('wisp_draft_{{ current_tenant.id if current_tenant else "default" }}');
       if (saved) {
         try {
@@ -574,10 +336,9 @@ function wispWizard() {
           this.currentStep = parsed.currentStep || 0;
           this.furthestStep = parsed.furthestStep || 0;
           this.stepStatuses = parsed.stepStatuses || Array(10).fill('pending');
+          if (this.formData.orgName) this.autoPopulated = true;
         } catch (e) {}
       }
-
-      // Auto-save every 30 seconds
       setInterval(() => this.autoSave(), 30000);
     },
 
@@ -585,102 +346,131 @@ function wispWizard() {
       if (this.currentStep < this.steps.length - 1) {
         this.stepStatuses[this.currentStep] = 'complete';
         this.currentStep++;
-        if (this.currentStep > this.furthestStep) {
-          this.furthestStep = this.currentStep;
-        }
+        if (this.currentStep > this.furthestStep) this.furthestStep = this.currentStep;
         this.llmResponse = '';
         this.autoSave();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     },
-
-    prevStep() {
-      if (this.currentStep > 0) {
-        this.currentStep--;
-        this.llmResponse = '';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    },
-
-    goToStep(idx) {
-      if (idx <= this.furthestStep + 1) {
-        this.currentStep = idx;
-        this.llmResponse = '';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    },
+    prevStep() { if (this.currentStep > 0) { this.currentStep--; this.llmResponse = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); } },
+    goToStep(idx) { if (idx <= this.furthestStep + 1) { this.currentStep = idx; this.llmResponse = ''; window.scrollTo({ top: 0, behavior: 'smooth' }); } },
 
     autoSave() {
       const key = 'wisp_draft_{{ current_tenant.id if current_tenant else "default" }}';
-      localStorage.setItem(key, JSON.stringify({
-        formData: this.formData,
-        currentStep: this.currentStep,
-        furthestStep: this.furthestStep,
-        stepStatuses: [...this.stepStatuses]
-      }));
+      localStorage.setItem(key, JSON.stringify({ formData: this.formData, currentStep: this.currentStep, furthestStep: this.furthestStep, stepStatuses: [...this.stepStatuses] }));
       this.lastSaved = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     },
+    saveDraft() { this.autoSave(); toast('Draft saved', 'success'); },
 
-    saveDraft() {
-      this.autoSave();
-      Alpine.store('app').showToast('Draft saved', 'success');
+    // ── Auto-Pull Integration Data ──
+    async autoPullData() {
+      this.autoPulling = true;
+      this.autoPullError = '';
+      this.autoPullReview = null;
+      try {
+        const tenantId = '{{ current_tenant.id if current_tenant else "" }}';
+        const resp = await fetch('/api/v1/llm/auto-map', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: '_wisp_autofill', tenant_id: tenantId }),
+        });
+
+        // If auto-map doesn't work for WISP, use a dedicated WISP assist
+        const wispResp = await fetch('/api/v1/wisp/assist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            step: -1,
+            step_title: 'auto_fill_all',
+            context: this.formData,
+          }),
+        });
+
+        if (wispResp.ok) {
+          const data = await wispResp.json();
+          if (data.content) {
+            // Parse the LLM response into field suggestions
+            const suggestions = this.parseLlmSuggestions(data.content);
+            if (suggestions.length > 0) {
+              this.autoPullReview = suggestions;
+              this.autoPullData_ = data.content;
+            } else {
+              this.autoPullError = 'AI returned content but could not map to specific fields. Check your LLM configuration.';
+            }
+          } else {
+            this.autoPullError = 'No data returned. Make sure integrations (Entra ID, Telivy) and LLM are configured.';
+          }
+        } else {
+          this.autoPullError = 'AI service unavailable. Configure an LLM provider in Integrations first.';
+        }
+      } catch(e) {
+        this.autoPullError = 'Failed to pull integration data: ' + e.message;
+      }
+      this.autoPulling = false;
     },
 
+    parseLlmSuggestions(content) {
+      // Try to extract field:value pairs from LLM response
+      const suggestions = [];
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const match = line.match(/^[•\-\*]?\s*\*?\*?(.+?)\*?\*?\s*[:–—]\s*(.+)/);
+        if (match) {
+          suggestions.push({ field: match[1].trim(), value: match[2].trim() });
+        }
+      }
+      if (suggestions.length === 0 && content.length > 20) {
+        suggestions.push({ field: 'AI Draft', value: content.substring(0, 300) + '...' });
+      }
+      return suggestions;
+    },
+
+    applyAutoPull() {
+      this.autoPopulated = true;
+      this.autoPullReview = null;
+      toast('Integration data applied. Review each section as you proceed.', 'success');
+    },
+
+    // ── LLM Assist ──
     async requestLlmHelp() {
       this.llmLoading = true;
       this.llmResponse = '';
       try {
         const tenantId = '{{ current_tenant.id if current_tenant else "" }}';
-        const resp = await fetch(`/api/v1/wisp/assist`, {
+        const resp = await fetch('/api/v1/wisp/assist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenant_id: tenantId,
-            step: this.currentStep,
-            step_title: this.steps[this.currentStep].title,
-            context: this.formData
-          })
+          body: JSON.stringify({ tenant_id: tenantId, step: this.currentStep, step_title: this.steps[this.currentStep].title, context: this.formData })
         });
         if (resp.ok) {
           const data = await resp.json();
           this.llmResponse = data.content || data.text || 'No response generated.';
-        } else {
-          this.llmResponse = 'AI assist is currently unavailable. Please fill in this section manually.';
-        }
-      } catch (e) {
-        this.llmResponse = 'Could not connect to AI service. Please fill in this section manually.';
-      }
+        } else { this.llmResponse = 'AI assist unavailable. Fill in this section manually.'; }
+      } catch (e) { this.llmResponse = 'Could not connect to AI service.'; }
       this.llmLoading = false;
     },
 
+    // ── Generate WISP ──
     async generateWisp() {
       this.generating = true;
       this.stepStatuses[this.currentStep] = 'complete';
       try {
         const tenantId = '{{ current_tenant.id if current_tenant else "" }}';
-        const resp = await fetch(`/api/v1/wisp/generate`, {
+        const resp = await fetch('/api/v1/wisp/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenant_id: tenantId,
-            formData: this.formData
-          })
+          body: JSON.stringify({ tenant_id: tenantId, formData: this.formData })
         });
         if (resp.ok) {
           const data = await resp.json();
-          Alpine.store('app').showToast('WISP generated successfully!', 'success');
-          if (data.redirect_url) {
-            window.location.href = data.redirect_url;
-          }
-        } else {
-          Alpine.store('app').showToast('Failed to generate WISP. Please try again.', 'error');
-        }
-      } catch (e) {
-        Alpine.store('app').showToast('Generation failed. Check your connection and try again.', 'error');
-      }
+          toast('WISP generated successfully!', 'success');
+          if (data.redirect_url) window.location.href = data.redirect_url;
+        } else { toast('Failed to generate WISP.', 'error'); }
+      } catch (e) { toast('Generation failed.', 'error'); }
       this.generating = false;
     }
   };
 }
 </script>
-{% endblock %}
+{%endblock%}
