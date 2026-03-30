@@ -656,20 +656,6 @@
             this.getTenants()
             this.getFeatureFlags()
 
-            // Restore tenant from localStorage (validated later by getTenants)
-            try {
-              var stored = localStorage.getItem("selectedTenant");
-              if (stored) {
-                var parsed = JSON.parse(stored);
-                if (parsed && parsed.id) {
-                  this.selectedTenant = parsed;
-                }
-              }
-            } catch(e) {
-              localStorage.removeItem("selectedTenant");
-              localStorage.removeItem("selectedTenantId");
-            }
-
             Alpine.store('currentUser', {
               id: "{{current_user.id}}",
               email: "{{current_user.email}}",
@@ -854,8 +840,8 @@
           showDeploymentModal: false,
           hasSidebar: true,
           tenants: [],
-          selectedTenant: {},
-          selectedTenantId: localStorage.getItem("selectedTenantId") ?? null,
+          selectedTenant: (function() { try { var s = localStorage.getItem("selectedTenant"); if (s) { var p = JSON.parse(s); if (p && p.id) return p; } } catch(e) {} return { id: null, name: '' }; })(),
+          selectedTenantId: null,
           isLoading: true,
           isSidebarOpen: sidebarOpen,
           toggleSidebarMenu() {
