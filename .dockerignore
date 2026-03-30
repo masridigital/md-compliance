@@ -1,0 +1,11 @@
+# Keep image lean but include .git for in-app updates
+tl_src/node_modules
+backups/
+*.pyc
+__pycache__
+.env
+*.egg-info
+dist
+build
+.DS_Store
+.idea

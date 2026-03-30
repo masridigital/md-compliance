@@ -22,6 +22,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy pre-installed Python packages from builder
@@ -29,6 +30,9 @@ COPY --from=builder /install /usr/local
 
 # Copy application source
 COPY . .
+
+# Git config for in-app updates (safe directory + remote)
+RUN git config --global --add safe.directory /app
 
 # Ensure startup script is executable
 RUN chmod +x run.sh
