@@ -1,744 +1,472 @@
-{% extends "layouts/masri-base.html" %}
+{% extends "layouts/sidebar-nav.html" %}
 
-{% block title %}Workspace — {{ branding.app_name | default('Masri Digital Compliance') }}{% endblock %}
-
-{% block head %}
-<style>
-  .ws-layout {
-    display: flex;
-    gap: 0;
-    min-height: calc(100vh - 160px);
-    background: var(--surface-0);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-elevated);
-  }
-
-  /* Tenant Sidebar */
-  .ws-sidebar {
-    width: 280px;
-    min-width: 280px;
-    background: var(--surface-1);
-    border-right: 1px solid var(--surface-3);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .ws-sidebar-header {
-    padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--surface-3);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .ws-sidebar-header h3 {
-    font-size: var(--font-body);
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-  }
-  .ws-tenant-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-sm) 0;
-  }
-  .ws-tenant-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: 10px var(--space-lg);
-    margin: 0 var(--space-sm);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    border: none;
-    background: none;
-    width: calc(100% - var(--space-md));
-    text-align: left;
-    transition: background var(--transition-fast);
-    color: var(--text-primary);
-    font-size: var(--font-body);
-  }
-  .ws-tenant-item:hover { background: var(--surface-2); }
-  .ws-tenant-item.is-active {
-    background: var(--brand-primary);
-    color: #FFFFFF;
-  }
-  .ws-tenant-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
-    flex-shrink: 0;
-    text-transform: uppercase;
-    background: var(--surface-2);
-    color: var(--text-secondary);
-  }
-  .ws-tenant-item.is-active .ws-tenant-avatar {
-    background: rgba(255,255,255,0.2);
-    color: #FFFFFF;
-  }
-  .ws-tenant-info { flex: 1; min-width: 0; }
-  .ws-tenant-name {
-    font-weight: 600;
-    font-size: var(--font-small);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ws-tenant-meta {
-    font-size: var(--font-caption);
-    opacity: 0.7;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* Content Area */
-  .ws-content {
-    flex: 1;
-    padding: var(--space-xl);
-    overflow-y: auto;
-    background: var(--surface-0);
-  }
-
-  /* Tenant Header in content */
-  .ws-content-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: var(--space-xl);
-  }
-  .ws-content-header h2 {
-    font-size: var(--font-h1);
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  /* Project Cards */
-  .ws-projects-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: var(--space-lg);
-  }
-  .ws-project-card {
-    background: var(--surface-1);
-    border-radius: var(--radius-md);
-    padding: var(--space-lg);
-    box-shadow: var(--shadow-card);
-    border: 1px solid var(--surface-3);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-    cursor: pointer;
-  }
-  .ws-project-card:hover {
-    border-color: var(--brand-primary);
-    box-shadow: var(--shadow-elevated);
-  }
-  .ws-project-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-md);
-  }
-  .ws-project-card-title {
-    font-weight: 600;
-    font-size: var(--font-body);
-    color: var(--text-primary);
-  }
-  .ws-project-card-framework {
-    font-size: var(--font-caption);
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--brand-primary);
-    background: var(--brand-light);
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-  .ws-project-card-stats {
-    display: flex;
-    gap: var(--space-lg);
-    font-size: var(--font-small);
-    color: var(--text-secondary);
-    margin-top: var(--space-md);
-  }
-  .ws-project-card-stat {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  /* Progress bar */
-  .ws-progress-bar {
-    height: 6px;
-    background: var(--surface-3);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: var(--space-md);
-  }
-  .ws-progress-fill {
-    height: 100%;
-    border-radius: 3px;
-    background: var(--brand-primary);
-    transition: width 0.3s ease;
-  }
-
-  /* Tenant detail tabs */
-  .ws-tabs {
-    display: flex;
-    gap: var(--space-xs);
-    border-bottom: 1px solid var(--surface-3);
-    margin-bottom: var(--space-lg);
-  }
-  .ws-tab {
-    padding: var(--space-sm) var(--space-md);
-    font-size: var(--font-small);
-    font-weight: 500;
-    color: var(--text-secondary);
-    border: none;
-    background: none;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color var(--transition-fast), border-color var(--transition-fast);
-  }
-  .ws-tab:hover { color: var(--text-primary); }
-  .ws-tab.is-active {
-    color: var(--brand-primary);
-    border-bottom-color: var(--brand-primary);
-  }
-
-  /* Tenant actions */
-  .ws-actions {
-    display: flex;
-    gap: var(--space-sm);
-  }
-
-  /* Quick links row */
-  .ws-quick-links {
-    display: flex;
-    gap: var(--space-md);
-    margin-bottom: var(--space-xl);
-    flex-wrap: wrap;
-  }
-  .ws-quick-link {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--surface-1);
-    border: 1px solid var(--surface-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-small);
-    font-weight: 500;
-    color: var(--text-primary);
-    text-decoration: none;
-    transition: border-color var(--transition-fast), background var(--transition-fast);
-  }
-  .ws-quick-link:hover {
-    border-color: var(--brand-primary);
-    background: var(--brand-light);
-    color: var(--brand-primary);
-  }
-  .ws-quick-link i { font-size: 16px; }
-
-  /* Empty state */
-  .ws-empty {
-    text-align: center;
-    padding: var(--space-xxl) var(--space-xl);
-    color: var(--text-tertiary);
-  }
-  .ws-empty i { font-size: 48px; margin-bottom: var(--space-md); display: block; }
-  .ws-empty h3 { color: var(--text-primary); margin: 0 0 var(--space-sm) 0; font-size: var(--font-h2); }
-  .ws-empty p { margin: 0 0 var(--space-lg) 0; }
-
-  /* Tenant settings section */
-  .ws-settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-  }
-
-  @media (max-width: 768px) {
-    .ws-layout { flex-direction: column; min-height: auto; }
-    .ws-sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--surface-3); max-height: 200px; }
-    .ws-projects-grid { grid-template-columns: 1fr; }
-    .ws-settings-grid { grid-template-columns: 1fr; }
-    .ws-content-header { flex-direction: column; gap: var(--space-md); }
-  }
-</style>
+{% block before_head %}
+{{ super() }}
+{% import "helpers/src_macros.html" as macro %}
+{{ macro.filehelper(grid=True) }}
 {% endblock %}
 
-{% block content %}
+{%block page_header%}{%endblock%}
+
+{%block content%}
 <div x-data="workspace()">
-
-  <!-- Page Header -->
-  <div class="md-page-header">
-    <div>
-      <h1 style="font-size: var(--font-h1); font-weight: 700; margin: 0;">Workspace</h1>
-      <p style="color: var(--text-secondary); margin: var(--space-xs) 0 0 0; font-size: var(--font-small);">
-        Manage clients, projects, and compliance frameworks
-      </p>
-    </div>
-  </div>
-
-  <div class="ws-layout">
-
-    <!-- Tenant Sidebar -->
-    <div class="ws-sidebar">
-      <div class="ws-sidebar-header">
-        <h3>Clients</h3>
-        <button class="md-btn md-btn-primary md-btn-sm" @click="showCreateTenant = true" style="height: 30px; font-size: var(--font-caption);">
-          <i class="ti ti-plus" style="font-size: 14px;"></i> New
-        </button>
-      </div>
-      <div class="ws-tenant-list">
-        <div x-show="tenantsLoading" style="text-align: center; padding: var(--space-xl);">
-          <span class="md-spinner"></span>
+    <div class="flex justify-between pb-4">
+        <h1 class="text-2xl font-semibold whitespace-nowrap">Clients & Projects</h1>
+        <div class="space-x-2 flex">
+            <button class="btn btn-sm btn-ghost border border-base-300 capitalize tooltip"
+                    @click="loadTenants()" data-tip="Refresh"><i class="ti ti-refresh"></i></button>
+            <button class="btn btn-sm btn-primary" @click="showCreateTenant = true">
+                <i class="ti ti-plus mr-1"></i> New Client
+            </button>
         </div>
-        <template x-for="t in tenants" :key="t.id">
-          <button class="ws-tenant-item" :class="{ 'is-active': activeTenantId === t.id }"
-                  @click="selectTenant(t)">
-            <div class="ws-tenant-avatar" x-text="t.name ? t.name[0] : '?'"></div>
-            <div class="ws-tenant-info">
-              <div class="ws-tenant-name" x-text="t.name"></div>
-              <div class="ws-tenant-meta" x-text="t.contact_email || t.license || ''"></div>
-            </div>
-          </button>
-        </template>
-        <div x-show="!tenantsLoading && tenants.length === 0" style="padding: var(--space-lg); text-align: center; color: var(--text-tertiary); font-size: var(--font-small);">
-          No clients yet
-        </div>
-      </div>
     </div>
 
-    <!-- Content Area -->
-    <div class="ws-content">
-
-      <!-- No tenant selected -->
-      <div x-show="!activeTenantId" class="ws-empty">
-        <i class="ti ti-building-skyscraper"></i>
-        <h3>Select a Client</h3>
-        <p>Choose a client from the sidebar or create a new one to get started.</p>
-        <button class="md-btn md-btn-primary" @click="showCreateTenant = true">
-          <i class="ti ti-plus" style="font-size: 16px;"></i> Create Client
-        </button>
-      </div>
-
-      <!-- Tenant selected -->
-      <div x-show="activeTenantId" x-cloak>
-
-        <!-- Header -->
-        <div class="ws-content-header">
-          <div>
-            <h2 x-text="activeTenant ? activeTenant.name : ''"></h2>
-            <p style="color: var(--text-secondary); font-size: var(--font-small); margin: 4px 0 0 0;" x-text="activeTenant ? (activeTenant.contact_email || '') : ''"></p>
-          </div>
-          <div class="ws-actions">
-            <button class="md-btn md-btn-secondary md-btn-sm" @click="activeTab = 'settings'">
-              <i class="ti ti-settings" style="font-size: 14px;"></i> Settings
-            </button>
-            <button class="md-btn md-btn-secondary md-btn-sm" style="color: var(--warning);" @click="archiveTenant()" title="Archive">
-              <i class="ti ti-archive" style="font-size: 14px;"></i>
-            </button>
-            <button class="md-btn md-btn-secondary md-btn-sm" style="color: var(--danger);" @click="confirmDeleteTenant()" title="Delete">
-              <i class="ti ti-trash" style="font-size: 14px;"></i>
-            </button>
-          </div>
+    <div class="grid grid-cols-12 gap-4">
+        <!-- ═══ Client List (Left Panel) ═══ -->
+        <div class="col-span-3">
+            <div class="card bg-base-200 border border-base-300">
+                <div class="card-body p-3">
+                    <h3 class="card-title text-sm mb-2">Clients</h3>
+                    <div x-show="tenantsLoading" class="text-center py-8">
+                        <span class="loading loading-dots loading-md"></span>
+                    </div>
+                    <div class="space-y-1" x-show="!tenantsLoading">
+                        <template x-for="t in tenants" :key="t.id">
+                            <button class="w-full text-left flex items-center gap-2 p-2 rounded-lg transition-all capitalize"
+                                    :class="activeTenantId === t.id ? 'bg-primary text-primary-content' : 'hover:bg-base-300'"
+                                    @click="selectTenant(t)">
+                                <div class="avatar placeholder">
+                                    <div class="w-8 rounded-lg" :class="activeTenantId === t.id ? 'bg-primary-focus' : 'bg-base-300'">
+                                        <span class="text-xs uppercase" x-text="t.name ? t.name[0] : '?'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate" x-text="t.name"></div>
+                                    <div class="text-xs opacity-60 truncate" x-text="t.contact_email || t.license || ''"></div>
+                                </div>
+                            </button>
+                        </template>
+                        <div x-show="tenants.length === 0" class="text-center py-6 opacity-50 text-sm">
+                            No clients yet
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="ws-tabs">
-          <button class="ws-tab" :class="{ 'is-active': activeTab === 'projects' }" @click="activeTab = 'projects'">
-            <i class="ti ti-circles" style="font-size: 14px;"></i> Projects
-          </button>
-          <button class="ws-tab" :class="{ 'is-active': activeTab === 'wisp' }" @click="activeTab = 'wisp'">
-            <i class="ti ti-wand" style="font-size: 14px;"></i> WISP
-          </button>
-          <button class="ws-tab" :class="{ 'is-active': activeTab === 'users' }" @click="activeTab = 'users'">
-            <i class="ti ti-users" style="font-size: 14px;"></i> Users
-          </button>
-          <button class="ws-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
-            <i class="ti ti-settings" style="font-size: 14px;"></i> Settings
-          </button>
-          <button class="ws-tab" :class="{ 'is-active': activeTab === 'sso' }" @click="activeTab = 'sso'">
-            <i class="ti ti-lock" style="font-size: 14px;"></i> SSO
-          </button>
+        <!-- ═══ Content Area (Right Panel) ═══ -->
+        <div class="col-span-9">
+            <!-- No tenant selected -->
+            <div x-show="!activeTenantId" class="hero mt-16">
+                <div class="hero-content text-center">
+                    <div class="max-w-md">
+                        <h2 class="text-2xl font-bold">Select a Client</h2>
+                        <p class="py-4 opacity-70">Choose a client from the sidebar or create a new one to manage projects, WISP, and settings.</p>
+                        <button class="btn btn-primary" @click="showCreateTenant = true">
+                            <i class="ti ti-plus mr-1"></i> Create Client
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenant selected -->
+            <div x-show="activeTenantId" x-cloak>
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-xl font-bold capitalize" x-text="activeTenant ? activeTenant.name : ''"></h2>
+                        <span class="text-sm opacity-60" x-text="activeTenant ? (activeTenant.contact_email || '') : ''"></span>
+                    </div>
+                    <div class="flex gap-1">
+                        <button class="btn btn-sm btn-ghost border border-base-300 tooltip" data-tip="Edit" @click="activeTab = 'settings'">
+                            <i class="ti ti-edit text-info"></i>
+                        </button>
+                        <button class="btn btn-sm btn-ghost border border-base-300 tooltip" data-tip="Delete" @click="confirmDeleteTenant()">
+                            <i class="ti ti-trash text-error"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div role="tablist" class="tabs tabs-bordered mb-4">
+                    <button role="tab" class="tab" :class="{ 'tab-active': activeTab === 'projects' }" @click="activeTab = 'projects'">
+                        <i class="ti ti-circles mr-1"></i> Projects
+                    </button>
+                    <button role="tab" class="tab" :class="{ 'tab-active': activeTab === 'wisp' }" @click="activeTab = 'wisp'">
+                        <i class="ti ti-wand mr-1"></i> WISP
+                    </button>
+                    <button role="tab" class="tab" :class="{ 'tab-active': activeTab === 'users' }" @click="activeTab = 'users'">
+                        <i class="ti ti-users mr-1"></i> Users
+                    </button>
+                    <button role="tab" class="tab" :class="{ 'tab-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
+                        <i class="ti ti-settings mr-1"></i> Settings
+                    </button>
+                    <button role="tab" class="tab" :class="{ 'tab-active': activeTab === 'sso' }" @click="activeTab = 'sso'">
+                        <i class="ti ti-lock mr-1"></i> SSO
+                    </button>
+                </div>
+
+                <!-- ═══ Projects Tab ═══ -->
+                <div x-show="activeTab === 'projects'" x-cloak>
+                    <!-- Quick Links -->
+                    <div class="flex gap-2 mb-4 flex-wrap">
+                        <a :href="'/tenants/' + activeTenantId + '/risk'" class="btn btn-sm btn-ghost border border-base-300 capitalize">
+                            <i class="ti ti-alert-triangle text-warning"></i> Risk Register
+                        </a>
+                        <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="btn btn-sm btn-ghost border border-base-300 capitalize">
+                            <i class="ti ti-file-text text-info"></i> Policy Center
+                        </a>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">Projects</h3>
+                        <button class="btn btn-sm btn-primary" @click="showCreateProject = true">
+                            <i class="ti ti-plus mr-1"></i> New Project
+                        </button>
+                    </div>
+
+                    <!-- Loading -->
+                    <div x-show="projectsLoading" class="text-center py-8">
+                        <span class="loading loading-dots loading-lg"></span>
+                    </div>
+
+                    <!-- Project Cards -->
+                    <div class="grid grid-cols-6 gap-4" x-show="!projectsLoading && projects.length > 0">
+                        <template x-for="p in projects" :key="p.id">
+                            <div class="col-span-3">
+                                <a :href="'/projects/' + p.id" class="block border border-base-300 rounded-lg p-6 bg-base-200 hover:border-primary transition-all capitalize">
+                                    <div class="flex justify-between mb-2">
+                                        <h3 class="text-md font-semibold" x-text="p.name"></h3>
+                                        <span class="badge badge-sm" x-text="p.framework || 'Custom'"></span>
+                                    </div>
+                                    <progress class="progress progress-primary w-full mb-3" :value="p.completion_progress || 0" max="100"></progress>
+                                    <div class="flex gap-4 text-xs opacity-70">
+                                        <span><i class="ti ti-checklist mr-1"></i><span x-text="(p.completion_progress || 0) + '%'"></span></span>
+                                        <span><i class="ti ti-list mr-1"></i><span x-text="(p.total_controls || 0) + ' controls'"></span></span>
+                                        <span><i class="ti ti-notebook mr-1"></i><span x-text="(p.total_policies || 0) + ' policies'"></span></span>
+                                    </div>
+                                </a>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Empty -->
+                    <div x-show="!projectsLoading && projects.length === 0" class="hero mt-8">
+                        <div class="hero-content text-center">
+                            <div class="max-w-md">
+                                <h3 class="text-xl font-bold">No Projects Yet</h3>
+                                <p class="py-4 opacity-70">Create your first compliance project to start working with frameworks.</p>
+                                <button class="btn btn-primary" @click="showCreateProject = true">
+                                    <i class="ti ti-plus mr-1"></i> Create Project
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ WISP Tab ═══ -->
+                <div x-show="activeTab === 'wisp'" x-cloak>
+                    <div class="max-w-3xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">WISP Wizard</h3>
+                            <a href="/wisp" class="btn btn-sm btn-primary">
+                                <i class="ti ti-wand mr-1"></i> Open Wizard
+                            </a>
+                        </div>
+                        <div role="alert" class="alert bg-base-300 mb-4">
+                            <i class="ti ti-info-circle text-lg"></i>
+                            <span>Use the WISP Wizard to create a Written Information Security Program for <strong class="capitalize" x-text="activeTenant ? activeTenant.name : ''"></strong>. The wizard guides you through each section with AI assistance.</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <a href="/wisp" class="card bg-base-200 border border-base-300 hover:border-primary transition-all cursor-pointer">
+                                <div class="card-body items-center text-center p-6">
+                                    <i class="ti ti-wand text-3xl text-primary"></i>
+                                    <h4 class="font-semibold mt-2">Create / Edit WISP</h4>
+                                    <p class="text-xs opacity-60">Step-by-step wizard with AI</p>
+                                </div>
+                            </a>
+                            <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="card bg-base-200 border border-base-300 hover:border-primary transition-all cursor-pointer">
+                                <div class="card-body items-center text-center p-6">
+                                    <i class="ti ti-file-text text-3xl text-success"></i>
+                                    <h4 class="font-semibold mt-2">Policy Center</h4>
+                                    <p class="text-xs opacity-60">Manage & export policies</p>
+                                </div>
+                            </a>
+                            <a :href="'/tenants/' + activeTenantId + '/risk'" class="card bg-base-200 border border-base-300 hover:border-primary transition-all cursor-pointer">
+                                <div class="card-body items-center text-center p-6">
+                                    <i class="ti ti-alert-triangle text-3xl text-warning"></i>
+                                    <h4 class="font-semibold mt-2">Risk Register</h4>
+                                    <p class="text-xs opacity-60">Track & assess risks</p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ Users Tab ═══ -->
+                <div x-show="activeTab === 'users'" x-cloak>
+                    <div class="max-w-3xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold">Tenant Users</h3>
+                            <a href="/users" class="btn btn-sm btn-primary">
+                                <i class="ti ti-external-link mr-1"></i> Manage Users
+                            </a>
+                        </div>
+                        <div x-show="tenantUsersLoading" class="text-center py-8">
+                            <span class="loading loading-dots loading-md"></span>
+                        </div>
+                        <div class="card bg-base-200 border border-base-300" x-show="!tenantUsersLoading">
+                            <div class="card-body p-0">
+                                <table class="table" x-show="tenantUsers.length > 0">
+                                    <thead>
+                                        <tr><th>User</th><th>Email</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="u in tenantUsers" :key="u.id">
+                                            <tr>
+                                                <td class="flex items-center gap-2">
+                                                    <div class="avatar placeholder">
+                                                        <div class="w-8 rounded-full bg-base-300">
+                                                            <span class="text-xs uppercase" x-text="(u.first_name || u.email || '?')[0]"></span>
+                                                        </div>
+                                                    </div>
+                                                    <span x-text="(u.first_name || '') + ' ' + (u.last_name || '') || u.email"></span>
+                                                </td>
+                                                <td class="text-sm opacity-70" x-text="u.email"></td>
+                                                <td>
+                                                    <div class="badge badge-sm" :class="u.is_active ? 'badge-success' : 'badge-error'" x-text="u.is_active ? 'Active' : 'Inactive'"></div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="tenantUsers.length === 0" class="text-center py-8 opacity-50">
+                                    <i class="ti ti-users text-3xl block mb-2"></i>
+                                    No users found
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ Settings Tab ═══ -->
+                <div x-show="activeTab === 'settings'" x-cloak>
+                    <div class="max-w-2xl">
+                        <div class="card bg-base-200 border border-base-300">
+                            <div class="card-body">
+                                <h3 class="card-title text-lg mb-4">Client Settings</h3>
+                                <div class="grid grid-cols-6 gap-4">
+                                    <div class="col-span-3">
+                                        <label class="block text-sm font-medium pb-2">Client Name</label>
+                                        <input type="text" class="input input-sm input-bordered w-full" x-model="tenantForm.name">
+                                    </div>
+                                    <div class="col-span-3">
+                                        <label class="block text-sm font-medium pb-2">Contact Email</label>
+                                        <input type="email" class="input input-sm input-bordered w-full" x-model="tenantForm.contact_email">
+                                    </div>
+                                    <div class="col-span-3">
+                                        <label class="block text-sm font-medium pb-2">License</label>
+                                        <select class="select select-sm select-bordered w-full" x-model="tenantForm.license">
+                                            <option value="trial">Trial</option>
+                                            <option value="silver">Silver</option>
+                                            <option value="gold">Gold</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-span-3">
+                                        <label class="block text-sm font-medium pb-2">Email Login</label>
+                                        <input type="checkbox" class="toggle toggle-success" x-model="tenantForm.magic_link_login">
+                                        <p class="text-xs opacity-50 mt-1">Allow login via one-time email code</p>
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-sm font-medium pb-2">Storage Cap</label>
+                                        <input type="number" class="input input-sm input-bordered w-full" x-model="tenantForm.storage_cap">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-sm font-medium pb-2">User Cap</label>
+                                        <input type="number" class="input input-sm input-bordered w-full" x-model="tenantForm.user_cap">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-sm font-medium pb-2">Project Cap</label>
+                                        <input type="number" class="input input-sm input-bordered w-full" x-model="tenantForm.project_cap">
+                                    </div>
+                                </div>
+                                <div class="mt-4 flex justify-end">
+                                    <button class="btn btn-success btn-sm" @click="updateTenant()" :class="{'btn-disabled': savingTenant}">
+                                        <span x-show="!savingTenant">Save Changes</span>
+                                        <span class="loading loading-spinner loading-xs" x-show="savingTenant"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ SSO Tab ═══ -->
+                <div x-show="activeTab === 'sso'" x-cloak>
+                    <div class="max-w-2xl">
+                        <div class="card bg-base-200 border border-base-300">
+                            <div class="card-body">
+                                <h3 class="card-title text-lg mb-2">Per-Tenant SSO</h3>
+                                <p class="text-sm opacity-60 mb-4">Configure single sign-on for this specific client. Overrides platform-level SSO.</p>
+                                <div class="grid grid-cols-6 gap-4">
+                                    <div class="col-span-6">
+                                        <label class="block text-sm font-medium pb-2">SSO Provider</label>
+                                        <select class="select select-sm select-bordered w-full" x-model="tenantSso.provider">
+                                            <option value="">Inherit platform default</option>
+                                            <option value="azure_ad">Azure AD (Entra ID)</option>
+                                            <option value="okta">Okta</option>
+                                            <option value="google">Google Workspace</option>
+                                            <option value="saml">Generic SAML 2.0</option>
+                                            <option value="oidc">Generic OIDC</option>
+                                        </select>
+                                    </div>
+                                    <template x-if="tenantSso.provider">
+                                        <div class="col-span-6 grid grid-cols-6 gap-4">
+                                            <div class="col-span-3">
+                                                <label class="block text-sm font-medium pb-2">Client ID</label>
+                                                <input type="text" class="input input-sm input-bordered w-full" x-model="tenantSso.client_id" placeholder="Application client ID">
+                                            </div>
+                                            <div class="col-span-3">
+                                                <label class="block text-sm font-medium pb-2">Client Secret</label>
+                                                <input type="password" class="input input-sm input-bordered w-full" x-model="tenantSso.client_secret" placeholder="Client secret">
+                                            </div>
+                                            <div class="col-span-6">
+                                                <label class="block text-sm font-medium pb-2">Discovery URL</label>
+                                                <input type="text" class="input input-sm input-bordered w-full" x-model="tenantSso.discovery_url" placeholder="https://login.microsoftonline.com/{tenant}/.well-known/openid-configuration">
+                                            </div>
+                                            <div class="col-span-6 flex items-center gap-2">
+                                                <input type="checkbox" class="toggle toggle-success" x-model="tenantSso.enabled">
+                                                <span class="text-sm" x-text="tenantSso.enabled ? 'SSO Enabled' : 'SSO Disabled'"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="mt-4 flex justify-end">
+                                    <button class="btn btn-success btn-sm" @click="saveTenantSso()" :class="{'btn-disabled': savingSso}">
+                                        <span x-show="!savingSso">Save SSO Settings</span>
+                                        <span class="loading loading-spinner loading-xs" x-show="savingSso"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
-
-        <!-- ═══ Projects Tab ═══ -->
-        <div x-show="activeTab === 'projects'" x-cloak>
-
-          <!-- Quick Links -->
-          <div class="ws-quick-links">
-            <a :href="'/tenants/' + activeTenantId + '/risk'" class="ws-quick-link">
-              <i class="ti ti-alert-triangle"></i> Risk Register
-            </a>
-            <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="ws-quick-link">
-              <i class="ti ti-file-text"></i> Policy Center
-            </a>
-          </div>
-
-          <!-- Create Project Button -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
-            <h3 style="font-size: var(--font-h2); font-weight: 600; margin: 0; color: var(--text-primary);">Projects</h3>
-            <button class="md-btn md-btn-primary md-btn-sm" @click="showCreateProject = true">
-              <i class="ti ti-plus" style="font-size: 14px;"></i> New Project
-            </button>
-          </div>
-
-          <!-- Loading -->
-          <div x-show="projectsLoading" style="text-align: center; padding: var(--space-xl);">
-            <span class="md-spinner"></span>
-          </div>
-
-          <!-- Project Cards -->
-          <div class="ws-projects-grid" x-show="!projectsLoading && projects.length > 0">
-            <template x-for="p in projects" :key="p.id">
-              <a :href="'/projects/' + p.id" class="ws-project-card" style="text-decoration: none; color: inherit;">
-                <div class="ws-project-card-header">
-                  <span class="ws-project-card-title" x-text="p.name"></span>
-                  <span class="ws-project-card-framework" x-text="p.framework || 'Custom'"></span>
-                </div>
-                <div class="ws-progress-bar">
-                  <div class="ws-progress-fill" :style="'width:' + (p.completion_progress || 0) + '%'"></div>
-                </div>
-                <div class="ws-project-card-stats">
-                  <span class="ws-project-card-stat">
-                    <i class="ti ti-checklist" style="font-size: 14px;"></i>
-                    <span x-text="(p.completion_progress || 0) + '%'"></span>
-                  </span>
-                  <span class="ws-project-card-stat">
-                    <i class="ti ti-list" style="font-size: 14px;"></i>
-                    <span x-text="(p.total_controls || 0) + ' controls'"></span>
-                  </span>
-                  <span class="ws-project-card-stat">
-                    <i class="ti ti-notebook" style="font-size: 14px;"></i>
-                    <span x-text="(p.total_policies || 0) + ' policies'"></span>
-                  </span>
-                </div>
-              </a>
-            </template>
-          </div>
-
-          <!-- Empty Projects -->
-          <div x-show="!projectsLoading && projects.length === 0" class="ws-empty">
-            <i class="ti ti-circles"></i>
-            <h3>No Projects Yet</h3>
-            <p>Create your first compliance project to start working with frameworks.</p>
-            <button class="md-btn md-btn-primary" @click="showCreateProject = true">
-              <i class="ti ti-plus" style="font-size: 16px;"></i> Create Project
-            </button>
-          </div>
-        </div>
-
-        <!-- ═══ WISP Tab ═══ -->
-        <div x-show="activeTab === 'wisp'" x-cloak>
-          <div style="max-width: 800px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
-              <div>
-                <h3 style="font-size: var(--font-h2); font-weight: 600; margin: 0; color: var(--text-primary);">WISP Wizard</h3>
-                <p style="color: var(--text-secondary); font-size: var(--font-small); margin: 4px 0 0 0;">
-                  Written Information Security Program for <strong x-text="activeTenant ? activeTenant.name : ''"></strong>
-                </p>
-              </div>
-              <a :href="'/wisp'" class="md-btn md-btn-primary md-btn-sm">
-                <i class="ti ti-wand" style="font-size: 14px;"></i> Open Full Wizard
-              </a>
-            </div>
-
-            <!-- WISP Status Cards -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-xl);">
-              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
-                <i class="ti ti-file-text" style="font-size: 32px; color: var(--brand-primary); display: block; margin-bottom: var(--space-sm);"></i>
-                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispVersionCount"></div>
-                <div style="font-size: var(--font-caption); color: var(--text-secondary);">WISP Versions</div>
-              </div>
-              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
-                <i class="ti ti-signature" style="font-size: 32px; color: var(--success); display: block; margin-bottom: var(--space-sm);"></i>
-                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispSignedCount"></div>
-                <div style="font-size: var(--font-caption); color: var(--text-secondary);">Signed</div>
-              </div>
-              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
-                <i class="ti ti-clock" style="font-size: 32px; color: var(--warning); display: block; margin-bottom: var(--space-sm);"></i>
-                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispLastUpdated || 'Never'"></div>
-                <div style="font-size: var(--font-caption); color: var(--text-secondary);">Last Updated</div>
-              </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
-              <a :href="'/wisp'" class="ws-quick-link" style="padding: var(--space-md) var(--space-lg); justify-content: flex-start;">
-                <i class="ti ti-wand" style="font-size: 20px; color: var(--brand-primary);"></i>
-                <div>
-                  <div style="font-weight: 600;">Create / Edit WISP</div>
-                  <div style="font-size: var(--font-caption); color: var(--text-secondary); font-weight: 400;">Use the step-by-step wizard with AI assistance to create your Written Information Security Program</div>
-                </div>
-              </a>
-              <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="ws-quick-link" style="padding: var(--space-md) var(--space-lg); justify-content: flex-start;">
-                <i class="ti ti-file-text" style="font-size: 20px; color: var(--success);"></i>
-                <div>
-                  <div style="font-weight: 600;">Policy Center</div>
-                  <div style="font-size: var(--font-caption); color: var(--text-secondary); font-weight: 400;">Manage all compliance policies, export PDFs, and track approval status</div>
-                </div>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <!-- ═══ Users Tab ═══ -->
-        <div x-show="activeTab === 'users'" x-cloak>
-          <div style="max-width: 800px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
-              <h3 style="font-size: var(--font-h2); font-weight: 600; margin: 0; color: var(--text-primary);">Tenant Users</h3>
-              <a href="/users" class="md-btn md-btn-primary md-btn-sm">
-                <i class="ti ti-external-link" style="font-size: 14px;"></i> Manage Users
-              </a>
-            </div>
-
-            <!-- Users list -->
-            <div x-show="tenantUsersLoading" style="text-align: center; padding: var(--space-xl);">
-              <span class="md-spinner"></span>
-            </div>
-            <div x-show="!tenantUsersLoading">
-              <template x-for="u in tenantUsers" :key="u.id">
-                <div style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); border-bottom: 1px solid var(--surface-3);">
-                  <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--brand-light); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; text-transform: uppercase; flex-shrink: 0;"
-                       x-text="(u.first_name || u.email || '?')[0]"></div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 500; font-size: var(--font-body);" x-text="(u.first_name || '') + ' ' + (u.last_name || '') || u.email"></div>
-                    <div style="font-size: var(--font-caption); color: var(--text-secondary);" x-text="u.email"></div>
-                  </div>
-                  <div>
-                    <span class="md-status-pill md-status-compliant" style="font-size: var(--font-caption);" x-text="u.is_active ? 'Active' : 'Inactive'"></span>
-                  </div>
-                </div>
-              </template>
-              <div x-show="tenantUsers.length === 0" style="text-align: center; padding: var(--space-xl); color: var(--text-tertiary);">
-                <i class="ti ti-users" style="font-size: 32px; display: block; margin-bottom: var(--space-sm);"></i>
-                No users found for this client
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ═══ Settings Tab ═══ -->
-        <div x-show="activeTab === 'settings'" x-cloak>
-          <div style="max-width: 640px;">
-            <div class="ws-settings-grid">
-              <div class="settings-form-group">
-                <label class="settings-form-label">Client Name</label>
-                <input type="text" class="md-input" x-model="tenantForm.name">
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">Contact Email</label>
-                <input type="email" class="md-input" x-model="tenantForm.contact_email">
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">License</label>
-                <select class="md-select" x-model="tenantForm.license">
-                  <option value="trial">Trial</option>
-                  <option value="silver">Silver</option>
-                  <option value="gold">Gold</option>
-                </select>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">Email Login</label>
-                <label class="md-toggle">
-                  <input type="checkbox" x-model="tenantForm.magic_link_login">
-                  <span class="md-toggle-track"></span>
-                </label>
-                <div class="settings-form-hint">Allow login via one-time email code</div>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">Storage Cap (MB)</label>
-                <input type="number" class="md-input" x-model="tenantForm.storage_cap">
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">User Cap</label>
-                <input type="number" class="md-input" x-model="tenantForm.user_cap">
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">Project Cap</label>
-                <input type="number" class="md-input" x-model="tenantForm.project_cap">
-              </div>
-            </div>
-            <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-lg);">
-              <button class="md-btn md-btn-primary" @click="updateTenant()" :disabled="savingTenant">
-                <span x-show="!savingTenant">Save Changes</span>
-                <span x-show="savingTenant"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ═══ SSO Tab (per-tenant) ═══ -->
-        <div x-show="activeTab === 'sso'" x-cloak>
-          <div style="max-width: 640px;">
-            <p style="color: var(--text-secondary); font-size: var(--font-small); margin-bottom: var(--space-lg);">
-              Configure single sign-on for this specific client. Overrides platform-level SSO if set.
-            </p>
-            <div class="settings-form-group">
-              <label class="settings-form-label">SSO Provider</label>
-              <select class="md-select" x-model="tenantSso.provider">
-                <option value="">Inherit platform default</option>
-                <option value="azure_ad">Azure AD (Entra ID)</option>
-                <option value="okta">Okta</option>
-                <option value="google">Google Workspace</option>
-                <option value="saml">Generic SAML 2.0</option>
-                <option value="oidc">Generic OIDC</option>
-              </select>
-            </div>
-            <div x-show="tenantSso.provider">
-              <div class="ws-settings-grid">
-                <div class="settings-form-group">
-                  <label class="settings-form-label">Client ID</label>
-                  <input type="text" class="md-input" x-model="tenantSso.client_id" placeholder="Application client ID">
-                </div>
-                <div class="settings-form-group">
-                  <label class="settings-form-label">Client Secret</label>
-                  <input type="password" class="md-input" x-model="tenantSso.client_secret" placeholder="Client secret">
-                </div>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-form-label">Discovery URL</label>
-                <input type="text" class="md-input" x-model="tenantSso.discovery_url"
-                       placeholder="https://login.microsoftonline.com/{tenant}/.well-known/openid-configuration">
-              </div>
-              <div style="display: flex; align-items: center; gap: var(--space-sm); margin-top: var(--space-md);">
-                <label class="md-toggle">
-                  <input type="checkbox" x-model="tenantSso.enabled">
-                  <span class="md-toggle-track"></span>
-                </label>
-                <span class="settings-form-label" style="margin-bottom: 0;" x-text="tenantSso.enabled ? 'SSO Enabled' : 'SSO Disabled'"></span>
-              </div>
-            </div>
-            <div style="display: flex; gap: var(--space-sm); margin-top: var(--space-lg);">
-              <button class="md-btn md-btn-primary" @click="saveTenantSso()" :disabled="savingSso">
-                <span x-show="!savingSso">Save SSO Settings</span>
-                <span x-show="savingSso"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-      </div>
     </div>
-  </div>
 
-  <!-- ═══ Create Tenant Modal ═══ -->
-  <div x-show="showCreateTenant" x-cloak class="settings-modal-backdrop"
-       x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-    <div class="settings-modal" @click.away="showCreateTenant = false" style="width: 420px;">
-      <h3>Create Client</h3>
-      <div class="settings-form-group">
-        <label class="settings-form-label">Name</label>
-        <input type="text" class="md-input" x-model="newTenant.name" placeholder="Client name" @keydown.enter="createTenant()">
-      </div>
-      <div class="settings-form-group">
-        <label class="settings-form-label">Contact Email</label>
-        <input type="email" class="md-input" x-model="newTenant.contact_email" placeholder="contact@example.com">
-      </div>
-      <div style="display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-lg);">
-        <button class="md-btn md-btn-secondary" @click="showCreateTenant = false">Cancel</button>
-        <button class="md-btn md-btn-primary" @click="createTenant()" :disabled="!newTenant.name || creatingTenant">
-          <span x-show="!creatingTenant">Create</span>
-          <span x-show="creatingTenant"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
-        </button>
-      </div>
+    <!-- ═══ Create Tenant Modal ═══ -->
+    <div class="modal" :class="{ 'modal-open': showCreateTenant }">
+        <div class="modal-box">
+            <form method="dialog">
+                <button @click="showCreateTenant = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-xl px-2">Create Client</h3>
+            <div class="card-body">
+                <div class="grid grid-cols-6 gap-4">
+                    <div class="col-span-6">
+                        <label class="block text-sm font-medium pb-2">Name</label>
+                        <input x-model="newTenant.name" type="text" placeholder="Client name" class="input input-sm input-bordered w-full" @keydown.enter="createTenant()">
+                    </div>
+                    <div class="col-span-6">
+                        <label class="block text-sm font-medium pb-2">Contact Email</label>
+                        <input x-model="newTenant.contact_email" type="email" placeholder="contact@example.com" class="input input-sm input-bordered w-full">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn" @click="showCreateTenant = false">Close</button>
+                <button :disabled="!newTenant.name" class="btn btn-primary" :class="{'btn-disabled': creatingTenant}" @click="createTenant()">
+                    <span class="loading loading-spinner loading-xs" x-show="creatingTenant"></span>
+                    Create
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- ═══ Create Project Modal ═══ -->
-  <div x-show="showCreateProject" x-cloak class="settings-modal-backdrop"
-       x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-    <div class="settings-modal" @click.away="showCreateProject = false" style="width: 560px;">
-      <h3 x-show="projectStep === 1">Create Project</h3>
-      <h3 x-show="projectStep === 2">
-        <button class="md-btn md-btn-ghost md-btn-sm" @click="projectStep = 1" style="margin-right: var(--space-xs);">
-          <i class="ti ti-arrow-left" style="font-size: 16px;"></i>
-        </button>
-        Select Framework
-      </h3>
-
-      <!-- Step 1: Name -->
-      <div x-show="projectStep === 1">
-        <div class="settings-form-group">
-          <label class="settings-form-label">Project Name</label>
-          <input type="text" class="md-input" x-model="newProject.name" placeholder="e.g. SOC 2 Audit 2026" @keydown.enter="newProject.name && (projectStep = 2)">
+    <!-- ═══ Create Project Modal ═══ -->
+    <div class="modal" :class="{ 'modal-open': showCreateProject }">
+        <div class="modal-box w-11/12 max-w-3xl">
+            <form method="dialog">
+                <button @click="showCreateProject = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 x-show="projectStep === 1" class="font-bold text-xl px-4">Create Project</h3>
+            <h3 x-show="projectStep === 2" class="font-bold text-xl px-4">
+                <button @click="projectStep = 1" class="btn btn-ghost btn-sm mr-2"><i class="ti ti-arrow-left text-xl"></i></button>
+                Select Framework
+            </h3>
+            <div x-show="projectStep === 1" class="card card-body">
+                <div class="grid grid-cols-6 gap-4">
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium mb-2">Name</label>
+                        <input placeholder="e.g. SOC 2 Audit 2026" x-model="newProject.name" class="input input-sm input-bordered w-full">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium mb-2">Description</label>
+                        <input placeholder="Optional description" x-model="newProject.description" class="input input-sm input-bordered w-full">
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium mb-2">Client</label>
+                        <select class="select select-sm select-bordered w-full" x-model="newProject.tenantId">
+                            <template x-for="t in tenants" :key="t.id">
+                                <option :value="t.id" x-text="t.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div x-show="projectStep === 2" class="card card-body">
+                <div class="grid grid-cols-9 gap-4">
+                    <template x-for="fw in frameworks" :key="fw.id">
+                        <div class="col-span-3">
+                            <div @click="selectedFramework = fw" :class="{'border border-primary': selectedFramework && selectedFramework.id === fw.id}" class="card hover:opacity-75 bg-base-300 cursor-pointer">
+                                <div class="card-body p-4">
+                                    <div class="flex flex-row">
+                                        <i x-show="selectedFramework && selectedFramework.id === fw.id" class="ti text-success ti-check mr-2 my-auto"></i>
+                                        <div class="card-title text-sm" x-text="fw.name"></div>
+                                    </div>
+                                    <p class="text-xs opacity-60" x-text="fw.description || ''"></p>
+                                    <button x-show="selectedFramework && selectedFramework.id === fw.id" @click="createProject()" class="btn btn-sm btn-success mt-2" :class="{'btn-disabled': creatingProject}">
+                                        <span class="loading loading-spinner loading-xs" x-show="creatingProject"></span>
+                                        Get Started
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button class="btn" @click="showCreateProject = false">Close</button>
+                <button x-show="projectStep === 1" :disabled="!newProject.name" class="btn btn-primary" @click="projectStep = 2">Select Framework</button>
+            </div>
         </div>
-        <div class="settings-form-group">
-          <label class="settings-form-label">Description</label>
-          <input type="text" class="md-input" x-model="newProject.description" placeholder="Optional description">
-        </div>
-        <div class="settings-form-group">
-          <label class="settings-form-label">Client</label>
-          <select class="md-select" x-model="newProject.tenantId">
-            <template x-for="t in tenants" :key="t.id">
-              <option :value="t.id" x-text="t.name"></option>
-            </template>
-          </select>
-        </div>
-        <div style="display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-lg);">
-          <button class="md-btn md-btn-secondary" @click="showCreateProject = false">Cancel</button>
-          <button class="md-btn md-btn-primary" @click="projectStep = 2" :disabled="!newProject.name">
-            Select Framework
-          </button>
-        </div>
-      </div>
-
-      <!-- Step 2: Framework -->
-      <div x-show="projectStep === 2">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); max-height: 400px; overflow-y: auto;">
-          <template x-for="fw in frameworks" :key="fw.id">
-            <button class="ws-project-card" style="text-align: left; border: 2px solid var(--surface-3);"
-                    :style="selectedFramework && selectedFramework.id === fw.id ? 'border-color: var(--brand-primary); background: var(--brand-light);' : ''"
-                    @click="selectedFramework = fw">
-              <div style="font-weight: 600; font-size: var(--font-small);" x-text="fw.name"></div>
-              <div style="font-size: var(--font-caption); color: var(--text-secondary); margin-top: 4px;" x-text="fw.description || ''"></div>
-            </button>
-          </template>
-        </div>
-        <div style="display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-lg);">
-          <button class="md-btn md-btn-secondary" @click="showCreateProject = false">Cancel</button>
-          <button class="md-btn md-btn-primary" @click="createProject()" :disabled="!selectedFramework || creatingProject">
-            <span x-show="!creatingProject">Create Project</span>
-            <span x-show="creatingProject"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
-          </button>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <!-- ═══ Delete Confirmation Modal ═══ -->
-  <div x-show="showDeleteConfirm" x-cloak class="settings-modal-backdrop"
-       x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-    <div class="settings-modal" @click.away="showDeleteConfirm = false" style="width: 420px;">
-      <h3 style="color: var(--danger);">Delete Client</h3>
-      <p style="color: var(--text-secondary); font-size: var(--font-small);">
-        Are you sure you want to delete <strong x-text="activeTenant ? activeTenant.name : ''"></strong>?
-        All data within this client (projects, controls, evidence) will be permanently lost.
-      </p>
-      <div style="display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-lg);">
-        <button class="md-btn md-btn-secondary" @click="showDeleteConfirm = false">Cancel</button>
-        <button class="md-btn" style="background: var(--danger); color: #fff;" @click="deleteTenant()" :disabled="deletingTenant">
-          <span x-show="!deletingTenant">Delete Permanently</span>
-          <span x-show="deletingTenant"><span class="md-spinner" style="width:16px;height:16px;border-width:2px;"></span></span>
-        </button>
-      </div>
+    <!-- ═══ Delete Confirmation ═══ -->
+    <div class="modal" :class="{ 'modal-open': showDeleteConfirm }">
+        <div class="modal-box">
+            <form method="dialog">
+                <button @click="showDeleteConfirm = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+            </form>
+            <h3 class="font-bold text-lg" x-text="'Are you sure you want to delete: ' + (activeTenant ? activeTenant.name : '') + '? All data will be permanently lost.'"></h3>
+            <div class="modal-action">
+                <button class="btn" @click="showDeleteConfirm = false">Cancel</button>
+                <button class="btn btn-error" :class="{'btn-disabled': deletingTenant}" @click="deleteTenant()">
+                    <span class="loading loading-spinner loading-xs" x-show="deletingTenant"></span>
+                    Delete
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
-
 </div>
-{% endblock %}
+{%endblock%}
 
-{% block scripts %}
+{%block extrajs%}
 <script>
 function workspace() {
   return {
-    // State
     tenants: [],
     tenantsLoading: true,
     activeTenantId: null,
@@ -747,39 +475,22 @@ function workspace() {
     projects: [],
     projectsLoading: false,
     frameworks: [],
-
-    // Tenant form
     tenantForm: {},
     savingTenant: false,
-
-    // SSO per-tenant
     tenantSso: { provider: '', client_id: '', client_secret: '', discovery_url: '', enabled: false },
     savingSso: false,
-
-    // Create tenant
     showCreateTenant: false,
     newTenant: { name: '', contact_email: '' },
     creatingTenant: false,
-
-    // Create project
     showCreateProject: false,
     newProject: { name: '', description: '', tenantId: '' },
     projectStep: 1,
     selectedFramework: null,
     creatingProject: false,
-
-    // Delete
     showDeleteConfirm: false,
     deletingTenant: false,
-
-    // Users
     tenantUsers: [],
     tenantUsersLoading: false,
-
-    // WISP
-    wispVersionCount: 0,
-    wispSignedCount: 0,
-    wispLastUpdated: '',
 
     init() {
       this.loadTenants();
@@ -791,7 +502,6 @@ function workspace() {
         const resp = await fetch('/api/v1/tenants');
         if (resp.ok) {
           this.tenants = await resp.json();
-          // Auto-select first tenant or previously active
           if (this.tenants.length > 0 && !this.activeTenantId) {
             this.selectTenant(this.tenants[0]);
           }
@@ -810,7 +520,6 @@ function workspace() {
       this.loadProjects();
       this.loadFrameworks();
       this.loadTenantUsers();
-      // Switch context
       fetch('/tenants/' + t.id + '/switch').catch(() => {});
     },
 
@@ -818,9 +527,7 @@ function workspace() {
       this.projectsLoading = true;
       try {
         const resp = await fetch(`/api/v1/tenants/${this.activeTenantId}/projects?exclude-timely=true`);
-        if (resp.ok) {
-          this.projects = await resp.json();
-        }
+        if (resp.ok) { this.projects = await resp.json(); }
       } catch (e) { console.error('Failed to load projects:', e); }
       this.projectsLoading = false;
     },
@@ -839,39 +546,27 @@ function workspace() {
       this.tenantUsers = [];
       try {
         const resp = await fetch(`/api/v1/tenants/${this.activeTenantId}/users`);
-        if (resp.ok) {
-          this.tenantUsers = await resp.json();
-        }
-      } catch (e) { console.debug('Failed to load tenant users:', e); }
+        if (resp.ok) { this.tenantUsers = await resp.json(); }
+      } catch (e) { console.debug('Failed to load users:', e); }
       this.tenantUsersLoading = false;
     },
 
-    // Tenant CRUD
     async createTenant() {
       if (!this.newTenant.name) return;
       this.creatingTenant = true;
       try {
-        const resp = await fetch('/api/v1/tenants', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.newTenant),
-        });
+        const resp = await fetch('/api/v1/tenants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.newTenant) });
         if (resp.ok) {
-          Alpine.store('app').showToast('Client created', 'success');
+          toast("Client created", "success");
           this.showCreateTenant = false;
           this.newTenant = { name: '', contact_email: '' };
           await this.loadTenants();
-          // Select the new tenant (last one)
-          if (this.tenants.length > 0) {
-            this.selectTenant(this.tenants[this.tenants.length - 1]);
-          }
+          if (this.tenants.length > 0) this.selectTenant(this.tenants[this.tenants.length - 1]);
         } else {
           const err = await resp.json().catch(() => ({}));
-          Alpine.store('app').showToast(err.message || 'Failed to create', 'error');
+          toast(err.message || 'Failed to create', 'error');
         }
-      } catch (e) {
-        Alpine.store('app').showToast('Error creating client', 'error');
-      }
+      } catch (e) { toast('Error creating client', 'error'); }
       this.creatingTenant = false;
     },
 
@@ -886,123 +581,77 @@ function workspace() {
           user_cap: parseInt(this.tenantForm.user_cap) || 0,
           project_cap: parseInt(this.tenantForm.project_cap) || 0,
         };
-        const resp = await fetch('/api/v1/tenants/' + this.activeTenantId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        const resp = await fetch('/api/v1/tenants/' + this.activeTenantId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (resp.ok) {
-          Alpine.store('app').showToast('Client updated', 'success');
+          toast('Client updated', 'success');
           await this.loadTenants();
-          // Re-select to refresh data
           const updated = this.tenants.find(t => t.id === this.activeTenantId);
-          if (updated) {
-            this.activeTenant = updated;
-            this.tenantForm = { ...updated };
-          }
+          if (updated) { this.activeTenant = updated; this.tenantForm = { ...updated }; }
         } else {
           const err = await resp.json().catch(() => ({}));
-          Alpine.store('app').showToast(err.message || 'Failed to update', 'error');
+          toast(err.message || 'Failed to update', 'error');
         }
-      } catch (e) {
-        Alpine.store('app').showToast('Error updating client', 'error');
-      }
+      } catch (e) { toast('Error updating client', 'error'); }
       this.savingTenant = false;
     },
 
-    confirmDeleteTenant() {
-      this.showDeleteConfirm = true;
-    },
+    confirmDeleteTenant() { this.showDeleteConfirm = true; },
 
     async deleteTenant() {
       this.deletingTenant = true;
       try {
         const resp = await fetch('/api/v1/tenants/' + this.activeTenantId, { method: 'DELETE' });
         if (resp.ok) {
-          Alpine.store('app').showToast('Client deleted', 'success');
+          toast('Client deleted', 'success');
           this.showDeleteConfirm = false;
           this.activeTenantId = null;
           this.activeTenant = null;
           await this.loadTenants();
-          if (this.tenants.length > 0) {
-            this.selectTenant(this.tenants[0]);
-          }
-        } else {
-          Alpine.store('app').showToast('Failed to delete', 'error');
-        }
-      } catch (e) {
-        Alpine.store('app').showToast('Error deleting client', 'error');
-      }
+          if (this.tenants.length > 0) this.selectTenant(this.tenants[0]);
+        } else { toast('Failed to delete', 'error'); }
+      } catch (e) { toast('Error deleting client', 'error'); }
       this.deletingTenant = false;
     },
 
-    archiveTenant() {
-      Alpine.store('app').showToast('Client archived (conceptual — archive flag not yet in API)', 'success');
-    },
-
-    // Project CRUD
     async createProject() {
       if (!this.newProject.name || !this.selectedFramework) return;
       this.creatingProject = true;
       const tid = this.newProject.tenantId || this.activeTenantId;
       try {
-        const payload = {
-          name: this.newProject.name,
-          description: this.newProject.description,
-          framework: this.selectedFramework.name,
-        };
+        const payload = { name: this.newProject.name, description: this.newProject.description, framework: this.selectedFramework.name };
         if (this.selectedFramework.name === 'SOC2') {
           payload.criteria = { security: true, availability: false, confidentiality: false, integrity: false, privacy: false };
         }
-        const resp = await fetch(`/api/v1/tenants/${tid}/projects`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        const resp = await fetch(`/api/v1/tenants/${tid}/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (resp.ok) {
-          Alpine.store('app').showToast('Project created', 'success');
+          toast('Project created', 'success');
           this.showCreateProject = false;
           this.newProject = { name: '', description: '', tenantId: this.activeTenantId };
           this.projectStep = 1;
           this.selectedFramework = null;
-          // Switch to the tenant where project was created if different
           if (tid !== this.activeTenantId) {
             const target = this.tenants.find(t => t.id === tid);
             if (target) this.selectTenant(target);
-          } else {
-            await this.loadProjects();
-          }
+          } else { await this.loadProjects(); }
         } else {
           const err = await resp.json().catch(() => ({}));
-          Alpine.store('app').showToast(err.message || 'Failed to create project', 'error');
+          toast(err.message || 'Failed to create project', 'error');
         }
-      } catch (e) {
-        Alpine.store('app').showToast('Error creating project', 'error');
-      }
+      } catch (e) { toast('Error creating project', 'error'); }
       this.creatingProject = false;
     },
 
-    // SSO per-tenant
     async saveTenantSso() {
       this.savingSso = true;
       try {
         const payload = { ...this.tenantSso, tenant_id: this.activeTenantId };
-        const resp = await fetch('/api/v1/settings/sso', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (resp.ok) {
-          Alpine.store('app').showToast('SSO settings saved', 'success');
-        } else {
-          Alpine.store('app').showToast('Failed to save SSO', 'error');
-        }
-      } catch (e) {
-        Alpine.store('app').showToast('Error saving SSO', 'error');
-      }
+        const resp = await fetch('/api/v1/settings/sso', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (resp.ok) { toast('SSO settings saved', 'success'); }
+        else { toast('Failed to save SSO', 'error'); }
+      } catch (e) { toast('Error saving SSO', 'error'); }
       this.savingSso = false;
     },
   };
 }
 </script>
-{% endblock %}
+{%endblock%}
