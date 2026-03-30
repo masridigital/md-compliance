@@ -1,5 +1,6 @@
 tl_src/node_modules
 .env
+backups/
 *.py[cod]
 env/*
 # migrations folder is tracked — contains Alembic version files
