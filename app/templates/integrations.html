@@ -154,8 +154,56 @@
           </div>
         </template>
 
-        <!-- ═══════ Generic "not yet configurable" for other categories ═══════ -->
-        <template x-if="selected.category !== 'llm' && selected.category !== 'identity'">
+        <!-- ═══════ MCP Server Key Management ═══════ -->
+        <template x-if="selected.id === 'mcp'">
+          <div>
+            <h4 class="font-semibold text-sm mb-3">API Keys</h4>
+            <p class="text-xs opacity-60 mb-3">MCP API keys authenticate external AI assistants and tools. The server exposes compliance tools at <code class="bg-base-200 px-1 rounded">/mcp/v1/tools</code>.</p>
+
+            <!-- Create Key -->
+            <div class="flex gap-2 mb-4">
+              <input type="text" class="input input-bordered input-sm flex-1" x-model="mcpNewKeyName" placeholder="Key name (e.g. Claude Desktop)" />
+              <button class="btn btn-primary btn-sm gap-1" @click="createMcpKey()" :disabled="mcpSaving || !mcpNewKeyName.trim()">
+                <span class="loading loading-spinner loading-xs" x-show="mcpSaving"></span>
+                <i class="ti ti-plus" x-show="!mcpSaving"></i>
+                Create
+              </button>
+            </div>
+
+            <!-- Show newly created key (once) -->
+            <div x-show="mcpNewRawKey" class="finding-card mb-4">
+              <div class="text-xs text-warning font-semibold mb-1"><i class="ti ti-alert-triangle"></i> Copy this key now — it won't be shown again</div>
+              <div class="flex gap-2 items-center">
+                <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewRawKey"></code>
+                <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button>
+              </div>
+            </div>
+
+            <!-- Key list -->
+            <div x-show="mcpKeys.length > 0" class="space-y-2">
+              <template x-for="key in mcpKeys" :key="key.id">
+                <div class="finding-card flex justify-between items-center">
+                  <div>
+                    <div class="text-xs font-semibold" x-text="key.name"></div>
+                    <div class="text-xs opacity-50">
+                      <span x-text="key.key_prefix + '...'"></span> ·
+                      <span x-text="key.enabled ? 'Active' : 'Disabled'"></span>
+                      <span x-show="key.last_used_at"> · Last used <span x-text="new Date(key.last_used_at).toLocaleDateString()"></span></span>
+                    </div>
+                  </div>
+                  <button class="btn btn-ghost btn-xs text-error" @click="revokeMcpKey(key.id)" title="Revoke">
+                    <i class="ti ti-trash"></i>
+                  </button>
+                </div>
+              </template>
+            </div>
+            <div x-show="mcpKeys.length === 0 && !mcpSaving" class="text-xs opacity-50 text-center py-4">No API keys yet</div>
+            <div x-show="mcpMsg" class="text-xs mt-2" :class="mcpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="mcpMsg"></div>
+          </div>
+        </template>
+
+        <!-- ═══════ Generic "not yet configurable" for remaining categories ═══════ -->
+        <template x-if="['storage','notifications','sso'].includes(selected.category)">
           <div>
             <a :href="'/settings#' + (selected.settingsSection || '')" class="btn btn-primary btn-sm gap-2" x-show="selected.settingsSection">
               <i class="ti ti-settings"></i>
@@ -331,6 +379,14 @@ function integrationsHub() {
     llmMsg: '',
     llmMsgType: '',
 
+    // MCP state
+    mcpKeys: [],
+    mcpNewKeyName: '',
+    mcpNewRawKey: '',
+    mcpSaving: false,
+    mcpMsg: '',
+    mcpMsgType: '',
+
     // Entra form + action state
     entraForm: { entra_tenant_id: '', client_id: '', client_secret: '' },
     entraSaving: false,
@@ -390,6 +446,7 @@ function integrationsHub() {
         this.loadSso(),
         this.loadNotifications(),
         this.loadEntraStatus(),
+        this.loadMcpKeys(),
       ]);
       this.loaded = true;
     },
@@ -418,6 +475,14 @@ function integrationsHub() {
       this.llmMsg = '';
       this.entraResults = { test: null, users: null, mfa: null, assess: null };
       this.entraError = null;
+
+      // Load MCP keys
+      if (item.id === 'mcp') {
+        this.mcpNewRawKey = '';
+        this.mcpNewKeyName = '';
+        this.mcpMsg = '';
+        this.loadMcpKeys();
+      }
 
       // Pre-populate Entra form
       if (item.id === 'entra') {
@@ -570,6 +635,47 @@ function integrationsHub() {
         this.llmMsg = e.message;
         this.llmMsgType = 'error';
       } finally { this.llmSaving = false; }
+    },
+
+    // ── MCP Keys ──
+
+    async loadMcpKeys() {
+      try {
+        const resp = await fetch('/api/v1/settings/mcp-keys');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        this.mcpKeys = Array.isArray(data) ? data : (data.keys || []);
+        this.statuses['mcp'] = { configured: this.mcpKeys.length > 0, enabled: this.mcpKeys.some(k => k.enabled), detail: this.mcpKeys.length + ' key(s)' };
+      } catch (e) { console.debug('MCP keys load skipped:', e); }
+    },
+
+    async createMcpKey() {
+      this.mcpSaving = true;
+      this.mcpMsg = '';
+      this.mcpNewRawKey = '';
+      try {
+        const resp = await fetch('/api/v1/settings/mcp-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: this.mcpNewKeyName.trim() }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
+        const data = await resp.json();
+        this.mcpNewRawKey = data.raw_key || data.key || '';
+        this.mcpNewKeyName = '';
+        this.mcpMsg = 'Key created';
+        this.mcpMsgType = 'success';
+        await this.loadMcpKeys();
+      } catch (e) { this.mcpMsg = e.message; this.mcpMsgType = 'error'; }
+      finally { this.mcpSaving = false; }
+    },
+
+    async revokeMcpKey(keyId) {
+      try {
+        const resp = await fetch('/api/v1/settings/mcp-keys/' + keyId, { method: 'DELETE' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        await this.loadMcpKeys();
+      } catch (e) { this.mcpMsg = e.message; this.mcpMsgType = 'error'; }
     },
 
     // ── Entra Config ──
