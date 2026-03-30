@@ -422,20 +422,39 @@
             </div>
 
             <!-- How to connect -->
-            <h4 class="font-semibold text-sm mb-2">How to Connect an LLM</h4>
+            <h4 class="font-semibold text-sm mb-2">How to Connect Claude (or another LLM)</h4>
             <div class="space-y-2 mb-4">
               <div class="finding-card">
-                <div class="text-xs"><strong class="text-primary">1.</strong> Create a credential below — this is your <strong>client_secret</strong> for OAuth</div>
+                <div class="text-xs"><strong class="text-primary">1.</strong> Create a credential below — you'll get a <strong>Client ID</strong> and <strong>Client Secret</strong></div>
               </div>
               <div class="finding-card">
-                <div class="text-xs"><strong class="text-primary">2.</strong> Point your LLM to the OAuth discovery URL:</div>
-                <code class="text-xs bg-base-300 px-2 py-0.5 rounded block mt-1">/mcp/.well-known/oauth-authorization-server</code>
+                <div class="text-xs"><strong class="text-primary">2.</strong> In Claude Desktop → Settings → MCP Servers → Add Server</div>
+                <div class="text-xs mt-1 opacity-70">Server URL: <code class="bg-base-300 px-1 rounded">https://YOUR-DOMAIN/mcp</code></div>
               </div>
               <div class="finding-card">
-                <div class="text-xs"><strong class="text-primary">3.</strong> The LLM will auto-discover the token endpoint and request an access token using your credential as the <code class="bg-base-300 px-1 rounded">client_secret</code></div>
+                <div class="text-xs"><strong class="text-primary">3.</strong> Claude will prompt you to authenticate — enter the <strong>Client ID</strong> and <strong>Client Secret</strong> from step 1</div>
               </div>
               <div class="finding-card">
-                <div class="text-xs"><strong class="text-primary">4.</strong> Once authenticated, the LLM can call tools at <code class="bg-base-300 px-1 rounded">/mcp/tools</code></div>
+                <div class="text-xs"><strong class="text-primary">4.</strong> Once connected, Claude can use these compliance tools:</div>
+                <div class="text-xs opacity-60 mt-1 leading-relaxed">
+                  • List frameworks & controls • Assess controls against evidence<br>
+                  • Generate gap narratives • Score risks • Generate policies<br>
+                  • Interpret evidence • Summarize documents • Check due dates
+                </div>
+              </div>
+            </div>
+
+            <!-- Manual / API setup -->
+            <div x-data="{ showManual: false }">
+              <button @click="showManual = !showManual" class="text-xs opacity-50 flex items-center gap-1 mb-2 hover:opacity-80">
+                <i class="ti" :class="showManual ? 'ti-chevron-down' : 'ti-chevron-right'"></i> Manual API setup
+              </button>
+              <div x-show="showManual" x-collapse x-cloak class="finding-card text-xs space-y-1 mb-4">
+                <div><strong>Discovery URL:</strong> <code class="bg-base-300 px-1 rounded">https://YOUR-DOMAIN/.well-known/oauth-authorization-server</code></div>
+                <div><strong>Token endpoint:</strong> <code class="bg-base-300 px-1 rounded">POST /mcp/token</code> with <code class="bg-base-300 px-1 rounded">grant_type=client_credentials</code></div>
+                <div><strong>Tools list:</strong> <code class="bg-base-300 px-1 rounded">GET /mcp/tools</code> (Bearer token required)</div>
+                <div><strong>Execute tool:</strong> <code class="bg-base-300 px-1 rounded">POST /mcp/tools/&lt;name&gt;</code> with JSON params</div>
+                <div><strong>Docs:</strong> <code class="bg-base-300 px-1 rounded">GET /mcp/docs</code> (no auth needed)</div>
               </div>
             </div>
 
