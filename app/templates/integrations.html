@@ -319,20 +319,12 @@
           </div>
         </template>
 
-        <!-- ═══════ LLM Provider Config — 3 Slots ═══════ -->
+        <!-- ═══════ LLM Provider Config ═══════ -->
         <template x-if="selected.id === 'llm_unified'">
           <div>
-            <!-- Slot Tabs -->
-            <div role="tablist" class="tabs tabs-bordered mb-4">
-              <template x-for="slot in [1,2,3]" :key="'llm-tab-'+slot">
-                <button role="tab" class="tab tab-sm" :class="{'tab-active': llmActiveSlot === slot}" @click="llmActiveSlot = slot; loadLlmSlot(slot)">
-                  <span x-text="slot === 1 ? 'Primary' : slot === 2 ? 'Secondary' : 'Tertiary'"></span>
-                  <span class="status-dot ml-1" :class="llmSlotStatus[slot] ? 'green' : 'gray'" style="width:6px;height:6px;"></span>
-                </button>
-              </template>
-            </div>
-
-            <div class="space-y-3">
+            <!-- Provider + Key -->
+            <h4 class="font-semibold text-sm mb-3">Provider & Credentials</h4>
+            <div class="space-y-3 mb-4">
               <div>
                 <label class="text-xs font-medium block mb-1">Provider</label>
                 <select class="select select-bordered select-sm w-full" x-model="llmForm.provider">
@@ -346,69 +338,86 @@
               <div>
                 <label class="text-xs font-medium block mb-1">API Key</label>
                 <input type="password" class="input input-bordered input-sm w-full" x-model="llmForm.api_key" placeholder="Enter API key (encrypted at rest)" />
-                <div x-show="llmForm.has_api_key" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Key stored encrypted. Leave blank to keep.</div>
-              </div>
-              <div>
-                <label class="text-xs font-medium block mb-1">Model</label>
-                <div class="flex gap-1 items-center">
-                  <template x-if="llmModels.length > 0">
-                    <select class="select select-bordered select-sm w-full" x-model="llmForm.model_name">
-                      <option value="">Select a model...</option>
-                      <template x-for="m in llmModels" :key="m">
-                        <option :value="m" x-text="m"></option>
-                      </template>
-                    </select>
-                  </template>
-                  <template x-if="llmModels.length === 0">
-                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : llmForm.provider === 'together' ? 'meta-llama/Llama-3-70b-chat-hf' : 'gpt-4o'" />
-                  </template>
-                  <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch available models" @click="fetchLlmModels()" :disabled="!llmForm.api_key || llmModelsFetching">
-                    <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
-                    <i class="ti ti-refresh text-lg" x-show="!llmModelsFetching"></i>
-                  </button>
-                </div>
-                <div class="text-xs opacity-50 mt-1" x-show="llmForm.api_key && llmModels.length === 0">Enter API key → click <i class="ti ti-refresh"></i> to load models</div>
+                <div x-show="llmForm.has_api_key" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Key stored. Leave blank to keep.</div>
               </div>
               <template x-if="llmForm.provider === 'azure_openai'">
                 <div class="space-y-3">
-                  <div>
-                    <label class="text-xs font-medium block mb-1">Azure Endpoint</label>
-                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_endpoint" placeholder="https://your-resource.openai.azure.com" />
-                  </div>
-                  <div>
-                    <label class="text-xs font-medium block mb-1">Azure Deployment</label>
-                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_deployment" placeholder="your-deployment-name" />
-                  </div>
+                  <div><label class="text-xs font-medium block mb-1">Azure Endpoint</label><input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_endpoint" placeholder="https://your-resource.openai.azure.com" /></div>
+                  <div><label class="text-xs font-medium block mb-1">Azure Deployment</label><input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_deployment" /></div>
                 </div>
               </template>
               <div class="flex items-center gap-2">
                 <input type="checkbox" class="toggle toggle-sm toggle-success" x-model="llmForm.enabled" />
                 <span class="text-xs" x-text="llmForm.enabled ? 'Enabled' : 'Disabled'"></span>
               </div>
-              <div class="flex gap-2 pt-2">
-                <button class="btn btn-primary btn-sm gap-1" @click="saveLlmSlot()" :disabled="llmSaving">
-                  <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
-                  <i class="ti ti-device-floppy" x-show="!llmSaving"></i>
-                  Save
-                </button>
-                <button class="btn btn-sm btn-outline gap-1" @click="testLlm()" :disabled="llmTesting">
-                  <span class="loading loading-spinner loading-xs" x-show="llmTesting"></span>
-                  <i class="ti ti-plug-connected" x-show="!llmTesting"></i>
-                  Test
-                </button>
-              </div>
-              <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
+            </div>
 
-              <div class="divider text-xs">Reset</div>
-              <div class="flex gap-2">
-                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm/' + llmActiveSlot, 'LLM Slot ' + llmActiveSlot)">
-                  <i class="ti ti-trash"></i> Reset This Slot
-                </button>
-                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm', 'All LLM Providers')">
-                  <i class="ti ti-trash"></i> Reset All LLM
+            <!-- Model Selection -->
+            <div class="divider text-xs">Model Assignment</div>
+            <div class="flex items-center gap-2 mb-3">
+              <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" x-model="llmSameModelForAll">
+              <span class="text-xs font-medium">Use the same model for all features</span>
+            </div>
+
+            <!-- Same model for all -->
+            <div x-show="llmSameModelForAll" class="mb-3">
+              <label class="text-xs font-medium block mb-1">Default Model</label>
+              <div class="flex gap-1 items-center">
+                <template x-if="llmModels.length > 0">
+                  <select class="select select-bordered select-sm w-full" x-model="llmForm.model_name" @change="llmFeatureModels = {}">
+                    <option value="">Select a model...</option>
+                    <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m"></option></template>
+                  </select>
+                </template>
+                <template x-if="llmModels.length === 0">
+                  <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o'" />
+                </template>
+                <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="llmModelsFetching">
+                  <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
+                  <i class="ti ti-refresh text-lg" x-show="!llmModelsFetching"></i>
                 </button>
               </div>
             </div>
+
+            <!-- Per-feature model assignment -->
+            <div x-show="!llmSameModelForAll" class="space-y-2 mb-3">
+              <div class="flex gap-1 items-center mb-2">
+                <button class="btn btn-ghost btn-xs tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="llmModelsFetching">
+                  <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
+                  <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
+                </button>
+                <span class="text-xs opacity-50">Load models first, then assign per feature</span>
+              </div>
+              <template x-for="feat in llmFeatures" :key="feat.id">
+                <div class="flex items-center gap-2">
+                  <div class="w-32 flex-shrink-0">
+                    <span class="text-xs font-medium" x-text="feat.label"></span>
+                    <div class="text-xs opacity-40" x-text="feat.hint"></div>
+                  </div>
+                  <select class="select select-bordered select-xs flex-1" x-model="llmFeatureModels[feat.id]">
+                    <option value="">Default</option>
+                    <template x-for="m in llmModels" :key="'f-'+feat.id+'-'+m"><option :value="m" x-text="m"></option></template>
+                  </select>
+                </div>
+              </template>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+              <button class="btn btn-primary btn-sm gap-1" @click="saveLlmSlot()" :disabled="llmSaving">
+                <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
+                <i class="ti ti-device-floppy" x-show="!llmSaving"></i> Save
+              </button>
+              <button class="btn btn-sm btn-outline gap-1" @click="testLlm()" :disabled="llmTesting">
+                <span class="loading loading-spinner loading-xs" x-show="llmTesting"></span>
+                <i class="ti ti-plug-connected" x-show="!llmTesting"></i> Test
+              </button>
+            </div>
+            <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
+
+            <div class="divider text-xs">Reset</div>
+            <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm', 'All LLM Configuration')">
+              <i class="ti ti-trash"></i> Reset LLM Configuration
+            </button>
           </div>
         </template>
 
@@ -966,11 +975,20 @@ function integrationsHub() {
     selected: null,
     statuses: {},
 
-    // LLM form state (3 slots)
+    // LLM form state
     llmForm: { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false },
-    llmActiveSlot: 1,
-    llmSlotStatus: { 1: false, 2: false, 3: false },
-    llmSlotData: {},  // slot -> saved config
+    llmSameModelForAll: true,
+    llmFeatureModels: {},  // feature_id -> model_name override
+    llmFeatures: [
+      { id: 'control_assess', label: 'Control Assessment', hint: 'Assess controls vs evidence' },
+      { id: 'gap_narrative', label: 'Gap Analysis', hint: 'Generate gap narratives' },
+      { id: 'risk_score', label: 'Risk Scoring', hint: 'Evaluate and score risks' },
+      { id: 'policy_draft', label: 'Policy Drafting', hint: 'Generate policy documents' },
+      { id: 'evidence_interpret', label: 'Evidence Analysis', hint: 'Interpret uploaded evidence' },
+      { id: 'wisp_assist', label: 'WISP Wizard', hint: 'AI assistance in WISP' },
+      { id: 'summarize', label: 'Summarization', hint: 'Summarize long documents' },
+      { id: 'auto_map', label: 'Auto-Map', hint: 'Map integration data to controls' },
+    ],
     llmSaving: false,
     llmTesting: false,
     llmMsg: '',
@@ -1201,12 +1219,12 @@ function integrationsHub() {
         this.entraFormMsg = '';
       }
 
-      // Pre-populate LLM form if opening the unified LLM card
+      // Pre-populate LLM form
       if (item.id === 'llm_unified') {
-        this.llmActiveSlot = 1;
         this.llmModels = [];
         this.llmMsg = '';
-        this.loadAllLlmSlots();
+        this.llmFeatureModels = {};
+        this.loadLlmConfig();
       }
     },
 
@@ -1256,18 +1274,22 @@ function integrationsHub() {
         if (!resp.ok) return;
         const data = await resp.json();
         const providers = Array.isArray(data) ? data : (data.providers || []);
-        let enabledCount = 0;
+        let enabledNames = [];
         let defaultName = '';
+        // Reset all to false first
+        Object.keys(this.storageProviderStatus).forEach(k => this.storageProviderStatus[k] = false);
         for (const p of providers) {
-          const isEnabled = !!p.enabled;
+          // Only count as enabled if the row has enabled=true AND has actual config
+          const hasConfig = p.config_enc || p.has_config;
+          const isEnabled = !!p.enabled && (hasConfig || p.provider === 'local');
           this.storageProviderStatus[p.provider] = isEnabled;
-          if (isEnabled) enabledCount++;
+          if (isEnabled) enabledNames.push(p.provider);
           if (p.is_default) defaultName = p.provider;
         }
         this.statuses['storage_unified'] = {
-          configured: enabledCount > 0,
-          enabled: enabledCount > 0,
-          detail: enabledCount > 0 ? enabledCount + ' active' + (defaultName ? ', default: ' + defaultName : '') : '',
+          configured: enabledNames.length > 0,
+          enabled: enabledNames.length > 0,
+          detail: enabledNames.length > 0 ? enabledNames.join(', ') + (defaultName ? ' (default: ' + defaultName + ')' : '') : '',
         };
       } catch (e) { console.debug('Storage status check skipped:', e); }
     },
@@ -1320,47 +1342,35 @@ function integrationsHub() {
 
     // ── LLM Config ──
 
-    // ── LLM Slot Management ──
-    async loadAllLlmSlots() {
+    // ── LLM Config ──
+    async loadLlmConfig() {
       try {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
-        const slots = data.slots || [];
-        this.llmSlotStatus = { 1: false, 2: false, 3: false };
-        this.llmSlotData = {};
-        for (const s of slots) {
-          this.llmSlotData[s.slot || 1] = s;
-          if (s.enabled) this.llmSlotStatus[s.slot || 1] = true;
+        // Load from active config or first slot
+        const cfg = data.active || (data.slots && data.slots[0]) || data;
+        if (cfg && cfg.provider) {
+          this.llmForm = {
+            provider: cfg.provider || '',
+            api_key: '',
+            model_name: cfg.model_name || '',
+            azure_endpoint: cfg.azure_endpoint || '',
+            azure_deployment: cfg.azure_deployment || '',
+            enabled: !!cfg.enabled,
+            has_api_key: !!cfg.has_api_key,
+          };
         }
-        // Also update integration card status
-        const active = slots.find(s => s.enabled);
-        this.statuses['llm_unified'] = {
-          configured: slots.length > 0,
-          enabled: !!active,
-          detail: active ? (active.provider + ': ' + (active.model_name || '')) : (slots.length + ' slot(s) configured'),
-        };
-        this.loadLlmSlot(this.llmActiveSlot);
-      } catch (e) { console.debug('Could not load LLM slots:', e); }
-    },
-
-    loadLlmSlot(slot) {
-      const saved = this.llmSlotData[slot];
-      this.llmModels = [];
-      this.llmMsg = '';
-      if (saved) {
-        this.llmForm = {
-          provider: saved.provider || '',
-          api_key: '',
-          model_name: saved.model_name || '',
-          azure_endpoint: saved.azure_endpoint || '',
-          azure_deployment: saved.azure_deployment || '',
-          enabled: !!saved.enabled,
-          has_api_key: !!saved.has_api_key,
-        };
-      } else {
-        this.llmForm = { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false };
-      }
+        // Load per-feature models from localStorage
+        try {
+          const saved = localStorage.getItem('llm_feature_models');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            this.llmFeatureModels = parsed.models || {};
+            this.llmSameModelForAll = parsed.sameForAll !== false;
+          }
+        } catch(e) {}
+      } catch (e) { console.debug('Could not load LLM config:', e); }
     },
 
     async saveLlmSlot() {
@@ -1368,7 +1378,6 @@ function integrationsHub() {
       this.llmMsg = '';
       try {
         const payload = {
-          slot: this.llmActiveSlot,
           provider: this.llmForm.provider,
           model_name: this.llmForm.model_name,
           enabled: this.llmForm.enabled,
@@ -1384,11 +1393,18 @@ function integrationsHub() {
           body: JSON.stringify(payload),
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
-        this.llmMsg = 'Saved (slot ' + this.llmActiveSlot + ')';
+
+        // Save per-feature model assignments to localStorage
+        localStorage.setItem('llm_feature_models', JSON.stringify({
+          sameForAll: this.llmSameModelForAll,
+          models: this.llmFeatureModels,
+        }));
+
+        this.llmMsg = 'Saved';
         this.llmMsgType = 'success';
         this.llmForm.api_key = '';
         this.llmForm.has_api_key = true;
-        await this.loadAllLlmSlots();
+        await this.loadLlm();
       } catch (e) { this.llmMsg = e.message; this.llmMsgType = 'error'; }
       finally { this.llmSaving = false; }
     },
