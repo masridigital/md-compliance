@@ -678,12 +678,20 @@ def _fetch_models_for_provider(provider: str, api_key: str) -> list:
 
     elif provider == "together":
         import requests as _requests
-        resp = _requests.get(
-            "https://api.together.xyz/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=15,
-        )
-        resp.raise_for_status()
+        # Together AI model list can be slow — use longer timeout with retry
+        for attempt in range(2):
+            try:
+                resp = _requests.get(
+                    "https://api.together.xyz/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=45,
+                )
+                resp.raise_for_status()
+                break
+            except _requests.exceptions.ReadTimeout:
+                if attempt == 0:
+                    continue
+                raise
         data = resp.json()
         model_list = data if isinstance(data, list) else data.get("data", data.get("models", []))
         chat_models = [
