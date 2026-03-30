@@ -14,7 +14,13 @@
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-2xl font-semibold">WISP Wizard</h1>
-            <p class="text-sm opacity-60 capitalize">{{ current_tenant.name if current_tenant else 'Select a client' }} — Written Information Security Program</p>
+            <p class="text-sm opacity-60 capitalize">{{ current_tenant.name if current_tenant else '' }} — Written Information Security Program</p>
+            {% if not current_tenant %}
+            <div role="alert" class="alert alert-warning mt-2 py-2">
+                <i class="ti ti-alert-triangle"></i>
+                <span class="text-sm">No client selected. <a href="/clients" class="underline font-semibold">Select a client</a> first to save your WISP to the right tenant.</span>
+            </div>
+            {% endif %}
         </div>
         <div class="flex items-center gap-2">
             <span x-show="lastSaved" class="text-xs opacity-40"><i class="ti ti-cloud-check"></i> <span x-text="lastSaved"></span></span>
@@ -335,16 +341,47 @@ function wispWizard() {
           this.formData = { ...this.formData, ...parsed.formData };
           this.currentStep = parsed.currentStep || 0;
           this.furthestStep = parsed.furthestStep || 0;
-          this.stepStatuses = parsed.stepStatuses || Array(10).fill('pending');
           if (this.formData.orgName) this.autoPopulated = true;
         } catch (e) {}
       }
+      // Always revalidate step statuses based on actual data, not stored flags
+      this.revalidateSteps();
       setInterval(() => this.autoSave(), 30000);
+    },
+
+    // Fields required per step — step is "complete" only if at least one field has real data
+    stepFields: [
+      ['orgName'],                    // 0: Org Info
+      ['qiName', 'qiEmail'],          // 1: Qualified Individual
+      ['dataTypesCollected', 'dataLocations'], // 2: Data Inventory
+      ['riskMethodology', 'riskKeyRisks'],     // 3: Risk Assessment
+      ['accessAuthMethods', 'accessPasswordPolicy'], // 4: Access Controls
+      ['encryptionAtRest', 'encryptionKeyMgmt'],     // 5: Encryption
+      ['monitoringTools', 'monitoringEvents'],        // 6: Monitoring
+      ['irTeam', 'irClassification'],                 // 7: Incident Response
+      ['trainingFrequency', 'trainingTopics'],        // 8: Training
+      ['vendorDueDiligence'],                          // 9: Vendor Management
+    ],
+
+    isStepComplete(idx) {
+      const fields = this.stepFields[idx] || [];
+      return fields.some(f => {
+        const v = this.formData[f];
+        if (Array.isArray(v)) return v.length > 0;
+        return v && v.trim && v.trim().length > 0;
+      });
+    },
+
+    revalidateSteps() {
+      for (let i = 0; i < this.steps.length; i++) {
+        this.stepStatuses[i] = this.isStepComplete(i) ? 'complete' : 'pending';
+      }
     },
 
     nextStep() {
       if (this.currentStep < this.steps.length - 1) {
-        this.stepStatuses[this.currentStep] = 'complete';
+        // Only mark complete if step has actual data
+        this.stepStatuses[this.currentStep] = this.isStepComplete(this.currentStep) ? 'complete' : 'pending';
         this.currentStep++;
         if (this.currentStep > this.furthestStep) this.furthestStep = this.currentStep;
         this.llmResponse = '';
@@ -454,7 +491,7 @@ function wispWizard() {
     // ── Generate WISP ──
     async generateWisp() {
       this.generating = true;
-      this.stepStatuses[this.currentStep] = 'complete';
+      this.revalidateSteps();
       try {
         const tenantId = '{{ current_tenant.id if current_tenant else "" }}';
         const resp = await fetch('/api/v1/wisp/generate', {
