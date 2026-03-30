@@ -235,6 +235,146 @@ TOOL_DEFINITIONS = [
             "required": ["tenant_id"],
         },
     },
+    {
+        "name": "generate_gap_narrative",
+        "description": (
+            "Use the configured LLM provider to generate a gap analysis "
+            "narrative for a compliance control. Returns gap description, "
+            "risk impact, and remediation steps."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "framework": {
+                    "type": "string",
+                    "description": "Compliance framework name (e.g. SOC2, NIST 800-53).",
+                },
+                "control_ref": {
+                    "type": "string",
+                    "description": "Control reference identifier.",
+                },
+                "current_state": {
+                    "type": "string",
+                    "description": "Description of the current implementation state.",
+                },
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant ID for usage tracking (optional).",
+                },
+            },
+            "required": ["framework", "control_ref"],
+        },
+    },
+    {
+        "name": "score_risk",
+        "description": (
+            "Use the configured LLM provider to evaluate a risk description "
+            "and return a structured risk score with likelihood (1-5), "
+            "impact (1-5), severity, explanation, and mitigations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "risk_description": {
+                    "type": "string",
+                    "description": "Description of the risk to evaluate.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Organizational or environmental context (optional).",
+                },
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant ID for usage tracking (optional).",
+                },
+            },
+            "required": ["risk_description"],
+        },
+    },
+    {
+        "name": "interpret_evidence",
+        "description": (
+            "Use the configured LLM provider to analyze evidence text and "
+            "extract compliance-relevant findings, including evidence "
+            "strength (strong/moderate/weak) and identified gaps."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "evidence_text": {
+                    "type": "string",
+                    "description": "The evidence text to analyze.",
+                },
+                "control_context": {
+                    "type": "string",
+                    "description": "Control or compliance context to evaluate against (optional).",
+                },
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant ID for usage tracking (optional).",
+                },
+            },
+            "required": ["evidence_text"],
+        },
+    },
+    {
+        "name": "generate_policy",
+        "description": (
+            "Use the configured LLM provider to generate a policy draft "
+            "for a compliance control. Returns Markdown-formatted policy "
+            "with Purpose, Scope, Policy Statement, Responsibilities, "
+            "and Review Schedule sections."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "framework": {
+                    "type": "string",
+                    "description": "Compliance framework name.",
+                },
+                "control_ref": {
+                    "type": "string",
+                    "description": "Control reference identifier.",
+                },
+                "organisation_context": {
+                    "type": "string",
+                    "description": "Organisation name or context for tailored policy (optional).",
+                },
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant ID for usage tracking (optional).",
+                },
+            },
+            "required": ["framework", "control_ref"],
+        },
+    },
+    {
+        "name": "summarize_text",
+        "description": (
+            "Use the configured LLM provider to summarize a block of text. "
+            "Useful for condensing long evidence documents, policy texts, "
+            "or audit findings."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The text to summarize.",
+                },
+                "max_length": {
+                    "type": "integer",
+                    "description": "Maximum summary length in words (default 300).",
+                    "default": 300,
+                },
+                "tenant_id": {
+                    "type": "string",
+                    "description": "Tenant ID for usage tracking (optional).",
+                },
+            },
+            "required": ["text"],
+        },
+    },
 ]
 
 # Index for O(1) lookup by name.
@@ -431,6 +571,214 @@ def _missing_param(name: str) -> dict:
     return {"error": {"code": 400, "message": f"Missing required parameter: {name}"}}
 
 
+def _require_llm():
+    """Return LLMService if enabled, or an error dict."""
+    from app.masri.llm_service import LLMService
+    if not LLMService.is_enabled():
+        return None, {"error": {"code": 503, "message": "LLM is not configured. Configure an LLM provider in Settings > Integrations first."}}
+    return LLMService, None
+
+
+def _tool_generate_gap_narrative(params: dict, api_key) -> dict:
+    LLMService, err = _require_llm()
+    if err:
+        return err
+
+    framework = params.get("framework")
+    control_ref = params.get("control_ref")
+    if not framework:
+        return _missing_param("framework")
+    if not control_ref:
+        return _missing_param("control_ref")
+
+    current_state = params.get("current_state", "Not assessed")
+    tenant_id = params.get("tenant_id") or api_key.tenant_id
+
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a compliance gap analyst. Write a clear, professional "
+                    "gap analysis narrative that identifies the gap between the "
+                    "current state and the control requirement. Include: "
+                    "Gap Description, Risk Impact, and Remediation Steps."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Framework: {framework}\n"
+                    f"Control: {control_ref}\n"
+                    f"Current state: {current_state}"
+                ),
+            },
+        ]
+        result = LLMService.chat(messages=messages, tenant_id=tenant_id, temperature=0.3, max_tokens=1500)
+        return {
+            "narrative": result["content"],
+            "tokens_used": result["usage"]["total_tokens"],
+            "model": result.get("model"),
+            "provider": result.get("provider"),
+        }
+    except RuntimeError as exc:
+        return {"error": {"code": 502, "message": str(exc)}}
+
+
+def _tool_score_risk(params: dict, api_key) -> dict:
+    import json as _json
+    LLMService, err = _require_llm()
+    if err:
+        return err
+
+    risk_description = params.get("risk_description")
+    if not risk_description:
+        return _missing_param("risk_description")
+
+    context = params.get("context", "General organization")
+    tenant_id = params.get("tenant_id") or api_key.tenant_id
+
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a risk assessment specialist. Evaluate the described "
+                    "risk and respond with valid JSON: "
+                    '{"likelihood": <1-5>, "impact": <1-5>, "overall_score": <1-25>, '
+                    '"severity": "low|medium|high|critical", '
+                    '"explanation": "<brief explanation>", '
+                    '"mitigations": ["<suggested mitigations>"]}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Risk: {risk_description}\nContext: {context}",
+            },
+        ]
+        result = LLMService.chat(messages=messages, tenant_id=tenant_id, temperature=0.1, max_tokens=800)
+        content = result["content"].strip()
+
+        # Handle markdown code blocks
+        if content.startswith("```"):
+            parts = content.split("\n", 1)
+            content = parts[1].rsplit("```", 1)[0].strip() if len(parts) > 1 else content
+
+        try:
+            parsed = _json.loads(content)
+        except (_json.JSONDecodeError, ValueError):
+            parsed = {
+                "likelihood": 0, "impact": 0, "overall_score": 0,
+                "severity": "unknown",
+                "explanation": content, "mitigations": [],
+            }
+
+        return {
+            "risk_score": parsed,
+            "tokens_used": result["usage"]["total_tokens"],
+            "model": result.get("model"),
+            "provider": result.get("provider"),
+        }
+    except RuntimeError as exc:
+        return {"error": {"code": 502, "message": str(exc)}}
+
+
+def _tool_interpret_evidence(params: dict, api_key) -> dict:
+    LLMService, err = _require_llm()
+    if err:
+        return err
+
+    evidence_text = params.get("evidence_text")
+    if not evidence_text:
+        return _missing_param("evidence_text")
+
+    control_context = params.get("control_context", "General compliance")
+    tenant_id = params.get("tenant_id") or api_key.tenant_id
+
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a compliance evidence analyst. Analyze the provided "
+                    "evidence and extract key findings relevant to compliance. "
+                    "Summarise what the evidence demonstrates, any gaps, and "
+                    "the strength of the evidence (strong/moderate/weak)."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Evidence:\n{evidence_text}\n\n"
+                    f"Control context: {control_context}"
+                ),
+            },
+        ]
+        result = LLMService.chat(messages=messages, tenant_id=tenant_id, temperature=0.2, max_tokens=1200)
+        return {
+            "interpretation": result["content"],
+            "tokens_used": result["usage"]["total_tokens"],
+            "model": result.get("model"),
+            "provider": result.get("provider"),
+        }
+    except RuntimeError as exc:
+        return {"error": {"code": 502, "message": str(exc)}}
+
+
+def _tool_generate_policy(params: dict, api_key) -> dict:
+    LLMService, err = _require_llm()
+    if err:
+        return err
+
+    framework = params.get("framework")
+    control_ref = params.get("control_ref")
+    if not framework:
+        return _missing_param("framework")
+    if not control_ref:
+        return _missing_param("control_ref")
+
+    organisation_context = params.get("organisation_context", "General")
+    tenant_id = params.get("tenant_id") or api_key.tenant_id
+
+    try:
+        policy = LLMService.generate_policy_draft(
+            framework=framework,
+            control_ref=control_ref,
+            organisation_context=organisation_context,
+            tenant_id=tenant_id,
+        )
+        return {
+            "policy_markdown": policy,
+            "model": "configured",
+            "provider": "configured",
+        }
+    except RuntimeError as exc:
+        return {"error": {"code": 502, "message": str(exc)}}
+
+
+def _tool_summarize_text(params: dict, api_key) -> dict:
+    LLMService, err = _require_llm()
+    if err:
+        return err
+
+    text = params.get("text")
+    if not text:
+        return _missing_param("text")
+
+    max_length = params.get("max_length", 300)
+    tenant_id = params.get("tenant_id") or api_key.tenant_id
+
+    try:
+        summary = LLMService.summarise(text=text, tenant_id=tenant_id, max_length=max_length)
+        return {
+            "summary": summary,
+            "model": "configured",
+            "provider": "configured",
+        }
+    except RuntimeError as exc:
+        return {"error": {"code": 502, "message": str(exc)}}
+
+
 # Dispatch table mapping tool names to handler functions.
 _TOOL_HANDLERS = {
     "list_frameworks": _tool_list_frameworks,
@@ -439,6 +787,11 @@ _TOOL_HANDLERS = {
     "assess_control": _tool_assess_control,
     "list_risks": _tool_list_risks,
     "get_due_dates": _tool_get_due_dates,
+    "generate_gap_narrative": _tool_generate_gap_narrative,
+    "score_risk": _tool_score_risk,
+    "interpret_evidence": _tool_interpret_evidence,
+    "generate_policy": _tool_generate_policy,
+    "summarize_text": _tool_summarize_text,
 }
 
 
