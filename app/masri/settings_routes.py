@@ -519,6 +519,26 @@ def create_mcp_key():
         return jsonify({"error": "Failed to generate MCP API key"}), 500
 
 
+@settings_bp.route("/mcp-keys/<string:key_id>/toggle", methods=["PUT"])
+@limiter.limit("30 per minute")
+@login_required
+def toggle_mcp_key(key_id):
+    """PUT /api/v1/settings/mcp-keys/<key_id>/toggle — enable/disable without deleting."""
+    _require_admin()
+    try:
+        key = db.session.get(MCPAPIKey, key_id)
+        if key is None:
+            return jsonify({"error": "MCP API key not found"}), 404
+        data = request.get_json(silent=True) or {}
+        key.enabled = data.get("enabled", not key.enabled)
+        db.session.commit()
+        return jsonify({"message": f"Key {'enabled' if key.enabled else 'disabled'}", "enabled": key.enabled})
+    except Exception as e:
+        logger.exception("Error toggling MCP key %s", key_id)
+        db.session.rollback()
+        return jsonify({"error": "Failed to toggle MCP key"}), 500
+
+
 @settings_bp.route("/mcp-keys/<string:key_id>", methods=["DELETE"])
 @limiter.limit("30 per minute")
 @login_required
@@ -564,13 +584,23 @@ def test_llm_connection():
                 api_key = llm.get_api_key() or ""
                 if not provider:
                     provider = llm.provider
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load saved LLM config: %s", e)
+            # Try direct DB query as fallback
+            try:
+                from app.masri.new_models import SettingsLLM
+                llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
+                if llm:
+                    api_key = llm.get_api_key() or ""
+                    if not provider:
+                        provider = llm.provider
+            except Exception:
+                pass
 
     if not api_key:
-        return jsonify({"error": "No API key configured. Save one first."}), 400
+        return jsonify({"error": "No API key saved. Enter an API key and save first."}), 400
     if not provider:
-        return jsonify({"error": "No provider configured."}), 400
+        return jsonify({"error": "No provider selected."}), 400
 
     try:
         models = _fetch_models_for_provider(provider, api_key)
@@ -603,12 +633,20 @@ def fetch_llm_models():
                 if not provider:
                     provider = llm.provider
         except Exception:
-            pass
+            try:
+                from app.masri.new_models import SettingsLLM
+                llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
+                if llm:
+                    api_key = llm.get_api_key() or ""
+                    if not provider:
+                        provider = llm.provider
+            except Exception:
+                pass
 
     if not provider:
-        return jsonify({"error": "provider is required"}), 400
+        return jsonify({"error": "Select a provider first"}), 400
     if not api_key:
-        return jsonify({"error": "No API key configured. Save one first or enter a key."}), 400
+        return jsonify({"error": "No API key saved. Enter and save a key first."}), 400
 
     try:
         models = _fetch_models_for_provider(provider, api_key)

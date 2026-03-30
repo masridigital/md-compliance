@@ -472,13 +472,18 @@
                     <div class="text-xs opacity-50">
                       <span x-show="key.client_id" class="font-mono" x-text="'ID: ' + (key.client_id || '').substring(0, 16) + '...'"></span>
                       <span x-show="!key.client_id" x-text="key.key_prefix + '...'"></span> ·
-                      <span x-text="key.enabled ? 'Active' : 'Revoked'" :class="key.enabled ? 'text-success' : 'text-error'"></span>
+                      <span x-text="key.enabled ? 'Active' : 'Disabled'" :class="key.enabled ? 'text-success' : 'text-warning'"></span>
                       <span x-show="key.last_used_at"> · Last used <span x-text="new Date(key.last_used_at).toLocaleDateString()"></span></span>
                     </div>
                   </div>
-                  <button class="btn btn-ghost btn-xs text-error" @click="revokeMcpKey(key.id)" title="Revoke" x-show="key.enabled">
-                    <i class="ti ti-trash"></i>
-                  </button>
+                  <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-xs" :class="key.enabled ? 'text-warning' : 'text-success'" @click="toggleMcpKey(key.id, !key.enabled)" :title="key.enabled ? 'Disable' : 'Enable'">
+                      <i class="ti" :class="key.enabled ? 'ti-player-pause' : 'ti-player-play'"></i>
+                    </button>
+                    <button class="btn btn-ghost btn-xs text-error" @click="revokeMcpKey(key.id)" title="Delete permanently">
+                      <i class="ti ti-trash"></i>
+                    </button>
+                  </div>
                 </div>
               </template>
             </div>
@@ -496,7 +501,6 @@
               <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'teams_webhook'}" @click="activeNotifChannel = 'teams_webhook'">Teams</button>
               <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'slack_webhook'}" @click="activeNotifChannel = 'slack_webhook'">Slack</button>
               <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'sms'}" @click="activeNotifChannel = 'sms'">SMS</button>
-              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'in_app'}" @click="activeNotifChannel = 'in_app'">In-App</button>
             </div>
 
             <div class="space-y-3">
@@ -547,13 +551,8 @@
                   <div><label class="text-xs font-medium block mb-1">From Number</label><input type="text" class="input input-bordered input-sm w-full" x-model="notifForm.from_number" placeholder="+15551234567" /></div>
                 </div>
               </template>
-              <!-- In-app -->
-              <template x-if="activeNotifChannel === 'in_app'">
-                <div class="text-xs opacity-60 py-4">In-app notifications are automatic. No configuration needed.</div>
-              </template>
-
               <!-- Save for non-email channels -->
-              <template x-if="activeNotifChannel !== 'email' && activeNotifChannel !== 'in_app'">
+              <template x-if="activeNotifChannel !== 'email'">
                 <div>
                   <div class="pt-2">
                     <label class="text-xs font-semibold block mb-2">Severity Routing</label>
@@ -577,15 +576,6 @@
                   <div x-show="notifMsg" class="text-xs" :class="notifMsgType === 'error' ? 'text-error' : 'text-success'" x-text="notifMsg"></div>
                 </div>
               </template>
-            </div>
-          </div>
-        </template>
-                  <span class="loading loading-spinner loading-xs" x-show="notifSaving"></span>
-                  <i class="ti ti-device-floppy" x-show="!notifSaving"></i>
-                  Save
-                </button>
-              </div>
-              <div x-show="notifMsg" class="text-xs" :class="notifMsgType === 'error' ? 'text-error' : 'text-success'" x-text="notifMsg"></div>
             </div>
           </div>
         </template>
@@ -1203,19 +1193,17 @@ function integrationsHub() {
         const data = await resp.json();
         const providers = Array.isArray(data) ? data : (data.providers || []);
         let enabledCount = 0;
-        let configuredCount = 0;
         let defaultName = '';
         for (const p of providers) {
           const isEnabled = !!p.enabled;
           this.storageProviderStatus[p.provider] = isEnabled;
           if (isEnabled) enabledCount++;
-          if (p.provider && (p.config_enc || p.bucket || p.account_name || p.site_url || p.domain || p.base_path)) configuredCount++;
           if (p.is_default) defaultName = p.provider;
         }
         this.statuses['storage_unified'] = {
-          configured: configuredCount > 0,
+          configured: enabledCount > 0,
           enabled: enabledCount > 0,
-          detail: enabledCount > 0 ? enabledCount + ' active' + (defaultName ? ', default: ' + defaultName : '') : (configuredCount > 0 ? configuredCount + ' configured but disabled' : ''),
+          detail: enabledCount > 0 ? enabledCount + ' active' + (defaultName ? ', default: ' + defaultName : '') : '',
         };
       } catch (e) { console.debug('Storage status check skipped:', e); }
     },
@@ -1760,10 +1748,25 @@ function integrationsHub() {
       finally { this.mcpSaving = false; }
     },
 
+    async toggleMcpKey(keyId, enable) {
+      try {
+        const resp = await fetch('/api/v1/settings/mcp-keys/' + keyId + '/toggle', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: enable }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        toast(enable ? 'Credential enabled' : 'Credential disabled', 'success');
+        await this.loadMcpKeys();
+      } catch (e) { this.mcpMsg = e.message; this.mcpMsgType = 'error'; }
+    },
+
     async revokeMcpKey(keyId) {
+      if (!confirm('Permanently delete this credential? This cannot be undone.')) return;
       try {
         const resp = await fetch('/api/v1/settings/mcp-keys/' + keyId, { method: 'DELETE' });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        toast('Credential deleted', 'success');
         await this.loadMcpKeys();
       } catch (e) { this.mcpMsg = e.message; this.mcpMsgType = 'error'; }
     },
