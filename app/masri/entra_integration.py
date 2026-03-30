@@ -184,6 +184,51 @@ class EntraIntegration:
 
         return results
 
+    def list_csp_clients(self) -> list:
+        """
+        List CSP/partner managed tenants via delegated admin relationships.
+
+        Requires: DelegatedAdminRelationship.Read.All or Contract.Read.All
+
+        Returns:
+            list of dicts with customer_id, display_name, domain
+        """
+        clients = []
+
+        # Try delegated admin relationships first (GDAP)
+        try:
+            data = self._graph_request("/tenantRelationships/delegatedAdminRelationships?$top=100")
+            for rel in data.get("value", []):
+                customer = rel.get("customer", {})
+                clients.append({
+                    "customer_tenant_id": customer.get("tenantId"),
+                    "display_name": customer.get("displayName") or rel.get("displayName", "Unknown"),
+                    "domain": customer.get("tenantId"),  # May not have domain
+                    "status": rel.get("status"),
+                    "source": "gdap",
+                })
+        except Exception as e:
+            logger.debug("GDAP relationships not available: %s", e)
+
+        # Also try contracts endpoint (legacy CSP)
+        try:
+            data = self._graph_request("/contracts?$top=100")
+            existing_ids = {c["customer_tenant_id"] for c in clients}
+            for contract in data.get("value", []):
+                cid = contract.get("customerId")
+                if cid and cid not in existing_ids:
+                    clients.append({
+                        "customer_tenant_id": cid,
+                        "display_name": contract.get("displayName", "Unknown"),
+                        "domain": contract.get("defaultDomainName", ""),
+                        "status": "active",
+                        "source": "contract",
+                    })
+        except Exception as e:
+            logger.debug("Contracts endpoint not available: %s", e)
+
+        return clients
+
     def assess_compliance(self) -> dict:
         """
         Perform a basic compliance posture assessment based on Entra ID

@@ -703,6 +703,12 @@
               <div x-show="entraFormMsg" class="text-xs" :class="entraFormMsgType === 'error' ? 'text-error' : 'text-success'" x-text="entraFormMsg"></div>
             </div>
 
+            <!-- Single vs Multi-tenant guidance -->
+            <div class="finding-card mb-4">
+              <div class="text-xs font-semibold mb-1"><i class="ti ti-info-circle text-info"></i> App Registration Type</div>
+              <p class="text-xs opacity-70 leading-relaxed">Use a <strong>Single-tenant</strong> app registration if you only manage your own Azure AD. Use <strong>Multi-tenant</strong> if you are an MSP/CSP managing multiple client tenants — this enables the "Pull CSP Clients" feature below.</p>
+            </div>
+
             <div class="divider text-xs">Actions</div>
 
             <!-- Test Connection -->
@@ -812,6 +818,46 @@
               </div>
             </div>
 
+            <!-- CSP Client Pull -->
+            <div class="divider text-xs">CSP / Partner Clients</div>
+            <div class="mb-4">
+              <p class="text-xs opacity-60 mb-3">Pull your managed client tenants from Microsoft CSP/GDAP. Existing clients are matched by name — only new ones are created.</p>
+              <div class="flex gap-2 mb-2">
+                <button class="btn btn-sm btn-outline gap-2" @click="entraPullCspClients()" :disabled="entraLoading.csp">
+                  <span class="loading loading-spinner loading-xs" x-show="entraLoading.csp"></span>
+                  <i class="ti ti-cloud-download" x-show="!entraLoading.csp"></i>
+                  Pull CSP Clients
+                </button>
+              </div>
+              <!-- CSP Results -->
+              <div x-show="cspClients && cspClients.length > 0" class="space-y-2">
+                <div class="text-xs font-semibold mb-1" x-text="cspClients.length + ' client(s) found'"></div>
+                <div class="max-h-48 overflow-y-auto space-y-1">
+                  <template x-for="(c, idx) in cspClients" :key="idx">
+                    <label class="flex items-center gap-2 p-2 bg-base-300 rounded text-xs cursor-pointer">
+                      <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" x-model="c._selected">
+                      <span class="font-semibold flex-1" x-text="c.display_name"></span>
+                      <span class="opacity-40" x-text="c.source"></span>
+                    </label>
+                  </template>
+                </div>
+                <div class="flex gap-2 mt-2">
+                  <button class="btn btn-xs btn-ghost" @click="cspClients.forEach(c => c._selected = true)">Select All</button>
+                  <button class="btn btn-xs btn-ghost" @click="cspClients.forEach(c => c._selected = false)">Deselect All</button>
+                  <button class="btn btn-xs btn-primary gap-1" @click="entraImportCspClients()" :disabled="entraLoading.cspImport">
+                    <span class="loading loading-spinner loading-xs" x-show="entraLoading.cspImport"></span>
+                    Import Selected
+                  </button>
+                </div>
+                <div x-show="cspImportResult" class="mt-2 finding-card text-xs space-y-1">
+                  <div x-show="cspImportResult.mapped > 0" class="text-info"><i class="ti ti-link"></i> <span x-text="cspImportResult.mapped + ' mapped to existing'"></span></div>
+                  <div x-show="cspImportResult.created > 0" class="text-success"><i class="ti ti-plus"></i> <span x-text="cspImportResult.created + ' created new'"></span></div>
+                  <div x-show="cspImportResult.skipped > 0" class="text-warning"><i class="ti ti-minus"></i> <span x-text="cspImportResult.skipped + ' skipped'"></span></div>
+                </div>
+              </div>
+              <div x-show="cspClients && cspClients.length === 0 && !entraLoading.csp" class="text-xs opacity-40">No CSP clients found. Ensure your app registration is multi-tenant with DelegatedAdminRelationship.Read.All permission.</div>
+            </div>
+
             <div x-show="entraError" class="alert alert-error text-sm mt-3">
               <i class="ti ti-circle-x"></i>
               <span x-text="entraError"></span>
@@ -905,7 +951,9 @@ function integrationsHub() {
     entraSaving: false,
     entraFormMsg: '',
     entraFormMsgType: '',
-    entraLoading: { test: false, users: false, mfa: false, assess: false },
+    entraLoading: { test: false, users: false, mfa: false, assess: false, csp: false, cspImport: false },
+    cspClients: null,
+    cspImportResult: null,
     entraResults: { test: null, users: null, mfa: null, assess: null },
     entraError: null,
 
@@ -1692,6 +1740,41 @@ function integrationsHub() {
         this.entraResults.assess = await resp.json();
       } catch (e) { this.entraError = e.message; }
       finally { this.entraLoading.assess = false; }
+    },
+
+    // ── CSP Client Pull ──
+    async entraPullCspClients() {
+      this.entraLoading.csp = true;
+      this.entraError = null;
+      this.cspClients = null;
+      this.cspImportResult = null;
+      try {
+        const resp = await fetch('/api/v1/entra/csp-clients');
+        if (!resp.ok) { this.entraError = (await resp.json()).error || 'Failed to pull CSP clients'; return; }
+        const data = await resp.json();
+        this.cspClients = (data.clients || []).map(c => ({ ...c, _selected: false }));
+        toast(data.count + ' CSP client(s) found', 'success');
+      } catch (e) { this.entraError = e.message; }
+      finally { this.entraLoading.csp = false; }
+    },
+
+    async entraImportCspClients() {
+      const selected = (this.cspClients || []).filter(c => c._selected);
+      if (selected.length === 0) { toast('Select at least one client to import', 'warning'); return; }
+      this.entraLoading.cspImport = true;
+      this.cspImportResult = null;
+      try {
+        const resp = await fetch('/api/v1/entra/csp-clients/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clients: selected }),
+        });
+        if (!resp.ok) { this.entraError = (await resp.json()).error || 'Import failed'; return; }
+        this.cspImportResult = await resp.json();
+        const total = (this.cspImportResult.mapped || 0) + (this.cspImportResult.created || 0);
+        toast(total + ' client(s) imported', 'success');
+      } catch (e) { this.entraError = e.message; }
+      finally { this.entraLoading.cspImport = false; }
     },
   };
 }

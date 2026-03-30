@@ -144,6 +144,97 @@ def entra_mfa_status():
         return jsonify({"error": str(e)}), 500
 
 
+@entra_bp.route("/csp-clients", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def entra_csp_clients():
+    """
+    GET /api/v1/entra/csp-clients
+
+    Lists CSP/partner managed tenants from Microsoft Graph.
+    Returns clients with their tenant IDs and names.
+    """
+    _require_platform_admin()
+    try:
+        client = _get_entra_client()
+        csp_clients = client.list_csp_clients()
+        return jsonify({"clients": csp_clients, "count": len(csp_clients)})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("CSP client list failed")
+        return jsonify({"error": str(e)}), 500
+
+
+@entra_bp.route("/csp-clients/import", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def entra_import_csp_clients():
+    """
+    POST /api/v1/entra/csp-clients/import
+
+    Import selected CSP clients as tenants. Maps to existing tenants by name
+    before creating new ones.
+
+    Body: { "clients": [{ "customer_tenant_id": "...", "display_name": "...", "domain": "..." }] }
+    """
+    _require_platform_admin()
+    from app.models import Tenant, db
+    from app.models import Logs
+
+    data = request.get_json(silent=True) or {}
+    clients_to_import = data.get("clients", [])
+    if not clients_to_import:
+        return jsonify({"error": "No clients provided"}), 400
+
+    results = {"mapped": 0, "created": 0, "skipped": 0, "details": []}
+
+    for csp in clients_to_import:
+        name = csp.get("display_name", "").strip()
+        if not name:
+            results["skipped"] += 1
+            continue
+
+        # Try to map to existing tenant by name (case-insensitive)
+        from sqlalchemy import func
+        existing = db.session.execute(
+            db.select(Tenant).filter(func.lower(Tenant.name) == func.lower(name))
+        ).scalars().first()
+
+        if existing:
+            results["mapped"] += 1
+            results["details"].append({
+                "name": name, "action": "mapped", "tenant_id": existing.id,
+                "message": f"Mapped to existing tenant: {existing.name}"
+            })
+        else:
+            # Create new tenant
+            try:
+                tenant = Tenant.create(
+                    current_user, name,
+                    email=csp.get("domain", ""),
+                    init_data=True,
+                )
+                results["created"] += 1
+                results["details"].append({
+                    "name": name, "action": "created", "tenant_id": tenant.id,
+                    "message": f"Created new tenant: {name}"
+                })
+                Logs.add(
+                    message=f"CSP client imported: {name}",
+                    action="POST", namespace="entra",
+                    user_id=current_user.id,
+                )
+            except Exception as e:
+                results["skipped"] += 1
+                results["details"].append({
+                    "name": name, "action": "error",
+                    "message": f"Failed: {str(e)}"
+                })
+
+    return jsonify(results)
+
+
 @entra_bp.route("/assess", methods=["POST"])
 @limiter.limit("5 per minute")
 @login_required
