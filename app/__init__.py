@@ -143,20 +143,21 @@ def _ensure_db_columns(app):
         with app.app_context():
             from sqlalchemy import inspect, text
             inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
 
             # Define columns to ensure exist: (table, column, sql_type, default)
             needed = [
                 ("settings_llm", "slot", "INTEGER", "1"),
-                ("settings_llm", "label", "VARCHAR", "'Primary'"),
+                ("settings_llm", "label", "VARCHAR(255)", "'Primary'"),
                 ("users", "totp_secret_enc", "TEXT", "NULL"),
                 ("users", "totp_enabled", "BOOLEAN", "false"),
                 ("users", "session_timeout_minutes", "INTEGER", "NULL"),
-                ("mcp_api_keys", "client_id", "VARCHAR", "NULL"),
+                ("mcp_api_keys", "client_id", "VARCHAR(255)", "NULL"),
                 ("tenants", "archived", "BOOLEAN", "false"),
             ]
 
             for table, column, sql_type, default in needed:
-                if table not in inspector.get_table_names():
+                if table not in tables:
                     continue
                 existing = [c["name"] for c in inspector.get_columns(table)]
                 if column not in existing:
@@ -167,8 +168,13 @@ def _ensure_db_columns(app):
                     app.logger.info("Auto-added column %s.%s", table, column)
 
             db.session.commit()
+            app.logger.info("Database column check complete")
     except Exception as e:
-        app.logger.debug("Column check skipped: %s", e)
+        app.logger.warning("Auto-column creation failed: %s — run 'flask db upgrade' to apply migrations", e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 def _load_smtp_from_db(app):
@@ -373,21 +379,29 @@ def configure_errors(app):
 
     @app.errorhandler(exc.SQLAlchemyError)
     def handle_db_exceptions(e):
-        app.logger.warning(f"Rolling back database session in app. Error: {e}")
-        db.session.rollback()
+        app.logger.warning(f"Database error: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
-        if app.debug:
+        error_str = str(e)
+        # Check if it's a missing column error — tell user to run migrations
+        if "UndefinedColumn" in error_str or "does not exist" in error_str:
+            error = "Database schema needs updating. Restart the app or run: flask db upgrade"
+            app.logger.error("Missing DB column detected — run migrations: %s", error_str[:200])
+        elif app.debug:
             try:
                 error = str(e.orig)
             except Exception:
                 error = "Database error occurred"
         else:
-            error = "An internal error occurred"
+            error = "An unexpected error occurred. Please try again."
 
         if request.path.startswith("/api/"):
             return jsonify({"ok": False, "message": error, "code": 500}), 500
         return (
-            render_template("layouts/errors/default.html", title="Internal error"),
+            render_template("layouts/errors/default.html", title="Error", description=error),
             500,
         )
 
