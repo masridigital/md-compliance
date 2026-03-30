@@ -60,7 +60,10 @@ def create_app(config_name="default"):
         # Skip for static files and auth routes
         if request.endpoint and (
             request.endpoint.startswith("static")
-            or request.endpoint in ("auth.get_login", "auth.login", "auth.get_register")
+            or request.endpoint in (
+                "auth.get_login", "auth.login", "auth.get_register",
+                "auth.get_verify_totp", "auth.verify_totp",
+            )
         ):
             return
 
@@ -81,8 +84,11 @@ def create_app(config_name="default"):
             last_activity = session.get("_last_activity")
             timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 5)
 
-            # Per-user timeout override (stored in session by profile settings)
+            # Per-user timeout override — check session cache first, then DB
             user_timeout = session.get("_user_timeout_minutes")
+            if not user_timeout and hasattr(current_user, 'session_timeout_minutes') and current_user.session_timeout_minutes:
+                user_timeout = current_user.session_timeout_minutes
+                session["_user_timeout_minutes"] = user_timeout
             if user_timeout:
                 timeout_minutes = int(user_timeout)
 

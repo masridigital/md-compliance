@@ -97,6 +97,15 @@ def profile():
     return render_template("profile.html")
 
 
+@main.route("/system", methods=["GET"])
+@login_required
+def system_info():
+    """System information and deployment status."""
+    from app.utils.authorizer import Authorizer
+    Authorizer(current_user).can_user_manage_platform()
+    return render_template("system_info.html")
+
+
 @main.route("/clients", methods=["GET"])
 @main.route("/workspace", methods=["GET"])
 @login_required

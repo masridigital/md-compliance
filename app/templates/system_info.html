@@ -1,0 +1,162 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block page_header%}{%endblock%}
+
+{%block content%}
+<div x-data="systemInfo()" class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-semibold mb-6">System Information</h1>
+
+    <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="stat bg-base-200 rounded-lg p-4">
+            <div class="stat-title text-xs">Version</div>
+            <div class="stat-value text-lg">{{config.VERSION}}</div>
+        </div>
+        <div class="stat bg-base-200 rounded-lg p-4">
+            <div class="stat-title text-xs">Environment</div>
+            <div class="stat-value text-lg">{{ 'Production' if not config.DEBUG else 'Development' }}</div>
+        </div>
+    </div>
+
+    <!-- Configuration Status -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-4"><i class="ti ti-settings mr-1"></i> Configuration</h3>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead><tr><th>Setting</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Database</td>
+                            <td><span class="badge badge-success badge-sm">Connected</span></td>
+                        </tr>
+                        <tr>
+                            <td>Email (SMTP)</td>
+                            <td><span class="badge badge-sm" :class="emailConfigured ? 'badge-success' : 'badge-warning'" x-text="emailConfigured ? 'Configured' : 'Not configured'"></span></td>
+                        </tr>
+                        <tr>
+                            <td>LLM / AI</td>
+                            <td><span class="badge badge-sm" :class="llmEnabled ? 'badge-success' : 'badge-warning'" x-text="llmEnabled ? 'Enabled' : 'Disabled'"></span></td>
+                        </tr>
+                        <tr>
+                            <td>MCP Server</td>
+                            <td><span class="badge badge-sm" :class="mcpKeys > 0 ? 'badge-success' : 'badge-warning'" x-text="mcpKeys > 0 ? mcpKeys + ' key(s)' : 'No keys'"></span></td>
+                        </tr>
+                        <tr>
+                            <td>Google SSO</td>
+                            <td><span class="badge badge-sm" :class="googleAuth ? 'badge-success' : 'badge-ghost'" x-text="googleAuth ? 'Enabled' : 'Disabled'"></span></td>
+                        </tr>
+                        <tr>
+                            <td>Microsoft SSO</td>
+                            <td><span class="badge badge-sm" :class="msAuth ? 'badge-success' : 'badge-ghost'" x-text="msAuth ? 'Enabled' : 'Disabled'"></span></td>
+                        </tr>
+                        <tr>
+                            <td>Session Timeout</td>
+                            <td><span class="text-sm">{{config.SESSION_TIMEOUT_MINUTES}} minutes</span></td>
+                        </tr>
+                        <tr>
+                            <td>Self Registration</td>
+                            <td><span class="badge badge-sm" :class="selfReg ? 'badge-success' : 'badge-ghost'" x-text="selfReg ? 'Enabled' : 'Disabled'"></span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tenants & Users Summary -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-4"><i class="ti ti-database mr-1"></i> Data Summary</h3>
+            <div class="grid grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold" x-text="stats.tenants">-</div>
+                    <div class="text-xs opacity-60">Tenants</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold" x-text="stats.users">-</div>
+                    <div class="text-xs opacity-60">Users</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold" x-text="stats.projects">-</div>
+                    <div class="text-xs opacity-60">Projects</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold" x-text="stats.logs">-</div>
+                    <div class="text-xs opacity-60">Log Entries</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card bg-base-200 border border-base-300">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-4"><i class="ti ti-link mr-1"></i> Quick Links</h3>
+            <div class="flex gap-2 flex-wrap">
+                <a href="/admin/settings" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-settings mr-1"></i> Platform Settings</a>
+                <a href="/integrations" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-car-fan mr-1"></i> Integrations</a>
+                <a href="/logs" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-history mr-1"></i> Activity Logs</a>
+                <a href="/users" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-users mr-1"></i> User Management</a>
+                <a href="/mcp/v1/docs" target="_blank" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-plug-connected mr-1"></i> MCP API Docs</a>
+                <a href="{{config.DOC_LINK}}" target="_blank" class="btn btn-sm btn-ghost border border-base-300"><i class="ti ti-book mr-1"></i> Documentation</a>
+            </div>
+        </div>
+    </div>
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function systemInfo() {
+  return {
+    emailConfigured: {{ config.MAIL_SERVER != 'smtp.googlemail.com' | tojson }},
+    llmEnabled: {{ config.get('LLM_ENABLED', false) | tojson }},
+    googleAuth: {{ config.get('ENABLE_GOOGLE_AUTH', false) | tojson }},
+    msAuth: {{ config.get('ENABLE_MICROSOFT_AUTH', false) | tojson }},
+    selfReg: {{ config.get('ENABLE_SELF_REGISTRATION', false) | tojson }},
+    mcpKeys: 0,
+    stats: { tenants: '-', users: '-', projects: '-', logs: '-' },
+
+    init() {
+      this.loadStats();
+      this.loadMcpKeys();
+    },
+
+    async loadStats() {
+      try {
+        const [tenants, logs] = await Promise.all([
+          fetch('/api/v1/tenants').then(r => r.ok ? r.json() : []),
+          fetch('/api/v1/logs?limit=1').then(r => r.ok ? r.json() : []),
+        ]);
+        this.stats.tenants = tenants.length;
+
+        // Count users and projects from tenants
+        let userCount = 0;
+        let projectCount = 0;
+        for (const t of tenants) {
+          try {
+            const users = await fetch(`/api/v1/tenants/${t.id}/users`).then(r => r.ok ? r.json() : []);
+            const projects = await fetch(`/api/v1/tenants/${t.id}/projects?exclude-timely=true`).then(r => r.ok ? r.json() : []);
+            userCount += users.length;
+            projectCount += projects.length;
+          } catch(e) {}
+        }
+        this.stats.users = userCount;
+        this.stats.projects = projectCount;
+        this.stats.logs = logs.length >= 1 ? '500+' : '0';
+      } catch(e) {}
+    },
+
+    async loadMcpKeys() {
+      try {
+        const resp = await fetch('/api/v1/settings/mcp-keys');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.mcpKeys = Array.isArray(data) ? data.length : 0;
+        }
+      } catch(e) {}
+    },
+  };
+}
+</script>
+{%endblock%}

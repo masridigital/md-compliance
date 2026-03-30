@@ -211,6 +211,12 @@
               <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Settings</span>
             </a>
           </li>
+          <li class="mb-4">
+            <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/system">
+              <span><i class="ti ti-info-circle text-2xl"></i></span>
+              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">System</span>
+            </a>
+          </li>
           {%endif%}
           {%endif%}
         </ul>

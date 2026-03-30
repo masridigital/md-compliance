@@ -265,7 +265,11 @@
                     </div>
                 </div>
 
-                <div class="modal-action">
+                <div class="modal-action flex-wrap gap-2">
+                    <button class="btn btn-sm btn-ghost border border-base-300 tooltip" data-tip="Reset MFA" @click="resetMfa(selectedItem)">
+                        <i class="ti ti-shield-off text-warning"></i> Reset MFA
+                    </button>
+                    <div class="flex-1"></div>
                     <button class="btn" @click="showModal = false">Close</button>
                     <button class="btn btn-error" @click="openDeleteModal(selectedItem)">Remove User</button>
                     <button class="btn btn-success" :class='{"btn-disabled": buttonDisabled}'
@@ -489,6 +493,18 @@ function table(){
               toast(error.message, "error");
             },
             this.formData
+          );
+        },
+        resetMfa: function(item) {
+          if (!confirm('Reset MFA for ' + item.email + '? They will need to re-enroll their authenticator app.')) return;
+          request("POST",
+            `/api/v1/settings/mfa/reset/${item.id}`,
+            data => {
+              toast("MFA reset for " + item.email, "success");
+            },
+            error => {
+              toast(error.message || "Failed to reset MFA", "error");
+            }
           );
         },
         exportCSV: function() {
