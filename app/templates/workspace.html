@@ -153,9 +153,9 @@
               <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                   <i class="ti ti-circles text-sm text-primary"></i>
-                  <span class="text-sm font-medium capitalize" x-text="p.name"></span>
+                  <span class="text-sm font-semibold uppercase" x-text="p.framework || p.name"></span>
                 </div>
-                <span class="badge badge-xs uppercase" x-text="p.framework || 'custom'"></span>
+                <span class="badge badge-xs" x-text="p.status || 'not started'"></span>
               </div>
               <div class="flex items-center gap-2 mt-2">
                 <progress class="progress progress-primary w-full h-1.5" :value="p.completion_progress || 0" max="100"></progress>
@@ -296,24 +296,9 @@
   <div class="modal" :class="{ 'modal-open': showCreateProjectModal }">
     <div class="modal-box w-11/12 max-w-3xl">
       <form method="dialog"><button @click="showCreateProjectModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>
-      <h3 x-show="projStep === 1" class="font-bold text-xl px-4">Create Project</h3>
-      <h3 x-show="projStep === 2" class="font-bold text-xl px-4">
-        <button @click="projStep = 1" class="btn btn-ghost btn-sm mr-2"><i class="ti ti-arrow-left text-xl"></i></button>
-        Select Framework
-      </h3>
-      <div x-show="projStep === 1" class="card card-body">
-        <div class="grid grid-cols-6 gap-4">
-          <div class="col-span-3">
-            <label class="block text-sm font-medium mb-2">Name</label>
-            <input placeholder="e.g. SOC 2 Audit 2026" x-model="newProject.name" class="input input-sm input-bordered w-full">
-          </div>
-          <div class="col-span-3">
-            <label class="block text-sm font-medium mb-2">Description</label>
-            <input placeholder="Optional" x-model="newProject.description" class="input input-sm input-bordered w-full">
-          </div>
-        </div>
-      </div>
-      <div x-show="projStep === 2" class="card card-body">
+      <h3 class="font-bold text-xl px-4">Create Project</h3>
+      <p class="text-sm opacity-60 px-4 mb-4">Select a compliance framework for <strong class="capitalize" x-text="selected ? selected.name : ''"></strong>. The project will be named after the framework.</p>
+      <div class="card card-body">
         <div class="grid grid-cols-9 gap-4">
           <template x-for="fw in frameworks" :key="fw.id">
             <div class="col-span-3">
@@ -335,7 +320,6 @@
       </div>
       <div class="modal-action">
         <button class="btn" @click="showCreateProjectModal = false">Close</button>
-        <button x-show="projStep === 1" :disabled="!newProject.name" class="btn btn-primary" @click="projStep = 2">Select Framework</button>
       </div>
     </div>
   </div>
@@ -539,10 +523,10 @@ function workspaceHub() {
 
     // ── Create Project ──
     async createProject() {
-      if (!this.newProject.name || !this.selectedFw) return;
+      if (!this.selectedFw) return;
       this.creatingProj = true;
       try {
-        const payload = { name: this.newProject.name, description: this.newProject.description, framework: this.selectedFw.name };
+        const payload = { name: this.selectedFw.name, description: '', framework: this.selectedFw.name };
         if (this.selectedFw.name === 'SOC2') payload.criteria = { security: true, availability: false, confidentiality: false, integrity: false, privacy: false };
         const resp = await fetch(`/api/v1/tenants/${this.selected.id}/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (resp.ok) {

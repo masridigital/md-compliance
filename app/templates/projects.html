@@ -45,9 +45,9 @@
                         <a :href="'/projects/' + project.id" class="block border border-base-300 rounded-lg p-8 bg-base-200 capitalize hover:border-primary hover:shadow-lg transition-all cursor-pointer" style="text-decoration: none; color: inherit;">
                             <div class="w-full h-full block">
                                 <div class="flex justify-between">
-                                    <div class="flex flex-row my-auto">
-                                        <h3 class="text-lg font-semibold" x-text="project.name"></h3>
-                                        <i class="ti ti-external-link ml-1 my-auto opacity-50"></i>
+                                    <div class="my-auto">
+                                        <div class="text-xs opacity-50 mb-1 capitalize" x-text="project.tenant || ''"></div>
+                                        <h3 class="text-lg font-semibold uppercase" x-text="project.framework || project.name"></h3>
                                     </div>
 
                                     <details class="dropdown" @click.stop>
@@ -161,31 +161,17 @@
                                 class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕
                         </button>
                     </form>
-                    <h3 x-show="step==='one'" class="font-bold text-2xl px-8">Create Project</h3>
-                    <h3 x-show="step==='two'" class="font-bold text-2xl px-8"><button @click="step='one'" class="btn btn-ghost btn-sm mr-2"><i class="ti ti-arrow-left text-xl"></i></button>Select Framework</h3>
-                    <div x-show="step==='one'" class="card card-body">
-                        <div class="grid grid-cols-6 gap-6">
-                            <div class="col-span-3">
-                                <label class="block text-sm font-medium mb-2">Name</label>
-                                <input placeholder="Input name for the project" x-model="formData.name"
-                                       class="input input-sm input-bordered w-full"/>
-                            </div>
-                            <div class="col-span-3">
-                                <label class="block text-sm font-medium mb-2">Description</label>
-                                <input placeholder="Input description" x-model="formData.description"
-                                       class="input input-sm input-bordered w-full"/>
-                            </div>
-                            <div class="col-span-3">
-                                <label class="block text-sm font-medium mb-2">Tenant</label>
-                                <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full">
-                                  <template x-for="t in availableTenants" :key="t.id">
-                                    <option :value="t.id" x-text="t.name" :selected="t.id === $store.currentUser.selectedTenant.id" class="capitalize"></option>
-                                  </template>
-                                </select>
-                            </div>
+                    <h3 class="font-bold text-2xl px-8">Create Project</h3>
+                    <div class="card card-body">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Client</label>
+                            <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full max-w-xs capitalize">
+                              <template x-for="t in availableTenants" :key="t.id">
+                                <option :value="t.id" x-text="t.name" :selected="t.id === formData.tenant_id" class="capitalize"></option>
+                              </template>
+                            </select>
                         </div>
-                    </div>
-                    <div x-show="step==='two'" class="card card-body">
+                        <p class="text-sm opacity-60 mb-4">Select a compliance framework to start. The project will be named after the framework.</p>
                         <div class="grid grid-cols-9 gap-4">
                             <template x-for="framework in frameworks" :key="'custom-'+framework.id">
                                 <template x-if="framework.name.toLowerCase() === 'custom'">
@@ -228,7 +214,6 @@
                     </div>
                     <div class="modal-action">
                         <button class="btn" @click="showCreateModal = false">Close</button>
-                        <button x-show="step==='one'" :disabled="!formData.name" class="btn btn-primary" @click="step='two'">Select Framework</button>
                     </div>
                 </div>
             </div>
@@ -410,14 +395,12 @@ function table(){
           }
         },
         createProject() {
-          if (!this.formData.name) {
-            toast("Name is required", "error")
-            return
-          }
-          if (!this.selectedFramework.name) {
+          if (!this.selectedFramework || !this.selectedFramework.name) {
             toast("Framework is required", "error")
             return
           }
+          // Auto-name project from framework
+          this.formData.name = this.selectedFramework.name;
           this.formData.framework = this.selectedFramework.name;
           if (this.formData.framework === "SOC2") {
             this.formData.criteria.security = true;
