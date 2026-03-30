@@ -623,8 +623,30 @@
                   <i class="ti ti-device-floppy" x-show="!storageSaving"></i>
                   Save
                 </button>
+                <button class="btn btn-sm btn-outline gap-1" x-show="selected.provider !== 'local'" @click="testStorage()" :disabled="storageTesting">
+                  <span class="loading loading-spinner loading-xs" x-show="storageTesting"></span>
+                  <i class="ti ti-plug-connected" x-show="!storageTesting"></i>
+                  Test Connection
+                </button>
               </div>
               <div x-show="storageMsg" class="text-xs" :class="storageMsgType === 'error' ? 'text-error' : 'text-success'" x-text="storageMsg"></div>
+
+              <!-- File Structure -->
+              <div class="divider text-xs">File Structure</div>
+              <div class="finding-card text-xs">
+                <p class="font-semibold mb-1">Compliance documents are organized as:</p>
+                <pre class="opacity-70 font-mono text-xs leading-relaxed">/{client-name}/
+  /{project-framework}/
+    /evidence/
+    /policies/
+    /reports/
+    /wisp/</pre>
+                <p class="opacity-50 mt-2">This structure is created automatically for each client and project.</p>
+              </div>
+
+              <!-- Per-client override -->
+              <div class="divider text-xs">Per-Client Override</div>
+              <p class="text-xs opacity-60 mb-2">This is the <strong>default</strong> storage config. Individual clients can override with their own storage settings in the Client drawer → Settings tab.</p>
             </div>
           </div>
         </template>
@@ -928,6 +950,7 @@ function integrationsHub() {
     // Storage form state
     storageForm: { bucket: '', region: '', access_key: '', secret_key: '', endpoint_url: '', account_name: '', account_key: '', tenant_id: '', client_id: '', client_secret: '', site_url: '', document_library: '', domain: '', api_token: '', root_folder: '', base_path: '', enabled: false, is_default: false },
     storageSaving: false,
+    storageTesting: false,
     storageMsg: '',
     storageMsgType: '',
 
@@ -1590,6 +1613,29 @@ function integrationsHub() {
         await this.loadStorage();
       } catch (e) { this.storageMsg = e.message; this.storageMsgType = 'error'; }
       finally { this.storageSaving = false; }
+    },
+
+    async testStorage() {
+      this.storageTesting = true;
+      this.storageMsg = '';
+      const provider = this.selected.provider;
+      try {
+        // Test by saving with a test flag — the backend validates connectivity
+        const resp = await fetch(`/api/v1/settings/storage/${provider}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.storageForm),
+        });
+        if (resp.ok) {
+          this.storageMsg = 'Connection successful!';
+          this.storageMsgType = 'success';
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          this.storageMsg = 'Test failed: ' + (err.error || resp.status);
+          this.storageMsgType = 'error';
+        }
+      } catch(e) { this.storageMsg = 'Test failed: ' + e.message; this.storageMsgType = 'error'; }
+      this.storageTesting = false;
     },
 
     // ── SSO Config ──

@@ -253,6 +253,64 @@ def update_storage_provider(provider):
         return jsonify({"error": "Failed to update storage provider"}), 500
 
 
+@settings_bp.route("/storage/<string:provider>/test", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def test_storage_provider(provider):
+    """POST /api/v1/settings/storage/<provider>/test — test connectivity."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    try:
+        if provider == "s3":
+            import boto3
+            kwargs = {"aws_access_key_id": data.get("access_key"), "aws_secret_access_key": data.get("secret_key"), "region_name": data.get("region", "us-east-1")}
+            if data.get("endpoint_url"):
+                kwargs["endpoint_url"] = data["endpoint_url"]
+            s3 = boto3.client("s3", **kwargs)
+            s3.head_bucket(Bucket=data.get("bucket", "test"))
+            return jsonify({"message": f"Connected to S3 bucket: {data.get('bucket')}"})
+
+        elif provider == "azure_blob":
+            from azure.storage.blob import BlobServiceClient
+            conn_str = f"DefaultEndpointsProtocol=https;AccountName={data.get('account_name')};AccountKey={data.get('account_key')};EndpointSuffix=core.windows.net"
+            client = BlobServiceClient.from_connection_string(conn_str, connection_timeout=10)
+            props = client.get_account_information()
+            return jsonify({"message": f"Connected to Azure Storage: {data.get('account_name')}"})
+
+        elif provider == "sharepoint":
+            import requests as _requests
+            # Test by getting a Graph API token
+            token_url = f"https://login.microsoftonline.com/{data.get('tenant_id')}/oauth2/v2.0/token"
+            resp = _requests.post(token_url, data={
+                "grant_type": "client_credentials",
+                "client_id": data.get("client_id"),
+                "client_secret": data.get("client_secret"),
+                "scope": "https://graph.microsoft.com/.default",
+            }, timeout=10)
+            if resp.ok:
+                return jsonify({"message": "SharePoint credentials validated"})
+            return jsonify({"error": f"Auth failed: {resp.json().get('error_description', resp.status_code)}"}), 400
+
+        elif provider == "egnyte":
+            import requests as _requests
+            resp = _requests.get(
+                f"https://{data.get('domain')}/pubapi/v1/userinfo",
+                headers={"Authorization": f"Bearer {data.get('api_token')}"},
+                timeout=10,
+            )
+            if resp.ok:
+                return jsonify({"message": f"Connected to Egnyte: {data.get('domain')}"})
+            return jsonify({"error": f"Egnyte auth failed: {resp.status_code}"}), 400
+
+        else:
+            return jsonify({"message": "Local storage — no test needed"})
+
+    except ImportError as e:
+        return jsonify({"error": f"Missing library: {str(e)}. Install the required package."}), 500
+    except Exception as e:
+        return jsonify({"error": f"Connection test failed: {str(e)}"}), 500
+
+
 # ===========================================================================
 # SSO (admin only)
 # ===========================================================================
