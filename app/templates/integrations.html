@@ -471,24 +471,16 @@
               </button>
             </div>
 
-            <!-- Show newly created credential (once) -->
+            <!-- Show newly created credential (once) — just copy buttons -->
             <div x-show="mcpNewRawKey" class="finding-card mb-4 border border-success/30">
-              <div class="text-xs text-warning font-semibold mb-2"><i class="ti ti-alert-triangle"></i> Copy these credentials now — they won't be shown again</div>
-              <div class="space-y-2">
-                <div>
-                  <div class="text-xs font-semibold mb-1">Client ID</div>
-                  <div class="flex gap-2 items-center">
-                    <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewClientId"></code>
-                    <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewClientId); toast('Client ID copied!', 'success')"><i class="ti ti-copy"></i></button>
-                  </div>
-                </div>
-                <div>
-                  <div class="text-xs font-semibold mb-1">Client Secret</div>
-                  <div class="flex gap-2 items-center">
-                    <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewRawKey"></code>
-                    <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Secret copied!', 'success')"><i class="ti ti-copy"></i></button>
-                  </div>
-                </div>
+              <div class="text-xs text-warning font-semibold mb-3"><i class="ti ti-alert-triangle"></i> Credential created — copy now, won't be shown again</div>
+              <div class="flex gap-2">
+                <button class="btn btn-sm btn-outline gap-1 flex-1" @click="navigator.clipboard.writeText(mcpNewClientId); toast('Client ID copied!', 'success')">
+                  <i class="ti ti-copy"></i> Copy Client ID
+                </button>
+                <button class="btn btn-sm btn-outline gap-1 flex-1" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Client Secret copied!', 'success')">
+                  <i class="ti ti-copy"></i> Copy Client Secret
+                </button>
               </div>
             </div>
 
