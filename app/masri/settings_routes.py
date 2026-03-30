@@ -735,3 +735,141 @@ def update_profile():
 
     db.session.commit()
     return jsonify({"message": "Profile updated"})
+
+
+# ===========================================================================
+# Platform Updates
+# ===========================================================================
+
+@settings_bp.route("/updates/check", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def check_updates():
+    """GET /api/v1/settings/updates/check — check for available updates."""
+    _require_admin()
+    from app.masri.update_manager import UpdateManager
+    return jsonify(UpdateManager.check())
+
+
+@settings_bp.route("/updates/apply", methods=["POST"])
+@limiter.limit("3 per minute")
+@login_required
+def apply_updates():
+    """POST /api/v1/settings/updates/apply — pull and apply updates."""
+    _require_admin()
+    from app.masri.update_manager import UpdateManager
+    from app.models import Logs
+    Logs.add(
+        message=f"{current_user.email} triggered platform update",
+        action="PUT",
+        namespace="system",
+        user_id=current_user.id,
+    )
+    return jsonify(UpdateManager.apply())
+
+
+@settings_bp.route("/updates/schedule", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_update_schedule():
+    """GET /api/v1/settings/updates/schedule — get auto-update config."""
+    _require_admin()
+    from app.masri.update_manager import UpdateManager
+    return jsonify(UpdateManager.get_schedule())
+
+
+@settings_bp.route("/updates/schedule", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_update_schedule():
+    """PUT /api/v1/settings/updates/schedule — configure auto-updates."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    from app.masri.update_manager import UpdateManager
+    schedule = UpdateManager.set_schedule(
+        enabled=data.get("enabled", False),
+        frequency=data.get("frequency", "daily"),
+        auto_apply=data.get("auto_apply", False),
+    )
+    return jsonify(schedule)
+
+
+# ===========================================================================
+# SMTP / Email Configuration
+# ===========================================================================
+
+@settings_bp.route("/smtp", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_smtp_config():
+    """GET /api/v1/settings/smtp — get current SMTP configuration."""
+    _require_admin()
+    return jsonify({
+        "mail_server": current_app.config.get("MAIL_SERVER", ""),
+        "mail_port": current_app.config.get("MAIL_PORT", 587),
+        "mail_use_tls": current_app.config.get("MAIL_USE_TLS", True),
+        "mail_username": current_app.config.get("MAIL_USERNAME", ""),
+        "mail_default_sender": current_app.config.get("MAIL_DEFAULT_SENDER", ""),
+        "has_password": bool(current_app.config.get("MAIL_PASSWORD")),
+    })
+
+
+@settings_bp.route("/smtp", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def update_smtp_config():
+    """PUT /api/v1/settings/smtp — update SMTP settings (saved to DB + runtime)."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+
+    from app.models import ConfigStore
+
+    # Save each SMTP setting to ConfigStore
+    smtp_fields = {
+        "MAIL_SERVER": data.get("mail_server"),
+        "MAIL_PORT": str(data.get("mail_port", 587)),
+        "MAIL_USE_TLS": str(data.get("mail_use_tls", True)),
+        "MAIL_USERNAME": data.get("mail_username"),
+        "MAIL_DEFAULT_SENDER": data.get("mail_default_sender"),
+    }
+    for key, value in smtp_fields.items():
+        if value is not None:
+            ConfigStore.upsert(f"smtp_{key}", str(value))
+            current_app.config[key] = value if key != "MAIL_PORT" else int(value)
+
+    # Handle password separately (encrypt)
+    if data.get("mail_password"):
+        from app.masri.settings_service import encrypt_value
+        ConfigStore.upsert("smtp_MAIL_PASSWORD", encrypt_value(data["mail_password"]))
+        current_app.config["MAIL_PASSWORD"] = data["mail_password"]
+
+    # Reinitialize Flask-Mail with new config
+    try:
+        from app import mail
+        mail.init_app(current_app._get_current_object())
+    except Exception as e:
+        logger.warning("Failed to reinitialize mail: %s", e)
+
+    return jsonify({"message": "SMTP configuration saved"})
+
+
+@settings_bp.route("/smtp/test", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def test_smtp():
+    """POST /api/v1/settings/smtp/test — send a test email."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    recipient = data.get("to", current_user.email)
+
+    try:
+        from app.email import send_email
+        send_email(
+            to=recipient,
+            subject=f"{current_app.config.get('APP_NAME', 'MD Compliance')} — SMTP Test",
+            template="test_email",
+            content="This is a test email to verify your SMTP configuration is working correctly.",
+        )
+        return jsonify({"message": f"Test email sent to {recipient}"})
+    except Exception as e:
+        return jsonify({"error": f"Failed to send: {str(e)}"}), 500

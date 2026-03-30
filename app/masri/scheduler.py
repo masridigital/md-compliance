@@ -62,6 +62,11 @@ class MasriScheduler:
             interval_seconds=86400,  # 24 hours
             func=self._task_drift_detection,
         )
+        self._schedule_recurring(
+            name="auto_update_check",
+            interval_seconds=3600,  # Check every hour; actual freq controlled by schedule config
+            func=self._task_auto_update,
+        )
 
         logger.info("Masri scheduler started with %d tasks", len(self._timers))
 
@@ -227,6 +232,66 @@ class MasriScheduler:
             )
         except Exception:
             logger.exception("Failed to send drift notification for tenant %s", tenant_id)
+
+
+    def _task_auto_update(self):
+        """Check for and optionally apply updates based on schedule config."""
+        if not self._app:
+            return
+
+        with self._app.app_context():
+            try:
+                from app.masri.update_manager import UpdateManager
+
+                schedule = UpdateManager.get_schedule()
+                if not schedule.get("enabled"):
+                    return
+
+                # Check frequency — only run at configured intervals
+                frequency = schedule.get("frequency", "daily")
+                freq_hours = {"hourly": 1, "daily": 24, "weekly": 168}.get(frequency, 24)
+
+                last_check = schedule.get("last_check")
+                if last_check:
+                    from datetime import datetime, timedelta
+                    try:
+                        last_dt = datetime.fromisoformat(last_check)
+                        if datetime.utcnow() - last_dt < timedelta(hours=freq_hours):
+                            return  # Not time yet
+                    except (ValueError, TypeError):
+                        pass
+
+                # Run check
+                status = UpdateManager.check()
+                logger.info("Auto-update check: %d commits behind", status.get("commits_behind", 0))
+
+                # Update last check time
+                import json
+                from app.models import ConfigStore
+                sched_data = json.loads(ConfigStore.find("auto_update_schedule").value or "{}")
+                sched_data["last_check"] = datetime.utcnow().isoformat()
+                sched_data["last_result"] = {
+                    "available": status.get("available"),
+                    "commits_behind": status.get("commits_behind", 0),
+                }
+                ConfigStore.upsert("auto_update_schedule", json.dumps(sched_data))
+
+                # Auto-apply if configured
+                if schedule.get("auto_apply") and status.get("available"):
+                    logger.info("Auto-applying %d pending update(s)", status.get("commits_behind"))
+                    result = UpdateManager.apply()
+                    if result.get("success"):
+                        from app.models import Logs
+                        Logs.add(
+                            message=f"Auto-update applied: {status.get('commits_behind')} commits",
+                            action="PUT",
+                            namespace="system",
+                        )
+                    else:
+                        logger.error("Auto-update failed: %s", result.get("message"))
+
+            except Exception:
+                logger.exception("Auto-update task failed")
 
 
 # Module-level singleton

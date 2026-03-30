@@ -88,6 +88,105 @@
         </div>
     </div>
 
+    <!-- Platform Updates -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <div class="flex justify-between items-start">
+                <h3 class="card-title text-md mb-2"><i class="ti ti-refresh mr-1"></i> Platform Updates</h3>
+                <button class="btn btn-sm btn-primary gap-1" @click="checkUpdates()" :disabled="updateChecking">
+                    <span class="loading loading-spinner loading-xs" x-show="updateChecking"></span>
+                    <i class="ti ti-refresh" x-show="!updateChecking"></i>
+                    Check for Updates
+                </button>
+            </div>
+
+            <!-- Update status -->
+            <div x-show="updateStatus" x-cloak class="mt-3">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="badge" :class="updateStatus.available ? 'badge-warning' : 'badge-success'" x-text="updateStatus.available ? updateStatus.commits_behind + ' update(s) available' : 'Up to date'"></span>
+                    <span class="text-xs opacity-50" x-text="'Current: ' + (updateStatus.current_commit || '?')"></span>
+                </div>
+                <div x-show="updateStatus.available && updateStatus.changes && updateStatus.changes.length > 0" class="max-h-32 overflow-y-auto mb-3">
+                    <template x-for="c in updateStatus.changes" :key="c">
+                        <div class="text-xs font-mono opacity-60 py-0.5" x-text="c"></div>
+                    </template>
+                </div>
+                <button x-show="updateStatus.available" class="btn btn-sm btn-success gap-1" @click="applyUpdates()" :disabled="updateApplying">
+                    <span class="loading loading-spinner loading-xs" x-show="updateApplying"></span>
+                    <i class="ti ti-download" x-show="!updateApplying"></i>
+                    Apply Updates
+                </button>
+                <p x-show="updateStatus.available" class="text-xs text-warning mt-2"><i class="ti ti-alert-triangle"></i> Applying updates will restart the app and log out all active users.</p>
+                <div x-show="updateResult" class="text-xs mt-2" :class="updateResult && updateResult.success ? 'text-success' : 'text-error'" x-text="updateResult ? updateResult.message : ''"></div>
+            </div>
+
+            <!-- Auto-update schedule -->
+            <div class="divider text-xs">Auto-Update Schedule</div>
+            <div class="flex gap-4 items-center flex-wrap">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" class="toggle toggle-sm toggle-primary" x-model="autoUpdate.enabled" @change="saveAutoUpdate()">
+                    <span class="text-sm" x-text="autoUpdate.enabled ? 'Auto-check enabled' : 'Auto-check disabled'"></span>
+                </label>
+                <select class="select select-sm select-bordered w-32" x-model="autoUpdate.frequency" @change="saveAutoUpdate()" :disabled="!autoUpdate.enabled">
+                    <option value="hourly">Hourly</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                </select>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" class="checkbox checkbox-sm checkbox-warning" x-model="autoUpdate.auto_apply" @change="saveAutoUpdate()" :disabled="!autoUpdate.enabled">
+                    <span class="text-sm">Auto-apply</span>
+                </label>
+            </div>
+            <p class="text-xs opacity-40 mt-2" x-show="autoUpdate.auto_apply"><i class="ti ti-alert-triangle"></i> Auto-apply will automatically install updates without manual approval.</p>
+        </div>
+    </div>
+
+    <!-- SMTP / Email Configuration -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-4"><i class="ti ti-mail mr-1"></i> Email / SMTP Configuration</h3>
+            <p class="text-sm opacity-60 mb-4">Configure SMTP for sending user invites, password resets, reports, and notifications.</p>
+            <div class="grid grid-cols-6 gap-4">
+                <div class="col-span-3">
+                    <label class="text-xs font-medium block mb-1">SMTP Server</label>
+                    <input type="text" class="input input-sm input-bordered w-full" x-model="smtp.mail_server" placeholder="smtp.gmail.com">
+                </div>
+                <div class="col-span-1">
+                    <label class="text-xs font-medium block mb-1">Port</label>
+                    <input type="number" class="input input-sm input-bordered w-full" x-model.number="smtp.mail_port" placeholder="587">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-medium block mb-1">TLS</label>
+                    <input type="checkbox" class="toggle toggle-sm toggle-success mt-2" x-model="smtp.mail_use_tls">
+                </div>
+                <div class="col-span-3">
+                    <label class="text-xs font-medium block mb-1">Username</label>
+                    <input type="text" class="input input-sm input-bordered w-full" x-model="smtp.mail_username" placeholder="noreply@company.com">
+                </div>
+                <div class="col-span-3">
+                    <label class="text-xs font-medium block mb-1">Password</label>
+                    <input type="password" class="input input-sm input-bordered w-full" x-model="smtp.mail_password" placeholder="Enter SMTP password">
+                    <div class="text-xs opacity-40 mt-1" x-show="smtp.has_password"><i class="ti ti-lock"></i> Password saved. Leave blank to keep.</div>
+                </div>
+                <div class="col-span-3">
+                    <label class="text-xs font-medium block mb-1">Default Sender</label>
+                    <input type="email" class="input input-sm input-bordered w-full" x-model="smtp.mail_default_sender" placeholder="compliance@company.com">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button class="btn btn-sm btn-primary gap-1" @click="saveSmtp()" :disabled="smtpSaving">
+                    <span class="loading loading-spinner loading-xs" x-show="smtpSaving"></span>
+                    <i class="ti ti-device-floppy" x-show="!smtpSaving"></i> Save SMTP
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="testSmtp()" :disabled="smtpTesting">
+                    <span class="loading loading-spinner loading-xs" x-show="smtpTesting"></span>
+                    <i class="ti ti-send" x-show="!smtpTesting"></i> Send Test Email
+                </button>
+            </div>
+            <div x-show="smtpMsg" class="text-xs mt-2" :class="smtpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="smtpMsg"></div>
+        </div>
+    </div>
+
     <!-- Quick Links -->
     <div class="card bg-base-200 border border-base-300">
         <div class="card-body">
@@ -117,9 +216,25 @@ function systemInfo() {
     mcpKeys: 0,
     stats: { tenants: '-', users: '-', projects: '-', logs: '-' },
 
+    // Updates
+    updateChecking: false,
+    updateApplying: false,
+    updateStatus: null,
+    updateResult: null,
+    autoUpdate: { enabled: false, frequency: 'daily', auto_apply: false },
+
+    // SMTP
+    smtp: { mail_server: '', mail_port: 587, mail_use_tls: true, mail_username: '', mail_password: '', mail_default_sender: '', has_password: false },
+    smtpSaving: false,
+    smtpTesting: false,
+    smtpMsg: '',
+    smtpMsgType: '',
+
     init() {
       this.loadStats();
       this.loadMcpKeys();
+      this.loadAutoUpdate();
+      this.loadSmtp();
     },
 
     async loadStats() {
@@ -129,14 +244,13 @@ function systemInfo() {
           fetch('/api/v1/logs?limit=1').then(r => r.ok ? r.json() : []),
         ]);
         this.stats.tenants = tenants.length;
-
-        // Count users and projects from tenants
-        let userCount = 0;
-        let projectCount = 0;
+        let userCount = 0, projectCount = 0;
         for (const t of tenants) {
           try {
-            const users = await fetch(`/api/v1/tenants/${t.id}/users`).then(r => r.ok ? r.json() : []);
-            const projects = await fetch(`/api/v1/tenants/${t.id}/projects?exclude-timely=true`).then(r => r.ok ? r.json() : []);
+            const [users, projects] = await Promise.all([
+              fetch(`/api/v1/tenants/${t.id}/users`).then(r => r.ok ? r.json() : []),
+              fetch(`/api/v1/tenants/${t.id}/projects?exclude-timely=true`).then(r => r.ok ? r.json() : []),
+            ]);
             userCount += users.length;
             projectCount += projects.length;
           } catch(e) {}
@@ -150,11 +264,89 @@ function systemInfo() {
     async loadMcpKeys() {
       try {
         const resp = await fetch('/api/v1/settings/mcp-keys');
-        if (resp.ok) {
-          const data = await resp.json();
-          this.mcpKeys = Array.isArray(data) ? data.length : 0;
-        }
+        if (resp.ok) { const data = await resp.json(); this.mcpKeys = Array.isArray(data) ? data.length : 0; }
       } catch(e) {}
+    },
+
+    // ── Updates ──
+    async checkUpdates() {
+      this.updateChecking = true;
+      this.updateResult = null;
+      try {
+        const resp = await fetch('/api/v1/settings/updates/check');
+        if (resp.ok) this.updateStatus = await resp.json();
+      } catch(e) { toast('Failed to check', 'error'); }
+      this.updateChecking = false;
+    },
+
+    async applyUpdates() {
+      if (!confirm('Apply updates now? This will restart the application and log out all users.')) return;
+      this.updateApplying = true;
+      try {
+        const resp = await fetch('/api/v1/settings/updates/apply', { method: 'POST' });
+        this.updateResult = await resp.json();
+        if (this.updateResult.success) {
+          toast('Update applied! App is restarting...', 'success');
+          setTimeout(() => { window.location.reload(); }, 5000);
+        } else { toast('Update failed: ' + this.updateResult.message, 'error'); }
+      } catch(e) { toast('Error applying update', 'error'); }
+      this.updateApplying = false;
+    },
+
+    async loadAutoUpdate() {
+      try {
+        const resp = await fetch('/api/v1/settings/updates/schedule');
+        if (resp.ok) this.autoUpdate = await resp.json();
+      } catch(e) {}
+    },
+
+    async saveAutoUpdate() {
+      try {
+        await fetch('/api/v1/settings/updates/schedule', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.autoUpdate),
+        });
+        toast('Auto-update schedule saved', 'success');
+      } catch(e) { toast('Failed to save', 'error'); }
+    },
+
+    // ── SMTP ──
+    async loadSmtp() {
+      try {
+        const resp = await fetch('/api/v1/settings/smtp');
+        if (resp.ok) { const data = await resp.json(); this.smtp = { ...this.smtp, ...data, mail_password: '' }; }
+      } catch(e) {}
+    },
+
+    async saveSmtp() {
+      this.smtpSaving = true;
+      this.smtpMsg = '';
+      try {
+        const payload = { ...this.smtp };
+        if (!payload.mail_password) delete payload.mail_password;
+        const resp = await fetch('/api/v1/settings/smtp', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) { this.smtpMsg = 'SMTP configuration saved'; this.smtpMsgType = 'success'; this.smtp.has_password = true; }
+        else { this.smtpMsg = 'Failed to save'; this.smtpMsgType = 'error'; }
+      } catch(e) { this.smtpMsg = 'Error'; this.smtpMsgType = 'error'; }
+      this.smtpSaving = false;
+    },
+
+    async testSmtp() {
+      this.smtpTesting = true;
+      this.smtpMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/smtp/test', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const data = await resp.json();
+        this.smtpMsg = data.message || data.error || 'Done';
+        this.smtpMsgType = resp.ok ? 'success' : 'error';
+      } catch(e) { this.smtpMsg = 'Failed to send test'; this.smtpMsgType = 'error'; }
+      this.smtpTesting = false;
     },
   };
 }

@@ -40,6 +40,7 @@ def create_app(config_name="default"):
     configure_masri(app)
     configure_security_headers(app)
     _validate_secret_key(app)
+    _load_smtp_from_db(app)
 
     @app.before_request
     def enforce_session_timeout():
@@ -127,6 +128,37 @@ def _validate_secret_key(app):
             app.logger.warning("SECURITY WARNING: %s", msg)
         else:
             raise RuntimeError(msg)
+
+
+def _load_smtp_from_db(app):
+    """Load SMTP settings from ConfigStore if saved (overrides env defaults)."""
+    try:
+        with app.app_context():
+            from app.models import ConfigStore
+            smtp_keys = ["MAIL_SERVER", "MAIL_PORT", "MAIL_USE_TLS", "MAIL_USERNAME", "MAIL_DEFAULT_SENDER"]
+            for key in smtp_keys:
+                record = ConfigStore.find(f"smtp_{key}")
+                if record and record.value:
+                    if key == "MAIL_PORT":
+                        app.config[key] = int(record.value)
+                    elif key == "MAIL_USE_TLS":
+                        app.config[key] = record.value.lower() in ("true", "1", "yes")
+                    else:
+                        app.config[key] = record.value
+
+            # Decrypt password
+            pw_record = ConfigStore.find("smtp_MAIL_PASSWORD")
+            if pw_record and pw_record.value:
+                try:
+                    from app.masri.settings_service import decrypt_value
+                    app.config["MAIL_PASSWORD"] = decrypt_value(pw_record.value)
+                except Exception:
+                    pass
+
+            # Reinitialize Flask-Mail
+            mail.init_app(app)
+    except Exception:
+        pass  # DB may not be ready yet (first boot)
 
 
 def configure_masri(app):
