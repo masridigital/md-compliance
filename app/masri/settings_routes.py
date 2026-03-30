@@ -184,15 +184,19 @@ def update_llm_config():
         return err
     try:
         slot = data.pop("slot", None)
+        if slot is not None:
+            slot = int(slot)
         llm = SettingsService.update_llm_config(data, slot=slot)
         result = llm.as_dict()
         result.pop("api_key", None)
         result.pop("api_key_enc", None)
         return jsonify(result)
     except ValueError as e:
+        logger.warning("LLM config validation error: %s", e)
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        logger.exception("Error updating LLM config")
+        logger.exception("Error updating LLM config: %s", e)
+        db.session.rollback()
         return jsonify({"error": "Failed to update LLM configuration"}), 500
 
 

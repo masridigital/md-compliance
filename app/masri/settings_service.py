@@ -324,13 +324,25 @@ class SettingsService:
         from app.masri.new_models import SettingsLLM
 
         if slot is not None:
-            llm = db.session.execute(
-                db.select(SettingsLLM).filter_by(slot=slot)
-            ).scalars().first()
+            from sqlalchemy import or_
+            # Match by slot, or NULL slot for slot=1 (pre-migration rows)
+            if slot == 1:
+                llm = db.session.execute(
+                    db.select(SettingsLLM).filter(
+                        or_(SettingsLLM.slot == 1, SettingsLLM.slot.is_(None))
+                    )
+                ).scalars().first()
+            else:
+                llm = db.session.execute(
+                    db.select(SettingsLLM).filter_by(slot=slot)
+                ).scalars().first()
             if llm is None:
                 labels = {1: "Primary", 2: "Secondary", 3: "Tertiary"}
                 llm = SettingsLLM(slot=slot, label=labels.get(slot, f"Slot {slot}"))
                 db.session.add(llm)
+            elif llm.slot is None:
+                llm.slot = slot
+                llm.label = llm.label or "Primary"
         else:
             llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
             if llm is None:
