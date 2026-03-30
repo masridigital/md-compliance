@@ -351,3 +351,351 @@ def llm_usage():
     except Exception as e:
         logger.exception("Usage fetch failed")
         return jsonify({"error": "Failed to retrieve usage stats"}), 500
+
+
+# ===========================================================================
+# Auto-Map: Pull integration data and map to controls
+# ===========================================================================
+
+@llm_bp.route("/auto-map", methods=["POST"])
+@limiter.limit("3 per minute")
+@login_required
+def auto_map():
+    """
+    POST /api/v1/llm/auto-map
+
+    Pulls data from all configured integrations (Entra ID, Telivy, etc.)
+    for the given project, then uses the LLM to map findings to controls
+    and auto-populate evidence/notes.
+
+    Body: { "project_id": "<str>" }
+
+    Returns a list of mappings: control_id, suggested_status, evidence_summary, source.
+    """
+    _require_llm()
+    data = request.get_json(silent=True) or {}
+    project_id = data.get("project_id")
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    from app import db
+    from app.models import Project
+
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    tenant_id = project.tenant_id
+    _validate_tenant_access(tenant_id)
+
+    try:
+        # 1. Gather all integration data
+        integration_data = _gather_integration_data(tenant_id)
+
+        # 2. Get all controls for this project
+        controls = []
+        for pc in project.controls.all():
+            ctrl = pc.control
+            if ctrl:
+                controls.append({
+                    "project_control_id": pc.id,
+                    "ref_code": ctrl.ref_code or "",
+                    "name": ctrl.name or "",
+                    "description": ctrl.description or "",
+                    "category": ctrl.category or "",
+                    "review_status": pc.review_status or "not started",
+                })
+
+        if not controls:
+            return jsonify({"error": "Project has no controls", "mappings": []}), 200
+
+        # 3. Send to LLM for mapping
+        from app.masri.llm_service import LLMService
+        import json
+
+        # Chunk controls to avoid token limits (max ~20 at a time)
+        all_mappings = []
+        chunk_size = 15
+        for i in range(0, len(controls), chunk_size):
+            chunk = controls[i:i + chunk_size]
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a compliance automation engine. Given integration data from "
+                        "security tools (Entra ID, vulnerability scanners, etc.) and a list of "
+                        "compliance controls, map each finding to the most relevant control.\n\n"
+                        "Respond with a JSON array of objects:\n"
+                        '[{"project_control_id": "...", "suggested_status": "compliant|partial|non_compliant|not_started", '
+                        '"evidence_summary": "brief description of what the integration data shows for this control", '
+                        '"confidence": 0-100, "source": "entra|telivy|manual", '
+                        '"auto_notes": "detailed notes to add to this control"}]\n\n'
+                        "Only include controls where you found relevant evidence. "
+                        "Be conservative — mark as partial unless evidence is conclusive."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"## Integration Data\n{json.dumps(integration_data, indent=2, default=str)}\n\n"
+                        f"## Controls to Map\n{json.dumps(chunk, indent=2)}"
+                    ),
+                },
+            ]
+
+            result = LLMService.chat(
+                messages=messages,
+                tenant_id=tenant_id,
+                temperature=0.1,
+                max_tokens=4000,
+            )
+
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, list):
+                    all_mappings.extend(parsed)
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("LLM auto-map returned non-JSON for chunk %d", i)
+
+        return jsonify({
+            "project_id": project_id,
+            "mappings": all_mappings,
+            "integration_sources": list(integration_data.keys()),
+            "total_controls": len(controls),
+            "mapped_controls": len(all_mappings),
+        })
+
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception as e:
+        logger.exception("Auto-map failed")
+        return jsonify({"error": "Auto-map failed: " + str(e)}), 500
+
+
+# ===========================================================================
+# Assist Gaps: Identify unmapped controls and suggest actions
+# ===========================================================================
+
+@llm_bp.route("/assist-gaps", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def assist_gaps():
+    """
+    POST /api/v1/llm/assist-gaps
+
+    Analyzes a project's controls, identifies gaps (unmapped, missing evidence,
+    not started), and provides actionable recommendations for each.
+
+    Body: { "project_id": "<str>" }
+    """
+    _require_llm()
+    data = request.get_json(silent=True) or {}
+    project_id = data.get("project_id")
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
+
+    from app import db
+    from app.models import Project
+
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    tenant_id = project.tenant_id
+    _validate_tenant_access(tenant_id)
+
+    try:
+        # Get controls with their current status
+        gap_controls = []
+        for pc in project.controls.all():
+            ctrl = pc.control
+            if ctrl and pc.review_status in ("not started", "not_started", "in progress", "in_progress", None, ""):
+                evidence_count = 0
+                try:
+                    evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
+                except Exception:
+                    pass
+                gap_controls.append({
+                    "project_control_id": pc.id,
+                    "ref_code": ctrl.ref_code or "",
+                    "name": ctrl.name or "",
+                    "description": ctrl.description or "",
+                    "category": ctrl.category or "",
+                    "review_status": pc.review_status or "not started",
+                    "has_evidence": evidence_count > 0,
+                    "notes": pc.notes or "",
+                })
+
+        if not gap_controls:
+            return jsonify({
+                "project_id": project_id,
+                "message": "All controls are complete! No gaps found.",
+                "gaps": [],
+            })
+
+        from app.masri.llm_service import LLMService
+        import json
+
+        # Send gaps to LLM for recommendations
+        all_recommendations = []
+        chunk_size = 10
+        for i in range(0, len(gap_controls), chunk_size):
+            chunk = gap_controls[i:i + chunk_size]
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a compliance consultant. Given a list of compliance controls "
+                        "that have gaps (missing evidence, not started, or in progress), provide "
+                        "specific, actionable recommendations for each.\n\n"
+                        "Respond with a JSON array:\n"
+                        '[{"project_control_id": "...", "priority": "high|medium|low", '
+                        '"recommendation": "specific action to take", '
+                        '"evidence_suggestion": "what evidence to collect", '
+                        '"estimated_effort": "quick|moderate|significant", '
+                        '"policy_needed": true/false, '
+                        '"template_suggestion": "suggested policy/procedure template name if applicable"}]\n\n'
+                        "Be specific and practical. Prioritize high-risk items."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Framework: {project.framework.name if project.framework else 'Unknown'}\n"
+                        f"## Controls with Gaps\n{json.dumps(chunk, indent=2)}"
+                    ),
+                },
+            ]
+
+            result = LLMService.chat(
+                messages=messages,
+                tenant_id=tenant_id,
+                temperature=0.2,
+                max_tokens=4000,
+            )
+
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, list):
+                    all_recommendations.extend(parsed)
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("LLM assist-gaps returned non-JSON for chunk %d", i)
+
+        return jsonify({
+            "project_id": project_id,
+            "total_gaps": len(gap_controls),
+            "recommendations": all_recommendations,
+        })
+
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception as e:
+        logger.exception("Assist gaps failed")
+        return jsonify({"error": "Assist gaps failed: " + str(e)}), 500
+
+
+def _gather_integration_data(tenant_id: str) -> dict:
+    """Collect all available integration data for a tenant."""
+    data = {}
+
+    # Entra ID
+    try:
+        from app.masri.settings_service import SettingsService
+        from app.masri.new_models import SettingsEntra
+        from app import db
+
+        entra = db.session.execute(
+            db.select(SettingsEntra).filter_by(tenant_id=None)
+        ).scalars().first()
+        if entra and entra.is_fully_configured():
+            from app.masri.entra_integration import EntraClient
+            creds = entra.get_credentials()
+            client = EntraClient(
+                tenant_id=creds["entra_tenant_id"],
+                client_id=creds["client_id"],
+                client_secret=creds["client_secret"],
+            )
+            try:
+                users = client.list_users()
+                data["entra_users"] = {"count": len(users), "sample": users[:5] if users else []}
+            except Exception:
+                pass
+            try:
+                mfa = client.get_mfa_status()
+                data["entra_mfa"] = mfa
+            except Exception:
+                pass
+            try:
+                assessment = client.assess_compliance()
+                data["entra_compliance"] = assessment
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("Entra data collection skipped: %s", e)
+
+    # Telivy scans
+    try:
+        from app.masri.telivy_integration import TelivyClient
+        from flask import current_app
+
+        api_key = current_app.config.get("TELIVY_API_KEY")
+        if api_key:
+            client = TelivyClient(api_key=api_key)
+            try:
+                scans = client.list_external_scans()
+                if scans:
+                    data["telivy_scans"] = {
+                        "count": len(scans),
+                        "scans": [
+                            {
+                                "id": s.get("id"),
+                                "org": s.get("assessmentDetails", {}).get("organization_name"),
+                                "score": s.get("securityScore"),
+                                "status": s.get("scanStatus"),
+                            }
+                            for s in scans[:5]
+                        ],
+                    }
+                    # Get findings for the first scan
+                    if scans[0].get("id"):
+                        try:
+                            findings = client.get_scan_findings(scans[0]["id"])
+                            data["telivy_findings"] = {
+                                "count": len(findings) if findings else 0,
+                                "sample": findings[:10] if findings else [],
+                            }
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("Telivy data collection skipped: %s", e)
+
+    # Risk register
+    try:
+        from app import db
+        from app.models import RiskRegister
+
+        risks = db.session.execute(
+            db.select(RiskRegister).filter_by(tenant_id=tenant_id)
+        ).scalars().all()
+        if risks:
+            data["risk_register"] = {
+                "count": len(risks),
+                "risks": [r.as_dict() for r in risks[:10]],
+            }
+    except Exception as e:
+        logger.debug("Risk data collection skipped: %s", e)
+
+    if not data:
+        data["note"] = "No integration data available. Configure Entra ID or Telivy in Integrations."
+
+    return data

@@ -1530,6 +1530,87 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- ═══ AI Actions Panel ═══ -->
+			<div class="col-span-full" x-show="selectedTab === 'summary' && !tabLoading">
+				<div class="card bg-base-200 border border-base-300 mt-4">
+					<div class="card-body">
+						<div class="flex items-center gap-2 mb-3">
+							<i class="ti ti-brain text-2xl text-primary"></i>
+							<h3 class="card-title text-md">AI Compliance Assistant</h3>
+						</div>
+						<p class="text-sm opacity-60 mb-4">Use AI to automatically analyze your integrations data and map findings to controls, or get help filling in gaps.</p>
+						<div class="flex gap-3 flex-wrap">
+							<button class="btn btn-primary btn-sm gap-2" @click="runAutoMap()" :disabled="autoMapRunning">
+								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
+								<i class="ti ti-wand" x-show="!autoMapRunning"></i>
+								Auto-Map Integrations
+							</button>
+							<button class="btn btn-sm btn-outline btn-secondary gap-2" @click="runAssistGaps()" :disabled="assistGapsRunning">
+								<span class="loading loading-spinner loading-xs" x-show="assistGapsRunning"></span>
+								<i class="ti ti-bulb" x-show="!assistGapsRunning"></i>
+								AI Assist — Fill Gaps
+							</button>
+						</div>
+						<!-- Auto-Map Results -->
+						<div x-show="autoMapResults" x-cloak class="mt-4">
+							<div class="divider text-xs">Auto-Map Results</div>
+							<div x-show="autoMapResults && autoMapResults.mapped_controls > 0">
+								<div class="flex justify-between items-center mb-2">
+									<span class="text-sm font-semibold" x-text="autoMapResults.mapped_controls + ' of ' + autoMapResults.total_controls + ' controls mapped'"></span>
+									<button class="btn btn-xs btn-success gap-1" @click="applyAutoMapResults()"><i class="ti ti-check"></i> Apply All</button>
+								</div>
+								<div class="max-h-64 overflow-y-auto space-y-2">
+									<template x-for="m in autoMapResults.mappings" :key="m.project_control_id">
+										<div class="bg-base-300 rounded-lg p-3">
+											<div class="flex justify-between items-start">
+												<div>
+													<span class="text-xs font-semibold" x-text="m.project_control_id"></span>
+													<span class="badge badge-xs ml-2" :class="{'badge-success': m.suggested_status === 'compliant', 'badge-warning': m.suggested_status === 'partial', 'badge-error': m.suggested_status === 'non_compliant'}" x-text="m.suggested_status"></span>
+													<span class="badge badge-xs badge-ghost ml-1" x-text="m.source"></span>
+												</div>
+												<span class="text-xs opacity-50" x-text="m.confidence + '% confidence'"></span>
+											</div>
+											<p class="text-xs opacity-70 mt-1" x-text="m.evidence_summary"></p>
+										</div>
+									</template>
+								</div>
+							</div>
+							<div x-show="autoMapResults && autoMapResults.mapped_controls === 0" class="text-sm opacity-50 text-center py-4">
+								<i class="ti ti-info-circle"></i> No mappings found. Configure integrations first (Entra ID, Telivy).
+							</div>
+						</div>
+						<!-- Assist Gaps Results -->
+						<div x-show="assistGapsResults" x-cloak class="mt-4">
+							<div class="divider text-xs">Gap Analysis & Recommendations</div>
+							<div x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0">
+								<span class="text-sm font-semibold mb-2 block" x-text="assistGapsResults.total_gaps + ' controls need attention'"></span>
+								<div class="max-h-80 overflow-y-auto space-y-2">
+									<template x-for="r in assistGapsResults.recommendations" :key="r.project_control_id">
+										<div class="bg-base-300 rounded-lg p-3">
+											<div class="flex items-center gap-2 mb-1">
+												<span class="badge badge-xs" :class="{'badge-error': r.priority === 'high', 'badge-warning': r.priority === 'medium', 'badge-info': r.priority === 'low'}" x-text="r.priority"></span>
+												<span class="text-xs font-semibold" x-text="r.project_control_id"></span>
+												<span class="badge badge-xs badge-ghost" x-text="r.estimated_effort"></span>
+											</div>
+											<p class="text-xs font-medium" x-text="r.recommendation"></p>
+											<p class="text-xs opacity-60 mt-1"><strong>Evidence needed:</strong> <span x-text="r.evidence_suggestion"></span></p>
+											<div x-show="r.policy_needed" class="text-xs text-warning mt-1">
+												<i class="ti ti-file-text"></i> Policy needed: <span x-text="r.template_suggestion"></span>
+											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+							<div x-show="assistGapsResults && assistGapsResults.message" class="text-sm text-success text-center py-4">
+								<i class="ti ti-check"></i> <span x-text="assistGapsResults.message"></span>
+							</div>
+						</div>
+						<div x-show="aiError" class="text-xs text-error mt-2" x-text="aiError"></div>
+					</div>
+				</div>
+			</div>
+
 			<div class="col-span-full" x-show="selectedTab === 'controls' && !tabLoading">
 				<div x-transition x-show="rowsSelected.length>0" class="grid grid-cols-12 mb-2">
 					<div class="col-span-12 gap-x-2 flex justify-end">
@@ -4366,6 +4447,13 @@ function project(){
 		removingIntegrations: false,
 		removeIntegrationError: null,
 
+		// AI assistant state
+		autoMapRunning: false,
+		autoMapResults: null,
+		assistGapsRunning: false,
+		assistGapsResults: null,
+		aiError: '',
+
 		// vars for controls tab
 		controlFilter: {},
 		controlsFilterOwner: "",
@@ -4549,6 +4637,72 @@ function project(){
 			} finally {
 				this.integrationsLoading = false;
 			}
+		},
+
+		// ── AI Assistant Functions ──
+		async runAutoMap() {
+			this.autoMapRunning = true;
+			this.autoMapResults = null;
+			this.aiError = '';
+			try {
+				const resp = await fetch('/api/v1/llm/auto-map', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ project_id: this.projectId }),
+				});
+				if (!resp.ok) {
+					const err = await resp.json().catch(() => ({}));
+					throw new Error(err.error || `HTTP ${resp.status}`);
+				}
+				this.autoMapResults = await resp.json();
+				toast(`Mapped ${this.autoMapResults.mapped_controls} of ${this.autoMapResults.total_controls} controls`, 'success');
+			} catch (e) {
+				this.aiError = 'Auto-map failed: ' + e.message;
+				toast(this.aiError, 'error');
+			} finally { this.autoMapRunning = false; }
+		},
+
+		async runAssistGaps() {
+			this.assistGapsRunning = true;
+			this.assistGapsResults = null;
+			this.aiError = '';
+			try {
+				const resp = await fetch('/api/v1/llm/assist-gaps', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ project_id: this.projectId }),
+				});
+				if (!resp.ok) {
+					const err = await resp.json().catch(() => ({}));
+					throw new Error(err.error || `HTTP ${resp.status}`);
+				}
+				this.assistGapsResults = await resp.json();
+				const count = this.assistGapsResults.recommendations ? this.assistGapsResults.recommendations.length : 0;
+				toast(`Found ${count} recommendations for ${this.assistGapsResults.total_gaps || 0} gaps`, 'success');
+			} catch (e) {
+				this.aiError = 'Assist failed: ' + e.message;
+				toast(this.aiError, 'error');
+			} finally { this.assistGapsRunning = false; }
+		},
+
+		async applyAutoMapResults() {
+			if (!this.autoMapResults || !this.autoMapResults.mappings) return;
+			let applied = 0;
+			for (const m of this.autoMapResults.mappings) {
+				try {
+					// Update notes
+					if (m.auto_notes || m.evidence_summary) {
+						await fetch(`/api/v1/projects/${this.projectId}/controls/${m.project_control_id}/notes`, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ data: `[AI Auto-Map | ${m.source}] ${m.evidence_summary || ''}\n\n${m.auto_notes || ''}` }),
+						});
+					}
+					applied++;
+				} catch (e) { console.debug('Failed to apply mapping:', m.project_control_id, e); }
+			}
+			toast(`Applied notes to ${applied} controls`, 'success');
+			this.getProject();
 		},
 
 		async loadProjectViolations() {
