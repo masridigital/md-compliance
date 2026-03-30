@@ -46,8 +46,11 @@ def upgrade():
     # LLM multi-slot columns
     if not _column_exists("settings_llm", "slot"):
         op.add_column("settings_llm", sa.Column("slot", sa.Integer(), server_default="1", nullable=True))
+        # Backfill existing rows
+        op.execute(text("UPDATE settings_llm SET slot = 1 WHERE slot IS NULL"))
     if not _column_exists("settings_llm", "label"):
         op.add_column("settings_llm", sa.Column("label", sa.String(), server_default="Primary", nullable=True))
+        op.execute(text("UPDATE settings_llm SET label = 'Primary' WHERE label IS NULL"))
 
 
 def downgrade():

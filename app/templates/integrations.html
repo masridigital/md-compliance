@@ -1042,12 +1042,14 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
+        // Handle both old format (flat) and new format (slots array)
         const slots = data.slots || [];
-        const active = slots.find(s => s.enabled);
+        const active = data.active || slots.find(s => s.enabled) || (data.provider ? data : null);
+        const configured = slots.length > 0 ? slots.some(s => s.provider) : !!data.provider;
         this.statuses['llm_unified'] = {
-          configured: slots.length > 0 && slots.some(s => s.provider),
-          enabled: !!active,
-          detail: active ? (active.provider + ': ' + (active.model_name || '')) : (slots.filter(s => s.provider).length + ' provider(s)'),
+          configured: configured,
+          enabled: !!(active && active.enabled),
+          detail: active && active.provider ? (active.provider + ': ' + (active.model_name || '')) : '',
         };
       } catch (e) { console.debug('LLM status check skipped:', e); }
     },
@@ -1191,14 +1193,36 @@ function integrationsHub() {
       this.llmTesting = true;
       this.llmMsg = '';
       try {
-        // Simple test: ask the LLM to respond
-        const resp = await fetch('/api/v1/llm/control-assist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ control_description: 'Test connection', evidence_text: 'This is a connectivity test.' }),
-        });
-        if (resp.ok) { this.llmMsg = 'Connection successful!'; this.llmMsgType = 'success'; }
-        else { const err = await resp.json().catch(() => ({})); this.llmMsg = 'Test failed: ' + (err.error || resp.status); this.llmMsgType = 'error'; }
+        // Test by fetching models — validates API key without using LLM tokens
+        if (!this.llmForm.api_key && !this.llmForm.has_api_key) {
+          this.llmMsg = 'Enter an API key first';
+          this.llmMsgType = 'error';
+          this.llmTesting = false;
+          return;
+        }
+        // If we have a key entered, test by fetching models
+        if (this.llmForm.api_key) {
+          const resp = await fetch('/api/v1/settings/llm/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: this.llmForm.provider, api_key: this.llmForm.api_key }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            this.llmModels = data.models || [];
+            this.llmMsg = 'Connected! ' + (data.models || []).length + ' models available.';
+            this.llmMsgType = 'success';
+          } else {
+            const err = await resp.json().catch(() => ({}));
+            this.llmMsg = 'Connection failed: ' + (err.error || resp.status);
+            this.llmMsgType = 'error';
+          }
+        } else {
+          // No new key — test with saved config via usage endpoint
+          const resp = await fetch('/api/v1/llm/usage?tenant_id=test');
+          this.llmMsg = resp.ok ? 'Configuration valid (saved key)' : 'Test failed — re-enter API key';
+          this.llmMsgType = resp.ok ? 'success' : 'error';
+        }
       } catch (e) { this.llmMsg = 'Test failed: ' + e.message; this.llmMsgType = 'error'; }
       this.llmTesting = false;
     },

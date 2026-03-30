@@ -282,11 +282,14 @@ class SettingsService:
     def get_active_llm_config():
         """
         Returns the first enabled SettingsLLM record by slot priority (1→2→3), or None.
+        Handles NULL slot values from pre-migration rows.
         """
         from app import db
         from app.masri.new_models import SettingsLLM
+        from sqlalchemy import func
         return db.session.execute(
-            db.select(SettingsLLM).filter_by(enabled=True).order_by(SettingsLLM.slot.asc())
+            db.select(SettingsLLM).filter_by(enabled=True)
+            .order_by(func.coalesce(SettingsLLM.slot, 1).asc())
         ).scalars().first()
 
     @staticmethod
@@ -294,6 +297,17 @@ class SettingsService:
         """Returns all LLM config slots ordered by slot number."""
         from app import db
         from app.masri.new_models import SettingsLLM
+        from sqlalchemy import func
+
+        # Backfill: ensure existing rows without slot get slot=1
+        orphans = db.session.execute(
+            db.select(SettingsLLM).filter(SettingsLLM.slot.is_(None))
+        ).scalars().all()
+        for o in orphans:
+            o.slot = 1
+            o.label = "Primary"
+        if orphans:
+            db.session.commit()
         return db.session.execute(
             db.select(SettingsLLM).order_by(SettingsLLM.slot.asc())
         ).scalars().all()
