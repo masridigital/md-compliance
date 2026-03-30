@@ -543,6 +543,42 @@ def delete_mcp_key(key_id):
 # Entra ID credentials (encrypted at rest)
 # ---------------------------------------------------------------------------
 
+@settings_bp.route("/llm/test", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def test_llm_connection():
+    """POST /api/v1/settings/llm/test — test connection using SAVED key.
+
+    If api_key is provided in body, uses that. Otherwise uses the saved key.
+    """
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    provider = data.get("provider")
+    api_key = data.get("api_key", "").strip()
+
+    # If no key provided, get it from the saved config
+    if not api_key:
+        try:
+            llm = SettingsService.get_active_llm_config()
+            if llm:
+                api_key = llm.get_api_key() or ""
+                if not provider:
+                    provider = llm.provider
+        except Exception:
+            pass
+
+    if not api_key:
+        return jsonify({"error": "No API key configured. Save one first."}), 400
+    if not provider:
+        return jsonify({"error": "No provider configured."}), 400
+
+    try:
+        models = _fetch_models_for_provider(provider, api_key)
+        return jsonify({"message": f"Connected! {len(models)} models available.", "models": models, "provider": provider})
+    except Exception as e:
+        return jsonify({"error": f"Connection failed: {str(e)}"}), 502
+
+
 @settings_bp.route("/llm/models", methods=["POST"])
 @limiter.limit("10 per minute")
 @login_required
@@ -558,8 +594,21 @@ def fetch_llm_models():
     provider = data.get("provider", "").strip()
     api_key = data.get("api_key", "").strip()
 
-    if not provider or not api_key:
-        return jsonify({"error": "provider and api_key are required"}), 400
+    # Fall back to saved key if not provided
+    if not api_key:
+        try:
+            llm = SettingsService.get_active_llm_config()
+            if llm:
+                api_key = llm.get_api_key() or ""
+                if not provider:
+                    provider = llm.provider
+        except Exception:
+            pass
+
+    if not provider:
+        return jsonify({"error": "provider is required"}), 400
+    if not api_key:
+        return jsonify({"error": "No API key configured. Save one first or enter a key."}), 400
 
     try:
         models = _fetch_models_for_provider(provider, api_key)

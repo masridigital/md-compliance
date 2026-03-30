@@ -16,13 +16,15 @@
   @media (max-width: 900px)  { .int-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 600px)  { .int-grid { grid-template-columns: 1fr; } }
 
-  /* Cards */
+  /* Cards — square tiles */
   .int-card {
     border: 1px solid oklch(var(--bc) / .10); border-radius: .75rem;
     padding: 1.25rem; cursor: pointer;
     transition: border-color .15s, box-shadow .15s, transform .1s;
     display: flex; flex-direction: column;
     background: oklch(var(--b2));
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
   }
   .int-card:hover { border-color: oklch(var(--p)); box-shadow: 0 2px 12px oklch(var(--p) / .08); transform: translateY(-2px); }
   .int-card.is-active { border-color: oklch(var(--su)); }
@@ -485,20 +487,21 @@
           </div>
         </template>
 
-        <!-- ═══════ Notifications Config (Unified) ═══════ -->
+        <!-- ═══════ Notifications Config (Unified with channel tabs) ═══════ -->
         <template x-if="selected.id === 'notif_unified'">
           <div>
-            <h4 class="font-semibold text-sm mb-3">Configuration</h4>
+            <!-- Channel Tabs -->
+            <div role="tablist" class="tabs tabs-bordered mb-4">
+              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'email'}" @click="activeNotifChannel = 'email'">Email</button>
+              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'teams_webhook'}" @click="activeNotifChannel = 'teams_webhook'">Teams</button>
+              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'slack_webhook'}" @click="activeNotifChannel = 'slack_webhook'">Slack</button>
+              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'sms'}" @click="activeNotifChannel = 'sms'">SMS</button>
+              <button role="tab" class="tab tab-sm" :class="{'tab-active': activeNotifChannel === 'in_app'}" @click="activeNotifChannel = 'in_app'">In-App</button>
+            </div>
+
             <div class="space-y-3">
-              <!-- Teams / Slack webhook -->
-              <template x-if="selected.channel === 'teams_webhook' || selected.channel === 'slack_webhook'">
-                <div>
-                  <label class="text-xs font-medium block mb-1">Webhook URL</label>
-                  <input type="url" class="input input-bordered input-sm w-full" x-model="notifForm.webhook_url" placeholder="https://hooks.slack.com/... or Teams webhook URL" />
-                </div>
-              </template>
-              <!-- Email SMTP — uses global SMTP config from /api/v1/settings/smtp -->
-              <template x-if="selected.channel === 'email'">
+              <!-- Email SMTP -->
+              <template x-if="activeNotifChannel === 'email'">
                 <div class="space-y-3" x-init="loadSmtpForEmail()">
                   <div class="grid grid-cols-2 gap-2">
                     <div><label class="text-xs font-medium block mb-1">SMTP Server</label><input type="text" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_server" placeholder="smtp.gmail.com" /></div>
@@ -507,14 +510,14 @@
                   <div class="grid grid-cols-2 gap-2">
                     <div><label class="text-xs font-medium block mb-1">Username</label><input type="text" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_username" placeholder="noreply@company.com" /></div>
                     <div><label class="text-xs font-medium block mb-1">Password</label><input type="password" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_password" placeholder="Encrypted at rest" />
-                      <div x-show="smtpForm.has_password" class="text-xs opacity-40 mt-1"><i class="ti ti-lock"></i> Saved. Blank to keep.</div>
+                      <div x-show="smtpForm.has_password" class="text-xs opacity-40 mt-1"><i class="ti ti-lock"></i> Saved. Leave blank to keep.</div>
                     </div>
                   </div>
                   <div><label class="text-xs font-medium block mb-1">From Address</label><input type="email" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_default_sender" placeholder="alerts@yourcompany.com" /></div>
                   <div class="flex gap-2">
                     <button class="btn btn-primary btn-sm gap-1" @click="saveSmtpGlobal()" :disabled="smtpSaving">
                       <span class="loading loading-spinner loading-xs" x-show="smtpSaving"></span>
-                      <i class="ti ti-device-floppy" x-show="!smtpSaving"></i> Save SMTP
+                      <i class="ti ti-device-floppy" x-show="!smtpSaving"></i> Save
                     </button>
                     <button class="btn btn-sm btn-outline gap-1" @click="testSmtpGlobal()" :disabled="smtpTesting">
                       <span class="loading loading-spinner loading-xs" x-show="smtpTesting"></span>
@@ -524,34 +527,59 @@
                   <div x-show="smtpMsg" class="text-xs" :class="smtpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="smtpMsg"></div>
                 </div>
               </template>
+              <!-- Teams webhook -->
+              <template x-if="activeNotifChannel === 'teams_webhook'">
+                <div class="space-y-3">
+                  <div><label class="text-xs font-medium block mb-1">Webhook URL</label><input type="url" class="input input-bordered input-sm w-full" x-model="notifForm.webhook_url" placeholder="https://outlook.office.com/webhook/..." /></div>
+                </div>
+              </template>
+              <!-- Slack webhook -->
+              <template x-if="activeNotifChannel === 'slack_webhook'">
+                <div class="space-y-3">
+                  <div><label class="text-xs font-medium block mb-1">Webhook URL</label><input type="url" class="input input-bordered input-sm w-full" x-model="notifForm.webhook_url" placeholder="https://hooks.slack.com/services/..." /></div>
+                </div>
+              </template>
               <!-- SMS / Twilio -->
-              <template x-if="selected.channel === 'sms'">
+              <template x-if="activeNotifChannel === 'sms'">
                 <div class="space-y-3">
                   <div><label class="text-xs font-medium block mb-1">Twilio Account SID</label><input type="text" class="input input-bordered input-sm w-full" x-model="notifForm.account_sid" /></div>
                   <div><label class="text-xs font-medium block mb-1">Auth Token</label><input type="password" class="input input-bordered input-sm w-full" x-model="notifForm.auth_token" placeholder="Encrypted at rest" /></div>
                   <div><label class="text-xs font-medium block mb-1">From Number</label><input type="text" class="input input-bordered input-sm w-full" x-model="notifForm.from_number" placeholder="+15551234567" /></div>
                 </div>
               </template>
-              <!-- In-app (no config needed) -->
-              <template x-if="selected.channel === 'in_app'">
-                <div class="text-xs opacity-60">In-app notifications require no additional configuration.</div>
+              <!-- In-app -->
+              <template x-if="activeNotifChannel === 'in_app'">
+                <div class="text-xs opacity-60 py-4">In-app notifications are automatic. No configuration needed.</div>
               </template>
-              <!-- Severity toggles -->
-              <div class="pt-2">
-                <label class="text-xs font-semibold block mb-2">Alert Severity Levels</label>
-                <div class="flex gap-4">
-                  <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.critical_enabled" /> Critical</label>
-                  <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.high_enabled" /> High</label>
-                  <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.medium_enabled" /> Medium</label>
-                  <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.low_enabled" /> Low</label>
+
+              <!-- Save for non-email channels -->
+              <template x-if="activeNotifChannel !== 'email' && activeNotifChannel !== 'in_app'">
+                <div>
+                  <div class="pt-2">
+                    <label class="text-xs font-semibold block mb-2">Severity Routing</label>
+                    <div class="flex gap-4">
+                      <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.critical_enabled" /> Critical</label>
+                      <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.high_enabled" /> High</label>
+                      <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.medium_enabled" /> Medium</label>
+                      <label class="flex items-center gap-1 text-xs"><input type="checkbox" class="checkbox checkbox-xs" x-model="notifForm.low_enabled" /> Low</label>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 pt-2">
+                    <input type="checkbox" class="toggle toggle-sm toggle-success" x-model="notifForm.enabled" />
+                    <span class="text-xs" x-text="notifForm.enabled ? 'Enabled' : 'Disabled'"></span>
+                  </div>
+                  <div class="flex gap-2 pt-2">
+                    <button class="btn btn-primary btn-sm gap-1" @click="saveNotificationChannel()" :disabled="notifSaving">
+                      <span class="loading loading-spinner loading-xs" x-show="notifSaving"></span>
+                      <i class="ti ti-device-floppy" x-show="!notifSaving"></i> Save
+                    </button>
+                  </div>
+                  <div x-show="notifMsg" class="text-xs" :class="notifMsgType === 'error' ? 'text-error' : 'text-success'" x-text="notifMsg"></div>
                 </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" class="toggle toggle-sm toggle-success" x-model="notifForm.enabled" />
-                <span class="text-xs" x-text="notifForm.enabled ? 'Enabled' : 'Disabled'"></span>
-              </div>
-              <div class="flex gap-2 pt-2">
-                <button class="btn btn-primary btn-sm gap-1" @click="saveNotification()" :disabled="notifSaving">
+              </template>
+            </div>
+          </div>
+        </template>
                   <span class="loading loading-spinner loading-xs" x-show="notifSaving"></span>
                   <i class="ti ti-device-floppy" x-show="!notifSaving"></i>
                   Save
@@ -938,6 +966,7 @@ function integrationsHub() {
 
     // Notification form state
     notifForm: { webhook_url: '', smtp_host: '', smtp_port: 587, smtp_username: '', smtp_password: '', from_address: '', account_sid: '', auth_token: '', from_number: '', enabled: false, critical_enabled: true, high_enabled: true, medium_enabled: true, low_enabled: false },
+    activeNotifChannel: 'email',
     notifSaving: false,
     notifMsg: '',
     notifMsgType: '',
@@ -1054,7 +1083,14 @@ function integrationsHub() {
         const q = this.search.toLowerCase();
         items = items.filter(i => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || i.category.includes(q));
       }
-      return items;
+      // Sort: active first, then configured, then unconfigured
+      return items.sort((a, b) => {
+        const sa = this.getStatus(a.id);
+        const sb = this.getStatus(b.id);
+        const scoreA = (sa.enabled ? 2 : 0) + (sa.configured ? 1 : 0);
+        const scoreB = (sb.enabled ? 2 : 0) + (sb.configured ? 1 : 0);
+        return scoreB - scoreA;
+      });
     },
 
     filteredByCategory(catId) {
@@ -1086,8 +1122,10 @@ function integrationsHub() {
       this.ssoMsg = '';
 
       // Pre-populate notification form
-      if (item.category === 'notifications') {
+      if (item.id === 'notif_unified') {
+        this.activeNotifChannel = 'email';
         this.notifForm = { webhook_url: '', smtp_host: '', smtp_port: 587, smtp_username: '', smtp_password: '', from_address: '', account_sid: '', auth_token: '', from_number: '', enabled: false, critical_enabled: true, high_enabled: true, medium_enabled: true, low_enabled: false };
+        this.notifMsg = '';
       }
 
       // Pre-populate storage form
@@ -1165,16 +1203,19 @@ function integrationsHub() {
         const data = await resp.json();
         const providers = Array.isArray(data) ? data : (data.providers || []);
         let enabledCount = 0;
+        let configuredCount = 0;
         let defaultName = '';
         for (const p of providers) {
-          this.storageProviderStatus[p.provider] = !!p.enabled;
-          if (p.enabled) enabledCount++;
+          const isEnabled = !!p.enabled;
+          this.storageProviderStatus[p.provider] = isEnabled;
+          if (isEnabled) enabledCount++;
+          if (p.provider && (p.config_enc || p.bucket || p.account_name || p.site_url || p.domain || p.base_path)) configuredCount++;
           if (p.is_default) defaultName = p.provider;
         }
         this.statuses['storage_unified'] = {
-          configured: enabledCount > 0,
+          configured: configuredCount > 0,
           enabled: enabledCount > 0,
-          detail: enabledCount > 0 ? enabledCount + ' provider(s)' + (defaultName ? ', default: ' + defaultName : '') : '',
+          detail: enabledCount > 0 ? enabledCount + ' active' + (defaultName ? ', default: ' + defaultName : '') : (configuredCount > 0 ? configuredCount + ' configured but disabled' : ''),
         };
       } catch (e) { console.debug('Storage status check skipped:', e); }
     },
@@ -1304,49 +1345,39 @@ function integrationsHub() {
       this.llmTesting = true;
       this.llmMsg = '';
       try {
-        // Test by fetching models — validates API key without using LLM tokens
-        if (!this.llmForm.api_key && !this.llmForm.has_api_key) {
-          this.llmMsg = 'Enter an API key first';
-          this.llmMsgType = 'error';
-          this.llmTesting = false;
-          return;
-        }
-        // If we have a key entered, test by fetching models
-        if (this.llmForm.api_key) {
-          const resp = await fetch('/api/v1/settings/llm/models', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider: this.llmForm.provider, api_key: this.llmForm.api_key }),
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            this.llmModels = data.models || [];
-            this.llmMsg = 'Connected! ' + (data.models || []).length + ' models available.';
-            this.llmMsgType = 'success';
-          } else {
-            const err = await resp.json().catch(() => ({}));
-            this.llmMsg = 'Connection failed: ' + (err.error || resp.status);
-            this.llmMsgType = 'error';
-          }
+        // Uses saved key if no new key entered — backend handles fallback
+        const payload = { provider: this.llmForm.provider };
+        if (this.llmForm.api_key) payload.api_key = this.llmForm.api_key;
+        const resp = await fetch('/api/v1/settings/llm/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          this.llmModels = data.models || [];
+          this.llmMsg = data.message || 'Connected!';
+          this.llmMsgType = 'success';
         } else {
-          // No new key — test with saved config via usage endpoint
-          const resp = await fetch('/api/v1/llm/usage?tenant_id=test');
-          this.llmMsg = resp.ok ? 'Configuration valid (saved key)' : 'Test failed — re-enter API key';
-          this.llmMsgType = resp.ok ? 'success' : 'error';
+          this.llmMsg = data.error || 'Test failed';
+          this.llmMsgType = 'error';
         }
       } catch (e) { this.llmMsg = 'Test failed: ' + e.message; this.llmMsgType = 'error'; }
       this.llmTesting = false;
     },
 
     async fetchLlmModels() {
-      if (!this.llmForm.api_key) return;
+      if (!this.llmForm.api_key && !this.llmForm.has_api_key) { this.llmMsg = 'Save an API key first'; this.llmMsgType = 'error'; return; }
       this.llmModelsFetching = true;
       this.llmModels = [];
       try {
+        // Uses saved key if no new key entered
+        const payload = { provider: this.llmForm.provider };
+        if (this.llmForm.api_key) payload.api_key = this.llmForm.api_key;
         const resp = await fetch('/api/v1/settings/llm/models', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: this.llmForm.provider, api_key: this.llmForm.api_key }),
+          body: JSON.stringify(payload),
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
         const data = await resp.json();
@@ -1570,14 +1601,13 @@ function integrationsHub() {
 
     // ── Notifications Config ──
 
-    async saveNotification() {
+    async saveNotificationChannel() {
       this.notifSaving = true;
       this.notifMsg = '';
       try {
-        const channel = this.selected.channel;
+        const channel = this.activeNotifChannel;
         const config = {};
         if (channel === 'teams_webhook' || channel === 'slack_webhook') config.webhook_url = this.notifForm.webhook_url;
-        if (channel === 'email') { config.smtp_host = this.notifForm.smtp_host; config.smtp_port = this.notifForm.smtp_port; config.smtp_username = this.notifForm.smtp_username; if (this.notifForm.smtp_password) config.smtp_password = this.notifForm.smtp_password; config.from_address = this.notifForm.from_address; }
         if (channel === 'sms') { config.account_sid = this.notifForm.account_sid; if (this.notifForm.auth_token) config.auth_token = this.notifForm.auth_token; config.from_number = this.notifForm.from_number; }
         const payload = { enabled: this.notifForm.enabled, critical_enabled: this.notifForm.critical_enabled, high_enabled: this.notifForm.high_enabled, medium_enabled: this.notifForm.medium_enabled, low_enabled: this.notifForm.low_enabled, config };
         const resp = await fetch('/api/v1/settings/notifications/' + channel, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
