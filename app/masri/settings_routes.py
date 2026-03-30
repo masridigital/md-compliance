@@ -423,7 +423,7 @@ def create_mcp_key():
     expires_at = data.get("expires_at")
 
     try:
-        key_instance, raw_key = MCPAPIKey.generate(
+        key_instance, client_id, client_secret = MCPAPIKey.generate(
             name=name,
             user_id=current_user.id,
             tenant_id=tenant_id,
@@ -434,7 +434,9 @@ def create_mcp_key():
         db.session.commit()
 
         response = key_instance.as_dict()
-        response["raw_key"] = raw_key
+        response["client_id"] = client_id
+        response["client_secret"] = client_secret
+        response["raw_key"] = client_secret  # backward compat
         return jsonify(response), 201
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

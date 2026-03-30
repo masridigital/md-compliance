@@ -961,37 +961,49 @@ def oauth_token():
     client_id = data.get("client_id", "")
     client_secret = data.get("client_secret", "")
 
-    if not client_secret:
-        # Try HTTP Basic auth
+    if not client_id and not client_secret:
+        # Try HTTP Basic auth (username=client_id, password=client_secret)
         auth = request.authorization
         if auth:
             client_id = auth.username or ""
             client_secret = auth.password or ""
 
-    if not client_secret:
+    if not client_id and not client_secret:
         return jsonify({
             "error": "invalid_client",
-            "error_description": "client_secret is required. Use your MCP API key as the client_secret."
+            "error_description": "client_id and client_secret are required. Generate credentials in Integrations > MCP Server."
         }), 401
 
-    # Validate the API key (client_secret IS the raw API key)
-    key_record = MCPAPIKey.validate(client_secret)
+    # Validate: look up by client_id first, then verify client_secret
+    key_record = None
+    if client_id and client_secret:
+        # Standard OAuth: validate client_id matches, then verify secret hash
+        key_record = MCPAPIKey.find_by_client_id(client_id)
+        if key_record:
+            # Verify the secret matches
+            expected_hash = hashlib.sha256(client_secret.encode()).hexdigest()
+            if key_record.key_hash != expected_hash:
+                key_record = None
+    elif client_secret:
+        # Legacy: secret-only auth (backward compat)
+        key_record = MCPAPIKey.validate(client_secret)
+
     if key_record is None:
         return jsonify({
             "error": "invalid_client",
-            "error_description": "Invalid API key. Generate one in Settings > Integrations > MCP Server."
+            "error_description": "Invalid credentials. Check your client_id and client_secret."
         }), 401
 
     if not key_record.enabled:
         return jsonify({
             "error": "invalid_client",
-            "error_description": "API key is disabled."
+            "error_description": "Credential is disabled."
         }), 401
 
     if key_record.expires_at and datetime.utcnow() > key_record.expires_at:
         return jsonify({
             "error": "invalid_client",
-            "error_description": "API key has expired."
+            "error_description": "Credential has expired."
         }), 401
 
     # Issue access token

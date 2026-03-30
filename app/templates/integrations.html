@@ -343,13 +343,24 @@
               </button>
             </div>
 
-            <!-- Show newly created key (once) -->
+            <!-- Show newly created credential (once) -->
             <div x-show="mcpNewRawKey" class="finding-card mb-4 border border-success/30">
-              <div class="text-xs text-warning font-semibold mb-1"><i class="ti ti-alert-triangle"></i> Copy this credential now — it won't be shown again</div>
-              <div class="text-xs opacity-60 mb-2">Use this as your <code class="bg-base-300 px-1 rounded">client_secret</code> when connecting your LLM.</div>
-              <div class="flex gap-2 items-center">
-                <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewRawKey"></code>
-                <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button>
+              <div class="text-xs text-warning font-semibold mb-2"><i class="ti ti-alert-triangle"></i> Copy these credentials now — they won't be shown again</div>
+              <div class="space-y-2">
+                <div>
+                  <div class="text-xs font-semibold mb-1">Client ID</div>
+                  <div class="flex gap-2 items-center">
+                    <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewClientId"></code>
+                    <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewClientId); toast('Client ID copied!', 'success')"><i class="ti ti-copy"></i></button>
+                  </div>
+                </div>
+                <div>
+                  <div class="text-xs font-semibold mb-1">Client Secret</div>
+                  <div class="flex gap-2 items-center">
+                    <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewRawKey"></code>
+                    <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Secret copied!', 'success')"><i class="ti ti-copy"></i></button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -360,7 +371,8 @@
                   <div>
                     <div class="text-xs font-semibold" x-text="key.name"></div>
                     <div class="text-xs opacity-50">
-                      <span x-text="key.key_prefix + '...'"></span> ·
+                      <span x-show="key.client_id" class="font-mono" x-text="'ID: ' + (key.client_id || '').substring(0, 16) + '...'"></span>
+                      <span x-show="!key.client_id" x-text="key.key_prefix + '...'"></span> ·
                       <span x-text="key.enabled ? 'Active' : 'Revoked'" :class="key.enabled ? 'text-success' : 'text-error'"></span>
                       <span x-show="key.last_used_at"> · Last used <span x-text="new Date(key.last_used_at).toLocaleDateString()"></span></span>
                     </div>
@@ -758,6 +770,7 @@ function integrationsHub() {
     // MCP state
     mcpKeys: [],
     mcpNewKeyName: '',
+    mcpNewClientId: '',
     mcpNewRawKey: '',
     mcpSaving: false,
     mcpMsg: '',
@@ -892,6 +905,7 @@ function integrationsHub() {
 
       // Load MCP keys
       if (item.id === 'mcp') {
+        this.mcpNewClientId = '';
         this.mcpNewRawKey = '';
         this.mcpNewKeyName = '';
         this.mcpMsg = '';
@@ -1291,7 +1305,8 @@ function integrationsHub() {
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
         const data = await resp.json();
-        this.mcpNewRawKey = data.raw_key || data.key || '';
+        this.mcpNewClientId = data.client_id || '';
+        this.mcpNewRawKey = data.client_secret || data.raw_key || data.key || '';
         this.mcpNewKeyName = '';
         this.mcpMsg = 'Key created';
         this.mcpMsgType = 'success';

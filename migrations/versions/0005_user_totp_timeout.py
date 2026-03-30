@@ -39,8 +39,14 @@ def upgrade():
     if not _column_exists("users", "session_timeout_minutes"):
         op.add_column("users", sa.Column("session_timeout_minutes", sa.Integer(), nullable=True))
 
+    # MCP OAuth client_id column
+    if not _column_exists("mcp_api_keys", "client_id"):
+        op.add_column("mcp_api_keys", sa.Column("client_id", sa.String(), nullable=True, unique=True))
+
 
 def downgrade():
+    if _column_exists("mcp_api_keys", "client_id"):
+        op.drop_column("mcp_api_keys", "client_id")
     if _column_exists("users", "session_timeout_minutes"):
         op.drop_column("users", "session_timeout_minutes")
     if _column_exists("users", "totp_enabled"):

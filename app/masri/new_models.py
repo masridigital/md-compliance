@@ -691,7 +691,8 @@ class MCPAPIKey(db.Model):
         unique=True,
     )
     name = db.Column(db.String, nullable=False)
-    key_hash = db.Column(db.String, nullable=False)  # SHA-256 hex
+    client_id = db.Column(db.String, unique=True)  # OAuth client_id
+    key_hash = db.Column(db.String, nullable=False)  # SHA-256 hex of client_secret
     key_prefix = db.Column(db.String(8))  # first 8 chars shown in UI
     tenant_id = db.Column(
         db.String, db.ForeignKey("tenants.id"), nullable=True
@@ -710,17 +711,19 @@ class MCPAPIKey(db.Model):
     def generate(cls, name: str, user_id: str, tenant_id: str = None,
                  scopes: list = None, expires_at=None):
         """
-        Generate a new MCP API key.
+        Generate a new MCP OAuth credential (client_id + client_secret).
 
         Returns:
-            tuple[MCPAPIKey, str]: Model instance and the raw key (shown once).
+            tuple[MCPAPIKey, str, str]: Model instance, client_id, client_secret (raw key shown once).
         """
-        raw_key = f"mcp_{secrets.token_urlsafe(64)}"
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        key_prefix = raw_key[:8]
+        client_id = f"mcp_cid_{secrets.token_urlsafe(16)}"
+        client_secret = f"mcp_{secrets.token_urlsafe(64)}"
+        key_hash = hashlib.sha256(client_secret.encode()).hexdigest()
+        key_prefix = client_secret[:8]
 
         instance = cls(
             name=name,
+            client_id=client_id,
             key_hash=key_hash,
             key_prefix=key_prefix,
             tenant_id=tenant_id,
@@ -728,7 +731,16 @@ class MCPAPIKey(db.Model):
             scopes_json=json.dumps(scopes) if scopes else None,
             expires_at=expires_at,
         )
-        return instance, raw_key
+        return instance, client_id, client_secret
+
+    @classmethod
+    def find_by_client_id(cls, cid: str):
+        """Find an MCPAPIKey by client_id."""
+        if not cid:
+            return None
+        return db.session.execute(
+            db.select(cls).filter_by(client_id=cid, enabled=True)
+        ).scalars().first()
 
     @classmethod
     def validate(cls, raw_key: str):
