@@ -563,6 +563,36 @@ def delete_mcp_key(key_id):
 # Entra ID credentials (encrypted at rest)
 # ---------------------------------------------------------------------------
 
+@settings_bp.route("/telivy/mappings", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_telivy_mappings():
+    """GET /api/v1/settings/telivy/mappings — get scan-to-tenant mappings."""
+    _require_admin()
+    try:
+        from app.models import ConfigStore
+        import json
+        record = ConfigStore.find("telivy_scan_mappings")
+        if record and record.value:
+            return jsonify(json.loads(record.value))
+        return jsonify({})
+    except Exception:
+        return jsonify({})
+
+
+@settings_bp.route("/telivy/mappings", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_telivy_mappings():
+    """PUT /api/v1/settings/telivy/mappings — save scan-to-tenant mappings."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    data = request.get_json(silent=True) or {}
+    ConfigStore.upsert("telivy_scan_mappings", json.dumps(data))
+    return jsonify({"message": "Mappings saved"})
+
+
 @settings_bp.route("/llm/features", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required

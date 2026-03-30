@@ -655,19 +655,56 @@ def _gather_integration_data(tenant_id: str) -> dict:
     except Exception as e:
         logger.debug("Entra data collection skipped: %s", e)
 
-    # Telivy scans
+    # Telivy scans — get API key from DB or env, filter by tenant mapping
     try:
-        from app.masri.telivy_integration import TelivyClient
         from flask import current_app
 
-        api_key = current_app.config.get("TELIVY_API_KEY")
+        # Get Telivy API key — use same method as telivy_routes._get_telivy_client()
+        api_key = None
+        try:
+            from app import db as _db
+            result = _db.session.execute(
+                _db.text("SELECT config_enc FROM settings_storage WHERE provider = 'telivy' LIMIT 1")
+            ).scalar()
+            if result:
+                from app.masri.settings_service import decrypt_value
+                config = json.loads(decrypt_value(result))
+                api_key = config.get("api_key")
+        except Exception:
+            pass
+        if not api_key:
+            api_key = current_app.config.get("TELIVY_API_KEY")
+
         if api_key:
+            from app.masri.telivy_integration import TelivyClient
             client = TelivyClient(api_key=api_key)
+
+            # Get scan-to-tenant mappings from DB
+            mapped_scan_ids = set()
+            try:
+                from app.models import ConfigStore
+                import json as _json
+                mapping_record = ConfigStore.find("telivy_scan_mappings")
+                if mapping_record and mapping_record.value:
+                    mappings = _json.loads(mapping_record.value)
+                    # Find scans mapped to THIS tenant
+                    for scan_id, mapped_tid in mappings.items():
+                        if mapped_tid == tenant_id:
+                            mapped_scan_ids.add(scan_id)
+            except Exception:
+                pass
+
             try:
                 scans = client.list_external_scans()
-                if scans:
+                # Filter to only scans mapped to this tenant (or all if no mappings)
+                if mapped_scan_ids:
+                    tenant_scans = [s for s in scans if s.get("id") in mapped_scan_ids]
+                else:
+                    tenant_scans = scans[:3]  # Fallback: use first 3
+
+                if tenant_scans:
                     data["telivy_scans"] = {
-                        "count": len(scans),
+                        "count": len(tenant_scans),
                         "scans": [
                             {
                                 "id": s.get("id"),
@@ -675,21 +712,26 @@ def _gather_integration_data(tenant_id: str) -> dict:
                                 "score": s.get("securityScore"),
                                 "status": s.get("scanStatus"),
                             }
-                            for s in scans[:5]
+                            for s in tenant_scans
                         ],
                     }
-                    # Get findings for the first scan
-                    if scans[0].get("id"):
-                        try:
-                            findings = client.get_scan_findings(scans[0]["id"])
-                            data["telivy_findings"] = {
-                                "count": len(findings) if findings else 0,
-                                "sample": findings[:10] if findings else [],
-                            }
-                        except Exception:
-                            pass
-            except Exception:
-                pass
+                    # Get findings for all mapped scans
+                    all_findings = []
+                    for s in tenant_scans[:3]:
+                        if s.get("id"):
+                            try:
+                                findings = client.get_scan_findings(s["id"])
+                                if findings:
+                                    all_findings.extend(findings[:10])
+                            except Exception:
+                                pass
+                    if all_findings:
+                        data["telivy_findings"] = {
+                            "count": len(all_findings),
+                            "findings": all_findings[:20],
+                        }
+            except Exception as e:
+                logger.debug("Telivy scan fetch failed: %s", e)
     except Exception as e:
         logger.debug("Telivy data collection skipped: %s", e)
 
