@@ -1,51 +1,158 @@
 {% extends "layouts/sidebar-nav.html" %}
 
-{%block page_header_title%}Settings{%endblock%}
+{%block page_header_title%}Platform Settings{%endblock%}
 {%block page_header_title_border%}{%endblock%}
 
 {%block content%}
-<div class="mt-10 sm:mt-0">
-  <div class="md:grid md:grid-cols-3 md:gap-6">
-    <div class="mt-5 col-span-3">
-      <form action="{{url_for("main.settings")}}" method="POST">
-        <div class="border border-base-200 sm:rounded-md">
-          <div class="px-4 py-5 sm:p-6">
-            <div class="grid grid-cols-6 gap-6">
-              <div class="col-span-6 sm:col-span-3">
-                <label for="name" class="block text-sm font-medium ">Name</label>
-                <input type="text" value="not implemented" name="name" id="name" autocomplete="given-name" class="mt-1 input-md border border-base-300 block w-full shadow-sm sm:text-sm rounded-md">
-                <p class="mt-2 text-sm ">The display name of your tenant</p>
-              </div>
+<div x-data="platformSettings()" x-init="load()" class="max-w-3xl">
 
-              <div class="col-span-6 sm:col-span-4">
-                <label for="email" class="block text-sm font-medium ">Contact email address</label>
-                <input type="text" value="not implemented" name="email" id="email" autocomplete="email" class="mt-1 input-md border border-base-300 block w-full shadow-sm sm:text-sm rounded-md">
-                <p class="mt-2 text-sm ">The email for notifications</p>
-              </div>
+  <!-- Loading -->
+  <div x-show="loading" class="flex justify-center py-12">
+    <span class="loading loading-spinner loading-lg"></span>
+  </div>
 
-              <div class="col-span-6 sm:col-span-3">
-                <label for="country" class="block text-sm font-medium ">License</label>
-                <select id="country" name="country" autocomplete="country-name" class="mt-1 input-md border border-base-300 block w-full py-2 px-3 rounded-md shadow-sm focus:outline-none sm:text-sm" disabled>
-                  <option>Basic</option>
-                  <option>Pro</option>
-                </select>
-                <p class="mt-2 text-sm ">The license type (NOT IMPLEMENTED)</p>
-              </div>
-            </div>
+  <div x-show="!loading" x-cloak>
+
+    <!-- Branding Section -->
+    <div class="mb-8">
+      <h2 class="text-lg font-semibold mb-1">Branding</h2>
+      <p class="text-sm opacity-60 mb-4">Customize the platform name, colors, and login page for your organization.</p>
+
+      <div class="border border-base-200 rounded-lg p-6 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium block mb-1">Platform Name</label>
+            <input type="text" class="input input-bordered input-sm w-full" x-model="form.app_name" placeholder="MD Compliance" />
           </div>
-          <div class="px-4 py-3 text-right sm:px-6">
-            <button type="submit" class="btn btn-primary" disabled>Save</button>
+          <div>
+            <label class="text-sm font-medium block mb-1">Subtitle</label>
+            <input type="text" class="input input-bordered input-sm w-full" x-model="form.app_subtitle" placeholder="Information Security for CPA & Law Firms" />
           </div>
         </div>
-      </form>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium block mb-1">Primary Color</label>
+            <div class="flex gap-2 items-center">
+              <input type="color" class="w-10 h-10 rounded cursor-pointer" x-model="form.primary_color" />
+              <input type="text" class="input input-bordered input-sm flex-1" x-model="form.primary_color" placeholder="#0066CC" />
+            </div>
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Support Email</label>
+            <input type="email" class="input input-bordered input-sm w-full" x-model="form.support_email" placeholder="support@yourcompany.com" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium block mb-1">Logo URL</label>
+            <input type="url" class="input input-bordered input-sm w-full" x-model="form.logo_url" placeholder="https://yourcompany.com/logo.png" />
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Favicon URL</label>
+            <input type="url" class="input input-bordered input-sm w-full" x-model="form.favicon_url" placeholder="https://yourcompany.com/favicon.ico" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium block mb-1">Footer Text</label>
+          <input type="text" class="input input-bordered input-sm w-full" x-model="form.footer_text" placeholder="Powered by Masri Digital" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Login Page Section -->
+    <div class="mb-8">
+      <h2 class="text-lg font-semibold mb-1">Login Page</h2>
+      <p class="text-sm opacity-60 mb-4">Customize the login page appearance for white-labeling.</p>
+
+      <div class="border border-base-200 rounded-lg p-6 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="text-sm font-medium block mb-1">Login Headline</label>
+            <input type="text" class="input input-bordered input-sm w-full" x-model="form.login_headline" placeholder="Compliance, simplified." />
+          </div>
+          <div>
+            <label class="text-sm font-medium block mb-1">Login Subheadline</label>
+            <input type="text" class="input input-bordered input-sm w-full" x-model="form.login_subheadline" placeholder="Protecting your firm's data." />
+          </div>
+        </div>
+        <div>
+          <label class="text-sm font-medium block mb-1">Login Background Color</label>
+          <div class="flex gap-2 items-center">
+            <input type="color" class="w-10 h-10 rounded cursor-pointer" x-model="form.login_bg_color" />
+            <input type="text" class="input input-bordered input-sm w-32" x-model="form.login_bg_color" placeholder="#F5F5F7" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="flex items-center gap-4">
+      <button class="btn btn-primary btn-sm gap-2" @click="save()" :disabled="saving">
+        <span class="loading loading-spinner loading-xs" x-show="saving"></span>
+        <i class="ti ti-device-floppy" x-show="!saving"></i>
+        Save Settings
+      </button>
+      <span x-show="msg" class="text-sm" :class="msgType === 'error' ? 'text-error' : 'text-success'" x-text="msg"></span>
     </div>
   </div>
+
 </div>
 {%endblock%}
 
 {%block extrajs%}
 <script>
-  function loadSettings() {
-  }
+function platformSettings() {
+  return {
+    loading: true,
+    saving: false,
+    msg: '',
+    msgType: '',
+    form: {
+      app_name: '', app_subtitle: '', logo_url: '', favicon_url: '',
+      primary_color: '#0066CC', support_email: '', support_phone: '',
+      login_headline: '', login_subheadline: '', login_bg_color: '#F5F5F7',
+      footer_text: '', show_powered_by: true,
+    },
+
+    async load() {
+      try {
+        const resp = await fetch('/api/v1/settings/platform');
+        if (resp.ok) {
+          const data = await resp.json();
+          for (const key of Object.keys(this.form)) {
+            if (data[key] !== null && data[key] !== undefined) {
+              this.form[key] = data[key];
+            }
+          }
+        }
+      } catch (e) { console.debug('Settings load failed:', e); }
+      this.loading = false;
+    },
+
+    async save() {
+      this.saving = true; this.msg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/platform', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.form),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || err.message || `HTTP ${resp.status}`);
+        }
+        this.msg = 'Settings saved successfully';
+        this.msgType = 'success';
+      } catch (e) {
+        this.msg = e.message;
+        this.msgType = 'error';
+      }
+      this.saving = false;
+    },
+  };
+}
 </script>
 {%endblock%}
