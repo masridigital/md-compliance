@@ -1319,7 +1319,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
 
         tenant = Tenant(
             owner_id=user.id,
-            name=name.lower(),
+            name=name,
             contact_email=email,
             approved_domains=approved_domains,
             is_default=is_default,
