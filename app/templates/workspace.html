@@ -321,6 +321,16 @@
                     <div class="card-title text-sm" x-text="fw.name"></div>
                   </div>
                   <p class="text-xs opacity-60" x-text="fw.description || ''"></p>
+                  <!-- Subtype dropdown for frameworks with variants (e.g. FTC Safeguards) -->
+                  <template x-if="fw._subtypes && fw._subtypes.length > 1">
+                    <div class="mt-2" @click.stop>
+                      <select class="select select-xs select-bordered w-full" x-model="fw._selectedSubtype">
+                        <template x-for="st in fw._subtypes" :key="st.value">
+                          <option :value="st.value" x-text="st.label"></option>
+                        </template>
+                      </select>
+                    </div>
+                  </template>
                   <button x-show="selectedFw && selectedFw.id === fw.id" @click="createProject()" class="btn btn-sm btn-success mt-2" :class="{'btn-disabled': creatingProj}">
                     <span class="loading loading-spinner loading-xs" x-show="creatingProj"></span> Get Started
                   </button>
@@ -506,7 +516,26 @@ function workspaceHub() {
     async loadFrameworks(tid) {
       try {
         const resp = await fetch(`/api/v1/tenants/${tid}/frameworks`);
-        if (resp.ok) this.frameworks = (await resp.json()).map(f => ({ ...f, name: f.name.toUpperCase() }));
+        if (!resp.ok) return;
+        const raw = (await resp.json()).map(f => ({ ...f, name: f.name.toUpperCase() }));
+        // Merge FTC_SAFEGUARDS variants into one entry with subtypes
+        const ftcVariants = raw.filter(f => f.name.startsWith('FTC_SAFEGUARDS'));
+        const others = raw.filter(f => !f.name.startsWith('FTC_SAFEGUARDS'));
+        if (ftcVariants.length > 0) {
+          const subtypes = ftcVariants.map(f => {
+            const suffix = f.name.replace('FTC_SAFEGUARDS_', '').replace('FTC_SAFEGUARDS', 'CORE');
+            const labels = { 'CORE': 'Standard', 'TAX_PREPARER': 'Tax Preparer', 'MORTGAGE': 'Mortgage' };
+            return { value: f.name, label: labels[suffix] || suffix, id: f.id, description: f.description };
+          });
+          others.push({
+            id: ftcVariants[0].id,
+            name: 'FTC_SAFEGUARDS',
+            description: 'FTC Safeguards Rule — select the niche version for your industry.',
+            _subtypes: subtypes,
+            _selectedSubtype: subtypes[0].value,
+          });
+        }
+        this.frameworks = others;
       } catch(e) {}
     },
 
@@ -584,7 +613,9 @@ function workspaceHub() {
       if (!this.selectedFw) return;
       this.creatingProj = true;
       try {
-        const payload = { name: this.selectedFw.name, description: '', framework: this.selectedFw.name };
+        // Use subtype name if available (e.g. FTC_SAFEGUARDS_MORTGAGE)
+        const fwName = this.selectedFw._selectedSubtype || this.selectedFw.name;
+        const payload = { name: fwName, description: '', framework: fwName };
         if (this.selectedFw.name === 'SOC2') payload.criteria = { security: true, availability: false, confidentiality: false, integrity: false, privacy: false };
         const resp = await fetch(`/api/v1/tenants/${this.selected.id}/projects`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (resp.ok) {

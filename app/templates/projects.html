@@ -202,8 +202,16 @@
                                                     <div class="card-title" x-text="framework.name"></div>
                                                 </div>
                                                 <p x-text="framework.description"></p>
-                                                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-sm btn-success">Get Started</button>
-
+                                                <template x-if="framework._subtypes && framework._subtypes.length > 1">
+                                                    <div class="mt-2" @click.stop>
+                                                        <select class="select select-xs select-bordered w-full" x-model="framework._selectedSubtype">
+                                                            <template x-for="st in framework._subtypes" :key="st.value">
+                                                                <option :value="st.value" x-text="st.label"></option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                </template>
+                                                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-sm btn-success mt-2">Get Started</button>
                                             </div>
                                         </div>
                                     </div>
@@ -399,9 +407,10 @@ function table(){
             toast("Framework is required", "error")
             return
           }
-          // Auto-name project from framework
-          this.formData.name = this.selectedFramework.name;
-          this.formData.framework = this.selectedFramework.name;
+          // Auto-name project from framework (use subtype if available)
+          const fwName = this.selectedFramework._selectedSubtype || this.selectedFramework.name;
+          this.formData.name = fwName;
+          this.formData.framework = fwName;
           if (this.formData.framework === "SOC2") {
             this.formData.criteria.security = true;
           } else {
@@ -573,10 +582,19 @@ function table(){
           request("GET",
             `/api/v1/tenants/${tid}/frameworks`,
             data => {
-                this.frameworks = data.map(item => ({
-                  ...item,
-                  name: item.name.toUpperCase()
-                }));
+                const raw = data.map(item => ({ ...item, name: item.name.toUpperCase() }));
+                // Merge FTC_SAFEGUARDS variants
+                const ftc = raw.filter(f => f.name.startsWith('FTC_SAFEGUARDS'));
+                const others = raw.filter(f => !f.name.startsWith('FTC_SAFEGUARDS'));
+                if (ftc.length > 0) {
+                  const subtypes = ftc.map(f => {
+                    const suffix = f.name.replace('FTC_SAFEGUARDS_', '').replace('FTC_SAFEGUARDS', 'CORE');
+                    const labels = { 'CORE': 'Standard', 'TAX_PREPARER': 'Tax Preparer', 'MORTGAGE': 'Mortgage' };
+                    return { value: f.name, label: labels[suffix] || suffix };
+                  });
+                  others.push({ id: ftc[0].id, name: 'FTC_SAFEGUARDS', description: 'FTC Safeguards Rule — choose your industry niche.', _subtypes: subtypes, _selectedSubtype: subtypes[0].value });
+                }
+                this.frameworks = others;
             },
             error => {
               toast(error.message, "error");
