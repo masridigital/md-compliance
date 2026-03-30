@@ -70,7 +70,7 @@
     <!-- Client-side inactivity auto-logout -->
     <script>
     (function() {
-      var timeoutMinutes = {{ config.SESSION_TIMEOUT_MINUTES | default(5) }};
+      var timeoutMinutes = {{ config.SESSION_TIMEOUT_MINUTES | default(30) }};
       var timeoutMs = timeoutMinutes * 60 * 1000;
       var timer;
       function resetTimer() {

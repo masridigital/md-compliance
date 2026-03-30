@@ -44,58 +44,51 @@ def create_app(config_name="default"):
     @app.before_request
     def enforce_session_timeout():
         """
-        Enforce session timeout (inactivity) and server-reboot logout.
+        Enforce inactivity-based session timeout.
 
-        - Makes all sessions permanent so PERMANENT_SESSION_LIFETIME applies
-        - Checks a server boot stamp — if the session was created before the
-          current boot, force logout (handles server restarts/updates)
-        - Updates last_activity timestamp on every request
+        Only logs out users who have been INACTIVE (no requests) for
+        longer than the configured timeout. Every request resets the
+        inactivity timer. Default timeout is 30 minutes.
         """
-        from flask import session
         from flask_login import current_user, logout_user
         from datetime import datetime, timedelta
 
         session.permanent = True
 
-        # Skip for static files and auth routes
-        if request.endpoint and (
-            request.endpoint.startswith("static")
-            or request.endpoint in (
-                "auth.get_login", "auth.login", "auth.get_register",
-                "auth.get_verify_totp", "auth.verify_totp",
-            )
+        # Skip for static files, auth routes, and API calls that shouldn't reset timer
+        if not request.endpoint or request.endpoint.startswith("static"):
+            return
+        if request.endpoint in (
+            "auth.get_login", "auth.login", "auth.get_register",
+            "auth.get_verify_totp", "auth.verify_totp", "auth.logout",
         ):
             return
 
-        if current_user and current_user.is_authenticated:
-            # Server reboot check — invalidate sessions from before this boot
-            boot_stamp = app.config.get("SERVER_BOOT_STAMP", "")
-            session_stamp = session.get("_server_stamp", "")
-            if boot_stamp and session_stamp and session_stamp != boot_stamp:
-                logout_user()
-                session.clear()
-                return redirect(url_for("auth.get_login"))
+        if not (current_user and current_user.is_authenticated):
+            return
 
-            # Set server stamp on new sessions
-            if not session.get("_server_stamp"):
-                session["_server_stamp"] = boot_stamp
-
-            # Inactivity check
-            last_activity = session.get("_last_activity")
-            timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 5)
-
-            # Per-user timeout override — check session cache first, then DB
+        # Determine timeout (default 30 min)
+        timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 30)
+        try:
             user_timeout = session.get("_user_timeout_minutes")
-            if not user_timeout and hasattr(current_user, 'session_timeout_minutes') and current_user.session_timeout_minutes:
-                user_timeout = current_user.session_timeout_minutes
-                session["_user_timeout_minutes"] = user_timeout
+            if not user_timeout:
+                db_timeout = getattr(current_user, 'session_timeout_minutes', None)
+                if db_timeout:
+                    user_timeout = db_timeout
+                    session["_user_timeout_minutes"] = user_timeout
             if user_timeout:
                 timeout_minutes = int(user_timeout)
+        except Exception:
+            pass
 
-            if last_activity:
-                try:
-                    last_dt = datetime.fromisoformat(last_activity)
-                    if datetime.utcnow() - last_dt > timedelta(minutes=timeout_minutes):
+        # Check inactivity — only if we have a previous timestamp
+        last_activity = session.get("_last_activity")
+        if last_activity:
+            try:
+                last_dt = datetime.fromisoformat(last_activity)
+                idle = datetime.utcnow() - last_dt
+                if idle > timedelta(minutes=timeout_minutes):
+                    try:
                         from app.models import Logs
                         Logs.add(
                             message=f"{current_user.email} session timed out ({timeout_minutes}min inactivity)",
@@ -103,13 +96,16 @@ def create_app(config_name="default"):
                             namespace="auth",
                             user_id=current_user.id,
                         )
-                        logout_user()
-                        session.clear()
-                        return redirect(url_for("auth.get_login"))
-                except (ValueError, TypeError):
-                    pass
+                    except Exception:
+                        pass
+                    logout_user()
+                    session.clear()
+                    return redirect(url_for("auth.get_login"))
+            except (ValueError, TypeError):
+                pass
 
-            session["_last_activity"] = datetime.utcnow().isoformat()
+        # Update activity timestamp on EVERY request (this is what resets the timer)
+        session["_last_activity"] = datetime.utcnow().isoformat()
 
     return app
 
