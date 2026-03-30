@@ -37,9 +37,18 @@ llm_bp = Blueprint("llm_bp", __name__, url_prefix="/api/v1/llm")
 
 
 def _require_llm():
-    """Abort 403 if LLM is not enabled."""
-    if not current_app.config.get("LLM_ENABLED"):
-        abort(403, description="LLM features are not enabled")
+    """Abort 403 if LLM is not enabled and not configured."""
+    # Check env/config flag first
+    if current_app.config.get("LLM_ENABLED"):
+        return
+    # Also check if there's an active LLM config in the database
+    try:
+        from app.masri.llm_service import LLMService
+        if LLMService.is_enabled():
+            return
+    except Exception:
+        pass
+    abort(403, description="LLM features are not enabled. Configure an AI provider in Integrations.")
 
 
 @llm_bp.route("/control-assist", methods=["POST"])
