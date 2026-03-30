@@ -67,6 +67,24 @@
       }
     </style>
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <!-- Client-side inactivity auto-logout -->
+    <script>
+    (function() {
+      var timeoutMinutes = {{ config.SESSION_TIMEOUT_MINUTES | default(5) }};
+      var timeoutMs = timeoutMinutes * 60 * 1000;
+      var timer;
+      function resetTimer() {
+        clearTimeout(timer);
+        timer = setTimeout(function() {
+          window.location.href = '/auth/logout';
+        }, timeoutMs);
+      }
+      ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart', 'click'].forEach(function(evt) {
+        document.addEventListener(evt, resetTimer, { passive: true });
+      });
+      resetTimer();
+    })();
+    </script>
     <style>
       [x-cloak] { display: none !important; }
     </style>

@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail
 from config import config
@@ -41,11 +41,62 @@ def create_app(config_name="default"):
     configure_security_headers(app)
     _validate_secret_key(app)
 
-    """
     @app.before_request
-    def before_request():
-        pass
-    """
+    def enforce_session_timeout():
+        """
+        Enforce session timeout (inactivity) and server-reboot logout.
+
+        - Makes all sessions permanent so PERMANENT_SESSION_LIFETIME applies
+        - Checks a server boot stamp — if the session was created before the
+          current boot, force logout (handles server restarts/updates)
+        - Updates last_activity timestamp on every request
+        """
+        from flask import session
+        from flask_login import current_user, logout_user
+        from datetime import datetime, timedelta
+
+        session.permanent = True
+
+        # Skip for static files and auth routes
+        if request.endpoint and (
+            request.endpoint.startswith("static")
+            or request.endpoint in ("auth.get_login", "auth.login", "auth.get_register")
+        ):
+            return
+
+        if current_user and current_user.is_authenticated:
+            # Server reboot check — invalidate sessions from before this boot
+            boot_stamp = app.config.get("SERVER_BOOT_STAMP", "")
+            session_stamp = session.get("_server_stamp", "")
+            if boot_stamp and session_stamp and session_stamp != boot_stamp:
+                logout_user()
+                session.clear()
+                return redirect(url_for("auth.get_login"))
+
+            # Set server stamp on new sessions
+            if not session.get("_server_stamp"):
+                session["_server_stamp"] = boot_stamp
+
+            # Inactivity check
+            last_activity = session.get("_last_activity")
+            timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 5)
+
+            # Per-user timeout override (stored in session by profile settings)
+            user_timeout = session.get("_user_timeout_minutes")
+            if user_timeout:
+                timeout_minutes = int(user_timeout)
+
+            if last_activity:
+                try:
+                    last_dt = datetime.fromisoformat(last_activity)
+                    if datetime.utcnow() - last_dt > timedelta(minutes=timeout_minutes):
+                        logout_user()
+                        session.clear()
+                        return redirect(url_for("auth.get_login"))
+                except (ValueError, TypeError):
+                    pass
+
+            session["_last_activity"] = datetime.utcnow().isoformat()
 
     return app
 
