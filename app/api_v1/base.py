@@ -476,7 +476,19 @@ def get_labels_for_tenant(tid):
 @login_required
 def get_logs():
     Authorizer(current_user).can_user_manage_platform()
-    return jsonify(models.Logs.get(as_dict=True, limit=500))
+    # Support query filters
+    kwargs = {"as_dict": True, "limit": int(request.args.get("limit", 500))}
+    if request.args.get("user_id"):
+        kwargs["user_id"] = request.args.get("user_id")
+    if request.args.get("tenant_id"):
+        kwargs["tenant_id"] = request.args.get("tenant_id")
+    if request.args.get("namespace"):
+        kwargs["namespace"] = request.args.get("namespace")
+    if request.args.get("action"):
+        kwargs["action"] = request.args.get("action")
+    if request.args.get("level"):
+        kwargs["level"] = [request.args.get("level")]
+    return jsonify(models.Logs.get(**kwargs))
 
 
 @api.route("/tenants/<string:id>/logs")

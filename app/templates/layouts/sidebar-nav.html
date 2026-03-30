@@ -200,6 +200,12 @@
           </li>
           {%if current_user.super%}
           <li class="mb-4">
+            <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/logs">
+              <span><i class="ti ti-history text-2xl"></i></span>
+              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Logs</span>
+            </a>
+          </li>
+          <li class="mb-4">
             <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/admin/settings">
               <span><i class="ti ti-settings text-2xl"></i></span>
               <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Settings</span>

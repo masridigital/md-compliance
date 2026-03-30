@@ -90,6 +90,13 @@ def create_app(config_name="default"):
                 try:
                     last_dt = datetime.fromisoformat(last_activity)
                     if datetime.utcnow() - last_dt > timedelta(minutes=timeout_minutes):
+                        from app.models import Logs
+                        Logs.add(
+                            message=f"{current_user.email} session timed out ({timeout_minutes}min inactivity)",
+                            action="LOGOUT",
+                            namespace="auth",
+                            user_id=current_user.id,
+                        )
                         logout_user()
                         session.clear()
                         return redirect(url_for("auth.get_login"))

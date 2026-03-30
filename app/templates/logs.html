@@ -7,30 +7,105 @@
 {{ macro.filehelper(grid=True) }}
 {% endblock %}
 
-{%block page_header_title%}Logs{%endblock%}
-{%block page_header_title_border%}{%endblock%}
-{%block page_header_buttons%}{%endblock%}
-{%block tenant_btn%}{%endblock%}
+{%block page_header%}{%endblock%}
 
 {%block content%}
-<div x-data="table()" class="grid grid-cols-6 gap-4 mt-2">
-    <div class="col-span-6">
-        <div class="card bg-base-100 border border-base-300">
-            <div class="card-body">
-                <div class="flex justify-between align-items-center">
-                    <h2 class="card-title mb-4">Logs</h2>
-                    <div class="space-x-2 flex">
-                        <button class="btn btn-sm capitalize tooltip"
-                                @click="exportCSV" data-tip="CSV Export"><i class="ti ti-download"></i></button>
-                        <button class="btn btn-sm capitalize tooltip"
-                                @click="getItems" data-tip="Refresh table"><i class="ti ti-refresh"></i></button>
-                    </div>
+<div x-data="logViewer()">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-semibold">Activity Logs</h1>
+        <div class="flex gap-2">
+            <button class="btn btn-sm btn-ghost border border-base-300 tooltip" @click="exportCSV()" data-tip="CSV Export"><i class="ti ti-download"></i></button>
+            <button class="btn btn-sm btn-ghost border border-base-300 tooltip" @click="getItems()" data-tip="Refresh"><i class="ti ti-refresh"></i></button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body p-4">
+            <div class="flex gap-3 flex-wrap items-end">
+                <div>
+                    <label class="text-xs font-medium block mb-1">Event Type</label>
+                    <select class="select select-sm select-bordered w-40" x-model="filters.action" @change="getItems()">
+                        <option value="">All Events</option>
+                        <option value="LOGIN">Login</option>
+                        <option value="LOGOUT">Logout</option>
+                        <option value="GET">View</option>
+                        <option value="POST">Create</option>
+                        <option value="PUT">Update</option>
+                        <option value="DELETE">Delete</option>
+                    </select>
                 </div>
-                <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms
-                     x-transition:leave.duration.100ms x-html="loadingSkeleton"></div>
-                <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms
-                     x-transition:leave.duration.500ms></div>
+                <div>
+                    <label class="text-xs font-medium block mb-1">Namespace</label>
+                    <select class="select select-sm select-bordered w-40" x-model="filters.namespace" @change="getItems()">
+                        <option value="">All</option>
+                        <option value="auth">Authentication</option>
+                        <option value="general">General</option>
+                        <option value="system">System</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium block mb-1">Severity</label>
+                    <select class="select select-sm select-bordered w-32" x-model="filters.level" @change="getItems()">
+                        <option value="">All</option>
+                        <option value="INFO">Info</option>
+                        <option value="WARNING">Warning</option>
+                        <option value="ERROR">Error</option>
+                        <option value="CRITICAL">Critical</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium block mb-1">Tenant</label>
+                    <select class="select select-sm select-bordered w-44 capitalize" x-model="filters.tenant_id" @change="getItems()">
+                        <option value="">All Tenants</option>
+                        <template x-for="t in tenants" :key="t.id">
+                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium block mb-1">Rows</label>
+                    <select class="select select-sm select-bordered w-24" x-model="filters.limit" @change="getItems()">
+                        <option value="100">100</option>
+                        <option value="500" selected>500</option>
+                        <option value="1000">1000</option>
+                        <option value="5000">5000</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm btn-ghost" @click="clearFilters()">
+                    <i class="ti ti-x mr-1"></i> Clear
+                </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="stat bg-base-200 rounded-lg p-3">
+            <div class="stat-title text-xs">Total Events</div>
+            <div class="stat-value text-lg" x-text="items.length"></div>
+        </div>
+        <div class="stat bg-base-200 rounded-lg p-3">
+            <div class="stat-title text-xs">Errors</div>
+            <div class="stat-value text-lg text-error" x-text="items.filter(i => i.level === 'ERROR' || i.level === 'CRITICAL').length"></div>
+        </div>
+        <div class="stat bg-base-200 rounded-lg p-3">
+            <div class="stat-title text-xs">Logins</div>
+            <div class="stat-value text-lg text-success" x-text="items.filter(i => i.action === 'LOGIN').length"></div>
+        </div>
+        <div class="stat bg-base-200 rounded-lg p-3">
+            <div class="stat-title text-xs">Warnings</div>
+            <div class="stat-value text-lg text-warning" x-text="items.filter(i => i.level === 'WARNING').length"></div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card bg-base-200 border border-base-300">
+        <div class="card-body">
+            <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms
+                 x-transition:leave.duration.100ms><span class="loading loading-dots loading-lg"></span></div>
+            <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms
+                 x-transition:leave.duration.500ms></div>
         </div>
     </div>
 </div>
@@ -38,113 +113,94 @@
 
 {%block extrajs%}
 <script>
-function table(){
+function logViewer(){
     return {
         init() {
-          this.$watch(
-            "items", (newValue, oldValue) => {
-                this.drawTable({"selector": "#table_1", "tableData":newValue})
+          this.$watch("items", (newValue) => {
+              this.drawTable({"selector": "#table_1", "tableData": newValue})
           })
-
+          this.loadTenants()
           this.getItems()
         },
-        loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
         loading: true,
-        showDeleteModal: false,
-        showModal: false,
-        buttonDisabled: false,
-        selectedItem: {},
-        tableHeaders: [
-          {"field": "namespace", "headerName": "Namespace", "width": 100, "filter": "agTextColumnFilter"},
-          {"field": "level", "headerName": "Type", "width": 100, "filter": "agTextColumnFilter"},
-          {"field": "action", "headerName": "Action", "width": 100, "filter": "agTextColumnFilter"},
-          {"field": "message", "headerName": "Message", "filter": "agTextColumnFilter"},
-          {"field": "date_added", "headerName": "Created At", "filter": "agTextColumnFilter", "modal": {"disable": true}}
-        ],
-        openModal(item) {
-          this.selectedItem = item;
-          this.showModal = true;
-        },
         items: [],
-        exportCSV: function() {
-          this.table.exportDataAsCsv();
+        tenants: [],
+        filters: {
+            action: '',
+            namespace: '',
+            level: '',
+            tenant_id: '',
+            limit: '500',
         },
-        drawTable: function({ selector = null, tableData = null, formatter = null }) {
-          var data = tableData;
-          var columns = [];
-
-          gridOptions = {
+        tableHeaders: [
+          {"field": "date_added", "headerName": "Time", "width": 170, "filter": "agTextColumnFilter", "sort": "desc"},
+          {"field": "level", "headerName": "Level", "width": 90, "filter": "agTextColumnFilter",
+            "cellRenderer": (params) => {
+              const colors = { 'INFO': 'badge-info', 'WARNING': 'badge-warning', 'ERROR': 'badge-error', 'CRITICAL': 'badge-error', 'DEBUG': 'badge-ghost' };
+              return `<span class="badge badge-xs ${colors[params.value] || 'badge-ghost'}">${params.value || 'INFO'}</span>`;
+            }
+          },
+          {"field": "action", "headerName": "Event", "width": 100, "filter": "agTextColumnFilter",
+            "cellRenderer": (params) => {
+              const icons = { 'LOGIN': 'ti-login text-success', 'LOGOUT': 'ti-logout text-warning', 'GET': 'ti-eye', 'POST': 'ti-plus text-info', 'PUT': 'ti-edit text-primary', 'DELETE': 'ti-trash text-error' };
+              const icon = icons[params.value] || 'ti-arrow-right';
+              return `<span class="flex items-center gap-1 text-xs"><i class="ti ${icon}"></i> ${params.value || ''}</span>`;
+            }
+          },
+          {"field": "namespace", "headerName": "Scope", "width": 100, "filter": "agTextColumnFilter", "cellClass": "capitalize"},
+          {"field": "user_email", "headerName": "User", "width": 180, "filter": "agTextColumnFilter"},
+          {"field": "tenant_name", "headerName": "Tenant", "width": 130, "filter": "agTextColumnFilter", "cellClass": "capitalize"},
+          {"field": "message", "headerName": "Message", "flex": 1, "filter": "agTextColumnFilter"},
+          {"field": "success", "headerName": "", "width": 50, "cellRenderer": (params) => params.value ? '<i class="ti ti-check text-success"></i>' : '<i class="ti ti-x text-error"></i>'},
+        ],
+        loadTenants() {
+          request("GET", "/api/v1/tenants",
+            data => { this.tenants = data || []; },
+            error => {}
+          );
+        },
+        clearFilters() {
+          this.filters = { action: '', namespace: '', level: '', tenant_id: '', limit: '500' };
+          this.getItems();
+        },
+        getItems() {
+          this.loading = true;
+          const params = new URLSearchParams();
+          if (this.filters.action) params.set('action', this.filters.action);
+          if (this.filters.namespace) params.set('namespace', this.filters.namespace);
+          if (this.filters.level) params.set('level', this.filters.level);
+          if (this.filters.tenant_id) params.set('tenant_id', this.filters.tenant_id);
+          params.set('limit', this.filters.limit);
+          request("GET",
+            `/api/v1/logs?${params.toString()}`,
+            data => { this.items = data; this.loading = false; },
+            error => { toast(error.message, "error"); this.loading = false; }
+          );
+        },
+        exportCSV() { if (this.table) this.table.exportDataAsCsv(); },
+        drawTable({ selector, tableData }) {
+          const gridOptions = {
             pagination: true,
-            paginationPageSize: 25,
+            paginationPageSize: 50,
             domLayout: "autoHeight",
             suppressMenuHide: true,
             suppressHorizontalScroll: true,
-            enableCellTextSelection:true,
+            enableCellTextSelection: true,
             suppressFieldDotNotation: true,
             onGridReady: (params) => {
               params.api.sizeColumnsToFit();
               this.loading = false;
-              window.onresize = () => {
-                this.loading = true;
-                params.api.sizeColumnsToFit();
-                this.loading = false;
-              }
+              window.onresize = () => { params.api.sizeColumnsToFit(); }
             },
-            autoSizeStrategy: {
-              type: 'fitGridWidth',
-              defaultMinWidth: 50,
-            }
+            autoSizeStrategy: { type: 'fitGridWidth', defaultMinWidth: 50 }
           }
           const gridElement = document.querySelector(selector);
-          if (this.table) {
-            this.table.destroy();
-          }
-
-          gridOptions.rowData = this.formattedTable(tableData);
-          gridOptions.columnDefs = this.tableHeaders
-
-          gridOptions.onRowDoubleClicked = (row) => {
-            selectedItem = this.items.find(obj => obj.id === row.data.id);
-            this.openModal(selectedItem)
-          },
-
+          if (this.table) this.table.destroy();
+          gridOptions.rowData = tableData;
+          gridOptions.columnDefs = this.tableHeaders;
           this.table = agGrid.createGrid(gridElement, gridOptions);
-
         },
-        formattedTable: function(data) {
-          var filteredData = [];
-          var keysToExtract = this.tableHeaders.map(header => header.field)
-
-          data.forEach((row) => {
-            var filteredRow = {};
-            keysToExtract.forEach(key => {
-              /*
-              if (row.name === "Limit unsuccessful logon") {
-                row.name = `<button class='btn btn-sm' @click='alert(1)' x-text='${this.controls.length}'></button>`
-              }*/
-
-              filteredRow[key] = row[key];
-            });
-            filteredData.push(filteredRow);
-          });
-
-          return filteredData
-        },
-        getItems: function() {
-          this.loading = true,
-          request("GET",
-            `/api/v1/logs`,
-            data => {
-              this.items = data;
-              this.loading = false;
-            },
-            error => {
-              toast(error.message, "error");
-            }
-          );
-        }
     }
 }
-
 </script>
 {%endblock%}

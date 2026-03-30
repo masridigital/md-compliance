@@ -9,6 +9,12 @@ def custom_login(user):
         user.login_count = (user.login_count or 0) + 1
         db.session.commit()
         login_user(user)
+        Logs.add(
+            message=f"{user.email} logged in",
+            action="LOGIN",
+            namespace="auth",
+            user_id=user.id,
+        )
 
 
 def validate_token_in_header(enc_token):

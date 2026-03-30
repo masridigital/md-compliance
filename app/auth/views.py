@@ -42,6 +42,14 @@ def post_login():
 
 @auth.route("/logout")
 def logout():
+    from app.models import Logs
+    if current_user and current_user.is_authenticated:
+        Logs.add(
+            message=f"{current_user.email} logged out",
+            action="LOGOUT",
+            namespace="auth",
+            user_id=current_user.id,
+        )
     logout_user()
     flash("You are logged out", "success")
     return redirect(url_for("auth.get_login"))
