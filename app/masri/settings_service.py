@@ -303,7 +303,7 @@ class SettingsService:
             db.session.add(llm)
 
         safe_fields = {"provider", "model_name", "azure_endpoint",
-                        "azure_deployment", "ollama_base_url", "enabled",
+                        "azure_deployment", "enabled",
                         "token_budget_per_tenant", "rate_limit_per_hour"}
         for key, value in data.items():
             if key in safe_fields:

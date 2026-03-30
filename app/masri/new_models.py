@@ -203,7 +203,7 @@ class SettingsLLM(db.Model):
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-    VALID_PROVIDERS = ["openai", "anthropic", "azure_openai", "ollama"]
+    VALID_PROVIDERS = ["openai", "anthropic", "azure_openai", "together"]
 
     @validates("provider")
     def _validate_provider(self, key, value):

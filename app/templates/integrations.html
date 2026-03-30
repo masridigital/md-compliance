@@ -103,13 +103,66 @@
 
         <p class="text-sm opacity-70 mb-6" x-text="selected.description"></p>
 
-        <!-- Configure Button (links to Settings) -->
-        <div class="mb-6" x-show="selected.settingsSection">
-          <a :href="'/settings#' + selected.settingsSection" class="btn btn-primary btn-sm gap-2">
-            <i class="ti ti-settings"></i>
-            Configure in Settings
-          </a>
-        </div>
+        <!-- ═══════ LLM Provider Config Form ═══════ -->
+        <template x-if="selected.category === 'llm'">
+          <div>
+            <h4 class="font-semibold text-sm mb-3">Configuration</h4>
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-medium block mb-1">Provider</label>
+                <select class="select select-bordered select-sm w-full" x-model="llmForm.provider">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="azure_openai">Azure OpenAI</option>
+                  <option value="together">Together AI</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">API Key</label>
+                <input type="password" class="input input-bordered input-sm w-full" x-model="llmForm.api_key" placeholder="Enter API key (encrypted at rest)" />
+                <div x-show="getStatus(selected.id).configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Existing key stored encrypted. Leave blank to keep current.</div>
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">Model Name</label>
+                <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : llmForm.provider === 'together' ? 'meta-llama/Llama-3-70b-chat-hf' : 'gpt-4o'" />
+              </div>
+              <template x-if="llmForm.provider === 'azure_openai'">
+                <div class="space-y-3">
+                  <div>
+                    <label class="text-xs font-medium block mb-1">Azure Endpoint</label>
+                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_endpoint" placeholder="https://your-resource.openai.azure.com" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium block mb-1">Azure Deployment</label>
+                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.azure_deployment" placeholder="your-deployment-name" />
+                  </div>
+                </div>
+              </template>
+              <div class="flex items-center gap-2">
+                <input type="checkbox" class="toggle toggle-sm toggle-success" x-model="llmForm.enabled" />
+                <span class="text-xs" x-text="llmForm.enabled ? 'Enabled' : 'Disabled'"></span>
+              </div>
+              <div class="flex gap-2 pt-2">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveLlm()" :disabled="llmSaving">
+                  <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
+                  <i class="ti ti-device-floppy" x-show="!llmSaving"></i>
+                  Save
+                </button>
+              </div>
+              <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ═══════ Generic "not yet configurable" for other categories ═══════ -->
+        <template x-if="selected.category !== 'llm' && selected.category !== 'identity'">
+          <div>
+            <a :href="'/settings#' + (selected.settingsSection || '')" class="btn btn-primary btn-sm gap-2" x-show="selected.settingsSection">
+              <i class="ti ti-settings"></i>
+              Configure in Settings
+            </a>
+          </div>
+        </template>
 
         <!-- ═══════ Entra ID Special Actions ═══════ -->
         <template x-if="selected.id === 'entra'">
@@ -247,6 +300,12 @@ function integrationsHub() {
     selected: null,
     statuses: {},
 
+    // LLM form state
+    llmForm: { provider: 'openai', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false },
+    llmSaving: false,
+    llmMsg: '',
+    llmMsgType: '',
+
     // Entra state
     entraLoading: { test: false, users: false, mfa: false, assess: false },
     entraResults: { test: null, users: null, mfa: null, assess: null },
@@ -255,6 +314,7 @@ function integrationsHub() {
     categories: [
       { id: 'identity',      label: 'Identity & Access',     icon: 'ti-shield-check' },
       { id: 'llm',           label: 'AI / LLM Providers',    icon: 'ti-brain' },
+      { id: 'mcp',           label: 'MCP Server',            icon: 'ti-plug-connected' },
       { id: 'storage',       label: 'Storage Providers',     icon: 'ti-database' },
       { id: 'notifications', label: 'Notifications',         icon: 'ti-bell' },
       { id: 'sso',           label: 'Single Sign-On (SSO)',  icon: 'ti-login' },
@@ -269,6 +329,9 @@ function integrationsHub() {
       { id: 'anthropic',    category: 'llm', name: 'Anthropic',     icon: 'ti-brain',         description: 'Claude models for document analysis, risk assessment, and policy generation.', provider: 'anthropic', settingsSection: 'llm' },
       { id: 'azure_openai', category: 'llm', name: 'Azure OpenAI',  icon: 'ti-brand-azure',   description: 'Azure-hosted OpenAI models with enterprise data residency and compliance.', provider: 'azure_openai', settingsSection: 'llm' },
       { id: 'ollama',       category: 'llm', name: 'Ollama',        icon: 'ti-server',        description: 'Self-hosted open-source models for air-gapped or on-premises environments.', provider: 'ollama', settingsSection: 'llm' },
+
+      // MCP Server
+      { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Model Context Protocol server exposing compliance tools (frameworks, controls, risks, assessments) to AI assistants and external systems via API keys.' },
 
       // Storage
       { id: 'local',      category: 'storage', name: 'Local Storage',     icon: 'ti-folder',         description: 'Store evidence and documents on the server filesystem.', provider: 'local', settingsSection: 'storage' },
@@ -323,8 +386,21 @@ function integrationsHub() {
     openDrawer(item) {
       this.selected = item;
       this.drawerOpen = true;
+      this.llmMsg = '';
       this.entraResults = { test: null, users: null, mfa: null, assess: null };
       this.entraError = null;
+
+      // Pre-populate LLM form if opening an LLM card
+      if (item.category === 'llm') {
+        this.llmForm.provider = item.provider || 'openai';
+        this.llmForm.api_key = '';
+        this.llmForm.model_name = '';
+        this.llmForm.azure_endpoint = '';
+        this.llmForm.azure_deployment = '';
+        this.llmForm.enabled = false;
+        // Load current config
+        this.loadLlmForm();
+      }
     },
 
     closeDrawer() {
@@ -408,6 +484,57 @@ function integrationsHub() {
           detail: data.is_fully_configured ? 'Credentials configured' : 'Partially configured',
         };
       } catch (e) { console.debug('Entra status check skipped:', e); }
+    },
+
+    // ── LLM Config ──
+
+    async loadLlmForm() {
+      try {
+        const resp = await fetch('/api/v1/settings/llm');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data && data.provider) {
+          this.llmForm.provider = data.provider;
+          this.llmForm.model_name = data.model_name || '';
+          this.llmForm.azure_endpoint = data.azure_endpoint || '';
+          this.llmForm.azure_deployment = data.azure_deployment || '';
+          this.llmForm.enabled = !!data.enabled;
+        }
+      } catch (e) { console.debug('Could not load LLM config:', e); }
+    },
+
+    async saveLlm() {
+      this.llmSaving = true;
+      this.llmMsg = '';
+      try {
+        const payload = {
+          provider: this.llmForm.provider,
+          model_name: this.llmForm.model_name,
+          enabled: this.llmForm.enabled,
+        };
+        if (this.llmForm.api_key) payload.api_key = this.llmForm.api_key;
+        if (this.llmForm.provider === 'azure_openai') {
+          payload.azure_endpoint = this.llmForm.azure_endpoint;
+          payload.azure_deployment = this.llmForm.azure_deployment;
+        }
+        const resp = await fetch('/api/v1/settings/llm', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || err.message || `HTTP ${resp.status}`);
+        }
+        this.llmMsg = 'Saved successfully (encrypted)';
+        this.llmMsgType = 'success';
+        this.llmForm.api_key = '';
+        // Refresh status
+        await this.loadLlm();
+      } catch (e) {
+        this.llmMsg = e.message;
+        this.llmMsgType = 'error';
+      } finally { this.llmSaving = false; }
     },
 
     // ── Entra Actions ──

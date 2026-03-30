@@ -163,42 +163,41 @@ class AzureOpenAIProvider(_BaseProvider):
         }
 
 
-class OllamaProvider(_BaseProvider):
-    """Ollama local inference server."""
+class TogetherAIProvider(_BaseProvider):
+    """Together AI — OpenAI-compatible API for open-source models."""
 
     def chat(self, messages, **kwargs):
-        import requests
+        import openai
 
-        base_url = self.config.get("ollama_base_url", "http://localhost:11434")
-        model = kwargs.pop("model", self.config.get("model_name", "llama3"))
+        api_key = self.config.get("api_key")
+        model = kwargs.pop("model", self.config.get("model_name", "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"))
         temperature = kwargs.pop("temperature", 0.3)
+        max_tokens = kwargs.pop("max_tokens", 4096)
 
-        resp = requests.post(
-            f"{base_url}/api/chat",
-            json={
-                "model": model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": temperature},
-            },
-            timeout=120,
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://api.together.xyz/v1",
         )
-        resp.raise_for_status()
-        data = resp.json()
 
-        # Ollama returns prompt_eval_count / eval_count for token usage
-        prompt_tokens = data.get("prompt_eval_count", 0)
-        completion_tokens = data.get("eval_count", 0)
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        choice = response.choices[0]
+        usage = response.usage
 
         return {
-            "content": data.get("message", {}).get("content", ""),
+            "content": choice.message.content,
             "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
             },
-            "model": model,
-            "provider": "ollama",
+            "model": response.model,
+            "provider": "together",
         }
 
 
@@ -207,7 +206,7 @@ _PROVIDERS = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "azure_openai": AzureOpenAIProvider,
-    "ollama": OllamaProvider,
+    "together": TogetherAIProvider,
 }
 
 
