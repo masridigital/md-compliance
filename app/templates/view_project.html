@@ -2794,91 +2794,63 @@
 			</div>
 
 			<div class="col-span-6" x-show="selectedTab === 'integrations' && !tabLoading">
-    <div class="alert bg-base-200 mb-4">
-        <div class="alert-content">
-            <i class="ti ti-info-circle text-lg"></i>
-            <span>Add integrations to your project to automatically highlight compliance violations.</span>
-        </div>
-    </div>
+				<div class="card border border-base-200 bg-base-200">
+					<div class="card-body">
+						<div class="flex justify-between items-center mb-4">
+							<h2 class="card-title">Integration Data</h2>
+							<a href="/integrations" class="btn btn-sm btn-ghost border border-base-300">
+								<i class="ti ti-settings mr-1"></i> Configure Integrations
+							</a>
+						</div>
+						<p class="text-sm opacity-60 mb-4">Data pulled from configured integrations for this project's tenant. Configure integrations in the Integrations page.</p>
 
-    <div class="card border border-base-200 bg-base-200">
-        <div class="card-body">
-            <div class="flex justify-between items-center mb-4">
-                <h2 x-show="projectDeployments.length===0" class="card-title">Project Integrations</h2>
-                <h2 x-show="projectDeployments.length>0" class="card-title">Project Violations</h2>
-                <div class="flex gap-2" x-show="projectDeployments.length">
-                    <button @click="openAddIntegrationModal(project.id)" class="btn btn-sm btn-primary">
-                        <i class="ti ti-plus mr-1"></i> Add Integration
-                    </button>
-                    <button @click="openRemoveIntegrationModal()" class="btn btn-sm btn-error btn-outline">
-                        <i class="ti ti-trash mr-1"></i> Remove
-                    </button>
-                </div>
-            </div>
+						<!-- Integration cards -->
+						<div class="grid grid-cols-3 gap-4">
+							<!-- Entra ID -->
+							<div class="card bg-base-300 border border-base-content/10">
+								<div class="card-body p-4">
+									<div class="flex items-center gap-2 mb-2">
+										<i class="ti ti-brand-azure text-xl"></i>
+										<span class="font-semibold text-sm">Microsoft Entra ID</span>
+									</div>
+									<p class="text-xs opacity-60 mb-3">User sync, MFA verification, compliance posture</p>
+									<a href="/integrations" class="btn btn-xs btn-ghost border border-base-content/10">Configure</a>
+								</div>
+							</div>
 
-            <!-- Empty state -->
-            <div x-show="projectDeployments.length === 0 && !integrationsLoading" class="grid grid-cols-4 text-center">
-                <div class="col-span-full hero-content text-center">
-                    <div class="max-w-md">
-                        <h1 class="text-2xl font-bold">No integrations</h1>
-                        <p class="py-6">You have not added any integrations to your project.</p>
-                        <button @click="openAddIntegrationModal(project.id)" class="btn btn-sm btn-primary">Add Integration</button>
-                    </div>
-                </div>
-            </div>
+							<!-- Telivy -->
+							<div class="card bg-base-300 border border-base-content/10">
+								<div class="card-body p-4">
+									<div class="flex items-center gap-2 mb-2">
+										<i class="ti ti-shield-search text-xl"></i>
+										<span class="font-semibold text-sm">Telivy Security</span>
+									</div>
+									<p class="text-xs opacity-60 mb-3">Vulnerability scanning, breach detection, risk assessments</p>
+									<a href="/integrations" class="btn btn-xs btn-ghost border border-base-content/10">Configure</a>
+								</div>
+							</div>
 
-            <!-- Loading violations -->
-            <div x-show="projectDeployments.length && integrationsLoading" class="flex justify-center py-10">
-                <span class="loading loading-spinner loading-md"></span>
-            </div>
+							<!-- LLM / AI -->
+							<div class="card bg-base-300 border border-base-content/10">
+								<div class="card-body p-4">
+									<div class="flex items-center gap-2 mb-2">
+										<i class="ti ti-brain text-xl"></i>
+										<span class="font-semibold text-sm">AI / LLM</span>
+									</div>
+									<p class="text-xs opacity-60 mb-3">Auto-map controls, assess evidence, generate policies</p>
+									<a href="/integrations" class="btn btn-xs btn-ghost border border-base-content/10">Configure</a>
+								</div>
+							</div>
+						</div>
 
-            <!-- Violations table -->
-            <div x-show="projectDeployments.length>0 && !integrationsLoading">
-
-                <!-- No violations found -->
-                <div x-show="projectViolations.length === 0" class="text-center py-8 text-base-content/50">
-                    <i class="ti ti-circle-check text-4xl text-success block mb-2"></i>
-                    <p class="mb-4" x-text="'No violations detected across your '+projectDeployments.length+' integrations.'"></p>
-					<button class="btn btn-primary" @click="openAddIntegrationModal(project.id)">View Integrations</button>
-                </div>
-
-                <div x-show="projectViolations.length" class="overflow-x-auto">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Check</th>
-                                <th>Integration</th>
-                                <th>Controls</th>
-                                <th>Last Run</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="violation in projectViolations" :key="violation.deployment_id + '-' + violation.name">
-                                <tr class="hover:cursor-pointer" @click="openViolationDrawer(violation)">
-                                    <td>
-                                        <span class="hover:underline font-semibold text-sm" x-text="violation.name"></span>
-                                    </td>
-                                    <td>
-                                        <span class="blue-badge" x-text="violation.integration_name"></span>
-                                    </td>
-                                    <td>
-                                        <div class="flex flex-wrap gap-1">
-                                            <template x-for="control in violation.controls" :key="control.control_id">
-                                                <span class="gray-badge" x-text="control.framework + ' ' + control.control_id"></span>
-                                            </template>
-                                            <span x-show="!violation.controls || violation.controls.length === 0" class="text-base-content/40 text-xs">No controls</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-xs text-base-content/50" x-text="violation.end_time || '-'"></td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+						<div class="divider text-xs">Use AI to pull integration data into controls</div>
+						<p class="text-xs opacity-50 mb-2">Go to the <strong>Summary</strong> tab and use the <strong>AI Compliance Assistant</strong> to automatically pull data from all configured integrations and map it to your project's controls.</p>
+						<button class="btn btn-sm btn-primary gap-1" @click="switchTab({tab: 'summary'})">
+							<i class="ti ti-brain"></i> Go to AI Assistant
+						</button>
+					</div>
+				</div>
+			</div>
 
 <!-- ===================== REMOVE INTEGRATION MODAL ===================== -->
 <dialog id="remove-integration-modal" class="modal">

@@ -90,13 +90,18 @@
                             <input x-model="formData.email" type="email" placeholder="Input email"
                                    class="input input-sm input-bordered w-full" required/>
                         </div>
-                        <div class="col-span-3">
-                            <label class="block text-sm font-medium pb-2">Tenant</label>
-                            <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full capitalize">
+                        <div class="col-span-6">
+                            <label class="block text-sm font-medium pb-2">Assign to Tenants</label>
+                            <div class="grid grid-cols-2 gap-2 p-3 bg-base-300 rounded-lg max-h-40 overflow-y-auto">
                                 <template x-for="t in availableTenants" :key="t.id">
-                                    <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                                    <label class="flex items-center gap-2 cursor-pointer capitalize text-sm">
+                                        <input type="checkbox" class="checkbox checkbox-sm checkbox-primary"
+                                               :value="t.id" x-model="formData.tenant_ids">
+                                        <span x-text="t.name"></span>
+                                    </label>
                                 </template>
-                            </select>
+                            </div>
+                            <p class="text-xs opacity-50 mt-1">Select one or more tenants. The user will be added to each with the roles below.</p>
                         </div>
                         <div class="col-span-3">
                             <label class="block text-sm font-medium pb-2">First Name</label>
@@ -400,51 +405,61 @@ function table(){
           "email": "",
           "first_name": "",
           "last_name": "",
-          "tenant_id": ""
+          "tenant_ids": []
         },
         createUser() {
           if (!this.formData.email) {
             toast("Email is required", "error")
             return
           }
-          if (!this.formData.tenant_id) {
-            toast("Please select a tenant", "error")
+          if (!this.formData.tenant_ids || this.formData.tenant_ids.length === 0) {
+            toast("Please select at least one tenant", "error")
             return
           }
           this.formData["roles"] = this.selected
 
-          toast("Please wait...")
+          toast("Please wait... Adding user to " + this.formData.tenant_ids.length + " tenant(s)")
           this.buttonDisabled = true;
-          const targetTenantId = this.formData.tenant_id;
-          request("POST",
-            `/api/v1/tenants/${targetTenantId}/users`,
-            data => {
-              console.log(data)
-              toast("Created User")
+
+          // Add user to each selected tenant sequentially
+          const tenantIds = [...this.formData.tenant_ids];
+          let completed = 0;
+          let lastData = null;
+          const addToNext = () => {
+            if (completed >= tenantIds.length) {
+              toast("User added to " + completed + " tenant(s)", "success")
               this.getItems()
               this.showCreateModal = false;
-              this.formData = {
-                "email": "",
-                "first_name": "",
-                "last_name": "",
-                "tenant_id": targetTenantId
-              },
+              this.formData = { "email": "", "first_name": "", "last_name": "", "tenant_ids": [] };
               this.buttonDisabled = false;
-              this.inviteLink = data.access_link;
-
-              if (data["sent-email"]) {
-                this.inviteUserMessageTitle = "We sent an invite via email. You can also copy/share the link with the user."
-              } else {
-                this.inviteUserMessageTitle = "Email has not been configured. You must share the invite link with the user."
+              if (lastData && lastData.access_link) {
+                this.inviteLink = lastData.access_link;
+                if (lastData["sent-email"]) {
+                  this.inviteUserMessageTitle = "We sent an invite via email. You can also copy/share the link.";
+                } else {
+                  this.inviteUserMessageTitle = "Email not configured. Share the invite link with the user.";
+                }
+                this.showInviteAlert = true;
               }
-              this.showInviteAlert = true;
-            },
-            error => {
-              toast(error.message, "error");
-            },
-            this.formData
-          );
-          this.buttonDisabled = false;
+              return;
+            }
+            const tid = tenantIds[completed];
+            request("POST",
+              `/api/v1/tenants/${tid}/users`,
+              data => {
+                lastData = data;
+                completed++;
+                addToNext();
+              },
+              error => {
+                toast("Failed for tenant " + tid + ": " + error.message, "error");
+                completed++;
+                addToNext();
+              },
+              this.formData
+            );
+          };
+          addToNext();
         },
         updateUser() {
           if (!this.selectedItem.email) {
