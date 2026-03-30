@@ -375,21 +375,21 @@ class SettingsService:
     # ----- SSO -----
 
     @staticmethod
-    def get_sso_config():
-        """Returns the platform-level SSO config (tenant_id IS NULL)."""
+    def get_sso_config(tenant_id=None):
+        """Returns SSO config. If tenant_id is given, return tenant-level config."""
         from app import db
         from app.masri.new_models import SettingsSSO
-        return db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=None)).scalars().first()
+        return db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=tenant_id)).scalars().first()
 
     @staticmethod
-    def update_sso_config(data: dict):
-        """Create or update platform-level SSO settings."""
+    def update_sso_config(data: dict, tenant_id=None):
+        """Create or update SSO settings. If tenant_id is given, operates at tenant level."""
         from app import db
         from app.masri.new_models import SettingsSSO
 
-        sso = db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=None)).scalars().first()
+        sso = db.session.execute(db.select(SettingsSSO).filter_by(tenant_id=tenant_id)).scalars().first()
         if sso is None:
-            sso = SettingsSSO()
+            sso = SettingsSSO(tenant_id=tenant_id)
             db.session.add(sso)
 
         safe_fields = {"provider", "client_id", "discovery_url", "enabled",

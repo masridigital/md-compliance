@@ -755,8 +755,27 @@
               </div>
               <div class="settings-form-group">
                 <label class="settings-form-label">Model Name</label>
-                <input type="text" class="md-input" x-model="llm.model_name"
-                       placeholder="gpt-4o">
+                <div style="display: flex; gap: var(--space-xs); align-items: center;">
+                  <template x-if="llmModels.length > 0">
+                    <select class="md-select" x-model="llm.model_name" style="flex: 1;">
+                      <option value="">Select a model...</option>
+                      <template x-for="m in llmModels" :key="m">
+                        <option :value="m" x-text="m"></option>
+                      </template>
+                    </select>
+                  </template>
+                  <template x-if="llmModels.length === 0">
+                    <input type="text" class="md-input" x-model="llm.model_name"
+                           placeholder="gpt-4o" style="flex: 1;">
+                  </template>
+                  <button class="md-btn md-btn-secondary md-btn-sm" style="height: 40px; padding: 0 10px; flex-shrink: 0;"
+                          @click="fetchLlmModels()" :disabled="!llm.api_key || llmModelsFetching"
+                          title="Fetch available models">
+                    <span x-show="!llmModelsFetching"><i class="ti ti-refresh" style="font-size: 16px;"></i></span>
+                    <span x-show="llmModelsFetching"><span class="md-spinner" style="width:14px;height:14px;border-width:2px;"></span></span>
+                  </button>
+                </div>
+                <div class="settings-form-hint" x-show="llm.api_key">Enter an API key and click the refresh button to load available models</div>
               </div>
             </div>
 
@@ -1266,6 +1285,8 @@ function settingsHub() {
     platform: {},
     branding: {},
     llm: {},
+    llmModels: [],
+    llmModelsFetching: false,
     sso: {},
     storage: {
       defaultProvider: 'local',
@@ -1411,6 +1432,30 @@ function settingsHub() {
         this.saving[flagKey] = false;
         Alpine.store('app').showToast(`Failed to save ${this.providerLabel(provider)} storage`, 'error');
       }, payload);
+    },
+
+    async fetchLlmModels() {
+      if (!this.llm.api_key) return;
+      this.llmModelsFetching = true;
+      this.llmModels = [];
+      try {
+        const resp = await fetch('/api/v1/settings/llm/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: this.llm.provider, api_key: this.llm.api_key }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        this.llmModels = data.models || [];
+        if (this.llmModels.length === 0) {
+          Alpine.store('app').showToast('No models found for this provider/key', 'error');
+        }
+      } catch (e) {
+        Alpine.store('app').showToast('Failed to fetch models: ' + e.message, 'error');
+      } finally { this.llmModelsFetching = false; }
     },
 
     saveLlm() {

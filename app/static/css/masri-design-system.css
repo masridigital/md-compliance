@@ -4,6 +4,18 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
+   0. Icon Font Override — force font-display: swap to prevent FOIT
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: "tabler-icons";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff") format("woff");
+}
+
+/* --------------------------------------------------------------------------
    1. CSS Custom Properties
    -------------------------------------------------------------------------- */
 :root {

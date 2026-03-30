@@ -246,10 +246,14 @@ def update_storage_provider(provider):
 @limiter.limit("60 per minute")
 @login_required
 def get_sso_config():
-    """GET /api/v1/settings/sso — platform-level SSO configuration."""
-    _require_admin()
+    """GET /api/v1/settings/sso — SSO configuration. Use ?tenant_id for per-tenant."""
+    tenant_id = request.args.get("tenant_id")
+    if tenant_id:
+        Authorizer(current_user).can_user_access_tenant(tenant_id)
+    else:
+        _require_admin()
     try:
-        sso = SettingsService.get_sso_config()
+        sso = SettingsService.get_sso_config(tenant_id=tenant_id)
         if sso is None:
             return jsonify({"message": "No SSO configuration found"}), 404
         return jsonify(sso.as_dict())
@@ -262,13 +266,17 @@ def get_sso_config():
 @limiter.limit("30 per minute")
 @login_required
 def update_sso_config():
-    """PUT /api/v1/settings/sso — update platform-level SSO settings."""
-    _require_admin()
+    """PUT /api/v1/settings/sso — update SSO settings. Include tenant_id in body for per-tenant."""
     data, err = validate_payload(SSOConfigUpdateSchema, request.get_json(silent=True))
     if err:
         return err
+    tenant_id = data.pop("tenant_id", None)
+    if tenant_id:
+        Authorizer(current_user).can_user_access_tenant(tenant_id)
+    else:
+        _require_admin()
     try:
-        sso = SettingsService.update_sso_config(data)
+        sso = SettingsService.update_sso_config(data, tenant_id=tenant_id)
         return jsonify(sso.as_dict())
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -459,6 +467,78 @@ def delete_mcp_key(key_id):
 # ---------------------------------------------------------------------------
 # Entra ID credentials (encrypted at rest)
 # ---------------------------------------------------------------------------
+
+@settings_bp.route("/llm/models", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def fetch_llm_models():
+    """POST /api/v1/settings/llm/models — fetch available models from a provider.
+
+    Body (JSON):
+        provider    (str, required) — openai, anthropic, together, azure_openai
+        api_key     (str, required) — API key for the provider
+    """
+    _require_admin()
+    data = _get_json_body()
+    provider = data.get("provider", "").strip()
+    api_key = data.get("api_key", "").strip()
+
+    if not provider or not api_key:
+        return jsonify({"error": "provider and api_key are required"}), 400
+
+    try:
+        models = _fetch_models_for_provider(provider, api_key)
+        return jsonify({"models": models})
+    except Exception as e:
+        logger.warning("Failed to fetch models for %s: %s", provider, e)
+        return jsonify({"error": str(e)}), 502
+
+
+def _fetch_models_for_provider(provider: str, api_key: str) -> list:
+    """Call the provider API and return a list of model ID strings."""
+    if provider == "openai":
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+        resp = client.models.list()
+        models = sorted(
+            [m.id for m in resp.data if any(
+                kw in m.id for kw in ("gpt-", "o1", "o3", "o4")
+            )],
+            key=lambda x: x,
+        )
+        return models if models else sorted([m.id for m in resp.data])
+
+    elif provider == "anthropic":
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.models.list(limit=100)
+        return sorted([m.id for m in resp.data])
+
+    elif provider == "together":
+        import requests as _requests
+        resp = _requests.get(
+            "https://api.together.xyz/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        model_list = data if isinstance(data, list) else data.get("data", data.get("models", []))
+        chat_models = [
+            m["id"] for m in model_list
+            if isinstance(m, dict) and m.get("id") and
+            m.get("type", "chat") in ("chat", "language", "")
+        ]
+        return sorted(chat_models) if chat_models else sorted(
+            [m["id"] for m in model_list if isinstance(m, dict) and m.get("id")]
+        )
+
+    elif provider == "azure_openai":
+        return []
+
+    else:
+        return []
+
 
 @settings_bp.route("/entra", methods=["GET"])
 @limiter.limit("60 per minute")
