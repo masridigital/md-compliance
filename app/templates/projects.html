@@ -177,9 +177,11 @@
                             </div>
                             <div class="col-span-3">
                                 <label class="block text-sm font-medium mb-2">Tenant</label>
-                                <input :value="$store.currentUser.selectedTenant.name"
-                                       class="input input-sm input-bordered w-full"
-                                       disabled/>
+                                <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full">
+                                  <template x-for="t in availableTenants" :key="t.id">
+                                    <option :value="t.id" x-text="t.name" :selected="t.id === $store.currentUser.selectedTenant.id"></option>
+                                  </template>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -311,6 +313,7 @@
 <script>
 function table(){
     return {
+        availableTenants: [],
         init() {
           this.isSidebarOpen = true;
           this.$watch(
@@ -320,6 +323,21 @@ function table(){
 
           this.getItems()
           this.getFrameworks()
+          this.loadTenants()
+        },
+        loadTenants() {
+          request("GET", "/api/v1/tenants",
+            data => {
+              this.availableTenants = data || [];
+              // Default to currently selected tenant
+              if (this.$store.currentUser && this.$store.currentUser.selectedTenant) {
+                this.formData.tenant_id = this.$store.currentUser.selectedTenant.id;
+              } else if (this.availableTenants.length > 0) {
+                this.formData.tenant_id = this.availableTenants[0].id;
+              }
+            },
+            error => { console.debug('Could not load tenants:', error); }
+          );
         },
         loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
         loading: true,
@@ -362,6 +380,7 @@ function table(){
           "name": "",
           "description": "",
           "framework": "",
+          "tenant_id": "",
           "criteria": {
             "security": true,
             "availability": false,
@@ -385,9 +404,10 @@ function table(){
           } else {
             delete this.formData.criteria
           }
+          const targetTenantId = this.formData.tenant_id || this.$store.currentUser.selectedTenant.id;
           toast("Please wait...")
           request("POST",
-            `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/projects`,
+            `/api/v1/tenants/${targetTenantId}/projects`,
             data => {
               this.hasProjects = true;
               toast("Created project")
@@ -397,6 +417,7 @@ function table(){
                   "name": "",
                   "description": "",
                   "framework": "",
+                  "tenant_id": targetTenantId,
                   "criteria": {
                     "security": true,
                     "availability": false,

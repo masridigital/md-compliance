@@ -90,6 +90,13 @@ def masri_settings():
 # Tenant operations
 # ---------------------------------------------------------------------------
 
+@main.route("/workspace", methods=["GET"])
+@login_required
+def workspace():
+    """Unified workspace — manage clients and projects in one view."""
+    return render_template("workspace.html")
+
+
 @main.route("/tenants/new", methods=["GET"])
 @login_required
 def new_tenant():

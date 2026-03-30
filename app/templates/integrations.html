@@ -256,7 +256,24 @@
               </div>
               <div>
                 <label class="text-xs font-medium block mb-1">Model Name</label>
-                <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : llmForm.provider === 'together' ? 'meta-llama/Llama-3-70b-chat-hf' : 'gpt-4o'" />
+                <div class="flex gap-1 items-center">
+                  <template x-if="llmModels.length > 0">
+                    <select class="select select-bordered select-sm w-full" x-model="llmForm.model_name">
+                      <option value="">Select a model...</option>
+                      <template x-for="m in llmModels" :key="m">
+                        <option :value="m" x-text="m"></option>
+                      </template>
+                    </select>
+                  </template>
+                  <template x-if="llmModels.length === 0">
+                    <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : llmForm.provider === 'together' ? 'meta-llama/Llama-3-70b-chat-hf' : 'gpt-4o'" />
+                  </template>
+                  <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="!llmForm.api_key || llmModelsFetching">
+                    <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
+                    <i class="ti ti-refresh text-lg" x-show="!llmModelsFetching"></i>
+                  </button>
+                </div>
+                <div class="text-xs opacity-50 mt-1" x-show="llmForm.api_key">Enter an API key and click <i class="ti ti-refresh"></i> to load available models</div>
               </div>
               <template x-if="llmForm.provider === 'azure_openai'">
                 <div class="space-y-3">
@@ -677,6 +694,8 @@ function integrationsHub() {
     llmSaving: false,
     llmMsg: '',
     llmMsgType: '',
+    llmModels: [],
+    llmModelsFetching: false,
 
     // Telivy state
     telivyForm: { api_key: '' },
@@ -868,6 +887,7 @@ function integrationsHub() {
         this.llmForm.azure_endpoint = '';
         this.llmForm.azure_deployment = '';
         this.llmForm.enabled = false;
+        this.llmModels = [];
         // Load current config
         this.loadLlmForm();
       }
@@ -1005,6 +1025,32 @@ function integrationsHub() {
         this.llmMsg = e.message;
         this.llmMsgType = 'error';
       } finally { this.llmSaving = false; }
+    },
+
+    async fetchLlmModels() {
+      if (!this.llmForm.api_key) return;
+      this.llmModelsFetching = true;
+      this.llmModels = [];
+      try {
+        const resp = await fetch('/api/v1/settings/llm/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: this.llmForm.provider, api_key: this.llmForm.api_key }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        this.llmModels = data.models || [];
+        if (this.llmModels.length === 0) {
+          this.llmMsg = 'No models found for this provider/key';
+          this.llmMsgType = 'error';
+        }
+      } catch (e) {
+        this.llmMsg = 'Failed to fetch models: ' + e.message;
+        this.llmMsgType = 'error';
+      } finally { this.llmModelsFetching = false; }
     },
 
     // ── Telivy Status ──

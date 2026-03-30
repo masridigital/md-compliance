@@ -191,6 +191,19 @@ function table(){
           })
 
           this.getItems()
+
+          // Listen for action button events from table cells
+          document.addEventListener('tenant-edit', (e) => {
+            const item = this.items.find(obj => obj.id === e.detail);
+            if (item) this.openModal(item);
+          });
+          document.addEventListener('tenant-delete', (e) => {
+            const item = this.items.find(obj => obj.id === e.detail);
+            if (item) this.openDeleteModal(item);
+          });
+          document.addEventListener('tenant-archive', (e) => {
+            toast("Tenant archived (archived status flag coming soon)", "success");
+          });
         },
         loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
         loading: true,
@@ -206,6 +219,20 @@ function table(){
           {"field": "license", "headerName": "License", "filter": "agTextColumnFilter", "cellClass": "capitalize"},
           {"field": "user_cap", "headerName": "User Cap", "filter": "agNumberColumnFilter"},
           {"field": "id", "headerName": "Users", "width": 100, "filter": "agTextColumnFilter", "cellRenderer": idToButton, "cellRendererParams": {"text": "View", "class": "btn-xs bg-base-100", "link": "/users"}},
+          {"field": "id", "headerName": "Actions", "width": 220, "sortable": false, "filter": false,
+            "cellRenderer": (params) => {
+              const id = params.value;
+              const div = document.createElement('div');
+              div.className = 'flex gap-1';
+              div.innerHTML = `
+                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Edit" onclick="document.dispatchEvent(new CustomEvent('tenant-edit', {detail:'${id}'}))"><i class="ti ti-edit text-info"></i></button>
+                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Archive" onclick="document.dispatchEvent(new CustomEvent('tenant-archive', {detail:'${id}'}))"><i class="ti ti-archive text-warning"></i></button>
+                <button class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Delete" onclick="document.dispatchEvent(new CustomEvent('tenant-delete', {detail:'${id}'}))"><i class="ti ti-trash text-error"></i></button>
+                <a href="/workspace" class="btn btn-xs btn-ghost border border-base-300 tooltip" data-tip="Open Workspace"><i class="ti ti-external-link"></i></a>
+              `;
+              return div;
+            }
+          },
         ],
         openModal(item) {
           this.selectedItem = item;

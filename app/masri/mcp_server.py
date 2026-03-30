@@ -507,6 +507,42 @@ def _handle_500(exc):
 # Routes
 # ---------------------------------------------------------------------------
 
+@mcp_bp.route("/docs", methods=["GET"])
+def public_docs():
+    """
+    GET /mcp/v1/docs — Public API documentation endpoint.
+
+    Returns the full MCP tool catalogue with parameter schemas,
+    authentication requirements, and usage examples.
+    No authentication required.
+    """
+    return jsonify({
+        "name": "Masri Digital Compliance MCP Server",
+        "version": "1.0",
+        "description": (
+            "Model Context Protocol server exposing compliance management tools. "
+            "Supports framework listing, compliance status, control assessment "
+            "(with LLM), risk register access, and due date tracking."
+        ),
+        "authentication": {
+            "type": "bearer",
+            "header": "Authorization: Bearer <api_key>",
+            "description": (
+                "Generate API keys from Settings > API Keys. "
+                "Include the key in the Authorization header for all /tools endpoints."
+            ),
+        },
+        "base_url": "/mcp/v1",
+        "endpoints": {
+            "GET /mcp/v1/docs": "This documentation endpoint (no auth required)",
+            "GET /mcp/v1/tools": "List available tools (auth required, scope-filtered)",
+            "POST /mcp/v1/tools/<tool_name>": "Execute a tool (auth required)",
+        },
+        "tools": TOOL_DEFINITIONS,
+        "rate_limiting": "Configurable per API key via scopes.rate_limit (requests per minute)",
+    })
+
+
 @mcp_bp.route("/tools", methods=["GET"])
 def list_tools():
     """

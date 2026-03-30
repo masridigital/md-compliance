@@ -32,8 +32,21 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-design-system.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-mobile.css') }}">
 
-  <!-- Tabler Icons -->
+  <!-- Tabler Icons — preconnect + preload for instant rendering -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Override icon font-display BEFORE the CDN stylesheet loads so
+       the browser shows fallback glyphs immediately instead of waiting ~20s */
+    @font-face {
+      font-family: "tabler-icons";
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2") format("woff2"),
+           url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff") format("woff");
+    }
+  </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
 
   <!-- Alpine.js -->
@@ -98,6 +111,8 @@
       <div class="md-top-nav-links">
         <a href="{{ url_for('main.index') }}"
            class="md-top-nav-link {% if request.endpoint == 'main.index' %}is-active{% endif %}">Overview</a>
+        <a href="{{ url_for('main.workspace') }}"
+           class="md-top-nav-link {% if request.endpoint and 'workspace' in request.endpoint %}is-active{% endif %}">Workspace</a>
         <a href="{{ url_for('main.compliance') }}"
            class="md-top-nav-link {% if request.endpoint and 'compliance' in request.endpoint %}is-active{% endif %}">Compliance</a>
         <a href="{{ url_for('main.risk') }}"
