@@ -32,22 +32,21 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-design-system.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/masri-mobile.css') }}">
 
-  <!-- Tabler Icons — preconnect + preload for instant rendering -->
+  <!-- Tabler Icons -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
   <style>
-    /* Override icon font-display BEFORE the CDN stylesheet loads so
-       the browser shows fallback glyphs immediately instead of waiting ~20s */
+    /* Must come AFTER the CDN stylesheet to override font-display: block → swap */
     @font-face {
       font-family: "tabler-icons";
       font-style: normal;
       font-weight: 400;
-      font-display: swap;
+      font-display: swap !important;
       src: url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2") format("woff2"),
            url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff") format("woff");
     }
   </style>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
 
   <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3.x.x/dist/cdn.min.js"></script>
@@ -111,8 +110,8 @@
       <div class="md-top-nav-links">
         <a href="{{ url_for('main.index') }}"
            class="md-top-nav-link {% if request.endpoint == 'main.index' %}is-active{% endif %}">Overview</a>
-        <a href="{{ url_for('main.tenants') }}"
-           class="md-top-nav-link {% if request.endpoint and 'tenant' in request.endpoint %}is-active{% endif %}">Clients</a>
+        <a href="{{ url_for('main.workspace') }}"
+           class="md-top-nav-link {% if request.endpoint and ('workspace' in request.endpoint or 'tenant' in request.endpoint) %}is-active{% endif %}">Clients</a>
         <a href="{{ url_for('main.compliance') }}"
            class="md-top-nav-link {% if request.endpoint and 'compliance' in request.endpoint %}is-active{% endif %}">Compliance</a>
         <a href="{{ url_for('main.risk') }}"
@@ -190,7 +189,7 @@
        style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
       <i class="ti ti-home"></i> Overview
     </a>
-    <a href="{{ url_for('main.tenants') }}" @click="mobileMenuOpen = false"
+    <a href="{{ url_for('main.workspace') }}" @click="mobileMenuOpen = false"
        style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
       <i class="ti ti-building-skyscraper"></i> Clients
     </a>

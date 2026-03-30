@@ -54,17 +54,18 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
     <style>
+      /* Must come AFTER the CDN stylesheet to override font-display: block → swap */
       @font-face {
         font-family: "tabler-icons";
         font-style: normal;
         font-weight: 400;
-        font-display: swap;
+        font-display: swap !important;
         src: url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff2") format("woff2"),
              url("https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/fonts/tabler-icons.woff") format("woff");
       }
     </style>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
     <script src="{{ url_for('static', filename='js/common.js') }}"></script>
     <style>
       [x-cloak] { display: none !important; }
@@ -132,7 +133,7 @@
           {%if "vendor" in user_roles%}
           {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-timeline text-2xl"></i>'}]%}
           {%else%}
-          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'tenants','link':'/tenants','icon':'<i class="ti ti-building-skyscraper text-2xl"></i>'},{'label':'projects','link':'/projects','icon':'<i class="ti ti-circles text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
+          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'clients','link':'/workspace','icon':'<i class="ti ti-building-skyscraper text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
           {%endif%}
           {%for link in sidebarlinks%}
           <li class="mb-4">

@@ -51,7 +51,7 @@ def tenant_users():
 @main.route("/tenants", methods=["GET"])
 @login_required
 def tenants():
-    return render_template("management/tenants.html")
+    return redirect(url_for("main.workspace"))
 
 
 @main.route("/users/<string:uid>/password", methods=["POST"])
