@@ -68,6 +68,19 @@ def create_app(config_name="default"):
             if not (current_user and current_user.is_authenticated):
                 return
 
+            # Force logout on server restart / update
+            # Boot stamp is in app.config (memory) — NO database access here
+            boot_stamp = app.config.get("_BOOT_STAMP", "")
+            session_stamp = session.get("_boot_stamp", "")
+            if boot_stamp and session_stamp and session_stamp != boot_stamp:
+                # Session was created before this server started — force re-login
+                logout_user()
+                session.clear()
+                return redirect(url_for("auth.get_login"))
+            if boot_stamp and not session_stamp:
+                # First request after login — stamp the session
+                session["_boot_stamp"] = boot_stamp
+
             # Determine timeout — use session cache only, never touch DB here
             timeout_minutes = int(session.get("_user_timeout_minutes", 0)) or app.config.get("SESSION_TIMEOUT_MINUTES", 30)
 
