@@ -33,18 +33,13 @@
           Login
         </button>
       </div>
-      {%if config.ENABLE_GOOGLE_AUTH or config.ENABLE_MICROSOFT_AUTH%}
       <div class="divider text-xs font-semibold">OR</div>
       <div class="flex flex-row gap-x-4 justify-between">
         {%if config.ENABLE_GOOGLE_AUTH%}
-        <a href="{{url_for('auth.google_auth', flow='login')}}" :disabled="!readyToGoSSO" class="btn grow"><i class="ti ti-brand-google text-error text-2xl"></i>Continue with Google</a>
+        <a href="{{url_for('auth.google_auth', flow='login')}}" class="btn grow"><i class="ti ti-brand-google text-error text-2xl"></i>Continue with Google</a>
         {%endif%}
-        {%if config.ENABLE_MICROSOFT_AUTH%}
-        <a href="{{url_for('auth.microsoft_auth', flow='login')}}" :disabled="!readyToGoSSO" class="btn grow"><i class="ti ti-brand-azure text-info text-2xl"></i>Continue with Microsoft</a>
-        {%endif%}
+        <a href="{{url_for('auth.microsoft_auth', flow='login')}}" class="btn grow"><i class="ti ti-brand-azure text-info text-2xl"></i>Sign in with Microsoft</a>
       </div>
-      <p x-show="!readyToGoSSO" class="mt-2 text-xs text-error">Complete the fields above.</p>
-      {%endif%}
       <div x-show="adminEmail.length>2" class="mt-4 text-xs" x-text="'Having issues? Reach out to '+adminEmail"></div>
     </form>
   </div>
