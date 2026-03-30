@@ -143,6 +143,7 @@ def gap_narrative():
         result = LLMService.chat(
             messages=messages,
             tenant_id=tenant_id,
+            feature="gap_narrative",
             temperature=0.3,
             max_tokens=1500,
         )
@@ -215,6 +216,7 @@ def risk_score():
         result = LLMService.chat(
             messages=messages,
             tenant_id=tenant_id,
+            feature="risk_score",
             temperature=0.1,
             max_tokens=800,
         )
@@ -312,6 +314,7 @@ def interpret_evidence():
         result = LLMService.chat(
             messages=messages,
             tenant_id=tenant_id,
+            feature="evidence_interpret",
             temperature=0.2,
             max_tokens=1200,
         )
@@ -446,6 +449,7 @@ def auto_map():
             result = LLMService.chat(
                 messages=messages,
                 tenant_id=tenant_id,
+                feature="auto_map",
                 temperature=0.1,
                 max_tokens=4000,
             )
@@ -574,6 +578,7 @@ def assist_gaps():
             result = LLMService.chat(
                 messages=messages,
                 tenant_id=tenant_id,
+                feature="auto_map",
                 temperature=0.2,
                 max_tokens=4000,
             )

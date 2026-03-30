@@ -563,6 +563,39 @@ def delete_mcp_key(key_id):
 # Entra ID credentials (encrypted at rest)
 # ---------------------------------------------------------------------------
 
+@settings_bp.route("/llm/features", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_llm_feature_models():
+    """GET /api/v1/settings/llm/features — get per-feature model assignments."""
+    _require_admin()
+    try:
+        from app.models import ConfigStore
+        import json
+        record = ConfigStore.find("llm_feature_models")
+        if record and record.value:
+            return jsonify(json.loads(record.value))
+        return jsonify({"sameForAll": True, "models": {}})
+    except Exception:
+        return jsonify({"sameForAll": True, "models": {}})
+
+
+@settings_bp.route("/llm/features", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_llm_feature_models():
+    """PUT /api/v1/settings/llm/features — save per-feature model assignments."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    data = request.get_json(silent=True) or {}
+    ConfigStore.upsert("llm_feature_models", json.dumps({
+        "sameForAll": data.get("sameForAll", True),
+        "models": data.get("models", {}),
+    }))
+    return jsonify({"message": "Feature model assignments saved"})
+
+
 @settings_bp.route("/llm/test", methods=["POST"])
 @limiter.limit("10 per minute")
 @login_required

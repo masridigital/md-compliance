@@ -307,13 +307,30 @@ class LLMService:
         return config is not None
 
     @staticmethod
-    def chat(messages: list, tenant_id: str = None, **kwargs) -> dict:
+    def get_feature_model(feature: str) -> str:
+        """Get the model name assigned to a specific feature, or None for default."""
+        try:
+            from app.models import ConfigStore
+            import json
+            record = ConfigStore.find("llm_feature_models")
+            if record and record.value:
+                data = json.loads(record.value)
+                if data.get("sameForAll", True):
+                    return None  # Use default model
+                return data.get("models", {}).get(feature) or None
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def chat(messages: list, tenant_id: str = None, feature: str = None, **kwargs) -> dict:
         """
         Send a chat completion request through the configured provider.
 
         Args:
             messages: list of {"role": ..., "content": ...} dicts
             tenant_id: optional, for budget/rate-limit enforcement
+            feature: optional feature name for per-feature model routing
             **kwargs: overrides passed to the provider (temperature, max_tokens, etc.)
 
         Returns:
@@ -325,6 +342,12 @@ class LLMService:
         config = LLMService._get_config()
         if config is None:
             raise RuntimeError("LLM is not configured or not enabled")
+
+        # Per-feature model override
+        if feature and "model" not in kwargs:
+            feature_model = LLMService.get_feature_model(feature)
+            if feature_model:
+                kwargs["model"] = feature_model
 
         # Enforce rate limit
         if tenant_id and config.get("rate_limit_per_hour"):
@@ -370,7 +393,7 @@ class LLMService:
                                           f"Summarise the following in under {max_length} words."},
             {"role": "user", "content": text},
         ]
-        result = LLMService.chat(messages, tenant_id=tenant_id, temperature=0.2)
+        result = LLMService.chat(messages, tenant_id=tenant_id, feature="summarize", temperature=0.2)
         return result["content"]
 
     @staticmethod
@@ -406,7 +429,7 @@ class LLMService:
             },
         ]
 
-        result = LLMService.chat(messages, tenant_id=tenant_id, temperature=0.1)
+        result = LLMService.chat(messages, tenant_id=tenant_id, feature="control_assess", temperature=0.1)
         content = result["content"].strip()
 
         # Try to parse JSON from the response
@@ -456,7 +479,7 @@ class LLMService:
         ]
 
         result = LLMService.chat(
-            messages, tenant_id=tenant_id, temperature=0.4, max_tokens=2048
+            messages, tenant_id=tenant_id, feature="policy_draft", temperature=0.4, max_tokens=2048
         )
         return result["content"]
 

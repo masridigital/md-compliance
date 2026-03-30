@@ -438,7 +438,11 @@
               </div>
               <div class="finding-card">
                 <div class="text-xs"><strong class="text-primary">2.</strong> In Claude Desktop → Settings → MCP Servers → Add Server</div>
-                <div class="text-xs mt-1 opacity-70">Server URL: <code class="bg-base-300 px-1 rounded">https://YOUR-DOMAIN/mcp</code></div>
+                <div class="text-xs mt-1 flex items-center gap-2">
+                  <span class="opacity-70">Server URL:</span>
+                  <code class="bg-base-300 px-2 py-0.5 rounded text-xs" x-text="window.location.origin + '/mcp'"></code>
+                  <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(window.location.origin + '/mcp'); toast('URL copied!', 'success')"><i class="ti ti-copy"></i></button>
+                </div>
               </div>
               <div class="finding-card">
                 <div class="text-xs"><strong class="text-primary">3.</strong> Claude will prompt you to authenticate — enter the <strong>Client ID</strong> and <strong>Client Secret</strong> from step 1</div>
@@ -459,11 +463,10 @@
                 <i class="ti" :class="showManual ? 'ti-chevron-down' : 'ti-chevron-right'"></i> Manual API setup
               </button>
               <div x-show="showManual" x-collapse x-cloak class="finding-card text-xs space-y-1 mb-4">
-                <div><strong>Discovery URL:</strong> <code class="bg-base-300 px-1 rounded">https://YOUR-DOMAIN/.well-known/oauth-authorization-server</code></div>
-                <div><strong>Token endpoint:</strong> <code class="bg-base-300 px-1 rounded">POST /mcp/token</code> with <code class="bg-base-300 px-1 rounded">grant_type=client_credentials</code></div>
-                <div><strong>Tools list:</strong> <code class="bg-base-300 px-1 rounded">GET /mcp/tools</code> (Bearer token required)</div>
-                <div><strong>Execute tool:</strong> <code class="bg-base-300 px-1 rounded">POST /mcp/tools/&lt;name&gt;</code> with JSON params</div>
-                <div><strong>Docs:</strong> <code class="bg-base-300 px-1 rounded">GET /mcp/docs</code> (no auth needed)</div>
+                <div class="flex items-center gap-1"><strong>Discovery:</strong> <code class="bg-base-300 px-1 rounded" x-text="window.location.origin + '/.well-known/oauth-authorization-server'"></code> <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(window.location.origin + '/.well-known/oauth-authorization-server'); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button></div>
+                <div class="flex items-center gap-1"><strong>Token:</strong> <code class="bg-base-300 px-1 rounded" x-text="'POST ' + window.location.origin + '/mcp/token'"></code> <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(window.location.origin + '/mcp/token'); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button></div>
+                <div class="flex items-center gap-1"><strong>Tools:</strong> <code class="bg-base-300 px-1 rounded" x-text="'GET ' + window.location.origin + '/mcp/tools'"></code> <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(window.location.origin + '/mcp/tools'); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button></div>
+                <div class="flex items-center gap-1"><strong>Docs:</strong> <code class="bg-base-300 px-1 rounded" x-text="window.location.origin + '/mcp/docs'"></code> <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(window.location.origin + '/mcp/docs'); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button></div>
               </div>
             </div>
 
@@ -1394,11 +1397,15 @@ function integrationsHub() {
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
 
-        // Save per-feature model assignments to localStorage
-        localStorage.setItem('llm_feature_models', JSON.stringify({
-          sameForAll: this.llmSameModelForAll,
-          models: this.llmFeatureModels,
-        }));
+        // Save per-feature model assignments to both localStorage and backend
+        const featureConfig = { sameForAll: this.llmSameModelForAll, models: this.llmFeatureModels };
+        localStorage.setItem('llm_feature_models', JSON.stringify(featureConfig));
+        // Also save to backend ConfigStore for server-side routing
+        fetch('/api/v1/settings/llm/features', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(featureConfig),
+        }).catch(() => {});
 
         this.llmMsg = 'Saved';
         this.llmMsgType = 'success';
