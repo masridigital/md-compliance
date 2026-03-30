@@ -485,8 +485,8 @@
           </div>
         </template>
 
-        <!-- ═══════ Notifications Config ═══════ -->
-        <template x-if="selected.category === 'notifications'">
+        <!-- ═══════ Notifications Config (Unified) ═══════ -->
+        <template x-if="selected.id === 'notif_unified'">
           <div>
             <h4 class="font-semibold text-sm mb-3">Configuration</h4>
             <div class="space-y-3">
@@ -562,30 +562,39 @@
           </div>
         </template>
 
-        <!-- ═══════ Storage Config ═══════ -->
-        <template x-if="selected.category === 'storage'">
+        <!-- ═══════ Storage Config (Unified with provider tabs) ═══════ -->
+        <template x-if="selected.id === 'storage_unified'">
           <div>
-            <h4 class="font-semibold text-sm mb-3">Configuration</h4>
+            <!-- Provider Tabs -->
+            <div role="tablist" class="tabs tabs-bordered mb-4">
+              <template x-for="sp in storageProviders" :key="'stab-'+sp.id">
+                <button role="tab" class="tab tab-sm" :class="{'tab-active': activeStorageProvider === sp.id}" @click="activeStorageProvider = sp.id; loadStorageProvider(sp.id)">
+                  <span x-text="sp.label"></span>
+                  <span class="status-dot ml-1" :class="storageProviderStatus[sp.id] ? 'green' : 'gray'" style="width:6px;height:6px;"></span>
+                </button>
+              </template>
+            </div>
+
             <div class="space-y-3">
-              <!-- S3 -->
-              <template x-if="selected.provider === 's3'">
+              <!-- S3 fields -->
+              <template x-if="activeStorageProvider === 's3'">
                 <div class="space-y-3">
                   <div><label class="text-xs font-medium block mb-1">Bucket</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.bucket" /></div>
                   <div><label class="text-xs font-medium block mb-1">Region</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.region" placeholder="us-east-1" /></div>
                   <div><label class="text-xs font-medium block mb-1">Access Key</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.access_key" /></div>
                   <div><label class="text-xs font-medium block mb-1">Secret Key</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.secret_key" placeholder="Encrypted at rest" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Custom Endpoint (optional)</label><input type="url" class="input input-bordered input-sm w-full" x-model="storageForm.endpoint_url" placeholder="For MinIO, R2, etc." /></div>
+                  <div><label class="text-xs font-medium block mb-1">Custom Endpoint</label><input type="url" class="input input-bordered input-sm w-full" x-model="storageForm.endpoint_url" placeholder="For MinIO, R2, etc." /></div>
                 </div>
               </template>
-              <!-- Azure Blob -->
-              <template x-if="selected.provider === 'azure_blob'">
+              <!-- Azure Blob fields -->
+              <template x-if="activeStorageProvider === 'azure_blob'">
                 <div class="space-y-3">
                   <div><label class="text-xs font-medium block mb-1">Account Name</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.account_name" /></div>
                   <div><label class="text-xs font-medium block mb-1">Account Key</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.account_key" placeholder="Encrypted at rest" /></div>
                 </div>
               </template>
-              <!-- SharePoint -->
-              <template x-if="selected.provider === 'sharepoint'">
+              <!-- SharePoint fields -->
+              <template x-if="activeStorageProvider === 'sharepoint'">
                 <div class="space-y-3">
                   <div><label class="text-xs font-medium block mb-1">Tenant ID</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.tenant_id" /></div>
                   <div><label class="text-xs font-medium block mb-1">Client ID</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.client_id" /></div>
@@ -594,39 +603,35 @@
                   <div><label class="text-xs font-medium block mb-1">Document Library</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.document_library" placeholder="Documents" /></div>
                 </div>
               </template>
-              <!-- Egnyte -->
-              <template x-if="selected.provider === 'egnyte'">
+              <!-- Egnyte fields -->
+              <template x-if="activeStorageProvider === 'egnyte'">
                 <div class="space-y-3">
                   <div><label class="text-xs font-medium block mb-1">Domain</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.domain" placeholder="yourcompany.egnyte.com" /></div>
                   <div><label class="text-xs font-medium block mb-1">API Token</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.api_token" placeholder="Encrypted at rest" /></div>
                   <div><label class="text-xs font-medium block mb-1">Root Folder</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.root_folder" placeholder="/Shared/Compliance" /></div>
                 </div>
               </template>
-              <!-- Local -->
-              <template x-if="selected.provider === 'local'">
+              <!-- Local fields -->
+              <template x-if="activeStorageProvider === 'local'">
                 <div>
                   <label class="text-xs font-medium block mb-1">Base Path</label>
                   <input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.base_path" placeholder="/app/uploads" />
                 </div>
               </template>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" class="toggle toggle-sm toggle-success" x-model="storageForm.enabled" />
-                <span class="text-xs" x-text="storageForm.enabled ? 'Enabled' : 'Disabled'"></span>
+
+              <div class="flex items-center gap-4 pt-1">
+                <label class="flex items-center gap-2"><input type="checkbox" class="toggle toggle-sm toggle-success" x-model="storageForm.enabled" /><span class="text-xs" x-text="storageForm.enabled ? 'Enabled' : 'Disabled'"></span></label>
+                <label class="flex items-center gap-2"><input type="checkbox" class="checkbox checkbox-xs" x-model="storageForm.is_default" /><span class="text-xs">Default provider</span></label>
               </div>
-              <div class="flex items-center gap-2">
-                <input type="checkbox" class="checkbox checkbox-xs" x-model="storageForm.is_default" />
-                <span class="text-xs">Set as default storage provider</span>
-              </div>
+
               <div class="flex gap-2 pt-2">
-                <button class="btn btn-primary btn-sm gap-1" @click="saveStorage()" :disabled="storageSaving">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveStorageProvider()" :disabled="storageSaving">
                   <span class="loading loading-spinner loading-xs" x-show="storageSaving"></span>
-                  <i class="ti ti-device-floppy" x-show="!storageSaving"></i>
-                  Save
+                  <i class="ti ti-device-floppy" x-show="!storageSaving"></i> Save
                 </button>
-                <button class="btn btn-sm btn-outline gap-1" x-show="selected.provider !== 'local'" @click="testStorage()" :disabled="storageTesting">
+                <button class="btn btn-sm btn-outline gap-1" x-show="activeStorageProvider !== 'local'" @click="testStorageProvider()" :disabled="storageTesting">
                   <span class="loading loading-spinner loading-xs" x-show="storageTesting"></span>
-                  <i class="ti ti-plug-connected" x-show="!storageTesting"></i>
-                  Test Connection
+                  <i class="ti ti-plug-connected" x-show="!storageTesting"></i> Test
                 </button>
               </div>
               <div x-show="storageMsg" class="text-xs" :class="storageMsgType === 'error' ? 'text-error' : 'text-success'" x-text="storageMsg"></div>
@@ -634,19 +639,9 @@
               <!-- File Structure -->
               <div class="divider text-xs">File Structure</div>
               <div class="finding-card text-xs">
-                <p class="font-semibold mb-1">Compliance documents are organized as:</p>
-                <pre class="opacity-70 font-mono text-xs leading-relaxed">/{client-name}/
-  /{project-framework}/
-    /evidence/
-    /policies/
-    /reports/
-    /wisp/</pre>
-                <p class="opacity-50 mt-2">This structure is created automatically for each client and project.</p>
+                <pre class="opacity-70 font-mono leading-relaxed">/{client-name}/{project-framework}/evidence|policies|reports|wisp</pre>
+                <p class="opacity-50 mt-1">Auto-created per client & project. Per-client overrides in Client → Settings.</p>
               </div>
-
-              <!-- Per-client override -->
-              <div class="divider text-xs">Per-Client Override</div>
-              <p class="text-xs opacity-60 mb-2">This is the <strong>default</strong> storage config. Individual clients can override with their own storage settings in the Client drawer → Settings tab.</p>
             </div>
           </div>
         </template>
@@ -953,6 +948,13 @@ function integrationsHub() {
     storageTesting: false,
     storageMsg: '',
     storageMsgType: '',
+    storageProviders: [
+      { id: 'local', label: 'Local' }, { id: 's3', label: 'AWS S3' },
+      { id: 'azure_blob', label: 'Azure' }, { id: 'sharepoint', label: 'SharePoint' },
+      { id: 'egnyte', label: 'Egnyte' },
+    ],
+    activeStorageProvider: 'local',
+    storageProviderStatus: { local: false, s3: false, azure_blob: false, sharepoint: false, egnyte: false },
 
     // SSO form state
     ssoForm: { provider: 'oidc', client_id: '', client_secret: '', discovery_url: '', enabled: false, allow_local_fallback: true },
@@ -1003,29 +1005,13 @@ function integrationsHub() {
       // MCP Server
       { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Connect AI assistants (Claude, ChatGPT, etc.) to your compliance data via OAuth 2.0. LLMs can list frameworks, assess controls, score risks, and generate policies.' },
 
-      // Storage
-      { id: 'local',      category: 'storage', name: 'Local Storage',     icon: 'ti-folder',         description: 'Store evidence and documents on the server filesystem.', provider: 'local', settingsSection: 'storage',
-        setup_guide: 'Default storage. Files are saved to the app/uploads directory on the server. No configuration needed.' },
-      { id: 's3',          category: 'storage', name: 'AWS S3',            icon: 'ti-brand-aws',      description: 'Amazon S3 or S3-compatible storage (MinIO, Cloudflare R2).', provider: 's3', settingsSection: 'storage',
-        setup_guide: '1. AWS Console → S3 → Create bucket\n2. IAM → Create user with programmatic access\n3. Attach policy: AmazonS3FullAccess (or create a scoped policy for your bucket)\n4. Required permissions:\n   • s3:PutObject\n   • s3:GetObject\n   • s3:DeleteObject\n   • s3:ListBucket\n5. Enter the Bucket name, Region, Access Key, and Secret Key below' },
-      { id: 'azure_blob', category: 'storage', name: 'Azure Blob',        icon: 'ti-brand-azure',    description: 'Microsoft Azure Blob Storage with per-tenant container isolation.', provider: 'azure_blob', settingsSection: 'storage',
-        setup_guide: '1. Azure Portal → Storage accounts → Create\n2. Go to Access keys → copy the Connection string\n3. Create a container for compliance documents\n4. Enter the Container name and Connection string below' },
-      { id: 'sharepoint', category: 'storage', name: 'SharePoint',        icon: 'ti-brand-office',   description: 'Store compliance documents in SharePoint document libraries via Graph API.', provider: 'sharepoint', settingsSection: 'storage',
-        setup_guide: '1. Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance SharePoint", Redirect URI: leave blank\n3. API Permissions → Add → Microsoft Graph → Application:\n   • Sites.ReadWrite.All\n   • Files.ReadWrite.All\n   • Sites.Selected (if you want to limit to specific sites)\n4. Click "Grant admin consent"\n5. Create a client secret under Certificates & secrets\n6. Enter the Site URL, Document Library name, Client ID, and Client Secret below\n\nNote: Site URL format: https://yourtenant.sharepoint.com/sites/yoursite' },
-      { id: 'egnyte',     category: 'storage', name: 'Egnyte',            icon: 'ti-cloud',          description: 'Egnyte cloud storage with folder-scoped document management.', provider: 'egnyte', settingsSection: 'storage',
-        setup_guide: '1. Egnyte admin → Developer Portal → Create application\n2. Generate an API access token\n3. Enter your Egnyte domain (e.g. yourcompany.egnyte.com)\n4. Specify the root folder path for compliance documents' },
+      // Storage — single unified card
+      { id: 'storage_unified', category: 'storage', name: 'Storage Providers', icon: 'ti-database', description: 'Configure one or more storage backends for evidence, policies, and reports. Multiple providers can be active simultaneously (e.g. Azure + SharePoint). Files are organized per client and project.',
+        setup_guide: 'Supported providers:\n\n• Local: Server filesystem (default, no config)\n• AWS S3: Bucket + IAM credentials (PutObject, GetObject, DeleteObject, ListBucket)\n• Azure Blob: Account Name + Account Key\n• SharePoint: Graph API with Sites.ReadWrite.All, Files.ReadWrite.All\n• Egnyte: API token + domain\n\nMultiple providers can be enabled at once. Set one as default.\nPer-client overrides available in the Client drawer → Settings.' },
 
-      // Notifications
-      { id: 'email',         category: 'notifications', name: 'Email (SMTP)',   icon: 'ti-mail',            description: 'Send compliance alerts, user invites, and reports via SMTP. Configured globally under System → SMTP.', channel: 'email', settingsSection: 'notifications', redirectTo: '/system',
-        setup_guide: 'Email is configured globally in the System page (sidebar → System → Email / SMTP Configuration).\n\nCommon providers:\n• Gmail: smtp.gmail.com, port 587, TLS on (use App Password)\n• Microsoft 365: smtp.office365.com, port 587, TLS on\n• Amazon SES: email-smtp.us-east-1.amazonaws.com, port 587' },
-      { id: 'teams_webhook', category: 'notifications', name: 'Microsoft Teams', icon: 'ti-brand-teams',    description: 'Post alerts to a Teams channel via incoming webhook.', channel: 'teams_webhook', settingsSection: 'notifications',
-        setup_guide: '1. In Microsoft Teams, go to the channel → ••• → Connectors\n2. Find "Incoming Webhook" → Configure\n3. Name it "MD Compliance Alerts" and upload an icon\n4. Copy the webhook URL and paste it below' },
-      { id: 'slack_webhook', category: 'notifications', name: 'Slack',           icon: 'ti-brand-slack',    description: 'Post alerts to a Slack channel via incoming webhook.', channel: 'slack_webhook', settingsSection: 'notifications',
-        setup_guide: '1. Go to api.slack.com/apps → Create New App → From scratch\n2. Add feature: Incoming Webhooks → Activate\n3. Click "Add New Webhook to Workspace" → select a channel\n4. Copy the webhook URL (starts with https://hooks.slack.com/)\n5. Paste the URL below' },
-      { id: 'sms',           category: 'notifications', name: 'SMS (Twilio)',    icon: 'ti-device-mobile',  description: 'Send critical compliance alerts via SMS through Twilio.', channel: 'sms', settingsSection: 'notifications',
-        setup_guide: '1. Sign up at twilio.com\n2. Get a phone number from Twilio Console\n3. Copy your Account SID and Auth Token from the dashboard\n4. Enter the Account SID, Auth Token, and From number below' },
-      { id: 'in_app',        category: 'notifications', name: 'In-App',          icon: 'ti-bell-ringing',   description: 'Browser notifications within the compliance platform.', channel: 'in_app', settingsSection: 'notifications',
-        setup_guide: 'No configuration needed. In-app notifications appear automatically in the platform.' },
+      // Notifications — single unified card
+      { id: 'notif_unified', category: 'notifications', name: 'Notification Channels', icon: 'ti-bell', description: 'Configure one or more notification channels. Enable Email (SMTP), Microsoft Teams, Slack, SMS (Twilio), and in-app notifications simultaneously with severity routing per channel.',
+        setup_guide: 'Supported channels:\n\n• Email (SMTP): Configure in System → SMTP page. Gmail, M365, SES.\n• Microsoft Teams: Channel → Connectors → Incoming Webhook\n• Slack: api.slack.com → Create App → Incoming Webhooks\n• SMS (Twilio): Account SID + Auth Token + From Number\n• In-App: Automatic, no config needed\n\nEach channel can filter by severity (Critical, High, Medium, Low).' },
 
       // SSO
       { id: 'sso_oidc',      category: 'sso', name: 'OpenID Connect',   icon: 'ti-key',            description: 'Generic OIDC provider for enterprise single sign-on.', ssoProvider: 'oidc', settingsSection: 'sso',
@@ -1105,8 +1091,12 @@ function integrationsHub() {
       }
 
       // Pre-populate storage form
-      if (item.category === 'storage') {
+      if (item.id === 'storage_unified') {
+        this.activeStorageProvider = 'local';
+        this.storageMsg = '';
         this.storageForm = { bucket: '', region: '', access_key: '', secret_key: '', endpoint_url: '', account_name: '', account_key: '', tenant_id: '', client_id: '', client_secret: '', site_url: '', document_library: '', domain: '', api_token: '', root_folder: '', base_path: '', enabled: false, is_default: false };
+        // Load status for all providers
+        this.loadStorage();
       }
 
       // Pre-populate SSO form
@@ -1174,13 +1164,18 @@ function integrationsHub() {
         if (!resp.ok) return;
         const data = await resp.json();
         const providers = Array.isArray(data) ? data : (data.providers || []);
+        let enabledCount = 0;
+        let defaultName = '';
         for (const p of providers) {
-          this.statuses[p.provider] = {
-            configured: true,
-            enabled: !!p.enabled,
-            detail: p.is_default ? 'Default provider' : (p.enabled ? 'Enabled' : 'Disabled'),
-          };
+          this.storageProviderStatus[p.provider] = !!p.enabled;
+          if (p.enabled) enabledCount++;
+          if (p.is_default) defaultName = p.provider;
         }
+        this.statuses['storage_unified'] = {
+          configured: enabledCount > 0,
+          enabled: enabledCount > 0,
+          detail: enabledCount > 0 ? enabledCount + ' provider(s)' + (defaultName ? ', default: ' + defaultName : '') : '',
+        };
       } catch (e) { console.debug('Storage status check skipped:', e); }
     },
 
@@ -1205,13 +1200,15 @@ function integrationsHub() {
         if (!resp.ok) return;
         const data = await resp.json();
         const channels = Array.isArray(data) ? data : (data.channels || []);
+        let activeCount = 0;
         for (const ch of channels) {
-          this.statuses[ch.channel] = {
-            configured: true,
-            enabled: !!ch.enabled,
-            detail: ch.enabled ? 'Active' : 'Configured but disabled',
-          };
+          if (ch.enabled) activeCount++;
         }
+        this.statuses['notif_unified'] = {
+          configured: channels.length > 0,
+          enabled: activeCount > 0,
+          detail: activeCount > 0 ? activeCount + ' channel(s) active' : '',
+        };
       } catch (e) { console.debug('Notifications status check skipped:', e); }
     },
 
@@ -1615,10 +1612,38 @@ function integrationsHub() {
       finally { this.storageSaving = false; }
     },
 
-    async testStorage() {
+    loadStorageProvider(providerId) {
+      this.storageMsg = '';
+      this.storageForm = { bucket: '', region: '', access_key: '', secret_key: '', endpoint_url: '', account_name: '', account_key: '', tenant_id: '', client_id: '', client_secret: '', site_url: '', document_library: '', domain: '', api_token: '', root_folder: '', base_path: '', enabled: false, is_default: false };
+      // TODO: load saved config from API for this provider
+    },
+
+    async saveStorageProvider() {
+      this.storageSaving = true;
+      this.storageMsg = '';
+      try {
+        const provider = this.activeStorageProvider;
+        const config = {};
+        if (provider === 's3') { config.bucket = this.storageForm.bucket; config.region = this.storageForm.region; config.access_key = this.storageForm.access_key; if (this.storageForm.secret_key) config.secret_key = this.storageForm.secret_key; if (this.storageForm.endpoint_url) config.endpoint_url = this.storageForm.endpoint_url; }
+        if (provider === 'azure_blob') { config.account_name = this.storageForm.account_name; if (this.storageForm.account_key) config.account_key = this.storageForm.account_key; }
+        if (provider === 'sharepoint') { config.tenant_id = this.storageForm.tenant_id; config.client_id = this.storageForm.client_id; if (this.storageForm.client_secret) config.client_secret = this.storageForm.client_secret; config.site_url = this.storageForm.site_url; config.document_library = this.storageForm.document_library; }
+        if (provider === 'egnyte') { config.domain = this.storageForm.domain; if (this.storageForm.api_token) config.api_token = this.storageForm.api_token; config.root_folder = this.storageForm.root_folder; }
+        if (provider === 'local') { config.base_path = this.storageForm.base_path; }
+        const payload = { enabled: this.storageForm.enabled, is_default: this.storageForm.is_default, config };
+        const resp = await fetch('/api/v1/settings/storage/' + provider, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
+        this.storageMsg = 'Saved';
+        this.storageMsgType = 'success';
+        this.storageProviderStatus[provider] = this.storageForm.enabled;
+        await this.loadStorage();
+      } catch (e) { this.storageMsg = e.message; this.storageMsgType = 'error'; }
+      finally { this.storageSaving = false; }
+    },
+
+    async testStorageProvider() {
       this.storageTesting = true;
       this.storageMsg = '';
-      const provider = this.selected.provider;
+      const provider = this.activeStorageProvider;
       try {
         // Test by saving with a test flag — the backend validates connectivity
         const resp = await fetch(`/api/v1/settings/storage/${provider}/test`, {
