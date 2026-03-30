@@ -197,7 +197,7 @@ def update_llm_config():
     except Exception as e:
         logger.exception("Error updating LLM config: %s", e)
         db.session.rollback()
-        return jsonify({"error": "Failed to update LLM configuration"}), 500
+        return jsonify({"error": f"Failed to save LLM configuration: {str(e)}"}), 500
 
 
 # ===========================================================================

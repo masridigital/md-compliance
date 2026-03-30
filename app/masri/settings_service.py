@@ -323,34 +323,44 @@ class SettingsService:
         from app import db
         from app.masri.new_models import SettingsLLM
 
-        if slot is not None:
-            from sqlalchemy import or_
-            # Match by slot, or NULL slot for slot=1 (pre-migration rows)
-            if slot == 1:
-                llm = db.session.execute(
-                    db.select(SettingsLLM).filter(
-                        or_(SettingsLLM.slot == 1, SettingsLLM.slot.is_(None))
-                    )
-                ).scalars().first()
-            else:
-                llm = db.session.execute(
-                    db.select(SettingsLLM).filter_by(slot=slot)
-                ).scalars().first()
-            if llm is None:
-                labels = {1: "Primary", 2: "Secondary", 3: "Tertiary"}
-                llm = SettingsLLM(slot=slot, label=labels.get(slot, f"Slot {slot}"))
-                db.session.add(llm)
-            elif llm.slot is None:
-                llm.slot = slot
-                llm.label = llm.label or "Primary"
-        else:
+        # Try slot-based lookup, fall back to simple first-row if columns don't exist
+        llm = None
+        try:
+            if slot is not None:
+                from sqlalchemy import or_
+                if slot == 1:
+                    llm = db.session.execute(
+                        db.select(SettingsLLM).filter(
+                            or_(SettingsLLM.slot == 1, SettingsLLM.slot.is_(None))
+                        )
+                    ).scalars().first()
+                else:
+                    llm = db.session.execute(
+                        db.select(SettingsLLM).filter_by(slot=slot)
+                    ).scalars().first()
+        except Exception:
+            # slot column likely doesn't exist yet — fall back
+            db.session.rollback()
+            llm = None
+
+        if llm is None:
+            # Fall back: get any existing row, or create one
             llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
             if llm is None:
-                llm = SettingsLLM(slot=1, label="Primary")
+                llm = SettingsLLM()
                 db.session.add(llm)
 
+        # Set slot/label if the columns exist
+        try:
+            if slot is not None and getattr(llm, 'slot', 'MISSING') != 'MISSING':
+                llm.slot = slot
+                labels = {1: "Primary", 2: "Secondary", 3: "Tertiary"}
+                llm.label = labels.get(slot, f"Slot {slot}")
+        except Exception:
+            pass
+
         safe_fields = {"provider", "model_name", "azure_endpoint",
-                        "azure_deployment", "enabled", "label",
+                        "azure_deployment", "enabled",
                         "token_budget_per_tenant", "rate_limit_per_hour"}
         for key, value in data.items():
             if key in safe_fields:
