@@ -3612,6 +3612,9 @@ class User(db.Model, UserMixin):
     memberships = db.relationship("TenantMember", backref="user", lazy="dynamic")
     projects = db.relationship("Project", backref="user", lazy="dynamic")
     assessments = db.relationship("AssessmentGuest", backref="user", lazy="dynamic")
+    totp_secret_enc = db.Column(db.Text, nullable=True)  # Fernet-encrypted TOTP secret
+    totp_enabled = db.Column(db.Boolean, default=False)
+    session_timeout_minutes = db.Column(db.Integer, nullable=True)  # per-user override
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
@@ -3676,6 +3679,52 @@ class User(db.Model, UserMixin):
         if not self.last_password_change:
             return True
         return False
+
+    def setup_totp(self):
+        """Generate a new TOTP secret, encrypt and store it. Returns the raw secret."""
+        import pyotp
+        from app.masri.settings_service import encrypt_value
+        secret = pyotp.random_base32()
+        self.totp_secret_enc = encrypt_value(secret)
+        self.totp_enabled = False  # not enabled until verified
+        db.session.commit()
+        return secret
+
+    def get_totp_secret(self):
+        """Decrypt and return the TOTP secret."""
+        if not self.totp_secret_enc:
+            return None
+        from app.masri.settings_service import decrypt_value
+        return decrypt_value(self.totp_secret_enc)
+
+    def verify_totp(self, code):
+        """Verify a TOTP code against the stored secret."""
+        import pyotp
+        secret = self.get_totp_secret()
+        if not secret:
+            return False
+        totp = pyotp.TOTP(secret)
+        return totp.verify(code, valid_window=1)
+
+    def enable_totp(self):
+        """Mark TOTP as enabled after initial verification."""
+        self.totp_enabled = True
+        db.session.commit()
+
+    def disable_totp(self):
+        """Disable and clear TOTP secret."""
+        self.totp_enabled = False
+        self.totp_secret_enc = None
+        db.session.commit()
+
+    def get_totp_uri(self, app_name="MD Compliance"):
+        """Get the otpauth:// URI for QR code generation."""
+        import pyotp
+        secret = self.get_totp_secret()
+        if not secret:
+            return None
+        totp = pyotp.TOTP(secret)
+        return totp.provisioning_uri(name=self.email, issuer_name=app_name)
 
     @staticmethod
     def add(

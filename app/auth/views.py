@@ -55,6 +55,40 @@ def logout():
     return redirect(url_for("auth.get_login"))
 
 
+@auth.route("/verify-2fa", methods=["GET"])
+def get_verify_totp():
+    from flask import session
+    if not session.get("_totp_user_id"):
+        return redirect(url_for("auth.get_login"))
+    return render_template("auth/verify_totp.html")
+
+
+@auth.route("/verify-2fa", methods=["POST"])
+@limiter.limit("10 per minute")
+def verify_totp():
+    from flask import session
+    user_id = session.get("_totp_user_id")
+    if not user_id:
+        return redirect(url_for("auth.get_login"))
+
+    user = db.session.get(User, user_id)
+    if not user:
+        session.pop("_totp_user_id", None)
+        flash("Invalid session", "error")
+        return redirect(url_for("auth.get_login"))
+
+    code = request.form.get("code", "").strip()
+    if not code or not user.verify_totp(code):
+        flash("Invalid verification code", "error")
+        return redirect(url_for("auth.get_verify_totp"))
+
+    # TOTP verified — complete login
+    next_page = session.pop("_totp_next", url_for("main.home"))
+    session.pop("_totp_user_id", None)
+    custom_login(user)
+    return redirect(next_page)
+
+
 @auth.route("/confirm-email", methods=["GET"])
 @login_required
 def confirm_email():

@@ -455,10 +455,13 @@
                   </div>
                   <ul class="flex flex-col p-2 my-2 space-y-1">
                     <li>
-                      <a class="block px-2 py-1 transition rounded-md hover:bg-base-200 text-sm" href="{{url_for("main.user_profile",uid=current_user.id)}}">Profile</a>
+                      <a class="block px-2 py-1 transition rounded-md hover:bg-base-200 text-sm" href="/profile"><i class="ti ti-user mr-1"></i>My Profile</a>
                     </li>
                     <li>
-                      <span class="block px-2 py-1 transition rounded-md hover:bg-base-200 capitalize">License: {{current_user.license}}</span>
+                      <a class="block px-2 py-1 transition rounded-md hover:bg-base-200 text-sm" href="{{url_for("main.user_profile",uid=current_user.id)}}"><i class="ti ti-settings mr-1"></i>Account</a>
+                    </li>
+                    <li>
+                      <span class="block px-2 py-1 transition rounded-md hover:bg-base-200 capitalize text-sm">License: {{current_user.license}}</span>
                     </li>
                   </ul>
                   <div class="flex items-center justify-center p-4 underline border-t border-base-200">

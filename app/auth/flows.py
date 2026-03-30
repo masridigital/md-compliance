@@ -105,6 +105,12 @@ class UserFlow:
         ):
             abort(403, "Invalid password")
 
+        # Check if TOTP 2FA is enabled — require verification before full login
+        if user.totp_enabled and self.provider == "local":
+            session["_totp_user_id"] = user.id
+            session["_totp_next"] = self.next_page or url_for("main.home")
+            return redirect(url_for("auth.verify_totp"))
+
         custom_login(user)
 
         # Have user create tenant if they don't have any

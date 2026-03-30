@@ -621,3 +621,115 @@ def delete_entra_config():
     db.session.delete(record)
     db.session.commit()
     return jsonify({"message": "Entra credentials removed from database"})
+
+
+# ===========================================================================
+# TOTP 2FA (user self-service)
+# ===========================================================================
+
+@settings_bp.route("/mfa/setup", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def mfa_setup():
+    """POST /api/v1/settings/mfa/setup — generate TOTP secret, return QR URI."""
+    secret = current_user.setup_totp()
+    uri = current_user.get_totp_uri(
+        app_name=current_app.config.get("APP_NAME", "MD Compliance")
+    )
+    return jsonify({"secret": secret, "uri": uri, "email": current_user.email})
+
+
+@settings_bp.route("/mfa/verify", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def mfa_verify():
+    """POST /api/v1/settings/mfa/verify — verify a TOTP code to enable MFA."""
+    data = request.get_json(silent=True) or {}
+    code = data.get("code", "").strip()
+    if not code:
+        return jsonify({"error": "code is required"}), 400
+
+    if current_user.verify_totp(code):
+        current_user.enable_totp()
+        return jsonify({"message": "MFA enabled successfully", "enabled": True})
+    return jsonify({"error": "Invalid code. Please try again."}), 400
+
+
+@settings_bp.route("/mfa/disable", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def mfa_disable():
+    """POST /api/v1/settings/mfa/disable — disable MFA for current user."""
+    data = request.get_json(silent=True) or {}
+    code = data.get("code", "").strip()
+
+    # Require a valid code to disable (prevents unauthorized disable)
+    if current_user.totp_enabled:
+        if not code or not current_user.verify_totp(code):
+            return jsonify({"error": "Valid TOTP code required to disable MFA"}), 400
+
+    current_user.disable_totp()
+    return jsonify({"message": "MFA disabled", "enabled": False})
+
+
+@settings_bp.route("/mfa/status", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def mfa_status():
+    """GET /api/v1/settings/mfa/status — check MFA status for current user."""
+    return jsonify({
+        "enabled": current_user.totp_enabled,
+        "has_secret": bool(current_user.totp_secret_enc),
+    })
+
+
+@settings_bp.route("/mfa/reset/<string:user_id>", methods=["POST"])
+@limiter.limit("10 per minute")
+@login_required
+def mfa_admin_reset(user_id):
+    """POST /api/v1/settings/mfa/reset/<user_id> — admin resets a user's MFA."""
+    _require_admin()
+    from app.models import User
+    user = db.session.get(User, user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    user.disable_totp()
+    return jsonify({"message": f"MFA reset for {user.email}", "enabled": False})
+
+
+# ===========================================================================
+# User Profile
+# ===========================================================================
+
+@settings_bp.route("/profile", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_profile():
+    """GET /api/v1/settings/profile — current user profile."""
+    data = current_user.as_dict()
+    data["totp_enabled"] = current_user.totp_enabled
+    data["session_timeout_minutes"] = current_user.session_timeout_minutes
+    return jsonify(data)
+
+
+@settings_bp.route("/profile", methods=["PUT"])
+@limiter.limit("30 per minute")
+@login_required
+def update_profile():
+    """PUT /api/v1/settings/profile — update current user profile."""
+    data = request.get_json(silent=True) or {}
+
+    if "first_name" in data:
+        current_user.first_name = data["first_name"]
+    if "last_name" in data:
+        current_user.last_name = data["last_name"]
+    if "session_timeout_minutes" in data:
+        timeout = int(data["session_timeout_minutes"])
+        if timeout in (5, 15, 30, 45, 60, 120, 480):
+            current_user.session_timeout_minutes = timeout
+            # Also update session
+            from flask import session
+            session["_user_timeout_minutes"] = timeout
+
+    db.session.commit()
+    return jsonify({"message": "Profile updated"})

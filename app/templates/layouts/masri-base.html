@@ -151,6 +151,9 @@
             {{ current_user.first_name[0] | upper if current_user.first_name else current_user.email[0] | upper }}
           </button>
           <div class="md-dropdown" x-show="open" x-transition.opacity x-cloak>
+            <a href="/profile" class="md-dropdown-item">
+              <i class="ti ti-user" style="font-size: 16px;"></i> My Profile
+            </a>
             <a href="{{ url_for('main.settings') }}" class="md-dropdown-item">
               <i class="ti ti-settings" style="font-size: 16px;"></i> Settings
             </a>

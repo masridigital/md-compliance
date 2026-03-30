@@ -55,3 +55,7 @@ anthropic>=0.49.0
 
 # --- Phase 1: Notifications ---
 twilio>=9.0.0
+
+# --- Phase 1: TOTP 2FA ---
+pyotp>=2.9.0
+qrcode>=7.4.0

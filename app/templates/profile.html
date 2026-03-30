@@ -1,0 +1,278 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block page_header%}{%endblock%}
+
+{%block content%}
+<div x-data="profilePage()" class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold mb-6">My Profile</h1>
+
+    <!-- Personal Info -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-4"><i class="ti ti-user mr-1"></i> Personal Information</h3>
+            <div class="grid grid-cols-6 gap-4">
+                <div class="col-span-3">
+                    <label class="block text-sm font-medium pb-1">First Name</label>
+                    <input type="text" class="input input-sm input-bordered w-full" x-model="profile.first_name">
+                </div>
+                <div class="col-span-3">
+                    <label class="block text-sm font-medium pb-1">Last Name</label>
+                    <input type="text" class="input input-sm input-bordered w-full" x-model="profile.last_name">
+                </div>
+                <div class="col-span-3">
+                    <label class="block text-sm font-medium pb-1">Email</label>
+                    <input type="email" class="input input-sm input-bordered w-full" :value="profile.email" disabled>
+                </div>
+                <div class="col-span-3">
+                    <label class="block text-sm font-medium pb-1">Username</label>
+                    <input type="text" class="input input-sm input-bordered w-full" :value="profile.username" disabled>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn btn-sm btn-primary" @click="saveProfile()" :disabled="saving">
+                    <span class="loading loading-spinner loading-xs" x-show="saving"></span>
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Timeout -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-2"><i class="ti ti-clock mr-1"></i> Session Timeout</h3>
+            <p class="text-sm opacity-60 mb-3">Auto-logout after inactivity. Default: {{ config.SESSION_TIMEOUT_MINUTES }} minutes.</p>
+            <select class="select select-sm select-bordered w-48" x-model="profile.session_timeout_minutes" @change="saveProfile()">
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="120">2 hours</option>
+                <option value="480">8 hours</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Two-Factor Authentication -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="card-title text-md mb-2"><i class="ti ti-shield-lock mr-1"></i> Two-Factor Authentication</h3>
+                    <p class="text-sm opacity-60" x-text="mfaEnabled ? 'MFA is enabled. Your account is protected with an authenticator app.' : 'Add an extra layer of security using an authenticator app (Google Authenticator, Authy, etc.)'"></p>
+                </div>
+                <div class="badge" :class="mfaEnabled ? 'badge-success' : 'badge-warning'" x-text="mfaEnabled ? 'Enabled' : 'Disabled'"></div>
+            </div>
+
+            <!-- Setup Flow (when not enabled) -->
+            <div x-show="!mfaEnabled" class="mt-4">
+                <button class="btn btn-sm btn-primary gap-1" @click="setupMfa()" :disabled="mfaSetupLoading" x-show="!mfaSetupData">
+                    <span class="loading loading-spinner loading-xs" x-show="mfaSetupLoading"></span>
+                    <i class="ti ti-shield-plus" x-show="!mfaSetupLoading"></i>
+                    Enable MFA
+                </button>
+
+                <!-- QR Code + Secret -->
+                <div x-show="mfaSetupData" x-cloak class="mt-4 space-y-4">
+                    <div role="alert" class="alert bg-base-300">
+                        <i class="ti ti-info-circle"></i>
+                        <span class="text-sm">Scan this QR code with your authenticator app, then enter the 6-digit code to confirm.</span>
+                    </div>
+
+                    <div class="flex gap-6 items-start">
+                        <!-- QR Code -->
+                        <div class="bg-white p-4 rounded-lg">
+                            <div id="qr-code" style="width: 200px; height: 200px;"></div>
+                        </div>
+                        <!-- Manual entry -->
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium pb-1">Manual Entry Key</label>
+                            <div class="flex gap-2 items-center mb-4">
+                                <code class="text-xs bg-base-300 px-2 py-1 rounded break-all flex-1" x-text="mfaSetupData.secret"></code>
+                                <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mfaSetupData.secret); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button>
+                            </div>
+
+                            <label class="block text-sm font-medium pb-1">Verification Code</label>
+                            <div class="flex gap-2">
+                                <input type="text" class="input input-sm input-bordered w-32 text-center tracking-widest"
+                                       x-model="mfaCode" placeholder="000000" maxlength="6" inputmode="numeric"
+                                       @keydown.enter="verifyMfa()">
+                                <button class="btn btn-sm btn-success gap-1" @click="verifyMfa()" :disabled="mfaVerifying || mfaCode.length < 6">
+                                    <span class="loading loading-spinner loading-xs" x-show="mfaVerifying"></span>
+                                    Verify & Enable
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disable Flow (when enabled) -->
+            <div x-show="mfaEnabled" class="mt-4">
+                <div x-show="!showDisableMfa">
+                    <button class="btn btn-sm btn-outline btn-error gap-1" @click="showDisableMfa = true">
+                        <i class="ti ti-shield-off"></i> Disable MFA
+                    </button>
+                </div>
+                <div x-show="showDisableMfa" x-cloak class="bg-base-300 rounded-lg p-4 mt-2">
+                    <p class="text-sm mb-3">Enter your current authenticator code to confirm:</p>
+                    <div class="flex gap-2">
+                        <input type="text" class="input input-sm input-bordered w-32 text-center tracking-widest"
+                               x-model="disableCode" placeholder="000000" maxlength="6" inputmode="numeric">
+                        <button class="btn btn-sm btn-error gap-1" @click="disableMfa()" :disabled="disableCode.length < 6">
+                            Confirm Disable
+                        </button>
+                        <button class="btn btn-sm btn-ghost" @click="showDisableMfa = false">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="mfaMsg" class="text-xs mt-2" :class="mfaMsgType === 'error' ? 'text-error' : 'text-success'" x-text="mfaMsg"></div>
+        </div>
+    </div>
+
+    <!-- Account Info (read-only) -->
+    <div class="card bg-base-200 border border-base-300">
+        <div class="card-body">
+            <h3 class="card-title text-md mb-2"><i class="ti ti-info-circle mr-1"></i> Account</h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div><span class="opacity-50">License:</span> <span class="capitalize font-medium" x-text="profile.license"></span></div>
+                <div><span class="opacity-50">Login Count:</span> <span class="font-medium" x-text="profile.login_count"></span></div>
+                <div><span class="opacity-50">Member Since:</span> <span class="font-medium" x-text="profile.date_added ? new Date(profile.date_added).toLocaleDateString() : '-'"></span></div>
+                <div><span class="opacity-50">Status:</span> <span class="badge badge-xs" :class="profile.is_active ? 'badge-success' : 'badge-error'" x-text="profile.is_active ? 'Active' : 'Inactive'"></span></div>
+            </div>
+        </div>
+    </div>
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function profilePage() {
+  return {
+    profile: {},
+    saving: false,
+    mfaEnabled: false,
+    mfaSetupLoading: false,
+    mfaSetupData: null,
+    mfaCode: '',
+    mfaVerifying: false,
+    showDisableMfa: false,
+    disableCode: '',
+    mfaMsg: '',
+    mfaMsgType: '',
+
+    init() {
+      this.loadProfile();
+      this.checkMfa();
+    },
+
+    async loadProfile() {
+      try {
+        const resp = await fetch('/api/v1/settings/profile');
+        if (resp.ok) this.profile = await resp.json();
+      } catch(e) {}
+    },
+
+    async checkMfa() {
+      try {
+        const resp = await fetch('/api/v1/settings/mfa/status');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.mfaEnabled = data.enabled;
+        }
+      } catch(e) {}
+    },
+
+    async saveProfile() {
+      this.saving = true;
+      try {
+        const resp = await fetch('/api/v1/settings/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            first_name: this.profile.first_name,
+            last_name: this.profile.last_name,
+            session_timeout_minutes: parseInt(this.profile.session_timeout_minutes) || 5,
+          }),
+        });
+        if (resp.ok) toast('Profile saved', 'success');
+        else toast('Failed to save', 'error');
+      } catch(e) { toast('Error', 'error'); }
+      this.saving = false;
+    },
+
+    async setupMfa() {
+      this.mfaSetupLoading = true;
+      this.mfaMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/mfa/setup', { method: 'POST' });
+        if (resp.ok) {
+          this.mfaSetupData = await resp.json();
+          // Generate QR code using a simple SVG approach
+          this.$nextTick(() => {
+            const el = document.getElementById('qr-code');
+            if (el && this.mfaSetupData.uri) {
+              el.innerHTML = '<div class="text-center text-xs opacity-60 py-8">Scan with authenticator app<br><br><code class="text-xxs break-all">' + this.mfaSetupData.uri + '</code></div>';
+            }
+          });
+        } else {
+          this.mfaMsg = 'Failed to setup MFA';
+          this.mfaMsgType = 'error';
+        }
+      } catch(e) { this.mfaMsg = 'Error: ' + e.message; this.mfaMsgType = 'error'; }
+      this.mfaSetupLoading = false;
+    },
+
+    async verifyMfa() {
+      this.mfaVerifying = true;
+      this.mfaMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/mfa/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: this.mfaCode }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.enabled) {
+          this.mfaEnabled = true;
+          this.mfaSetupData = null;
+          this.mfaCode = '';
+          this.mfaMsg = 'MFA enabled successfully!';
+          this.mfaMsgType = 'success';
+          toast('MFA enabled!', 'success');
+        } else {
+          this.mfaMsg = data.error || 'Invalid code';
+          this.mfaMsgType = 'error';
+        }
+      } catch(e) { this.mfaMsg = 'Error: ' + e.message; this.mfaMsgType = 'error'; }
+      this.mfaVerifying = false;
+    },
+
+    async disableMfa() {
+      this.mfaMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/mfa/disable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: this.disableCode }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          this.mfaEnabled = false;
+          this.showDisableMfa = false;
+          this.disableCode = '';
+          this.mfaMsg = 'MFA disabled';
+          this.mfaMsgType = 'success';
+          toast('MFA disabled', 'success');
+        } else {
+          this.mfaMsg = data.error || 'Invalid code';
+          this.mfaMsgType = 'error';
+        }
+      } catch(e) { this.mfaMsg = 'Error'; this.mfaMsgType = 'error'; }
+    },
+  };
+}
+</script>
+{%endblock%}

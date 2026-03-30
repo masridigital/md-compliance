@@ -1,0 +1,37 @@
+{% extends "layouts/empty.html" %}
+
+{%block body%}
+<body class="flex items-center justify-center min-h-screen bg-base-200">
+  <div class="card w-full max-w-md bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-center justify-center mb-2">
+        <i class="ti ti-shield-lock text-2xl text-primary mr-2"></i>
+        Two-Factor Authentication
+      </h2>
+      <p class="text-sm text-center opacity-60 mb-4">Enter the 6-digit code from your authenticator app</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div role="alert" class="alert alert-{{ 'error' if category == 'error' else 'warning' }} mb-4">
+        <span class="text-sm">{{ message }}</span>
+      </div>
+      {% endfor %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('auth.verify_totp') }}">
+        <div class="form-control mb-4">
+          <input type="text" name="code" class="input input-bordered text-center text-2xl tracking-widest"
+                 placeholder="000000" maxlength="6" pattern="[0-9]{6}" autofocus
+                 inputmode="numeric" autocomplete="one-time-code" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Verify</button>
+      </form>
+
+      <div class="divider text-xs">or</div>
+      <a href="{{ url_for('auth.get_login') }}" class="btn btn-ghost btn-sm w-full">
+        <i class="ti ti-arrow-left mr-1"></i> Back to Login
+      </a>
+    </div>
+  </div>
+</body>
+{%endblock%}

@@ -90,6 +90,13 @@ def masri_settings():
 # Tenant operations
 # ---------------------------------------------------------------------------
 
+@main.route("/profile", methods=["GET"])
+@login_required
+def profile():
+    """User profile page — personal info, session timeout, MFA."""
+    return render_template("profile.html")
+
+
 @main.route("/clients", methods=["GET"])
 @main.route("/workspace", methods=["GET"])
 @login_required
