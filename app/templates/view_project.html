@@ -6343,13 +6343,16 @@ function project(){
 
 		},
 		formatComment: function(message) {
-			let words = message.split(' ');
+			// Sanitize HTML entities to prevent XSS before rendering via x-html
+			const escapeHtml = (str) => str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+			let safeMessage = escapeHtml(message);
+			let words = safeMessage.split(' ');
 
 			let formatted = words.map(word => {
 				if (word.startsWith('@')) {
 					return `<i class='italic'>${word}</i>`;
 				} else if (word.startsWith('#')) {
-					return `<i data-message="${message}" @click="jumpToControl($event)" class="underline hover:cursor-pointer text-success">${word}</i>`;
+					return `<i data-message="${escapeHtml(message)}" @click="jumpToControl($event)" class="underline hover:cursor-pointer text-success">${word}</i>`;
 				} else {
 					return word;
 				}

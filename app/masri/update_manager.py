@@ -22,6 +22,30 @@ logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Security: only allow these exact commands — no user input ever enters subprocess
+_ALLOWED_GIT_COMMANDS = {
+    "fetch": ["git", "fetch", "origin", "main"],
+    "pull": ["git", "pull", "origin", "main"],
+    "status": ["git", "status", "--porcelain"],
+    "rev_parse_head": ["git", "rev-parse", "--short", "HEAD"],
+    "rev_parse_remote": ["git", "rev-parse", "--short", "origin/main"],
+    "rev_list": ["git", "rev-list", "--count", "HEAD..origin/main"],
+    "log": ["git", "log", "--oneline", "HEAD..origin/main", "--max-count=20"],
+}
+
+
+def _run_safe(cmd_name: str, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run a pre-approved command only. Prevents command injection."""
+    if cmd_name not in _ALLOWED_GIT_COMMANDS:
+        raise ValueError(f"Command not allowed: {cmd_name}")
+    return subprocess.run(
+        _ALLOWED_GIT_COMMANDS[cmd_name],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
 
 class UpdateManager:
     """Handles checking for and applying platform updates."""
@@ -37,65 +61,29 @@ class UpdateManager:
         """
         try:
             # Verify git is available and we're in a repo
-            git_check = subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            git_check = _run_safe("status", timeout=10)
             if git_check.returncode != 0:
                 return {"error": "Not a git repository or git not available", "available": False}
 
             # Fetch latest from remote without merging
-            fetch = subprocess.run(
-                ["git", "fetch", "origin", "main"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            fetch = _run_safe("fetch", timeout=30)
             if fetch.returncode != 0:
-                return {"error": f"Git fetch failed: {fetch.stderr.strip()}", "available": False}
+                return {"error": "Git fetch failed", "available": False}
 
             # Get current HEAD
-            current = subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            ).stdout.strip()
+            current = _run_safe("rev_parse_head", timeout=10).stdout.strip()
 
             # Get remote HEAD
-            remote = subprocess.run(
-                ["git", "rev-parse", "--short", "origin/main"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            ).stdout.strip()
+            remote = _run_safe("rev_parse_remote", timeout=10).stdout.strip()
 
             # Count commits behind
-            behind_output = subprocess.run(
-                ["git", "rev-list", "--count", "HEAD..origin/main"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            ).stdout.strip()
+            behind_output = _run_safe("rev_list", timeout=10).stdout.strip()
             commits_behind = int(behind_output) if behind_output.isdigit() else 0
 
             # Get commit messages for pending updates
             changes = []
             if commits_behind > 0:
-                log_output = subprocess.run(
-                    ["git", "log", "--oneline", "HEAD..origin/main", "--max-count=20"],
-                    cwd=_PROJECT_ROOT,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                ).stdout.strip()
+                log_output = _run_safe("log", timeout=10).stdout.strip()
                 if log_output:
                     changes = log_output.split("\n")
 
@@ -131,14 +119,8 @@ class UpdateManager:
             dict with keys: success (bool), message, details
         """
         try:
-            # 1. Git pull
-            pull_result = subprocess.run(
-                ["git", "pull", "origin", "main"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+            # 1. Git pull (uses pre-approved command only)
+            pull_result = _run_safe("pull", timeout=60)
             if pull_result.returncode != 0:
                 return {
                     "success": False,
@@ -198,13 +180,15 @@ with app.app_context():
             except Exception:
                 pass
 
+            # Log detailed output server-side only — never expose to API
+            logger.info("Update git: %s", pull_result.stdout[:300])
+            logger.info("Update pip: %s", "OK" if pip_result.returncode == 0 else pip_result.stderr[:300])
+            logger.info("Update migrate: %s", "OK" if migrate_result.returncode == 0 else migrate_result.stderr[:300])
+            logger.info("Update restart: %s", restart_msg)
+
             return {
                 "success": True,
-                "message": "Update applied successfully",
-                "git_output": pull_result.stdout[:500],
-                "pip_output": "Dependencies updated" if pip_result.returncode == 0 else pip_result.stderr[:300],
-                "migration_output": "Migrations applied" if migrate_result.returncode == 0 else migrate_result.stderr[:300],
-                "restart": restart_msg,
+                "message": "Update applied successfully. The app will restart momentarily.",
                 "applied_at": datetime.utcnow().isoformat(),
             }
         except subprocess.TimeoutExpired:
