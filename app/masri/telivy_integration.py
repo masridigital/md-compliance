@@ -37,7 +37,7 @@ class TelivyIntegration:
             "Content-Type": "application/json",
         }
 
-    def _request(self, method: str, path: str, **kwargs) -> dict | bytes:
+    def _request(self, method: str, path: str, **kwargs):
         """Make an authenticated request to the Telivy API."""
         url = f"{self.base_url}{path}"
         resp = requests.request(
