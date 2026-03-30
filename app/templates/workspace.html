@@ -158,35 +158,32 @@
             <span class="loading loading-spinner loading-sm"></span>
           </div>
           <template x-for="p in drawerProjects" :key="p.id">
-            <div class="proj-card">
+            <a :href="'/projects/' + p.id" class="proj-card block cursor-pointer" style="text-decoration:none;color:inherit;">
               <div class="flex justify-between items-center mb-1">
-                <a :href="'/projects/' + p.id" class="flex items-center gap-2 hover:underline">
+                <div class="flex items-center gap-2">
                   <i class="ti ti-circles text-sm text-primary"></i>
                   <span class="text-sm font-semibold uppercase" x-text="p.framework || p.name"></span>
-                </a>
-                <div class="flex items-center gap-1">
+                </div>
+                <div class="flex items-center gap-1" @click.prevent.stop>
                   <span class="badge badge-xs" x-text="p.status || 'not started'"></span>
                   <div class="dropdown dropdown-end">
                     <label tabindex="0" class="btn btn-ghost btn-xs px-1"><i class="ti ti-dots-vertical"></i></label>
                     <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-40 p-1 shadow-lg">
-                      <li><a :href="'/projects/' + p.id" class="text-xs"><i class="ti ti-external-link mr-1"></i>Open</a></li>
                       <li><button class="text-xs" @click="editProjectId = p.id; editProjectName = p.name; editProjectDesc = p.description || ''; showEditProjectModal = true"><i class="ti ti-edit mr-1"></i>Edit</button></li>
                       <li><button class="text-xs text-error" @click="deleteProjectId = p.id; deleteProjectName = p.name || p.framework; showDeleteProjectModal = true"><i class="ti ti-trash mr-1"></i>Delete</button></li>
                     </ul>
                   </div>
                 </div>
               </div>
-              <a :href="'/projects/' + p.id" class="block">
-                <div class="flex items-center gap-2 mt-2">
-                  <progress class="progress progress-primary w-full h-1.5" :value="p.completion_progress || 0" max="100"></progress>
-                  <span class="text-xs opacity-50 whitespace-nowrap" x-text="(p.completion_progress || 0) + '%'"></span>
-                </div>
-                <div class="flex gap-3 mt-1 text-xs opacity-50">
-                  <span x-text="(p.total_controls || 0) + ' controls'"></span>
-                  <span x-text="(p.total_policies || 0) + ' policies'"></span>
-                </div>
-              </a>
-            </div>
+              <div class="flex items-center gap-2 mt-2">
+                <progress class="progress progress-primary w-full h-1.5" :value="p.completion_progress || 0" max="100"></progress>
+                <span class="text-xs opacity-50 whitespace-nowrap" x-text="(p.completion_progress || 0) + '%'"></span>
+              </div>
+              <div class="flex gap-3 mt-1 text-xs opacity-50">
+                <span x-text="(p.total_controls || 0) + ' controls'"></span>
+                <span x-text="(p.total_policies || 0) + ' policies'"></span>
+              </div>
+            </a>
           </template>
           <div x-show="!drawerProjectsLoading && drawerProjects.length === 0" class="text-center py-4 opacity-40 text-xs">
             No projects. Click "New Project" to create one.
