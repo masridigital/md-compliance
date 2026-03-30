@@ -52,8 +52,16 @@ def wisp_assist():
 
     Returns LLM-generated draft content for the given wizard step.
     """
-    if not current_app.config.get("LLM_ENABLED"):
-        return jsonify({"error": "LLM features are not enabled"}), 403
+    # Check both env var and DB for LLM availability
+    llm_ok = current_app.config.get("LLM_ENABLED")
+    if not llm_ok:
+        try:
+            from app.masri.llm_service import LLMService
+            llm_ok = LLMService.is_enabled()
+        except Exception:
+            pass
+    if not llm_ok:
+        return jsonify({"error": "LLM features are not enabled. Configure an AI provider in Integrations."}), 403
 
     data, err = validate_payload(WISPAssistSchema, request.get_json(silent=True))
     if err:
@@ -355,8 +363,16 @@ def wisp_llm_generate(wisp_id):
     Uses LLM to generate polished text for all (or specified) WISP sections
     and stores the result in ``generated_text_json``.
     """
-    if not current_app.config.get("LLM_ENABLED"):
-        return jsonify({"error": "LLM features are not enabled"}), 403
+    # Check both env var and DB for LLM availability
+    llm_ok = current_app.config.get("LLM_ENABLED")
+    if not llm_ok:
+        try:
+            from app.masri.llm_service import LLMService
+            llm_ok = LLMService.is_enabled()
+        except Exception:
+            pass
+    if not llm_ok:
+        return jsonify({"error": "LLM features are not enabled. Configure an AI provider in Integrations."}), 403
 
     from app.masri.new_models import WISPDocument
     from app.masri.llm_service import LLMService

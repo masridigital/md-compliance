@@ -102,7 +102,7 @@ def register_context_processors(app):
         """
         return {
             "feature_flags": {
-                "LLM_ENABLED": app.config.get("LLM_ENABLED", False),
+                "LLM_ENABLED": app.config.get("LLM_ENABLED", False) or _check_llm_db(),
                 "WISP_ENABLED": app.config.get("WISP_ENABLED", True),
                 "MCP_ENABLED": app.config.get("MCP_ENABLED", False),
             }
@@ -112,6 +112,15 @@ def register_context_processors(app):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _check_llm_db():
+    """Check if LLM is configured in the database (not just env var)."""
+    try:
+        from app.masri.llm_service import LLMService
+        return LLMService.is_enabled()
+    except Exception:
+        return False
+
 
 def _get_active_tenant_id():
     """Get the active tenant ID from session or current_user."""
