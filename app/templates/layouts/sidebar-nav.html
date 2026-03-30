@@ -133,7 +133,7 @@
           {%if "vendor" in user_roles%}
           {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-timeline text-2xl"></i>'}]%}
           {%else%}
-          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'clients','link':'/workspace','icon':'<i class="ti ti-building-skyscraper text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
+          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'clients','link':'/clients','icon':'<i class="ti ti-building-skyscraper text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
           {%endif%}
           {%for link in sidebarlinks%}
           <li class="mb-4">
@@ -646,8 +646,10 @@
               post: function() {
                 this.$store.chat.messages.push({"source": "user", "message": this.$store.chat.chatInput})
                 let payload = {"messages": this.$store.chat.messages}
+                const tid = this.$store.currentUser.selectedTenant ? this.$store.currentUser.selectedTenant.id : null;
+                if (!tid) { toast("Please select a tenant first", "warning"); return; }
                 request("POST",
-                    `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/chat`,
+                    `/api/v1/tenants/${tid}/chat`,
                     data => {
                         this.$store.chat.messages.push(data)
                         this.$store.chat.chatInput = "";
@@ -665,7 +667,7 @@
                   this.setTenant(newValue)
             })
             this.riskLinks = [
-                { 'label': 'Risk Register', 'link': `/tenants/${this.selectedTenant.id}/risk` },
+                { 'label': 'Risk Register', 'link': this.selectedTenant && this.selectedTenant.id ? `/tenants/${this.selectedTenant.id}/risk` : '#' },
             ];
           },
           riskLinks: [],
@@ -716,7 +718,13 @@
               this.setRolesForTenant(tenant.id)
               console.log(`Set TenantID:${tenantId}`)
             } else {
-              console.log(`TenantID:${tenantId} not found - may have to refresh the page.`)
+              // Stale tenant ID — clear and auto-select first available
+              console.log(`TenantID:${tenantId} not found in user tenants — clearing stale selection`)
+              localStorage.removeItem("selectedTenant")
+              localStorage.removeItem("selectedTenantId")
+              if (this.tenants.length > 0) {
+                this.selectedTenantId = this.tenants[0].id;
+              }
             }
           },
           setRolesForTenant: function(tenantId) {
