@@ -1047,3 +1047,102 @@ def test_smtp():
         elif "sender" in error_msg.lower() or "from" in error_msg.lower():
             hints = " Check the Default Sender field — it must be a valid email address."
         return jsonify({"error": f"SMTP test failed: {error_msg}.{hints}"}), 500
+
+
+# ===========================================================================
+# Integration Reset
+# ===========================================================================
+
+@settings_bp.route("/reset/<string:integration_type>", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def reset_integration(integration_type):
+    """DELETE /api/v1/settings/reset/<type> — clear an integration config.
+
+    Supports:
+      - llm (all slots)
+      - llm/<slot> (specific slot: 1, 2, 3)
+      - storage/<provider> (s3, azure_blob, sharepoint, egnyte, local)
+      - entra
+      - sso
+      - mcp (all keys)
+      - smtp
+      - notification/<channel> (teams_webhook, slack_webhook, sms)
+    """
+    _require_admin()
+    from app.models import Logs
+
+    parts = integration_type.split("/")
+    category = parts[0]
+    sub = parts[1] if len(parts) > 1 else None
+
+    try:
+        if category == "llm":
+            from app.masri.new_models import SettingsLLM
+            if sub:
+                slot = int(sub)
+                rows = db.session.execute(
+                    db.select(SettingsLLM).filter_by(slot=slot)
+                ).scalars().all()
+                if not rows:
+                    # Try NULL slot for slot 1
+                    rows = db.session.execute(db.select(SettingsLLM)).scalars().all()
+                    rows = [r for r in rows if (getattr(r, 'slot', None) or 1) == slot]
+                for r in rows:
+                    db.session.delete(r)
+            else:
+                for r in db.session.execute(db.select(SettingsLLM)).scalars().all():
+                    db.session.delete(r)
+
+        elif category == "storage":
+            from app.masri.new_models import SettingsStorage
+            if sub:
+                rows = db.session.execute(db.select(SettingsStorage).filter_by(provider=sub)).scalars().all()
+            else:
+                rows = db.session.execute(db.select(SettingsStorage)).scalars().all()
+            for r in rows:
+                db.session.delete(r)
+
+        elif category == "entra":
+            from app.masri.new_models import SettingsEntra
+            for r in db.session.execute(db.select(SettingsEntra)).scalars().all():
+                db.session.delete(r)
+
+        elif category == "sso":
+            from app.masri.new_models import SettingsSSO
+            for r in db.session.execute(db.select(SettingsSSO)).scalars().all():
+                db.session.delete(r)
+
+        elif category == "mcp":
+            from app.masri.new_models import MCPAPIKey
+            for r in db.session.execute(db.select(MCPAPIKey)).scalars().all():
+                db.session.delete(r)
+
+        elif category == "smtp":
+            from app.models import ConfigStore
+            for key in ["smtp_MAIL_SERVER", "smtp_MAIL_PORT", "smtp_MAIL_USE_TLS",
+                         "smtp_MAIL_USERNAME", "smtp_MAIL_DEFAULT_SENDER", "smtp_MAIL_PASSWORD"]:
+                rec = ConfigStore.find(key)
+                if rec:
+                    db.session.delete(rec)
+
+        elif category == "notification":
+            from app.masri.new_models import SettingsNotifications
+            if sub:
+                rows = db.session.execute(db.select(SettingsNotifications).filter_by(channel=sub)).scalars().all()
+            else:
+                rows = db.session.execute(db.select(SettingsNotifications)).scalars().all()
+            for r in rows:
+                db.session.delete(r)
+
+        else:
+            return jsonify({"error": f"Unknown integration type: {integration_type}"}), 400
+
+        db.session.commit()
+        Logs.add(message=f"Reset integration: {integration_type}", action="DELETE", namespace="settings", user_id=current_user.id)
+        return jsonify({"message": f"{integration_type} configuration cleared"})
+
+    except Exception as e:
+        logger.exception("Error resetting integration %s", integration_type)
+        db.session.rollback()
+        return jsonify({"error": f"Reset failed: {str(e)}"}), 500

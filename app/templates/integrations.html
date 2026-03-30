@@ -398,6 +398,16 @@
                 </button>
               </div>
               <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
+
+              <div class="divider text-xs">Reset</div>
+              <div class="flex gap-2">
+                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm/' + llmActiveSlot, 'LLM Slot ' + llmActiveSlot)">
+                  <i class="ti ti-trash"></i> Reset This Slot
+                </button>
+                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm', 'All LLM Providers')">
+                  <i class="ti ti-trash"></i> Reset All LLM
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -489,6 +499,11 @@
             </div>
             <div x-show="mcpKeys.length === 0 && !mcpSaving" class="text-xs opacity-50 text-center py-4">No credentials yet. Create one to connect an LLM.</div>
             <div x-show="mcpMsg" class="text-xs mt-2" :class="mcpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="mcpMsg"></div>
+
+            <div class="divider text-xs" x-show="mcpKeys.length > 0">Reset</div>
+            <button class="btn btn-xs btn-outline btn-error gap-1" x-show="mcpKeys.length > 0" @click="resetIntegration('mcp', 'All MCP Credentials')">
+              <i class="ti ti-trash"></i> Delete All Credentials
+            </button>
           </div>
         </template>
 
@@ -574,6 +589,11 @@
                     </button>
                   </div>
                   <div x-show="notifMsg" class="text-xs" :class="notifMsgType === 'error' ? 'text-error' : 'text-success'" x-text="notifMsg"></div>
+
+                  <div class="divider text-xs">Reset</div>
+                  <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('notification/' + activeNotifChannel, activeNotifChannel + ' notifications')">
+                    <i class="ti ti-trash"></i> Reset <span x-text="activeNotifChannel" class="capitalize"></span>
+                  </button>
                 </div>
               </template>
             </div>
@@ -660,6 +680,13 @@
                 <pre class="opacity-70 font-mono leading-relaxed">/{client-name}/{project-framework}/evidence|policies|reports|wisp</pre>
                 <p class="opacity-50 mt-1">Auto-created per client & project. Per-client overrides in Client → Settings.</p>
               </div>
+
+              <div class="divider text-xs">Reset</div>
+              <div class="flex gap-2">
+                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('storage/' + activeStorageProvider, activeStorageProvider + ' storage')">
+                  <i class="ti ti-trash"></i> Reset <span x-text="activeStorageProvider" class="uppercase"></span>
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -706,6 +733,11 @@
                 </button>
               </div>
               <div x-show="ssoMsg" class="text-xs" :class="ssoMsgType === 'error' ? 'text-error' : 'text-success'" x-text="ssoMsg"></div>
+
+              <div class="divider text-xs">Reset</div>
+              <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('sso', 'SSO Configuration')">
+                <i class="ti ti-trash"></i> Reset SSO
+              </button>
             </div>
           </div>
         </template>
@@ -897,6 +929,11 @@
               <i class="ti ti-circle-x"></i>
               <span x-text="entraError"></span>
             </div>
+
+            <div class="divider text-xs">Danger Zone</div>
+            <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('entra', 'Microsoft Entra ID')">
+              <i class="ti ti-trash"></i> Reset Entra Configuration
+            </button>
           </div>
         </template>
 
@@ -1165,6 +1202,22 @@ function integrationsHub() {
     closeDrawer() {
       this.drawerOpen = false;
       this.selected = null;
+    },
+
+    async resetIntegration(type, label) {
+      if (!confirm(`Reset ${label || type}? This will permanently delete all saved configuration for this integration.`)) return;
+      try {
+        const resp = await fetch('/api/v1/settings/reset/' + type, { method: 'DELETE' });
+        if (resp.ok) {
+          toast(`${label || type} configuration cleared`, 'success');
+          // Reload all statuses
+          await Promise.allSettled([this.loadLlm(), this.loadStorage(), this.loadSso(), this.loadNotifications(), this.loadEntraStatus(), this.loadMcpKeys()]);
+          this.closeDrawer();
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          toast(err.error || 'Reset failed', 'error');
+        }
+      } catch(e) { toast('Reset failed: ' + e.message, 'error'); }
     },
 
     // ── Status Loaders ──
