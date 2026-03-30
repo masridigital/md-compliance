@@ -10,10 +10,29 @@ After merge, this file lives at ``app/main/masri_views.py`` and is
 imported by ``app/main/__init__.py``.
 """
 
-from flask import render_template, redirect, url_for, request
+from flask import render_template, redirect, url_for, request, jsonify
 from . import main
 from app.utils.decorators import login_required
 from app.utils.authorizer import Authorizer
+
+
+# ---------------------------------------------------------------------------
+# MCP OAuth discovery at root level (Claude expects /.well-known/...)
+# ---------------------------------------------------------------------------
+
+@main.route("/.well-known/oauth-authorization-server", methods=["GET"])
+def oauth_discovery_root():
+    """Root-level OAuth discovery — redirects to MCP server metadata."""
+    base = request.host_url.rstrip("/") + "/mcp/v1"
+    return jsonify({
+        "issuer": base,
+        "token_endpoint": base + "/token",
+        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+        "grant_types_supported": ["client_credentials"],
+        "scopes_supported": ["mcp:tools", "mcp:read", "mcp:write"],
+        "response_types_supported": [],
+        "service_documentation": base + "/docs",
+    })
 from flask_login import current_user
 
 
