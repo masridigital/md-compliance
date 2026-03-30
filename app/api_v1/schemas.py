@@ -89,7 +89,7 @@ class TenantCreateSchema(Schema):
     class Meta:
         unknown = EXCLUDE
     name = fields.Str(required=True, validate=validate.Length(min=1, max=255))
-    contact_email = fields.Email(load_default=None)
+    contact_email = fields.Str(load_default=None, allow_none=True)  # Not required, accepts any string or null
     approved_domains = fields.Raw(load_default=None)
 
 

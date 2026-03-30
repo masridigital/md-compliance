@@ -1,6 +1,6 @@
 {% extends "layouts/sidebar-nav.html" %}
 
-{%block page_header_title%}Workspace{%endblock%}
+{%block page_header_title%}Clients{%endblock%}
 {%block page_header_title_border%}{%endblock%}
 {%block page_header_buttons%}{%endblock%}
 
@@ -26,8 +26,14 @@
 <div x-data="workspaceHub()" x-init="init()">
 
   <!-- Search + New -->
-  <div class="flex justify-between items-center mb-6">
-    <input type="text" x-model="search" placeholder="Search clients..." class="input input-bordered input-sm w-full max-w-xs" />
+  <div class="flex items-center gap-3 mb-6 flex-wrap">
+    <input type="text" x-model="search" placeholder="Search clients..." class="input input-bordered input-sm flex-1 min-w-[200px] max-w-sm" />
+    <label class="flex items-center gap-1 text-xs cursor-pointer">
+      <input type="checkbox" class="checkbox checkbox-xs" x-model="showArchived">
+      Show Archived
+    </label>
+    <div class="flex-1"></div>
+    <span class="text-xs opacity-40" x-text="filtered.length + ' client(s)'"></span>
     <button class="btn btn-sm btn-primary" @click="showCreateModal = true">
       <i class="ti ti-plus mr-1"></i> New Client
     </button>
@@ -56,7 +62,10 @@
                 </div>
               </div>
               <div>
-                <div class="font-semibold text-sm capitalize" x-text="t.name"></div>
+                <div class="font-semibold text-sm capitalize">
+                  <span x-text="t.name"></span>
+                  <span x-show="t.archived" class="badge badge-xs badge-warning ml-1">Archived</span>
+                </div>
                 <div class="text-xs opacity-50" x-text="t.license || 'trial'"></div>
               </div>
             </div>
@@ -223,6 +232,9 @@
             <button class="btn btn-primary btn-sm gap-1" @click="saveTenant()" :disabled="saving">
               <span class="loading loading-spinner loading-xs" x-show="saving"></span>
               <i class="ti ti-device-floppy" x-show="!saving"></i> Save
+            </button>
+            <button class="btn btn-warning btn-sm btn-outline gap-1" @click="archiveClient()">
+              <i class="ti ti-archive"></i> <span x-text="selected && selected.archived ? 'Unarchive' : 'Archive'"></span>
             </button>
             <button class="btn btn-error btn-sm btn-outline gap-1" @click="deleteTenant()">
               <i class="ti ti-trash"></i> Delete
@@ -404,6 +416,7 @@
 function workspaceHub() {
   return {
     search: '',
+    showArchived: false,
     loaded: false,
     tenants: [],
     drawerOpen: false,
@@ -451,9 +464,15 @@ function workspaceHub() {
     deleting: false,
 
     get filtered() {
-      if (!this.search) return this.tenants;
-      const q = this.search.toLowerCase();
-      return this.tenants.filter(t => (t.name || '').toLowerCase().includes(q) || (t.contact_email || '').toLowerCase().includes(q));
+      let items = this.tenants;
+      if (!this.showArchived) {
+        items = items.filter(t => !t.archived);
+      }
+      if (this.search) {
+        const q = this.search.toLowerCase();
+        items = items.filter(t => (t.name || '').toLowerCase().includes(q) || (t.contact_email || '').toLowerCase().includes(q));
+      }
+      return items;
     },
 
     async init() {
@@ -591,6 +610,20 @@ function workspaceHub() {
     },
 
     // ── Delete Tenant ──
+    async archiveClient() {
+      try {
+        const resp = await fetch(`/api/v1/tenants/${this.selected.id}/archive`, { method: 'PUT' });
+        if (resp.ok) {
+          const data = await resp.json();
+          toast(data.message, 'success');
+          this.closeDrawer();
+          this.loaded = false;
+          await this.loadTenants();
+          this.loaded = true;
+        } else { toast('Failed to archive', 'error'); }
+      } catch(e) { toast('Error', 'error'); }
+    },
+
     deleteTenant() { this.showDeleteModal = true; },
     async confirmDelete() {
       this.deleting = true;

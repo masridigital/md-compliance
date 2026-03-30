@@ -686,6 +686,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
     is_default = db.Column(db.Boolean(), default=False)
     approved_domains = db.Column(db.String())  # plaintext — used for domain-matching auth logic
     magic_link_login = db.Column(db.Boolean(), default=False)
+    archived = db.Column(db.Boolean(), default=False)
     ai_enabled = db.Column(db.Boolean(), default=True)
     ai_token_usage = db.Column(db.Integer(), default=0)
     ai_token_cap = db.Column(db.Integer(), default=500)

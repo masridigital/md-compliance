@@ -42,6 +42,7 @@ def create_app(config_name="default"):
     _validate_secret_key(app)
     _load_smtp_from_db(app)
     _write_boot_stamp(app)
+    _ensure_db_columns(app)
 
     @app.before_request
     def enforce_session_timeout():
@@ -159,6 +160,40 @@ def _write_boot_stamp(app):
             app.config["_BOOT_STAMP"] = stamp
     except Exception:
         app.config["_BOOT_STAMP"] = stamp
+
+
+def _ensure_db_columns(app):
+    """Auto-add missing columns to existing tables so the app works without running migrations."""
+    try:
+        with app.app_context():
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+
+            # Define columns to ensure exist: (table, column, sql_type, default)
+            needed = [
+                ("settings_llm", "slot", "INTEGER", "1"),
+                ("settings_llm", "label", "VARCHAR", "'Primary'"),
+                ("users", "totp_secret_enc", "TEXT", "NULL"),
+                ("users", "totp_enabled", "BOOLEAN", "false"),
+                ("users", "session_timeout_minutes", "INTEGER", "NULL"),
+                ("mcp_api_keys", "client_id", "VARCHAR", "NULL"),
+                ("tenants", "archived", "BOOLEAN", "false"),
+            ]
+
+            for table, column, sql_type, default in needed:
+                if table not in inspector.get_table_names():
+                    continue
+                existing = [c["name"] for c in inspector.get_columns(table)]
+                if column not in existing:
+                    default_clause = f" DEFAULT {default}" if default != "NULL" else ""
+                    db.session.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}{default_clause}"
+                    ))
+                    app.logger.info("Auto-added column %s.%s", table, column)
+
+            db.session.commit()
+    except Exception as e:
+        app.logger.debug("Column check skipped: %s", e)
 
 
 def _load_smtp_from_db(app):

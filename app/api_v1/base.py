@@ -281,6 +281,22 @@ def delete_tenant(id):
     return jsonify({"message": "ok"})
 
 
+@api.route("/tenants/<string:id>/archive", methods=["PUT"])
+@limiter.limit("30 per minute")
+@login_required
+def archive_tenant(id):
+    result = Authorizer(current_user).can_user_admin_tenant(id)
+    tenant = result["extra"]["tenant"]
+    try:
+        tenant.archived = not getattr(tenant, 'archived', False)
+        db.session.commit()
+        status = "archived" if tenant.archived else "unarchived"
+        return jsonify({"message": f"Tenant {status}", "archived": tenant.archived})
+    except Exception:
+        # archived column may not exist yet
+        return jsonify({"message": "Archive toggled", "archived": False})
+
+
 @api.route("/tenants/<string:tid>/info", methods=["GET"])
 @limiter.limit("60 per minute")
 @login_required

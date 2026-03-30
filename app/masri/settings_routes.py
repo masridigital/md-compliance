@@ -879,12 +879,26 @@ def test_smtp():
 
     try:
         from app.email import send_email
+        app_name = current_app.config.get('APP_NAME', 'MD Compliance')
         send_email(
-            to=recipient,
-            subject=f"{current_app.config.get('APP_NAME', 'MD Compliance')} — SMTP Test",
-            template="test_email",
-            content="This is a test email to verify your SMTP configuration is working correctly.",
+            subject=f"{app_name} — SMTP Test",
+            recipients=[recipient],
+            text_body=f"This is a test email from {app_name} to verify your SMTP configuration is working correctly.",
+            html_body=f"<h3>{app_name}</h3><p>This is a test email to verify your SMTP configuration is working correctly.</p><p>If you received this, your SMTP settings are configured properly.</p>",
+            async_send=False,
         )
         return jsonify({"message": f"Test email sent to {recipient}"})
     except Exception as e:
-        return jsonify({"error": f"Failed to send: {str(e)}"}), 500
+        logger.exception("SMTP test failed")
+        # Return detailed error for troubleshooting
+        error_msg = str(e)
+        hints = ""
+        if "Authentication" in error_msg or "535" in error_msg:
+            hints = " Check your username/password. Gmail requires an App Password (not your regular password)."
+        elif "Connection refused" in error_msg or "timed out" in error_msg:
+            hints = " Check the SMTP server address and port. Common: smtp.gmail.com:587, smtp.office365.com:587"
+        elif "STARTTLS" in error_msg or "SSL" in error_msg:
+            hints = " Try toggling the TLS setting. Port 587 usually needs TLS on, port 465 needs SSL."
+        elif "sender" in error_msg.lower() or "from" in error_msg.lower():
+            hints = " Check the Default Sender field — it must be a valid email address."
+        return jsonify({"error": f"SMTP test failed: {error_msg}.{hints}"}), 500
