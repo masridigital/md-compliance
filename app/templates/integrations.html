@@ -164,10 +164,35 @@
           </div>
         </template>
 
-        <!-- ═══════ Entra ID Special Actions ═══════ -->
+        <!-- ═══════ Entra ID Config + Actions ═══════ -->
         <template x-if="selected.id === 'entra'">
           <div>
-            <h4 class="font-semibold text-sm mb-3">Actions</h4>
+            <h4 class="font-semibold text-sm mb-3">Credentials</h4>
+            <div class="space-y-3 mb-6">
+              <div>
+                <label class="text-xs font-medium block mb-1">Azure Tenant ID</label>
+                <input type="text" class="input input-bordered input-sm w-full" x-model="entraForm.entra_tenant_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">Client ID (App Registration)</label>
+                <input type="text" class="input input-bordered input-sm w-full" x-model="entraForm.client_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">Client Secret</label>
+                <input type="password" class="input input-bordered input-sm w-full" x-model="entraForm.client_secret" placeholder="Enter client secret (encrypted at rest)" />
+                <div x-show="getStatus('entra').configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Existing secret stored encrypted. Leave blank to keep current.</div>
+              </div>
+              <div class="flex gap-2 pt-1">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveEntra()" :disabled="entraSaving">
+                  <span class="loading loading-spinner loading-xs" x-show="entraSaving"></span>
+                  <i class="ti ti-device-floppy" x-show="!entraSaving"></i>
+                  Save Credentials
+                </button>
+              </div>
+              <div x-show="entraFormMsg" class="text-xs" :class="entraFormMsgType === 'error' ? 'text-error' : 'text-success'" x-text="entraFormMsg"></div>
+            </div>
+
+            <div class="divider text-xs">Actions</div>
 
             <!-- Test Connection -->
             <div class="mb-4">
@@ -306,7 +331,11 @@ function integrationsHub() {
     llmMsg: '',
     llmMsgType: '',
 
-    // Entra state
+    // Entra form + action state
+    entraForm: { entra_tenant_id: '', client_id: '', client_secret: '' },
+    entraSaving: false,
+    entraFormMsg: '',
+    entraFormMsgType: '',
     entraLoading: { test: false, users: false, mfa: false, assess: false },
     entraResults: { test: null, users: null, mfa: null, assess: null },
     entraError: null,
@@ -389,6 +418,12 @@ function integrationsHub() {
       this.llmMsg = '';
       this.entraResults = { test: null, users: null, mfa: null, assess: null };
       this.entraError = null;
+
+      // Pre-populate Entra form
+      if (item.id === 'entra') {
+        this.entraForm = { entra_tenant_id: '', client_id: '', client_secret: '' };
+        this.entraFormMsg = '';
+      }
 
       // Pre-populate LLM form if opening an LLM card
       if (item.category === 'llm') {
@@ -535,6 +570,36 @@ function integrationsHub() {
         this.llmMsg = e.message;
         this.llmMsgType = 'error';
       } finally { this.llmSaving = false; }
+    },
+
+    // ── Entra Config ──
+
+    async saveEntra() {
+      this.entraSaving = true;
+      this.entraFormMsg = '';
+      try {
+        const payload = {
+          entra_tenant_id: this.entraForm.entra_tenant_id,
+          client_id: this.entraForm.client_id,
+          client_secret: this.entraForm.client_secret,
+        };
+        const resp = await fetch('/api/v1/settings/entra', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || err.message || `HTTP ${resp.status}`);
+        }
+        this.entraFormMsg = 'Credentials saved (encrypted)';
+        this.entraFormMsgType = 'success';
+        this.entraForm.client_secret = '';
+        await this.loadEntraStatus();
+      } catch (e) {
+        this.entraFormMsg = e.message;
+        this.entraFormMsgType = 'error';
+      } finally { this.entraSaving = false; }
     },
 
     // ── Entra Actions ──
