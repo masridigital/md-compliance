@@ -112,7 +112,7 @@
         <a href="{{ url_for('main.index') }}"
            class="md-top-nav-link {% if request.endpoint == 'main.index' %}is-active{% endif %}">Overview</a>
         <a href="{{ url_for('main.workspace') }}"
-           class="md-top-nav-link {% if request.endpoint and 'workspace' in request.endpoint %}is-active{% endif %}">Workspace</a>
+           class="md-top-nav-link {% if request.endpoint and 'workspace' in request.endpoint %}is-active{% endif %}">Clients</a>
         <a href="{{ url_for('main.compliance') }}"
            class="md-top-nav-link {% if request.endpoint and 'compliance' in request.endpoint %}is-active{% endif %}">Compliance</a>
         <a href="{{ url_for('main.risk') }}"
@@ -189,6 +189,10 @@
     <a href="{{ url_for('main.index') }}" @click="mobileMenuOpen = false"
        style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
       <i class="ti ti-home"></i> Overview
+    </a>
+    <a href="{{ url_for('main.workspace') }}" @click="mobileMenuOpen = false"
+       style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">
+      <i class="ti ti-building-skyscraper"></i> Clients
     </a>
     <a href="{{ url_for('main.compliance') }}" @click="mobileMenuOpen = false"
        style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); font-size: var(--font-h2); font-weight: 500; color: var(--text-primary); text-decoration: none; border-radius: var(--radius-sm);">

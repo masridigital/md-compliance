@@ -354,6 +354,12 @@
           <button class="ws-tab" :class="{ 'is-active': activeTab === 'projects' }" @click="activeTab = 'projects'">
             <i class="ti ti-circles" style="font-size: 14px;"></i> Projects
           </button>
+          <button class="ws-tab" :class="{ 'is-active': activeTab === 'wisp' }" @click="activeTab = 'wisp'">
+            <i class="ti ti-wand" style="font-size: 14px;"></i> WISP
+          </button>
+          <button class="ws-tab" :class="{ 'is-active': activeTab === 'users' }" @click="activeTab = 'users'">
+            <i class="ti ti-users" style="font-size: 14px;"></i> Users
+          </button>
           <button class="ws-tab" :class="{ 'is-active': activeTab === 'settings' }" @click="activeTab = 'settings'">
             <i class="ti ti-settings" style="font-size: 14px;"></i> Settings
           </button>
@@ -372,12 +378,6 @@
             </a>
             <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="ws-quick-link">
               <i class="ti ti-file-text"></i> Policy Center
-            </a>
-            <a href="/wisp" class="ws-quick-link">
-              <i class="ti ti-wand"></i> WISP Wizard
-            </a>
-            <a :href="'/users'" class="ws-quick-link">
-              <i class="ti ti-users"></i> Users
             </a>
           </div>
 
@@ -431,6 +431,96 @@
             <button class="md-btn md-btn-primary" @click="showCreateProject = true">
               <i class="ti ti-plus" style="font-size: 16px;"></i> Create Project
             </button>
+          </div>
+        </div>
+
+        <!-- ═══ WISP Tab ═══ -->
+        <div x-show="activeTab === 'wisp'" x-cloak>
+          <div style="max-width: 800px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
+              <div>
+                <h3 style="font-size: var(--font-h2); font-weight: 600; margin: 0; color: var(--text-primary);">WISP Wizard</h3>
+                <p style="color: var(--text-secondary); font-size: var(--font-small); margin: 4px 0 0 0;">
+                  Written Information Security Program for <strong x-text="activeTenant ? activeTenant.name : ''"></strong>
+                </p>
+              </div>
+              <a :href="'/wisp'" class="md-btn md-btn-primary md-btn-sm">
+                <i class="ti ti-wand" style="font-size: 14px;"></i> Open Full Wizard
+              </a>
+            </div>
+
+            <!-- WISP Status Cards -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-xl);">
+              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
+                <i class="ti ti-file-text" style="font-size: 32px; color: var(--brand-primary); display: block; margin-bottom: var(--space-sm);"></i>
+                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispVersionCount"></div>
+                <div style="font-size: var(--font-caption); color: var(--text-secondary);">WISP Versions</div>
+              </div>
+              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
+                <i class="ti ti-signature" style="font-size: 32px; color: var(--success); display: block; margin-bottom: var(--space-sm);"></i>
+                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispSignedCount"></div>
+                <div style="font-size: var(--font-caption); color: var(--text-secondary);">Signed</div>
+              </div>
+              <div class="ws-project-card" style="cursor: default; text-align: center; padding: var(--space-lg);">
+                <i class="ti ti-clock" style="font-size: 32px; color: var(--warning); display: block; margin-bottom: var(--space-sm);"></i>
+                <div style="font-size: var(--font-h2); font-weight: 700; color: var(--text-primary);" x-text="wispLastUpdated || 'Never'"></div>
+                <div style="font-size: var(--font-caption); color: var(--text-secondary);">Last Updated</div>
+              </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+              <a :href="'/wisp'" class="ws-quick-link" style="padding: var(--space-md) var(--space-lg); justify-content: flex-start;">
+                <i class="ti ti-wand" style="font-size: 20px; color: var(--brand-primary);"></i>
+                <div>
+                  <div style="font-weight: 600;">Create / Edit WISP</div>
+                  <div style="font-size: var(--font-caption); color: var(--text-secondary); font-weight: 400;">Use the step-by-step wizard with AI assistance to create your Written Information Security Program</div>
+                </div>
+              </a>
+              <a :href="'/tenants/' + activeTenantId + '/policy-center'" class="ws-quick-link" style="padding: var(--space-md) var(--space-lg); justify-content: flex-start;">
+                <i class="ti ti-file-text" style="font-size: 20px; color: var(--success);"></i>
+                <div>
+                  <div style="font-weight: 600;">Policy Center</div>
+                  <div style="font-size: var(--font-caption); color: var(--text-secondary); font-weight: 400;">Manage all compliance policies, export PDFs, and track approval status</div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Users Tab ═══ -->
+        <div x-show="activeTab === 'users'" x-cloak>
+          <div style="max-width: 800px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg);">
+              <h3 style="font-size: var(--font-h2); font-weight: 600; margin: 0; color: var(--text-primary);">Tenant Users</h3>
+              <a href="/users" class="md-btn md-btn-primary md-btn-sm">
+                <i class="ti ti-external-link" style="font-size: 14px;"></i> Manage Users
+              </a>
+            </div>
+
+            <!-- Users list -->
+            <div x-show="tenantUsersLoading" style="text-align: center; padding: var(--space-xl);">
+              <span class="md-spinner"></span>
+            </div>
+            <div x-show="!tenantUsersLoading">
+              <template x-for="u in tenantUsers" :key="u.id">
+                <div style="display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); border-bottom: 1px solid var(--surface-3);">
+                  <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--brand-light); color: var(--brand-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; text-transform: uppercase; flex-shrink: 0;"
+                       x-text="(u.first_name || u.email || '?')[0]"></div>
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 500; font-size: var(--font-body);" x-text="(u.first_name || '') + ' ' + (u.last_name || '') || u.email"></div>
+                    <div style="font-size: var(--font-caption); color: var(--text-secondary);" x-text="u.email"></div>
+                  </div>
+                  <div>
+                    <span class="md-status-pill md-status-compliant" style="font-size: var(--font-caption);" x-text="u.is_active ? 'Active' : 'Inactive'"></span>
+                  </div>
+                </div>
+              </template>
+              <div x-show="tenantUsers.length === 0" style="text-align: center; padding: var(--space-xl); color: var(--text-tertiary);">
+                <i class="ti ti-users" style="font-size: 32px; display: block; margin-bottom: var(--space-sm);"></i>
+                No users found for this client
+              </div>
+            </div>
           </div>
         </div>
 
@@ -682,6 +772,15 @@ function workspace() {
     showDeleteConfirm: false,
     deletingTenant: false,
 
+    // Users
+    tenantUsers: [],
+    tenantUsersLoading: false,
+
+    // WISP
+    wispVersionCount: 0,
+    wispSignedCount: 0,
+    wispLastUpdated: '',
+
     init() {
       this.loadTenants();
     },
@@ -710,6 +809,7 @@ function workspace() {
       this.newProject.tenantId = t.id;
       this.loadProjects();
       this.loadFrameworks();
+      this.loadTenantUsers();
       // Switch context
       fetch('/tenants/' + t.id + '/switch').catch(() => {});
     },
@@ -732,6 +832,18 @@ function workspace() {
           this.frameworks = (await resp.json()).map(f => ({ ...f, name: f.name.toUpperCase() }));
         }
       } catch (e) { console.error('Failed to load frameworks:', e); }
+    },
+
+    async loadTenantUsers() {
+      this.tenantUsersLoading = true;
+      this.tenantUsers = [];
+      try {
+        const resp = await fetch(`/api/v1/tenants/${this.activeTenantId}/users`);
+        if (resp.ok) {
+          this.tenantUsers = await resp.json();
+        }
+      } catch (e) { console.debug('Failed to load tenant users:', e); }
+      this.tenantUsersLoading = false;
     },
 
     // Tenant CRUD

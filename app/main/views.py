@@ -3,6 +3,8 @@ import os
 from flask import (
     send_from_directory,
     abort,
+    redirect,
+    url_for,
 )
 from . import main
 from app.utils.decorators import *
@@ -62,7 +64,7 @@ def view_policy_center(id):
 @main.route("/projects", methods=["GET"])
 @login_required
 def projects():
-    return render_template("projects.html")
+    return redirect(url_for("main.workspace"))
 
 
 @main.route("/projects/<string:pid>", methods=["GET"])
