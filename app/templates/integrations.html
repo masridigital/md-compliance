@@ -176,9 +176,24 @@
                         <span class="badge badge-xs badge-ghost" x-text="s.scanStatus"></span>
                       </div>
                     </div>
-                    <div class="flex gap-1 mt-2">
+                    <div class="flex items-center gap-1 mt-2 flex-wrap">
                       <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
                       <a :href="'/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf'" class="btn btn-ghost btn-xs" title="Download PDF" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                      <div class="ml-auto flex items-center gap-1">
+                        <select class="select select-bordered select-xs capitalize w-32"
+                                :value="getScanTenantMapping(s.id)"
+                                @change="mapScanToTenant(s.id, $event.target.value, 'scan')">
+                          <option value="">Map to client...</option>
+                          <template x-for="t in telivyTenants" :key="'st-'+t.id">
+                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                          </template>
+                        </select>
+                        <button class="btn btn-ghost btn-xs tooltip" data-tip="AI auto-map findings to controls"
+                                @click="telivyAiAutoMap(s.id, 'scan')" :disabled="s._aiMapping">
+                          <span class="loading loading-spinner loading-xs" x-show="s._aiMapping"></span>
+                          <i class="ti ti-brain text-primary" x-show="!s._aiMapping"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -221,8 +236,23 @@
                         <span x-show="score?.securityScore"><span x-text="cat.replace(/([A-Z])/g, ' $1').trim() + ': '"></span><span class="font-bold" x-text="score?.securityScore"></span></span>
                       </template>
                     </div>
-                    <div class="flex gap-1 mt-2">
+                    <div class="flex items-center gap-1 mt-2 flex-wrap">
                       <a :href="'/api/v1/telivy/risk-assessments/' + a.id + '/report'" class="btn btn-ghost btn-xs" title="Download Report" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                      <div class="ml-auto flex items-center gap-1">
+                        <select class="select select-bordered select-xs capitalize w-32"
+                                :value="getScanTenantMapping(a.id)"
+                                @change="mapScanToTenant(a.id, $event.target.value, 'assessment')">
+                          <option value="">Map to client...</option>
+                          <template x-for="t in telivyTenants" :key="'at-'+t.id">
+                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                          </template>
+                        </select>
+                        <button class="btn btn-ghost btn-xs tooltip" data-tip="AI auto-map to controls"
+                                @click="telivyAiAutoMap(a.id, 'assessment')" :disabled="a._aiMapping">
+                          <span class="loading loading-spinner loading-xs" x-show="a._aiMapping"></span>
+                          <i class="ti ti-brain text-primary" x-show="!a._aiMapping"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -757,6 +787,8 @@ function integrationsHub() {
     telivyMsgType: '',
     telivyLoading: { test: false, scans: false, assessments: false, createScan: false, createAssessment: false },
     telivyScans: [],
+    telivyTenants: [],
+    telivyScanMappings: {},  // scan_id -> tenant_id
     telivyAssessments: [],
     telivyFindings: [],
     telivyError: null,
@@ -910,6 +942,8 @@ function integrationsHub() {
         this.telivyError = null;
         this.telivyFindings = [];
         this.telivyShowCreateScan = false;
+        this.loadTelivyTenants();
+        this.loadScanMappings();
         this.telivyShowCreateAssessment = false;
       }
 
