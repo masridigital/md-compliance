@@ -101,7 +101,23 @@
           <div x-show="getStatus(selected.id).detail" class="text-xs opacity-60 mt-1" x-text="getStatus(selected.id).detail"></div>
         </div>
 
-        <p class="text-sm opacity-70 mb-6" x-text="selected.description"></p>
+        <p class="text-sm opacity-70 mb-4" x-text="selected.description"></p>
+
+        <!-- Setup Guide (collapsible) -->
+        <template x-if="selected.setup_guide">
+          <div class="mb-6">
+            <div x-data="{ guideOpen: false }">
+              <button @click="guideOpen = !guideOpen" class="flex items-center gap-2 text-xs font-semibold opacity-70 hover:opacity-100 transition-opacity">
+                <i class="ti" :class="guideOpen ? 'ti-chevron-down' : 'ti-chevron-right'"></i>
+                <i class="ti ti-book"></i>
+                Setup Instructions
+              </button>
+              <div x-show="guideOpen" x-collapse x-cloak class="mt-2 bg-base-200 rounded-lg p-4">
+                <pre class="text-xs leading-relaxed whitespace-pre-wrap opacity-80" style="font-family: inherit;" x-text="selected.setup_guide"></pre>
+              </div>
+            </div>
+          </div>
+        </template>
 
         <!-- ═══════ Telivy Security Config + Actions ═══════ -->
         <template x-if="selected.id === 'telivy'">
@@ -796,37 +812,57 @@ function integrationsHub() {
 
     integrations: [
       // Identity & Security
-      { id: 'entra', category: 'identity', name: 'Microsoft Entra ID', icon: 'ti-brand-azure', description: 'Sync users, verify MFA enrollment, and assess compliance posture from Azure AD.', settingsSection: 'entra' },
-      { id: 'telivy', category: 'identity', name: 'Telivy Security', icon: 'ti-shield-search', description: 'External vulnerability scanning, risk assessments, breach data detection, and downloadable security reports.' },
+      { id: 'entra', category: 'identity', name: 'Microsoft Entra ID', icon: 'ti-brand-azure', description: 'Sync users, verify MFA enrollment, and assess compliance posture from Azure AD.', settingsSection: 'entra',
+        setup_guide: '1. Go to Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance", Redirect URI: leave blank\n3. Copy the Application (client) ID and Directory (tenant) ID\n4. Go to Certificates & secrets → New client secret → copy the value\n5. Go to API Permissions → Add: Microsoft Graph → Application permissions:\n   • User.Read.All\n   • Directory.Read.All\n   • UserAuthenticationMethod.Read.All\n   • Reports.Read.All\n6. Click "Grant admin consent"\n7. Enter the Tenant ID, Client ID, and Client Secret below' },
+      { id: 'telivy', category: 'identity', name: 'Telivy Security', icon: 'ti-shield-search', description: 'External vulnerability scanning, risk assessments, breach data detection, and downloadable security reports.',
+        setup_guide: '1. Log into portal.telivy.com\n2. Go to Account → Integrations → API Keys\n3. Generate a new API key\n4. Copy the key and paste it below' },
 
       // LLM
-      { id: 'openai',       category: 'llm', name: 'OpenAI',        icon: 'ti-brand-openai',  description: 'GPT-4o and GPT-4 models for AI-powered compliance analysis and policy drafting.', provider: 'openai', settingsSection: 'llm' },
-      { id: 'anthropic',    category: 'llm', name: 'Anthropic',     icon: 'ti-brain',         description: 'Claude models for document analysis, risk assessment, and policy generation.', provider: 'anthropic', settingsSection: 'llm' },
-      { id: 'azure_openai', category: 'llm', name: 'Azure OpenAI',  icon: 'ti-brand-azure',   description: 'Azure-hosted OpenAI models with enterprise data residency and compliance.', provider: 'azure_openai', settingsSection: 'llm' },
-      { id: 'together',     category: 'llm', name: 'Together AI',   icon: 'ti-cpu',           description: 'Access open-source models (Llama, Mixtral, etc.) via Together AI cloud inference.', provider: 'together', settingsSection: 'llm' },
+      { id: 'openai',       category: 'llm', name: 'OpenAI',        icon: 'ti-brand-openai',  description: 'GPT-4o and GPT-4 models for AI-powered compliance analysis and policy drafting.', provider: 'openai', settingsSection: 'llm',
+        setup_guide: '1. Go to platform.openai.com → API Keys → Create new secret key\n2. Copy the key (starts with sk-)\n3. Paste below and click the refresh button to load available models\n4. Recommended model: gpt-4o' },
+      { id: 'anthropic',    category: 'llm', name: 'Anthropic',     icon: 'ti-brain',         description: 'Claude models for document analysis, risk assessment, and policy generation.', provider: 'anthropic', settingsSection: 'llm',
+        setup_guide: '1. Go to console.anthropic.com → API Keys → Create Key\n2. Copy the key (starts with sk-ant-)\n3. Paste below and click refresh to load models\n4. Recommended model: claude-sonnet-4-20250514' },
+      { id: 'azure_openai', category: 'llm', name: 'Azure OpenAI',  icon: 'ti-brand-azure',   description: 'Azure-hosted OpenAI models with enterprise data residency and compliance.', provider: 'azure_openai', settingsSection: 'llm',
+        setup_guide: '1. Azure Portal → Azure OpenAI → Create resource\n2. Deploy a model (e.g. gpt-4o) in the Azure OpenAI Studio\n3. Copy the Endpoint URL and API Key from Keys and Endpoint\n4. Enter the Deployment Name you chose in the studio' },
+      { id: 'together',     category: 'llm', name: 'Together AI',   icon: 'ti-cpu',           description: 'Access open-source models (Llama, Mixtral, etc.) via Together AI cloud inference.', provider: 'together', settingsSection: 'llm',
+        setup_guide: '1. Go to api.together.xyz → Settings → API Keys\n2. Create a new key and copy it\n3. Paste below and click refresh to load models\n4. Recommended: meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' },
 
       // MCP Server
       { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Connect AI assistants (Claude, ChatGPT, etc.) to your compliance data via OAuth 2.0. LLMs can list frameworks, assess controls, score risks, and generate policies.' },
 
       // Storage
-      { id: 'local',      category: 'storage', name: 'Local Storage',     icon: 'ti-folder',         description: 'Store evidence and documents on the server filesystem.', provider: 'local', settingsSection: 'storage' },
-      { id: 's3',          category: 'storage', name: 'AWS S3',            icon: 'ti-brand-aws',      description: 'Amazon S3 or S3-compatible storage (MinIO, Cloudflare R2).', provider: 's3', settingsSection: 'storage' },
-      { id: 'azure_blob', category: 'storage', name: 'Azure Blob',        icon: 'ti-brand-azure',    description: 'Microsoft Azure Blob Storage with per-tenant container isolation.', provider: 'azure_blob', settingsSection: 'storage' },
-      { id: 'sharepoint', category: 'storage', name: 'SharePoint',        icon: 'ti-brand-office',   description: 'Store compliance documents in SharePoint document libraries via Graph API.', provider: 'sharepoint', settingsSection: 'storage' },
-      { id: 'egnyte',     category: 'storage', name: 'Egnyte',            icon: 'ti-cloud',          description: 'Egnyte cloud storage with folder-scoped document management.', provider: 'egnyte', settingsSection: 'storage' },
+      { id: 'local',      category: 'storage', name: 'Local Storage',     icon: 'ti-folder',         description: 'Store evidence and documents on the server filesystem.', provider: 'local', settingsSection: 'storage',
+        setup_guide: 'Default storage. Files are saved to the app/uploads directory on the server. No configuration needed.' },
+      { id: 's3',          category: 'storage', name: 'AWS S3',            icon: 'ti-brand-aws',      description: 'Amazon S3 or S3-compatible storage (MinIO, Cloudflare R2).', provider: 's3', settingsSection: 'storage',
+        setup_guide: '1. AWS Console → S3 → Create bucket\n2. IAM → Create user with programmatic access\n3. Attach policy: AmazonS3FullAccess (or create a scoped policy for your bucket)\n4. Required permissions:\n   • s3:PutObject\n   • s3:GetObject\n   • s3:DeleteObject\n   • s3:ListBucket\n5. Enter the Bucket name, Region, Access Key, and Secret Key below' },
+      { id: 'azure_blob', category: 'storage', name: 'Azure Blob',        icon: 'ti-brand-azure',    description: 'Microsoft Azure Blob Storage with per-tenant container isolation.', provider: 'azure_blob', settingsSection: 'storage',
+        setup_guide: '1. Azure Portal → Storage accounts → Create\n2. Go to Access keys → copy the Connection string\n3. Create a container for compliance documents\n4. Enter the Container name and Connection string below' },
+      { id: 'sharepoint', category: 'storage', name: 'SharePoint',        icon: 'ti-brand-office',   description: 'Store compliance documents in SharePoint document libraries via Graph API.', provider: 'sharepoint', settingsSection: 'storage',
+        setup_guide: '1. Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance SharePoint", Redirect URI: leave blank\n3. API Permissions → Add → Microsoft Graph → Application:\n   • Sites.ReadWrite.All\n   • Files.ReadWrite.All\n   • Sites.Selected (if you want to limit to specific sites)\n4. Click "Grant admin consent"\n5. Create a client secret under Certificates & secrets\n6. Enter the Site URL, Document Library name, Client ID, and Client Secret below\n\nNote: Site URL format: https://yourtenant.sharepoint.com/sites/yoursite' },
+      { id: 'egnyte',     category: 'storage', name: 'Egnyte',            icon: 'ti-cloud',          description: 'Egnyte cloud storage with folder-scoped document management.', provider: 'egnyte', settingsSection: 'storage',
+        setup_guide: '1. Egnyte admin → Developer Portal → Create application\n2. Generate an API access token\n3. Enter your Egnyte domain (e.g. yourcompany.egnyte.com)\n4. Specify the root folder path for compliance documents' },
 
       // Notifications
-      { id: 'email',         category: 'notifications', name: 'Email',          icon: 'ti-mail',            description: 'Send compliance alerts and reports via SMTP email.', channel: 'email', settingsSection: 'notifications' },
-      { id: 'teams_webhook', category: 'notifications', name: 'Microsoft Teams', icon: 'ti-brand-teams',    description: 'Post alerts to a Teams channel via incoming webhook.', channel: 'teams_webhook', settingsSection: 'notifications' },
-      { id: 'slack_webhook', category: 'notifications', name: 'Slack',           icon: 'ti-brand-slack',    description: 'Post alerts to a Slack channel via incoming webhook.', channel: 'slack_webhook', settingsSection: 'notifications' },
-      { id: 'sms',           category: 'notifications', name: 'SMS (Twilio)',    icon: 'ti-device-mobile',  description: 'Send critical compliance alerts via SMS through Twilio.', channel: 'sms', settingsSection: 'notifications' },
-      { id: 'in_app',        category: 'notifications', name: 'In-App',          icon: 'ti-bell-ringing',   description: 'Browser notifications within the compliance platform.', channel: 'in_app', settingsSection: 'notifications' },
+      { id: 'email',         category: 'notifications', name: 'Email',          icon: 'ti-mail',            description: 'Send compliance alerts and reports via SMTP email.', channel: 'email', settingsSection: 'notifications',
+        setup_guide: 'Configure SMTP under System → Email / SMTP Configuration.\nCommon providers:\n• Gmail: smtp.gmail.com, port 587, TLS on (use App Password)\n• Microsoft 365: smtp.office365.com, port 587, TLS on\n• Amazon SES: email-smtp.us-east-1.amazonaws.com, port 587' },
+      { id: 'teams_webhook', category: 'notifications', name: 'Microsoft Teams', icon: 'ti-brand-teams',    description: 'Post alerts to a Teams channel via incoming webhook.', channel: 'teams_webhook', settingsSection: 'notifications',
+        setup_guide: '1. In Microsoft Teams, go to the channel → ••• → Connectors\n2. Find "Incoming Webhook" → Configure\n3. Name it "MD Compliance Alerts" and upload an icon\n4. Copy the webhook URL and paste it below' },
+      { id: 'slack_webhook', category: 'notifications', name: 'Slack',           icon: 'ti-brand-slack',    description: 'Post alerts to a Slack channel via incoming webhook.', channel: 'slack_webhook', settingsSection: 'notifications',
+        setup_guide: '1. Go to api.slack.com/apps → Create New App → From scratch\n2. Add feature: Incoming Webhooks → Activate\n3. Click "Add New Webhook to Workspace" → select a channel\n4. Copy the webhook URL (starts with https://hooks.slack.com/)\n5. Paste the URL below' },
+      { id: 'sms',           category: 'notifications', name: 'SMS (Twilio)',    icon: 'ti-device-mobile',  description: 'Send critical compliance alerts via SMS through Twilio.', channel: 'sms', settingsSection: 'notifications',
+        setup_guide: '1. Sign up at twilio.com\n2. Get a phone number from Twilio Console\n3. Copy your Account SID and Auth Token from the dashboard\n4. Enter the Account SID, Auth Token, and From number below' },
+      { id: 'in_app',        category: 'notifications', name: 'In-App',          icon: 'ti-bell-ringing',   description: 'Browser notifications within the compliance platform.', channel: 'in_app', settingsSection: 'notifications',
+        setup_guide: 'No configuration needed. In-app notifications appear automatically in the platform.' },
 
       // SSO
-      { id: 'sso_oidc',      category: 'sso', name: 'OpenID Connect',   icon: 'ti-key',            description: 'Generic OIDC provider for enterprise single sign-on.', ssoProvider: 'oidc', settingsSection: 'sso' },
-      { id: 'sso_microsoft', category: 'sso', name: 'Microsoft SSO',    icon: 'ti-brand-azure',    description: 'Sign in with Microsoft work or school accounts via MSAL.', ssoProvider: 'microsoft', settingsSection: 'sso' },
-      { id: 'sso_google',    category: 'sso', name: 'Google SSO',       icon: 'ti-brand-google',   description: 'Sign in with Google Workspace accounts.', ssoProvider: 'google', settingsSection: 'sso' },
-      { id: 'sso_saml',      category: 'sso', name: 'SAML 2.0',        icon: 'ti-lock-access',    description: 'Enterprise SAML 2.0 integration for identity federation.', ssoProvider: 'saml', settingsSection: 'sso' },
+      { id: 'sso_oidc',      category: 'sso', name: 'OpenID Connect',   icon: 'ti-key',            description: 'Generic OIDC provider for enterprise single sign-on.', ssoProvider: 'oidc', settingsSection: 'sso',
+        setup_guide: '1. Register an application with your OIDC provider\n2. Set the Redirect URI to: {your-domain}/auth/callback/oidc\n3. Copy the Client ID and Client Secret\n4. Find the Discovery URL (usually ends in /.well-known/openid-configuration)\n5. Enter all three values below' },
+      { id: 'sso_microsoft', category: 'sso', name: 'Microsoft SSO',    icon: 'ti-brand-azure',    description: 'Sign in with Microsoft work or school accounts via MSAL.', ssoProvider: 'microsoft', settingsSection: 'sso',
+        setup_guide: '1. Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance SSO"\n3. Redirect URI: Web → https://{your-domain}/auth/callback/microsoft\n4. API Permissions → Add → Microsoft Graph → Delegated:\n   • openid\n   • email\n   • profile\n   • User.Read\n5. Create a client secret under Certificates & secrets\n6. Set Client ID, Client Secret, and Discovery URL:\n   https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration' },
+      { id: 'sso_google',    category: 'sso', name: 'Google SSO',       icon: 'ti-brand-google',   description: 'Sign in with Google Workspace accounts.', ssoProvider: 'google', settingsSection: 'sso',
+        setup_guide: '1. Google Cloud Console → APIs & Services → Credentials\n2. Create OAuth 2.0 Client ID → Web application\n3. Authorized redirect URI: https://{your-domain}/auth/callback/google\n4. Copy the Client ID and Client Secret\n5. Discovery URL: https://accounts.google.com/.well-known/openid-configuration' },
+      { id: 'sso_saml',      category: 'sso', name: 'SAML 2.0',        icon: 'ti-lock-access',    description: 'Enterprise SAML 2.0 integration for identity federation.', ssoProvider: 'saml', settingsSection: 'sso',
+        setup_guide: '1. In your IdP (Okta, OneLogin, Azure AD, etc.), create a new SAML app\n2. ACS URL: https://{your-domain}/auth/callback/saml\n3. Entity ID: https://{your-domain}\n4. NameID format: emailAddress\n5. Map attributes: email, firstName, lastName\n6. Download the IdP metadata XML or copy the SSO URL\n7. Enter the IdP metadata URL as the Discovery URL below' },
     ],
 
     async init() {

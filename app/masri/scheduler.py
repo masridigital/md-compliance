@@ -234,6 +234,34 @@ class MasriScheduler:
             logger.exception("Failed to send drift notification for tenant %s", tenant_id)
 
 
+    def _send_update_notification(self, subject, body, is_pre=True):
+        """Send email notification about updates to all admin users."""
+        if not self._app:
+            return
+        try:
+            from app.models import User
+            from app import db
+            from app.email import send_email
+
+            admins = db.session.execute(
+                db.select(User).filter_by(super=True, is_active=True)
+            ).scalars().all()
+
+            app_name = self._app.config.get("APP_NAME", "MD Compliance")
+            for admin in admins:
+                try:
+                    send_email(
+                        to=admin.email,
+                        subject=f"{app_name} — {subject}",
+                        template="update_notification",
+                        content=body,
+                        subject_line=subject,
+                    )
+                except Exception:
+                    logger.debug("Could not send update email to %s", admin.email)
+        except Exception:
+            logger.debug("Update email notification skipped (email may not be configured)")
+
     def _task_auto_update(self):
         """Check for and optionally apply updates based on schedule config."""
         if not self._app:
@@ -276,9 +304,25 @@ class MasriScheduler:
                 }
                 ConfigStore.upsert("auto_update_schedule", json.dumps(sched_data))
 
+                # Notify about available updates
+                if status.get("available"):
+                    self._send_update_notification(
+                        f"{status.get('commits_behind')} update(s) available",
+                        "Check the System page to review and apply.",
+                        is_pre=True,
+                    )
+
                 # Auto-apply if configured
                 if schedule.get("auto_apply") and status.get("available"):
                     logger.info("Auto-applying %d pending update(s)", status.get("commits_behind"))
+
+                    # Pre-apply notification
+                    self._send_update_notification(
+                        "Platform update starting now",
+                        f"Applying {status.get('commits_behind')} update(s). The app will restart and all users will be logged out.",
+                        is_pre=True,
+                    )
+
                     result = UpdateManager.apply()
                     if result.get("success"):
                         from app.models import Logs
@@ -287,8 +331,18 @@ class MasriScheduler:
                             action="PUT",
                             namespace="system",
                         )
+                        self._send_update_notification(
+                            "Platform update completed",
+                            f"Successfully applied {status.get('commits_behind')} update(s). All users have been logged out.",
+                            is_pre=False,
+                        )
                     else:
                         logger.error("Auto-update failed: %s", result.get("message"))
+                        self._send_update_notification(
+                            "Platform update FAILED",
+                            f"Error: {result.get('message')}. Manual intervention may be required.",
+                            is_pre=False,
+                        )
 
             except Exception:
                 logger.exception("Auto-update task failed")
