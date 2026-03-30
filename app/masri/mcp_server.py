@@ -11,6 +11,9 @@ Blueprint: ``mcp`` at url_prefix ``/mcp/v1``
 
 import json
 import logging
+import hashlib
+import secrets
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -30,53 +33,8 @@ def _error_response(code: int, message: str):
     return jsonify({"error": {"code": code, "message": message}}), code
 
 
-# ---------------------------------------------------------------------------
-# Authentication
-# ---------------------------------------------------------------------------
-
-def _authenticate():
-    """
-    Validate the ``Authorization: Bearer <key>`` header.
-
-    Returns the ``MCPAPIKey`` record on success.  Aborts with 401 on
-    any authentication failure.
-    """
-    from app.masri.new_models import MCPAPIKey
-
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        abort(401, description="Missing or malformed Authorization header")
-
-    raw_key = auth_header[7:].strip()
-    if not raw_key:
-        abort(401, description="API key is empty")
-
-    key_record = MCPAPIKey.validate(raw_key)
-    if key_record is None:
-        abort(401, description="Invalid or expired API key")
-
-    # MCPAPIKey.validate() already checks ``enabled`` and ``expires_at``,
-    # but we perform an explicit guard here so the intent is clear to
-    # future readers and covers any edge-case drift.
-    if not key_record.enabled:
-        abort(401, description="API key is disabled")
-
-    if key_record.expires_at and datetime.utcnow() > key_record.expires_at:
-        abort(401, description="API key has expired")
-
-    return key_record
-
-
-def _require_auth(f):
-    """Decorator that authenticates and injects ``api_key`` into kwargs."""
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        key_record = _authenticate()
-        kwargs["api_key"] = key_record
-        return f(*args, **kwargs)
-
-    return decorated
+# NOTE: _authenticate and _require_auth are defined below alongside the
+# OAuth 2.0 token store, after the tool implementations section.
 
 
 # ---------------------------------------------------------------------------
@@ -857,8 +815,200 @@ def _handle_500(exc):
 
 
 # ---------------------------------------------------------------------------
+# OAuth 2.0 — In-memory access token store
+# ---------------------------------------------------------------------------
+
+# Maps access_token_hash -> { "key_record_id": str, "expires": float }
+_oauth_tokens: dict = {}
+
+
+def _issue_oauth_token(key_record) -> tuple:
+    """Issue a short-lived OAuth access token for an authenticated API key.
+
+    Returns (access_token, expires_in_seconds).
+    """
+    access_token = f"mcp_at_{secrets.token_urlsafe(48)}"
+    token_hash = hashlib.sha256(access_token.encode()).hexdigest()
+    expires_in = 3600  # 1 hour
+    _oauth_tokens[token_hash] = {
+        "key_record_id": key_record.id,
+        "expires": time.time() + expires_in,
+    }
+    # Prune expired tokens (keep store small)
+    now = time.time()
+    expired = [h for h, v in _oauth_tokens.items() if v["expires"] < now]
+    for h in expired:
+        _oauth_tokens.pop(h, None)
+
+    return access_token, expires_in
+
+
+def _validate_oauth_token(token: str):
+    """Validate an OAuth access token. Returns the MCPAPIKey record or None."""
+    from app.masri.new_models import MCPAPIKey
+    from app import db
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    entry = _oauth_tokens.get(token_hash)
+    if not entry:
+        return None
+    if entry["expires"] < time.time():
+        _oauth_tokens.pop(token_hash, None)
+        return None
+    return db.session.get(MCPAPIKey, entry["key_record_id"])
+
+
+# ---------------------------------------------------------------------------
+# Updated authentication — supports both API keys and OAuth tokens
+# ---------------------------------------------------------------------------
+
+def _authenticate():
+    """
+    Validate the ``Authorization: Bearer <token>`` header.
+
+    Accepts either:
+      1. A raw MCP API key (``mcp_...``)
+      2. An OAuth access token (``mcp_at_...``) issued by POST /mcp/v1/token
+
+    Returns the ``MCPAPIKey`` record on success. Aborts 401 on failure.
+    """
+    from app.masri.new_models import MCPAPIKey
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        abort(401, description="Missing or malformed Authorization header. Use OAuth: POST /mcp/v1/token with client_credentials grant, or pass an API key directly.")
+
+    token = auth_header[7:].strip()
+    if not token:
+        abort(401, description="Bearer token is empty")
+
+    # Try OAuth access token first
+    if token.startswith("mcp_at_"):
+        key_record = _validate_oauth_token(token)
+        if key_record is None:
+            abort(401, description="Invalid or expired OAuth access token. Request a new one via POST /mcp/v1/token.")
+        return key_record
+
+    # Fall back to raw API key
+    key_record = MCPAPIKey.validate(token)
+    if key_record is None:
+        abort(401, description="Invalid or expired API key")
+
+    if not key_record.enabled:
+        abort(401, description="API key is disabled")
+
+    if key_record.expires_at and datetime.utcnow() > key_record.expires_at:
+        abort(401, description="API key has expired")
+
+    return key_record
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+@mcp_bp.route("/.well-known/oauth-authorization-server", methods=["GET"])
+def oauth_metadata():
+    """
+    OAuth 2.0 Authorization Server Metadata (RFC 8414).
+
+    LLM clients and MCP-compatible tools discover the token endpoint
+    and supported grant types from this well-known URL.
+    """
+    base = request.host_url.rstrip("/") + "/mcp/v1"
+    return jsonify({
+        "issuer": base,
+        "token_endpoint": base + "/token",
+        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+        "grant_types_supported": ["client_credentials"],
+        "scopes_supported": ["mcp:tools", "mcp:read", "mcp:write"],
+        "response_types_supported": [],
+        "service_documentation": base + "/docs",
+    })
+
+
+@mcp_bp.route("/token", methods=["POST"])
+def oauth_token():
+    """
+    OAuth 2.0 Token Endpoint — Client Credentials Grant.
+
+    Accepts:
+      - ``grant_type=client_credentials`` (required)
+      - ``client_id`` — the MCP API key prefix (first 8 chars) or full key
+      - ``client_secret`` — the full MCP API key
+
+    Supports both form-encoded body and HTTP Basic auth.
+
+    Returns:
+        { "access_token": "...", "token_type": "Bearer", "expires_in": 3600 }
+    """
+    from app.masri.new_models import MCPAPIKey
+
+    # Accept form-encoded or JSON
+    if request.content_type and "json" in request.content_type:
+        data = request.get_json(silent=True) or {}
+    else:
+        data = request.form.to_dict()
+
+    grant_type = data.get("grant_type", "")
+    if grant_type != "client_credentials":
+        return jsonify({
+            "error": "unsupported_grant_type",
+            "error_description": "Only client_credentials grant is supported."
+        }), 400
+
+    # Extract client credentials — prefer body, fall back to Basic auth
+    client_id = data.get("client_id", "")
+    client_secret = data.get("client_secret", "")
+
+    if not client_secret:
+        # Try HTTP Basic auth
+        auth = request.authorization
+        if auth:
+            client_id = auth.username or ""
+            client_secret = auth.password or ""
+
+    if not client_secret:
+        return jsonify({
+            "error": "invalid_client",
+            "error_description": "client_secret is required. Use your MCP API key as the client_secret."
+        }), 401
+
+    # Validate the API key (client_secret IS the raw API key)
+    key_record = MCPAPIKey.validate(client_secret)
+    if key_record is None:
+        return jsonify({
+            "error": "invalid_client",
+            "error_description": "Invalid API key. Generate one in Settings > Integrations > MCP Server."
+        }), 401
+
+    if not key_record.enabled:
+        return jsonify({
+            "error": "invalid_client",
+            "error_description": "API key is disabled."
+        }), 401
+
+    if key_record.expires_at and datetime.utcnow() > key_record.expires_at:
+        return jsonify({
+            "error": "invalid_client",
+            "error_description": "API key has expired."
+        }), 401
+
+    # Issue access token
+    access_token, expires_in = _issue_oauth_token(key_record)
+
+    # Update last_used_at
+    from app import db
+    key_record.last_used_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": expires_in,
+        "scope": "mcp:tools mcp:read mcp:write",
+    })
+
 
 @mcp_bp.route("/docs", methods=["GET"])
 def public_docs():
@@ -869,6 +1019,7 @@ def public_docs():
     authentication requirements, and usage examples.
     No authentication required.
     """
+    base = request.host_url.rstrip("/") + "/mcp/v1"
     return jsonify({
         "name": "Masri Digital Compliance MCP Server",
         "version": "1.0",
@@ -878,18 +1029,38 @@ def public_docs():
             "(with LLM), risk register access, and due date tracking."
         ),
         "authentication": {
-            "type": "bearer",
-            "header": "Authorization: Bearer <api_key>",
-            "description": (
-                "Generate API keys from Settings > API Keys. "
-                "Include the key in the Authorization header for all /tools endpoints."
+            "type": "oauth2",
+            "flows": {
+                "client_credentials": {
+                    "token_url": base + "/token",
+                    "description": (
+                        "Use your MCP API key as the client_secret in a standard "
+                        "OAuth 2.0 client_credentials grant. The client_id can be "
+                        "any value (or the key prefix). A short-lived access token "
+                        "is returned for use as a Bearer token."
+                    ),
+                },
+            },
+            "discovery_url": base + "/.well-known/oauth-authorization-server",
+            "legacy_api_key": (
+                "You can also pass the raw MCP API key directly as a Bearer token "
+                "without going through the OAuth flow."
             ),
         },
-        "base_url": "/mcp/v1",
+        "base_url": base,
         "endpoints": {
-            "GET /mcp/v1/docs": "This documentation endpoint (no auth required)",
-            "GET /mcp/v1/tools": "List available tools (auth required, scope-filtered)",
-            "POST /mcp/v1/tools/<tool_name>": "Execute a tool (auth required)",
+            "GET  /.well-known/oauth-authorization-server": "OAuth 2.0 server metadata (RFC 8414)",
+            "POST /token": "OAuth 2.0 token endpoint (client_credentials grant)",
+            "GET  /docs": "This documentation (no auth required)",
+            "GET  /tools": "List available tools (auth required)",
+            "POST /tools/<tool_name>": "Execute a tool (auth required)",
+        },
+        "quick_start": {
+            "step_1": "Generate an API key in Integrations > MCP Server",
+            "step_2": "POST /mcp/v1/token with grant_type=client_credentials&client_secret=YOUR_KEY",
+            "step_3": "Use the returned access_token as: Authorization: Bearer <access_token>",
+            "step_4": "GET /mcp/v1/tools to discover available tools",
+            "step_5": "POST /mcp/v1/tools/<name> with JSON params to execute",
         },
         "tools": TOOL_DEFINITIONS,
         "rate_limiting": "Configurable per API key via scopes.rate_limit (requests per minute)",

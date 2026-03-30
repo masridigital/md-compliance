@@ -306,12 +306,36 @@
         <!-- ═══════ MCP Server Key Management ═══════ -->
         <template x-if="selected.id === 'mcp'">
           <div>
-            <h4 class="font-semibold text-sm mb-3">API Keys</h4>
-            <p class="text-xs opacity-60 mb-3">MCP API keys authenticate external AI assistants and tools. The server exposes compliance tools at <code class="bg-base-200 px-1 rounded">/mcp/v1/tools</code>.</p>
+            <!-- What is MCP -->
+            <div class="finding-card mb-4">
+              <div class="text-xs font-semibold mb-1"><i class="ti ti-info-circle text-info"></i> What is MCP?</div>
+              <p class="text-xs opacity-70 leading-relaxed">The <strong>Model Context Protocol (MCP)</strong> server lets AI assistants (like Claude, ChatGPT, etc.) connect to your compliance data. When you connect an LLM, it can list your frameworks, assess controls, score risks, and generate policies — all authenticated via OAuth 2.0.</p>
+            </div>
+
+            <!-- How to connect -->
+            <h4 class="font-semibold text-sm mb-2">How to Connect an LLM</h4>
+            <div class="space-y-2 mb-4">
+              <div class="finding-card">
+                <div class="text-xs"><strong class="text-primary">1.</strong> Create a credential below — this is your <strong>client_secret</strong> for OAuth</div>
+              </div>
+              <div class="finding-card">
+                <div class="text-xs"><strong class="text-primary">2.</strong> Point your LLM to the OAuth discovery URL:</div>
+                <code class="text-xs bg-base-300 px-2 py-0.5 rounded block mt-1">/mcp/v1/.well-known/oauth-authorization-server</code>
+              </div>
+              <div class="finding-card">
+                <div class="text-xs"><strong class="text-primary">3.</strong> The LLM will auto-discover the token endpoint and request an access token using your credential as the <code class="bg-base-300 px-1 rounded">client_secret</code></div>
+              </div>
+              <div class="finding-card">
+                <div class="text-xs"><strong class="text-primary">4.</strong> Once authenticated, the LLM can call tools at <code class="bg-base-300 px-1 rounded">/mcp/v1/tools</code></div>
+              </div>
+            </div>
+
+            <div class="divider text-xs">Credentials</div>
 
             <!-- Create Key -->
+            <p class="text-xs opacity-60 mb-3">Each credential acts as a <strong>client_secret</strong> for OAuth authentication. Name it after the LLM or tool that will use it.</p>
             <div class="flex gap-2 mb-4">
-              <input type="text" class="input input-bordered input-sm flex-1" x-model="mcpNewKeyName" placeholder="Key name (e.g. Claude Desktop)" />
+              <input type="text" class="input input-bordered input-sm flex-1" x-model="mcpNewKeyName" placeholder="e.g. Claude Desktop, ChatGPT, Cursor" />
               <button class="btn btn-primary btn-sm gap-1" @click="createMcpKey()" :disabled="mcpSaving || !mcpNewKeyName.trim()">
                 <span class="loading loading-spinner loading-xs" x-show="mcpSaving"></span>
                 <i class="ti ti-plus" x-show="!mcpSaving"></i>
@@ -320,8 +344,9 @@
             </div>
 
             <!-- Show newly created key (once) -->
-            <div x-show="mcpNewRawKey" class="finding-card mb-4">
-              <div class="text-xs text-warning font-semibold mb-1"><i class="ti ti-alert-triangle"></i> Copy this key now — it won't be shown again</div>
+            <div x-show="mcpNewRawKey" class="finding-card mb-4 border border-success/30">
+              <div class="text-xs text-warning font-semibold mb-1"><i class="ti ti-alert-triangle"></i> Copy this credential now — it won't be shown again</div>
+              <div class="text-xs opacity-60 mb-2">Use this as your <code class="bg-base-300 px-1 rounded">client_secret</code> when connecting your LLM.</div>
               <div class="flex gap-2 items-center">
                 <code class="text-xs bg-base-300 px-2 py-1 rounded flex-1 break-all" x-text="mcpNewRawKey"></code>
                 <button class="btn btn-ghost btn-xs" @click="navigator.clipboard.writeText(mcpNewRawKey); toast('Copied!', 'success')"><i class="ti ti-copy"></i></button>
@@ -336,17 +361,17 @@
                     <div class="text-xs font-semibold" x-text="key.name"></div>
                     <div class="text-xs opacity-50">
                       <span x-text="key.key_prefix + '...'"></span> ·
-                      <span x-text="key.enabled ? 'Active' : 'Disabled'"></span>
+                      <span x-text="key.enabled ? 'Active' : 'Revoked'" :class="key.enabled ? 'text-success' : 'text-error'"></span>
                       <span x-show="key.last_used_at"> · Last used <span x-text="new Date(key.last_used_at).toLocaleDateString()"></span></span>
                     </div>
                   </div>
-                  <button class="btn btn-ghost btn-xs text-error" @click="revokeMcpKey(key.id)" title="Revoke">
+                  <button class="btn btn-ghost btn-xs text-error" @click="revokeMcpKey(key.id)" title="Revoke" x-show="key.enabled">
                     <i class="ti ti-trash"></i>
                   </button>
                 </div>
               </template>
             </div>
-            <div x-show="mcpKeys.length === 0 && !mcpSaving" class="text-xs opacity-50 text-center py-4">No API keys yet</div>
+            <div x-show="mcpKeys.length === 0 && !mcpSaving" class="text-xs opacity-50 text-center py-4">No credentials yet. Create one to connect an LLM.</div>
             <div x-show="mcpMsg" class="text-xs mt-2" :class="mcpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="mcpMsg"></div>
           </div>
         </template>
@@ -768,7 +793,7 @@ function integrationsHub() {
       { id: 'together',     category: 'llm', name: 'Together AI',   icon: 'ti-cpu',           description: 'Access open-source models (Llama, Mixtral, etc.) via Together AI cloud inference.', provider: 'together', settingsSection: 'llm' },
 
       // MCP Server
-      { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Model Context Protocol server exposing compliance tools (frameworks, controls, risks, assessments) to AI assistants and external systems via API keys.' },
+      { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Connect AI assistants (Claude, ChatGPT, etc.) to your compliance data via OAuth 2.0. LLMs can list frameworks, assess controls, score risks, and generate policies.' },
 
       // Storage
       { id: 'local',      category: 'storage', name: 'Local Storage',     icon: 'ti-folder',         description: 'Store evidence and documents on the server filesystem.', provider: 'local', settingsSection: 'storage' },
