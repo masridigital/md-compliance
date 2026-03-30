@@ -191,6 +191,8 @@ class SettingsLLM(db.Model):
         default=_short_id,
         unique=True,
     )
+    slot = db.Column(db.Integer, default=1)  # 1=primary, 2=secondary, 3=tertiary
+    label = db.Column(db.String, default="Primary")  # display name
     provider = db.Column(db.String, default="openai")
     api_key_enc = db.Column(db.Text)  # Fernet encrypted
     model_name = db.Column(db.String, default="gpt-4o")

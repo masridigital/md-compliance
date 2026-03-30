@@ -281,29 +281,50 @@ class SettingsService:
     @staticmethod
     def get_active_llm_config():
         """
-        Returns the first enabled SettingsLLM record, or None.
+        Returns the first enabled SettingsLLM record by slot priority (1→2→3), or None.
         """
         from app import db
         from app.masri.new_models import SettingsLLM
-        return db.session.execute(db.select(SettingsLLM).filter_by(enabled=True)).scalars().first()
+        return db.session.execute(
+            db.select(SettingsLLM).filter_by(enabled=True).order_by(SettingsLLM.slot.asc())
+        ).scalars().first()
 
     @staticmethod
-    def update_llm_config(data: dict):
-        """
-        Create or update the LLM settings row.
+    def get_all_llm_configs():
+        """Returns all LLM config slots ordered by slot number."""
+        from app import db
+        from app.masri.new_models import SettingsLLM
+        return db.session.execute(
+            db.select(SettingsLLM).order_by(SettingsLLM.slot.asc())
+        ).scalars().all()
 
+    @staticmethod
+    def update_llm_config(data: dict, slot: int = None):
+        """
+        Create or update an LLM settings row for a given slot.
+
+        If slot is provided, operates on that specific slot.
         If 'api_key' is present in data it is encrypted before storage.
         """
         from app import db
         from app.masri.new_models import SettingsLLM
 
-        llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
-        if llm is None:
-            llm = SettingsLLM()
-            db.session.add(llm)
+        if slot is not None:
+            llm = db.session.execute(
+                db.select(SettingsLLM).filter_by(slot=slot)
+            ).scalars().first()
+            if llm is None:
+                labels = {1: "Primary", 2: "Secondary", 3: "Tertiary"}
+                llm = SettingsLLM(slot=slot, label=labels.get(slot, f"Slot {slot}"))
+                db.session.add(llm)
+        else:
+            llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
+            if llm is None:
+                llm = SettingsLLM(slot=1, label="Primary")
+                db.session.add(llm)
 
         safe_fields = {"provider", "model_name", "azure_endpoint",
-                        "azure_deployment", "enabled",
+                        "azure_deployment", "enabled", "label",
                         "token_budget_per_tenant", "rate_limit_per_hour"}
         for key, value in data.items():
             if key in safe_fields:

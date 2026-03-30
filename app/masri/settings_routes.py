@@ -146,18 +146,28 @@ def update_tenant_branding(tenant_id):
 @limiter.limit("60 per minute")
 @login_required
 def get_llm_config():
-    """GET /api/v1/settings/llm — active LLM config with masked api_key."""
+    """GET /api/v1/settings/llm — all LLM configs (all slots)."""
     _require_admin()
     try:
-        llm = SettingsService.get_active_llm_config()
-        if llm is None:
-            return jsonify({"message": "No active LLM configuration found"}), 404
-        data = llm.as_dict()
-        # Mask api_key if present (as_dict already strips api_key_enc,
-        # but add explicit masking for safety)
-        data.pop("api_key", None)
-        data.pop("api_key_enc", None)
-        return jsonify(data)
+        configs = SettingsService.get_all_llm_configs()
+        if not configs:
+            return jsonify({"slots": []})
+        slots = []
+        for llm in configs:
+            d = llm.as_dict()
+            d.pop("api_key", None)
+            d.pop("api_key_enc", None)
+            slots.append(d)
+        # Also return the active one for backward compat
+        active = SettingsService.get_active_llm_config()
+        active_data = None
+        if active:
+            active_data = active.as_dict()
+            active_data.pop("api_key", None)
+            active_data.pop("api_key_enc", None)
+        return jsonify({"slots": slots, "active": active_data,
+                        # backward compat flat fields
+                        **(active_data or {})})
     except Exception as e:
         logger.exception("Error fetching LLM config")
         return jsonify({"error": "Failed to retrieve LLM configuration"}), 500
@@ -167,13 +177,14 @@ def get_llm_config():
 @limiter.limit("30 per minute")
 @login_required
 def update_llm_config():
-    """PUT /api/v1/settings/llm — update LLM provider settings."""
+    """PUT /api/v1/settings/llm — update LLM provider settings for a slot."""
     _require_admin()
     data, err = validate_payload(LLMConfigUpdateSchema, request.get_json(silent=True))
     if err:
         return err
     try:
-        llm = SettingsService.update_llm_config(data)
+        slot = data.pop("slot", None)
+        llm = SettingsService.update_llm_config(data, slot=slot)
         result = llm.as_dict()
         result.pop("api_key", None)
         result.pop("api_key_enc", None)

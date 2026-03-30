@@ -43,6 +43,12 @@ def upgrade():
     if not _column_exists("mcp_api_keys", "client_id"):
         op.add_column("mcp_api_keys", sa.Column("client_id", sa.String(), nullable=True, unique=True))
 
+    # LLM multi-slot columns
+    if not _column_exists("settings_llm", "slot"):
+        op.add_column("settings_llm", sa.Column("slot", sa.Integer(), server_default="1", nullable=True))
+    if not _column_exists("settings_llm", "label"):
+        op.add_column("settings_llm", sa.Column("label", sa.String(), server_default="Primary", nullable=True))
+
 
 def downgrade():
     if _column_exists("mcp_api_keys", "client_id"):

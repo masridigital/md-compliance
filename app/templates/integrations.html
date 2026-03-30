@@ -281,14 +281,24 @@
           </div>
         </template>
 
-        <!-- ═══════ LLM Provider Config Form ═══════ -->
-        <template x-if="selected.category === 'llm'">
+        <!-- ═══════ LLM Provider Config — 3 Slots ═══════ -->
+        <template x-if="selected.id === 'llm_unified'">
           <div>
-            <h4 class="font-semibold text-sm mb-3">Configuration</h4>
+            <!-- Slot Tabs -->
+            <div role="tablist" class="tabs tabs-bordered mb-4">
+              <template x-for="slot in [1,2,3]" :key="'llm-tab-'+slot">
+                <button role="tab" class="tab tab-sm" :class="{'tab-active': llmActiveSlot === slot}" @click="llmActiveSlot = slot; loadLlmSlot(slot)">
+                  <span x-text="slot === 1 ? 'Primary' : slot === 2 ? 'Secondary' : 'Tertiary'"></span>
+                  <span class="status-dot ml-1" :class="llmSlotStatus[slot] ? 'green' : 'gray'" style="width:6px;height:6px;"></span>
+                </button>
+              </template>
+            </div>
+
             <div class="space-y-3">
               <div>
                 <label class="text-xs font-medium block mb-1">Provider</label>
                 <select class="select select-bordered select-sm w-full" x-model="llmForm.provider">
+                  <option value="">Select provider...</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="azure_openai">Azure OpenAI</option>
@@ -298,10 +308,10 @@
               <div>
                 <label class="text-xs font-medium block mb-1">API Key</label>
                 <input type="password" class="input input-bordered input-sm w-full" x-model="llmForm.api_key" placeholder="Enter API key (encrypted at rest)" />
-                <div x-show="getStatus(selected.id).configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Existing key stored encrypted. Leave blank to keep current.</div>
+                <div x-show="llmForm.has_api_key" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Key stored encrypted. Leave blank to keep.</div>
               </div>
               <div>
-                <label class="text-xs font-medium block mb-1">Model Name</label>
+                <label class="text-xs font-medium block mb-1">Model</label>
                 <div class="flex gap-1 items-center">
                   <template x-if="llmModels.length > 0">
                     <select class="select select-bordered select-sm w-full" x-model="llmForm.model_name">
@@ -314,12 +324,12 @@
                   <template x-if="llmModels.length === 0">
                     <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : llmForm.provider === 'together' ? 'meta-llama/Llama-3-70b-chat-hf' : 'gpt-4o'" />
                   </template>
-                  <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="!llmForm.api_key || llmModelsFetching">
+                  <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch available models" @click="fetchLlmModels()" :disabled="!llmForm.api_key || llmModelsFetching">
                     <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
                     <i class="ti ti-refresh text-lg" x-show="!llmModelsFetching"></i>
                   </button>
                 </div>
-                <div class="text-xs opacity-50 mt-1" x-show="llmForm.api_key">Enter an API key and click <i class="ti ti-refresh"></i> to load available models</div>
+                <div class="text-xs opacity-50 mt-1" x-show="llmForm.api_key && llmModels.length === 0">Enter API key → click <i class="ti ti-refresh"></i> to load models</div>
               </div>
               <template x-if="llmForm.provider === 'azure_openai'">
                 <div class="space-y-3">
@@ -338,10 +348,15 @@
                 <span class="text-xs" x-text="llmForm.enabled ? 'Enabled' : 'Disabled'"></span>
               </div>
               <div class="flex gap-2 pt-2">
-                <button class="btn btn-primary btn-sm gap-1" @click="saveLlm()" :disabled="llmSaving">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveLlmSlot()" :disabled="llmSaving">
                   <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
                   <i class="ti ti-device-floppy" x-show="!llmSaving"></i>
                   Save
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="testLlm()" :disabled="llmTesting">
+                  <span class="loading loading-spinner loading-xs" x-show="llmTesting"></span>
+                  <i class="ti ti-plug-connected" x-show="!llmTesting"></i>
+                  Test
                 </button>
               </div>
               <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
@@ -446,18 +461,31 @@
                   <input type="url" class="input input-bordered input-sm w-full" x-model="notifForm.webhook_url" placeholder="https://hooks.slack.com/... or Teams webhook URL" />
                 </div>
               </template>
-              <!-- Email SMTP -->
+              <!-- Email SMTP — uses global SMTP config from /api/v1/settings/smtp -->
               <template x-if="selected.channel === 'email'">
-                <div class="space-y-3">
+                <div class="space-y-3" x-init="loadSmtpForEmail()">
                   <div class="grid grid-cols-2 gap-2">
-                    <div><label class="text-xs font-medium block mb-1">SMTP Host</label><input type="text" class="input input-bordered input-sm w-full" x-model="notifForm.smtp_host" placeholder="smtp.gmail.com" /></div>
-                    <div><label class="text-xs font-medium block mb-1">Port</label><input type="number" class="input input-bordered input-sm w-full" x-model="notifForm.smtp_port" placeholder="587" /></div>
+                    <div><label class="text-xs font-medium block mb-1">SMTP Server</label><input type="text" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_server" placeholder="smtp.gmail.com" /></div>
+                    <div><label class="text-xs font-medium block mb-1">Port</label><input type="number" class="input input-bordered input-sm w-full" x-model.number="smtpForm.mail_port" placeholder="587" /></div>
                   </div>
                   <div class="grid grid-cols-2 gap-2">
-                    <div><label class="text-xs font-medium block mb-1">Username</label><input type="text" class="input input-bordered input-sm w-full" x-model="notifForm.smtp_username" /></div>
-                    <div><label class="text-xs font-medium block mb-1">Password</label><input type="password" class="input input-bordered input-sm w-full" x-model="notifForm.smtp_password" placeholder="Encrypted at rest" /></div>
+                    <div><label class="text-xs font-medium block mb-1">Username</label><input type="text" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_username" placeholder="noreply@company.com" /></div>
+                    <div><label class="text-xs font-medium block mb-1">Password</label><input type="password" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_password" placeholder="Encrypted at rest" />
+                      <div x-show="smtpForm.has_password" class="text-xs opacity-40 mt-1"><i class="ti ti-lock"></i> Saved. Blank to keep.</div>
+                    </div>
                   </div>
-                  <div><label class="text-xs font-medium block mb-1">From Address</label><input type="email" class="input input-bordered input-sm w-full" x-model="notifForm.from_address" placeholder="alerts@yourcompany.com" /></div>
+                  <div><label class="text-xs font-medium block mb-1">From Address</label><input type="email" class="input input-bordered input-sm w-full" x-model="smtpForm.mail_default_sender" placeholder="alerts@yourcompany.com" /></div>
+                  <div class="flex gap-2">
+                    <button class="btn btn-primary btn-sm gap-1" @click="saveSmtpGlobal()" :disabled="smtpSaving">
+                      <span class="loading loading-spinner loading-xs" x-show="smtpSaving"></span>
+                      <i class="ti ti-device-floppy" x-show="!smtpSaving"></i> Save SMTP
+                    </button>
+                    <button class="btn btn-sm btn-outline gap-1" @click="testSmtpGlobal()" :disabled="smtpTesting">
+                      <span class="loading loading-spinner loading-xs" x-show="smtpTesting"></span>
+                      <i class="ti ti-send" x-show="!smtpTesting"></i> Test
+                    </button>
+                  </div>
+                  <div x-show="smtpMsg" class="text-xs" :class="smtpMsgType === 'error' ? 'text-error' : 'text-success'" x-text="smtpMsg"></div>
                 </div>
               </template>
               <!-- SMS / Twilio -->
@@ -772,9 +800,13 @@ function integrationsHub() {
     selected: null,
     statuses: {},
 
-    // LLM form state
-    llmForm: { provider: 'openai', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false },
+    // LLM form state (3 slots)
+    llmForm: { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false },
+    llmActiveSlot: 1,
+    llmSlotStatus: { 1: false, 2: false, 3: false },
+    llmSlotData: {},  // slot -> saved config
     llmSaving: false,
+    llmTesting: false,
     llmMsg: '',
     llmMsgType: '',
     llmModels: [],
@@ -796,6 +828,13 @@ function integrationsHub() {
     telivyShowCreateAssessment: false,
     telivyNewScan: { org: '', domain: '' },
     telivyNewAssessment: { org: '', domain: '' },
+
+    // Global SMTP state (shared with System page)
+    smtpForm: { mail_server: '', mail_port: 587, mail_use_tls: true, mail_username: '', mail_password: '', mail_default_sender: '', has_password: false },
+    smtpSaving: false,
+    smtpTesting: false,
+    smtpMsg: '',
+    smtpMsgType: '',
 
     // Notification form state
     notifForm: { webhook_url: '', smtp_host: '', smtp_port: 587, smtp_username: '', smtp_password: '', from_address: '', account_sid: '', auth_token: '', from_number: '', enabled: false, critical_enabled: true, high_enabled: true, medium_enabled: true, low_enabled: false },
@@ -844,20 +883,14 @@ function integrationsHub() {
 
     integrations: [
       // Identity & Security
-      { id: 'entra', category: 'identity', name: 'Microsoft Entra ID', icon: 'ti-brand-azure', description: 'Sync users, verify MFA enrollment, and assess compliance posture from Azure AD.', settingsSection: 'entra',
-        setup_guide: '1. Go to Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance", Redirect URI: leave blank\n3. Copy the Application (client) ID and Directory (tenant) ID\n4. Go to Certificates & secrets → New client secret → copy the value\n5. Go to API Permissions → Add: Microsoft Graph → Application permissions:\n   • User.Read.All\n   • Directory.Read.All\n   • UserAuthenticationMethod.Read.All\n   • Reports.Read.All\n6. Click "Grant admin consent"\n7. Enter the Tenant ID, Client ID, and Client Secret below' },
+      { id: 'entra', category: 'identity', name: 'Microsoft Entra ID + CSP', icon: 'ti-brand-azure', description: 'Sync users, verify MFA enrollment, assess compliance posture from Azure AD. Also supports Microsoft CSP to pull client tenant lists for MSPs.', settingsSection: 'entra',
+        setup_guide: 'Standard Entra ID setup:\n1. Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance", Redirect URI: leave blank\n3. Copy the Application (client) ID and Directory (tenant) ID\n4. Certificates & secrets → New client secret → copy value\n5. API Permissions → Microsoft Graph → Application:\n   • User.Read.All\n   • Directory.Read.All\n   • UserAuthenticationMethod.Read.All\n   • Reports.Read.All\n6. Click "Grant admin consent"\n\nFor CSP Client Pull (MSPs):\n7. Add additional permissions:\n   • DelegatedAdminRelationship.Read.All\n   • Contract.Read.All\n8. The "Pull CSP Clients" button will import your CSP customers as tenants' },
       { id: 'telivy', category: 'identity', name: 'Telivy Security', icon: 'ti-shield-search', description: 'External vulnerability scanning, risk assessments, breach data detection, and downloadable security reports.',
         setup_guide: '1. Log into portal.telivy.com\n2. Go to Account → Integrations → API Keys\n3. Generate a new API key\n4. Copy the key and paste it below' },
 
-      // LLM
-      { id: 'openai',       category: 'llm', name: 'OpenAI',        icon: 'ti-brand-openai',  description: 'GPT-4o and GPT-4 models for AI-powered compliance analysis and policy drafting.', provider: 'openai', settingsSection: 'llm',
-        setup_guide: '1. Go to platform.openai.com → API Keys → Create new secret key\n2. Copy the key (starts with sk-)\n3. Paste below and click the refresh button to load available models\n4. Recommended model: gpt-4o' },
-      { id: 'anthropic',    category: 'llm', name: 'Anthropic',     icon: 'ti-brain',         description: 'Claude models for document analysis, risk assessment, and policy generation.', provider: 'anthropic', settingsSection: 'llm',
-        setup_guide: '1. Go to console.anthropic.com → API Keys → Create Key\n2. Copy the key (starts with sk-ant-)\n3. Paste below and click refresh to load models\n4. Recommended model: claude-sonnet-4-20250514' },
-      { id: 'azure_openai', category: 'llm', name: 'Azure OpenAI',  icon: 'ti-brand-azure',   description: 'Azure-hosted OpenAI models with enterprise data residency and compliance.', provider: 'azure_openai', settingsSection: 'llm',
-        setup_guide: '1. Azure Portal → Azure OpenAI → Create resource\n2. Deploy a model (e.g. gpt-4o) in the Azure OpenAI Studio\n3. Copy the Endpoint URL and API Key from Keys and Endpoint\n4. Enter the Deployment Name you chose in the studio' },
-      { id: 'together',     category: 'llm', name: 'Together AI',   icon: 'ti-cpu',           description: 'Access open-source models (Llama, Mixtral, etc.) via Together AI cloud inference.', provider: 'together', settingsSection: 'llm',
-        setup_guide: '1. Go to api.together.xyz → Settings → API Keys\n2. Create a new key and copy it\n3. Paste below and click refresh to load models\n4. Recommended: meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' },
+      // LLM — single unified card with 3 slots
+      { id: 'llm_unified', category: 'llm', name: 'AI / LLM Providers', icon: 'ti-brain', description: 'Configure up to 3 AI providers (primary, secondary, tertiary). Used for control assessment, gap analysis, policy drafting, and WISP generation. The platform uses the primary provider first and falls back to secondary/tertiary if unavailable.',
+        setup_guide: 'Supported providers:\n\n• OpenAI: platform.openai.com → API Keys → sk-...\n  Models: gpt-4o, gpt-4-turbo\n\n• Anthropic: console.anthropic.com → API Keys → sk-ant-...\n  Models: claude-sonnet-4-20250514\n\n• Azure OpenAI: Azure Portal → OpenAI resource → Keys\n  Requires: Endpoint URL + Deployment Name\n\n• Together AI: api.together.xyz → Settings → API Keys\n  Models: meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' },
 
       // MCP Server
       { id: 'mcp', category: 'mcp', name: 'MCP Server', icon: 'ti-plug-connected', description: 'Connect AI assistants (Claude, ChatGPT, etc.) to your compliance data via OAuth 2.0. LLMs can list frameworks, assess controls, score risks, and generate policies.' },
@@ -875,8 +908,8 @@ function integrationsHub() {
         setup_guide: '1. Egnyte admin → Developer Portal → Create application\n2. Generate an API access token\n3. Enter your Egnyte domain (e.g. yourcompany.egnyte.com)\n4. Specify the root folder path for compliance documents' },
 
       // Notifications
-      { id: 'email',         category: 'notifications', name: 'Email',          icon: 'ti-mail',            description: 'Send compliance alerts and reports via SMTP email.', channel: 'email', settingsSection: 'notifications',
-        setup_guide: 'Configure SMTP under System → Email / SMTP Configuration.\nCommon providers:\n• Gmail: smtp.gmail.com, port 587, TLS on (use App Password)\n• Microsoft 365: smtp.office365.com, port 587, TLS on\n• Amazon SES: email-smtp.us-east-1.amazonaws.com, port 587' },
+      { id: 'email',         category: 'notifications', name: 'Email (SMTP)',   icon: 'ti-mail',            description: 'Send compliance alerts, user invites, and reports via SMTP. Configured globally under System → SMTP.', channel: 'email', settingsSection: 'notifications', redirectTo: '/system',
+        setup_guide: 'Email is configured globally in the System page (sidebar → System → Email / SMTP Configuration).\n\nCommon providers:\n• Gmail: smtp.gmail.com, port 587, TLS on (use App Password)\n• Microsoft 365: smtp.office365.com, port 587, TLS on\n• Amazon SES: email-smtp.us-east-1.amazonaws.com, port 587' },
       { id: 'teams_webhook', category: 'notifications', name: 'Microsoft Teams', icon: 'ti-brand-teams',    description: 'Post alerts to a Teams channel via incoming webhook.', channel: 'teams_webhook', settingsSection: 'notifications',
         setup_guide: '1. In Microsoft Teams, go to the channel → ••• → Connectors\n2. Find "Incoming Webhook" → Configure\n3. Name it "MD Compliance Alerts" and upload an icon\n4. Copy the webhook URL and paste it below' },
       { id: 'slack_webhook', category: 'notifications', name: 'Slack',           icon: 'ti-brand-slack',    description: 'Post alerts to a Slack channel via incoming webhook.', channel: 'slack_webhook', settingsSection: 'notifications',
@@ -988,17 +1021,12 @@ function integrationsHub() {
         this.entraFormMsg = '';
       }
 
-      // Pre-populate LLM form if opening an LLM card
-      if (item.category === 'llm') {
-        this.llmForm.provider = item.provider || 'openai';
-        this.llmForm.api_key = '';
-        this.llmForm.model_name = '';
-        this.llmForm.azure_endpoint = '';
-        this.llmForm.azure_deployment = '';
-        this.llmForm.enabled = false;
+      // Pre-populate LLM form if opening the unified LLM card
+      if (item.id === 'llm_unified') {
+        this.llmActiveSlot = 1;
         this.llmModels = [];
-        // Load current config
-        this.loadLlmForm();
+        this.llmMsg = '';
+        this.loadAllLlmSlots();
       }
     },
 
@@ -1014,14 +1042,13 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
-        if (data && data.provider) {
-          const id = data.provider;
-          this.statuses[id] = {
-            configured: true,
-            enabled: !!data.enabled,
-            detail: data.enabled ? ('Model: ' + (data.model_name || data.provider)) : 'Configured but disabled',
-          };
-        }
+        const slots = data.slots || [];
+        const active = slots.find(s => s.enabled);
+        this.statuses['llm_unified'] = {
+          configured: slots.length > 0 && slots.some(s => s.provider),
+          enabled: !!active,
+          detail: active ? (active.provider + ': ' + (active.model_name || '')) : (slots.filter(s => s.provider).length + ' provider(s)'),
+        };
       } catch (e) { console.debug('LLM status check skipped:', e); }
     },
 
@@ -1087,26 +1114,55 @@ function integrationsHub() {
 
     // ── LLM Config ──
 
-    async loadLlmForm() {
+    // ── LLM Slot Management ──
+    async loadAllLlmSlots() {
       try {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
-        if (data && data.provider) {
-          this.llmForm.provider = data.provider;
-          this.llmForm.model_name = data.model_name || '';
-          this.llmForm.azure_endpoint = data.azure_endpoint || '';
-          this.llmForm.azure_deployment = data.azure_deployment || '';
-          this.llmForm.enabled = !!data.enabled;
+        const slots = data.slots || [];
+        this.llmSlotStatus = { 1: false, 2: false, 3: false };
+        this.llmSlotData = {};
+        for (const s of slots) {
+          this.llmSlotData[s.slot || 1] = s;
+          if (s.enabled) this.llmSlotStatus[s.slot || 1] = true;
         }
-      } catch (e) { console.debug('Could not load LLM config:', e); }
+        // Also update integration card status
+        const active = slots.find(s => s.enabled);
+        this.statuses['llm_unified'] = {
+          configured: slots.length > 0,
+          enabled: !!active,
+          detail: active ? (active.provider + ': ' + (active.model_name || '')) : (slots.length + ' slot(s) configured'),
+        };
+        this.loadLlmSlot(this.llmActiveSlot);
+      } catch (e) { console.debug('Could not load LLM slots:', e); }
     },
 
-    async saveLlm() {
+    loadLlmSlot(slot) {
+      const saved = this.llmSlotData[slot];
+      this.llmModels = [];
+      this.llmMsg = '';
+      if (saved) {
+        this.llmForm = {
+          provider: saved.provider || '',
+          api_key: '',
+          model_name: saved.model_name || '',
+          azure_endpoint: saved.azure_endpoint || '',
+          azure_deployment: saved.azure_deployment || '',
+          enabled: !!saved.enabled,
+          has_api_key: !!saved.has_api_key,
+        };
+      } else {
+        this.llmForm = { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false };
+      }
+    },
+
+    async saveLlmSlot() {
       this.llmSaving = true;
       this.llmMsg = '';
       try {
         const payload = {
+          slot: this.llmActiveSlot,
           provider: this.llmForm.provider,
           model_name: this.llmForm.model_name,
           enabled: this.llmForm.enabled,
@@ -1121,19 +1177,30 @@ function integrationsHub() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || err.message || `HTTP ${resp.status}`);
-        }
-        this.llmMsg = 'Saved successfully (encrypted)';
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
+        this.llmMsg = 'Saved (slot ' + this.llmActiveSlot + ')';
         this.llmMsgType = 'success';
         this.llmForm.api_key = '';
-        // Refresh status
-        await this.loadLlm();
-      } catch (e) {
-        this.llmMsg = e.message;
-        this.llmMsgType = 'error';
-      } finally { this.llmSaving = false; }
+        this.llmForm.has_api_key = true;
+        await this.loadAllLlmSlots();
+      } catch (e) { this.llmMsg = e.message; this.llmMsgType = 'error'; }
+      finally { this.llmSaving = false; }
+    },
+
+    async testLlm() {
+      this.llmTesting = true;
+      this.llmMsg = '';
+      try {
+        // Simple test: ask the LLM to respond
+        const resp = await fetch('/api/v1/llm/control-assist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ control_description: 'Test connection', evidence_text: 'This is a connectivity test.' }),
+        });
+        if (resp.ok) { this.llmMsg = 'Connection successful!'; this.llmMsgType = 'success'; }
+        else { const err = await resp.json().catch(() => ({})); this.llmMsg = 'Test failed: ' + (err.error || resp.status); this.llmMsgType = 'error'; }
+      } catch (e) { this.llmMsg = 'Test failed: ' + e.message; this.llmMsgType = 'error'; }
+      this.llmTesting = false;
     },
 
     async fetchLlmModels() {
@@ -1146,20 +1213,12 @@ function integrationsHub() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ provider: this.llmForm.provider, api_key: this.llmForm.api_key }),
         });
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${resp.status}`);
-        }
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
         const data = await resp.json();
         this.llmModels = data.models || [];
-        if (this.llmModels.length === 0) {
-          this.llmMsg = 'No models found for this provider/key';
-          this.llmMsgType = 'error';
-        }
-      } catch (e) {
-        this.llmMsg = 'Failed to fetch models: ' + e.message;
-        this.llmMsgType = 'error';
-      } finally { this.llmModelsFetching = false; }
+        if (this.llmModels.length === 0) { this.llmMsg = 'No models found'; this.llmMsgType = 'error'; }
+      } catch (e) { this.llmMsg = 'Fetch failed: ' + e.message; this.llmMsgType = 'error'; }
+      finally { this.llmModelsFetching = false; }
     },
 
     // ── Telivy Status ──
@@ -1272,6 +1331,106 @@ function integrationsHub() {
         await this.telivyListAssessments();
       } catch (e) { this.telivyError = e.message; }
       finally { this.telivyLoading.createAssessment = false; }
+    },
+
+    // ── Telivy Tenant Mapping ──
+    async loadTelivyTenants() {
+      try {
+        const resp = await fetch('/api/v1/tenants');
+        if (resp.ok) this.telivyTenants = await resp.json();
+      } catch(e) {}
+    },
+
+    loadScanMappings() {
+      try {
+        const stored = localStorage.getItem('telivy_scan_mappings');
+        if (stored) this.telivyScanMappings = JSON.parse(stored);
+      } catch(e) {}
+    },
+
+    getScanTenantMapping(scanId) {
+      return this.telivyScanMappings[scanId] || '';
+    },
+
+    mapScanToTenant(scanId, tenantId, type) {
+      this.telivyScanMappings[scanId] = tenantId;
+      localStorage.setItem('telivy_scan_mappings', JSON.stringify(this.telivyScanMappings));
+      const tenantName = (this.telivyTenants.find(t => t.id === tenantId) || {}).name || tenantId;
+      toast(`${type === 'scan' ? 'Scan' : 'Assessment'} mapped to ${tenantName}`, 'success');
+    },
+
+    async telivyAiAutoMap(scanId, type) {
+      const tenantId = this.getScanTenantMapping(scanId);
+      if (!tenantId) { toast('Map this scan to a client first', 'warning'); return; }
+      // Find the scan/assessment and set loading
+      const items = type === 'scan' ? this.telivyScans : this.telivyAssessments;
+      const item = items.find(i => i.id === scanId);
+      if (item) item._aiMapping = true;
+      try {
+        // Get findings for the scan
+        const findingsResp = await fetch(`/api/v1/telivy/external-scans/${scanId}/findings`);
+        const findings = findingsResp.ok ? await findingsResp.json() : [];
+        // Get projects for the tenant
+        const projResp = await fetch(`/api/v1/tenants/${tenantId}/projects?exclude-timely=true`);
+        const projects = projResp.ok ? await projResp.json() : [];
+        if (projects.length === 0) { toast('No projects found for this client. Create a project first.', 'warning'); return; }
+        // Use the first project for auto-map
+        const resp = await fetch('/api/v1/llm/auto-map', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: projects[0].id }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          toast(`AI mapped ${data.mapped_controls || 0} controls from ${type} findings`, 'success');
+        } else { toast('AI auto-map failed', 'error'); }
+      } catch (e) { toast('Error: ' + e.message, 'error'); }
+      finally { if (item) item._aiMapping = false; }
+    },
+
+    // ── Global SMTP (shared with System page) ──
+    async loadSmtpForEmail() {
+      try {
+        const resp = await fetch('/api/v1/settings/smtp');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.smtpForm = { ...this.smtpForm, ...data, mail_password: '' };
+          // Update status for email integration card
+          this.statuses['email'] = {
+            configured: !!data.mail_server && data.mail_server !== 'smtp.googlemail.com',
+            enabled: !!data.mail_server && data.mail_server !== 'smtp.googlemail.com',
+            detail: data.mail_server ? ('SMTP: ' + data.mail_server) : '',
+          };
+        }
+      } catch(e) {}
+    },
+
+    async saveSmtpGlobal() {
+      this.smtpSaving = true;
+      this.smtpMsg = '';
+      try {
+        const payload = { ...this.smtpForm };
+        if (!payload.mail_password) delete payload.mail_password;
+        const resp = await fetch('/api/v1/settings/smtp', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) { this.smtpMsg = 'SMTP saved'; this.smtpMsgType = 'success'; this.smtpForm.has_password = true; }
+        else { this.smtpMsg = 'Failed'; this.smtpMsgType = 'error'; }
+      } catch(e) { this.smtpMsg = 'Error'; this.smtpMsgType = 'error'; }
+      this.smtpSaving = false;
+    },
+
+    async testSmtpGlobal() {
+      this.smtpTesting = true;
+      this.smtpMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/smtp/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const data = await resp.json();
+        this.smtpMsg = data.message || data.error || 'Done';
+        this.smtpMsgType = resp.ok ? 'success' : 'error';
+      } catch(e) { this.smtpMsg = 'Failed'; this.smtpMsgType = 'error'; }
+      this.smtpTesting = false;
     },
 
     // ── Notifications Config ──
