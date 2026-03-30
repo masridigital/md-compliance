@@ -272,10 +272,18 @@ function systemInfo() {
     async checkUpdates() {
       this.updateChecking = true;
       this.updateResult = null;
+      this.updateStatus = null;
       try {
         const resp = await fetch('/api/v1/settings/updates/check');
-        if (resp.ok) this.updateStatus = await resp.json();
-      } catch(e) { toast('Failed to check', 'error'); }
+        const data = await resp.json();
+        if (data.error) {
+          toast('Update check: ' + data.error, 'error');
+          this.updateStatus = data;
+        } else {
+          this.updateStatus = data;
+          toast(data.available ? data.commits_behind + ' update(s) available' : 'Up to date', data.available ? 'warning' : 'success');
+        }
+      } catch(e) { toast('Failed to check for updates: ' + e.message, 'error'); }
       this.updateChecking = false;
     },
 

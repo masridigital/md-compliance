@@ -656,13 +656,18 @@
             this.getTenants()
             this.getFeatureFlags()
 
-            // Check if tenant is already in local storage
-            if (localStorage.getItem("selectedTenant")) {
-              console.log("Found selected tenant in local storage")
-              this.selectedTenant = JSON.parse(localStorage.getItem("selectedTenant"));
-            } else {
-              // If not, we need to set the default tenant
-              console.log("Unable to find selected tenant in local storage. Try clearing the session.")
+            // Restore tenant from localStorage (validated later by getTenants)
+            try {
+              var stored = localStorage.getItem("selectedTenant");
+              if (stored) {
+                var parsed = JSON.parse(stored);
+                if (parsed && parsed.id) {
+                  this.selectedTenant = parsed;
+                }
+              }
+            } catch(e) {
+              localStorage.removeItem("selectedTenant");
+              localStorage.removeItem("selectedTenantId");
             }
 
             Alpine.store('currentUser', {
@@ -705,10 +710,12 @@
             this.$watch(
               "selectedTenantId", (newValue, oldValue) => {
                   this.setTenant(newValue)
+                  // Update risk links whenever tenant changes
+                  if (this.selectedTenant && this.selectedTenant.id) {
+                    this.riskLinks = [{ 'label': 'Risk Register', 'link': `/tenants/${this.selectedTenant.id}/risk` }];
+                  }
             })
-            this.riskLinks = [
-                { 'label': 'Risk Register', 'link': this.selectedTenant && this.selectedTenant.id ? `/tenants/${this.selectedTenant.id}/risk` : '#' },
-            ];
+            this.riskLinks = [];
           },
           riskLinks: [],
           getURLParam: function(param, defaultValue="") {
@@ -813,17 +820,30 @@
             request("GET",
               "/api/v1/users/{{current_user.id}}/tenants",
               data => {
-                this.selectedTenantId = null
-
                 this.tenants = data;
                 this.$store.currentUser.tenants = data;
+
                 if (data.length === 0) {
-                  toast("Please create a tenant <a href='/tenants' class='btn btn-xs btn-ghost ml-1'><i class='ti ti-arrow-right text-lg'></i></a>", "warning")
+                  this.selectedTenantId = null;
+                  this.selectedTenant = {};
+                  this.$store.currentUser.selectedTenant = {};
+                  localStorage.removeItem("selectedTenant");
+                  localStorage.removeItem("selectedTenantId");
+                  toast("Please create a tenant <a href='/clients' class='btn btn-xs btn-ghost ml-1'><i class='ti ti-arrow-right text-lg'></i></a>", "warning")
+                  return;
                 }
-                else if (data.length === 1) {
-                  this.selectedTenantId = data[0].id;
+
+                // Try to restore from localStorage, fall back to first tenant
+                var storedId = localStorage.getItem("selectedTenantId");
+                var matchesTenant = storedId && data.some(function(t) { return t.id === storedId; });
+
+                if (matchesTenant) {
+                  this.selectedTenantId = storedId;
                 } else {
-                  this.selectedTenantId = localStorage.getItem("selectedTenantId");
+                  // Stale or missing — always default to first
+                  localStorage.removeItem("selectedTenant");
+                  localStorage.removeItem("selectedTenantId");
+                  this.selectedTenantId = data[0].id;
                 }
               },
               error => {

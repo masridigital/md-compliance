@@ -68,6 +68,22 @@ def create_app(config_name="default"):
         if not (current_user and current_user.is_authenticated):
             return
 
+        # Force logout after platform update
+        try:
+            from app.models import ConfigStore
+            update_stamp = ConfigStore.find("last_update_stamp")
+            if update_stamp and update_stamp.value:
+                session_stamp = session.get("_update_stamp", "")
+                if session_stamp != update_stamp.value:
+                    session["_update_stamp"] = update_stamp.value
+                    # First request after update — force re-login
+                    if session_stamp:  # Only force logout if they had an OLD stamp
+                        logout_user()
+                        session.clear()
+                        return redirect(url_for("auth.get_login"))
+        except Exception:
+            pass
+
         # Determine timeout (default 30 min)
         timeout_minutes = app.config.get("SESSION_TIMEOUT_MINUTES", 30)
         try:

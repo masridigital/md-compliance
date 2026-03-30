@@ -15,6 +15,7 @@ import logging
 import subprocess
 import os
 import json
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -35,14 +36,27 @@ class UpdateManager:
                             commits_behind (int), changes (list of commit msgs)
         """
         try:
+            # Verify git is available and we're in a repo
+            git_check = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=_PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if git_check.returncode != 0:
+                return {"error": "Not a git repository or git not available", "available": False}
+
             # Fetch latest from remote without merging
-            subprocess.run(
+            fetch = subprocess.run(
                 ["git", "fetch", "origin", "main"],
                 cwd=_PROJECT_ROOT,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
+            if fetch.returncode != 0:
+                return {"error": f"Git fetch failed: {fetch.stderr.strip()}", "available": False}
 
             # Get current HEAD
             current = subprocess.run(
@@ -176,6 +190,13 @@ with app.app_context():
                     restart_msg = "No Gunicorn process found — restart manually"
             except Exception as e:
                 restart_msg = f"Could not signal restart: {e}"
+
+            # 5. Invalidate all sessions by writing a new update stamp
+            try:
+                from app.models import ConfigStore
+                ConfigStore.upsert("last_update_stamp", str(int(time.time())))
+            except Exception:
+                pass
 
             return {
                 "success": True,
