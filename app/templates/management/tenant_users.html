@@ -616,7 +616,7 @@ function table(){
         getAllUsers: function() {
           this.loading = true;
           request("GET",
-            `/api/v1/users`,
+            `/api/v1/admin/users`,
             data => {
               this.items = data;
               this.loading = false;
