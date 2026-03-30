@@ -7,12 +7,24 @@
 {{ macro.filehelper(grid=True, tags=True) }}
 {% endblock %}
 
-{%block page_header_title%}Tenant Users{%endblock%}
+{%block page_header_title%}Users{%endblock%}
 {%block page_header_title_border%}{%endblock%}
 {%block page_header_buttons%}{%endblock%}
 
 {%block content%}
 <div x-data="table()">
+
+    <!-- View Toggle: Tenant Users vs All Users -->
+    {%if current_user.super%}
+    <div role="tablist" class="tabs tabs-bordered mb-4">
+        <button role="tab" class="tab" :class="{ 'tab-active': userView === 'tenant' }" @click="userView = 'tenant'; getItems()">
+            <i class="ti ti-building mr-1"></i> Tenant Users
+        </button>
+        <button role="tab" class="tab" :class="{ 'tab-active': userView === 'all' }" @click="userView = 'all'; getAllUsers()">
+            <i class="ti ti-users mr-1"></i> All Instance Users
+        </button>
+    </div>
+    {%endif%}
 
     <div x-show="showInviteAlert" role="alert" class="alert text-success">
       <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -250,6 +262,7 @@
 <script>
 function table(){
     return {
+        userView: 'tenant',
         init() {
           this.$watch(
             "items", (newValue, oldValue) => {
@@ -497,6 +510,20 @@ function table(){
             },
             error => {
               toast(error.message, "error");
+            }
+          );
+        },
+        getAllUsers: function() {
+          this.loading = true;
+          request("GET",
+            `/api/v1/users`,
+            data => {
+              this.items = data;
+              this.loading = false;
+            },
+            error => {
+              toast(error.message, "error");
+              this.loading = false;
             }
           );
         },

@@ -166,6 +166,49 @@
                         </div>
                     </div>
                 </div>
+                <!-- Quick Actions -->
+                <div class="card card-body pt-0">
+                    <h4 class="font-semibold text-sm mb-2">Quick Actions</h4>
+                    <div class="flex gap-2 flex-wrap">
+                        <a :href="'/tenants/' + selectedItem.id + '/risk'" class="btn btn-sm btn-ghost border border-base-300">
+                            <i class="ti ti-alert-triangle text-warning"></i> Risk Register
+                        </a>
+                        <a :href="'/tenants/' + selectedItem.id + '/policy-center'" class="btn btn-sm btn-ghost border border-base-300">
+                            <i class="ti ti-file-text text-info"></i> Policy Center
+                        </a>
+                        <a href="/wisp" class="btn btn-sm btn-ghost border border-base-300">
+                            <i class="ti ti-wand text-primary"></i> WISP Wizard
+                        </a>
+                        <a href="/users" class="btn btn-sm btn-ghost border border-base-300">
+                            <i class="ti ti-users text-success"></i> Users
+                        </a>
+                        <a :href="'/tenants/' + selectedItem.id + '/logs'" class="btn btn-sm btn-ghost border border-base-300">
+                            <i class="ti ti-history"></i> Logs
+                        </a>
+                    </div>
+
+                    <!-- Projects in this tenant -->
+                    <h4 class="font-semibold text-sm mt-4 mb-2">Projects</h4>
+                    <div x-show="tenantProjects.length > 0" class="space-y-2">
+                        <template x-for="p in tenantProjects" :key="p.id">
+                            <a :href="'/projects/' + p.id" class="flex items-center justify-between p-3 bg-base-300 rounded-lg hover:bg-base-100 transition-all">
+                                <div class="flex items-center gap-2">
+                                    <i class="ti ti-circles text-primary"></i>
+                                    <span class="text-sm font-medium capitalize" x-text="p.name"></span>
+                                    <span class="badge badge-xs uppercase" x-text="p.framework || 'custom'"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <progress class="progress progress-primary w-20" :value="p.completion_progress || 0" max="100"></progress>
+                                    <span class="text-xs opacity-60" x-text="(p.completion_progress || 0) + '%'"></span>
+                                </div>
+                            </a>
+                        </template>
+                    </div>
+                    <div x-show="tenantProjects.length === 0" class="text-sm opacity-50 py-2">
+                        No projects yet. <a href="/projects" class="link link-primary">Create one</a>
+                    </div>
+                </div>
+
                 <div class="modal-action">
                     <button class="btn" @click="showModal = false">Close</button>
                     <button class="btn btn-error" @click="openDeleteModal(selectedItem)">Delete</button>
@@ -234,8 +277,15 @@ function table(){
             }
           },
         ],
+        tenantProjects: [],
         openModal(item) {
           this.selectedItem = item;
+          // Load projects for this tenant
+          this.tenantProjects = [];
+          request("GET", `/api/v1/tenants/${item.id}/projects?exclude-timely=true`,
+            data => { this.tenantProjects = data || []; },
+            error => { console.debug('Could not load projects:', error); }
+          );
           let options = []
           let selected = []
           if (this.selectedItem.approved_domains.length > 0) {

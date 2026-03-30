@@ -132,7 +132,7 @@
           {%if "vendor" in user_roles%}
           {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-timeline text-2xl"></i>'}]%}
           {%else%}
-          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'workspace','link':'/workspace','icon':'<i class="ti ti-layout-dashboard text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
+          {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-home text-2xl"></i>'},{'label':'tenants','link':'/tenants','icon':'<i class="ti ti-building-skyscraper text-2xl"></i>'},{'label':'projects','link':'/projects','icon':'<i class="ti ti-circles text-2xl"></i>'}, {'label':'integrations','link':'/integrations','icon':'<i class="ti ti-car-fan text-2xl"></i>'}]%}
           {%endif%}
           {%for link in sidebarlinks%}
           <li class="mb-4">
@@ -173,52 +173,20 @@
           </li>
 
           {%if "vendor" not in user_roles%}
-          <li class="mb-4" x-data="{ isActive: false, open: false }">
-            <a
-              :aria-expanded="(open || isActive) ? 'true' : 'false'"
-              :class="{'justify-center': !isSidebarOpen}"
-              @click="$event.preventDefault(); open = !open; toggleSidebarDropdownLink();"
-              aria-haspopup="true"
-              class="flex items-center p-2 transition-colors rounded-md"
-              href="#"
-              role="button"
-              >
-              <span aria-hidden="true">
-                <i class="ti ti-directions text-2xl"></i>
-              </span>
-              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="ml-2 lg:hidden">More</span>
-              <span :class="{ 'lg:hidden': !isSidebarOpen }" aria-hidden="true" class="ml-auto lg:hidden">
-                <!-- active class 'rotate-180' -->
-                <svg :class="{ 'rotate-180': open }" class="w-4 h-4 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-                </svg>
-              </span>
+          <li class="mb-4">
+            <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/users">
+              <span><i class="ti ti-users text-2xl"></i></span>
+              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Users</span>
             </a>
-            {% set more_links = [{'label':'tenant users','link':'/users'}] %}
-            {%for link in more_links%}
-            <div arial-label="More" class="mt-2 space-y-2 px-7" role="menu" x-show="open">
-              <a href="{{link["link"]}}" :class="{ 'lg:hidden': !isSidebarOpen }" class="block p-2 text-sm transition-colors duration-200 rounded-md capitalize hover:bg-base-100">{{link["label"]}}</a>
-            </div>
-            {%endfor%}
-            {%if current_user.super%}
-            {%for link in [{'label':'Instance Users','link':'/admin/users'},{'label':'settings','link':'/admin/settings'},{'label':'logs','link':'/logs'}] %}
-            <div arial-label="More" class="mt-2 space-y-2 px-7" role="menu" x-show="open">
-              <a href="{{link["link"]}}" :class="{ 'lg:hidden': !isSidebarOpen }" class="block p-2 text-sm transition-colors duration-200 rounded-md capitalize hover:bg-base-100">{{link["label"]}}</a>
-            </div>
-            {%endfor%}
-            {%endif%}
-            <div arial-label="More" class="mt-2 space-y-2 px-7" role="menu" x-show="open">
-              <a
-              :class="{ 'lg:hidden': !isSidebarOpen }"
-              @click="$event.preventDefault();{%if layout["second-panel"]%}toggleSecondSidebarMenu(){%endif%}"
-              class="block p-2 text-sm transition-colors duration-200 rounded-md"
-              href="#"
-              role="menuitem"
-              >
-              Help
-              </a>
-            </div>
           </li>
+          {%if current_user.super%}
+          <li class="mb-4">
+            <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/admin/settings">
+              <span><i class="ti ti-settings text-2xl"></i></span>
+              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Settings</span>
+            </a>
+          </li>
+          {%endif%}
           {%endif%}
         </ul>
       </nav>
