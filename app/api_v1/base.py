@@ -298,6 +298,8 @@ def update_tenant(tid):
     data, err = validate_payload(TenantUpdateSchema, request.get_json())
     if err:
         return err
+    if data.get("name"):
+        tenant.name = data.get("name")  # preserves case as entered
     if data.get("contact_email"):
         tenant.contact_email = data.get("contact_email")
 

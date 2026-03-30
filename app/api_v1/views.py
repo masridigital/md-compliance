@@ -520,43 +520,6 @@ def create_project(tid):
     return jsonify({"message": "ok"})
 
 
-# ── Tenant Management ────────────────────────────────────────────
-
-@api.route("/tenants/<string:tid>", methods=["PUT"])
-@limiter.limit("30 per minute")
-@login_required
-def update_tenant(tid):
-    """Rename, update contact email, or change license for a tenant."""
-    result = Authorizer(current_user).can_user_admin_tenant(tid)
-    tenant = result["extra"]["tenant"]
-    data = request.get_json() or {}
-
-    if "name" in data and data["name"]:
-        tenant.name = data["name"]  # preserves case
-    if "contact_email" in data:
-        tenant.contact_email = data["contact_email"]
-    if "license" in data and data["license"] in models.Tenant.VALID_LICENSE:
-        tenant.license = data["license"]
-    if "user_cap" in data:
-        tenant.user_cap = int(data["user_cap"])
-
-    db.session.commit()
-    return jsonify(tenant.as_dict())
-
-
-@api.route("/tenants/<string:tid>", methods=["DELETE"])
-@limiter.limit("10 per minute")
-@login_required
-def delete_tenant(tid):
-    """Delete a tenant and all associated data (cascade)."""
-    result = Authorizer(current_user).can_user_admin_tenant(tid)
-    tenant = result["extra"]["tenant"]
-    if tenant.is_default:
-        return jsonify({"error": "Cannot delete the default tenant"}), 400
-    db.session.delete(tenant)
-    db.session.commit()
-    return jsonify({"message": "Tenant deleted"})
-
 
 @api.route("/projects/<string:pid>/settings", methods=["PUT"])
 @limiter.limit("30 per minute")
