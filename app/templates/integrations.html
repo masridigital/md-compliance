@@ -103,6 +103,138 @@
 
         <p class="text-sm opacity-70 mb-6" x-text="selected.description"></p>
 
+        <!-- ═══════ Telivy Security Config + Actions ═══════ -->
+        <template x-if="selected.id === 'telivy'">
+          <div>
+            <h4 class="font-semibold text-sm mb-3">API Key</h4>
+            <div class="space-y-3 mb-6">
+              <div>
+                <label class="text-xs font-medium block mb-1">Telivy API Key</label>
+                <input type="password" class="input input-bordered input-sm w-full" x-model="telivyForm.api_key" placeholder="From portal.telivy.com → Account → Integrations" />
+                <div x-show="getStatus('telivy').configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Key stored encrypted. Leave blank to keep current.</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveTelivy()" :disabled="telivySaving">
+                  <span class="loading loading-spinner loading-xs" x-show="telivySaving"></span>
+                  <i class="ti ti-device-floppy" x-show="!telivySaving"></i> Save
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="testTelivy()" :disabled="telivyLoading.test">
+                  <span class="loading loading-spinner loading-xs" x-show="telivyLoading.test"></span>
+                  <i class="ti ti-plug-connected" x-show="!telivyLoading.test"></i> Test
+                </button>
+              </div>
+              <div x-show="telivyMsg" class="text-xs" :class="telivyMsgType === 'error' ? 'text-error' : 'text-success'" x-text="telivyMsg"></div>
+            </div>
+
+            <div class="divider text-xs">External Scans</div>
+            <div class="space-y-3 mb-6">
+              <div class="flex gap-2">
+                <button class="btn btn-sm btn-outline gap-1" @click="telivyListScans()" :disabled="telivyLoading.scans">
+                  <span class="loading loading-spinner loading-xs" x-show="telivyLoading.scans"></span>
+                  <i class="ti ti-list-search" x-show="!telivyLoading.scans"></i> List Scans
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="telivyShowCreateScan = !telivyShowCreateScan">
+                  <i class="ti ti-plus"></i> New Scan
+                </button>
+              </div>
+              <!-- Create scan form -->
+              <div x-show="telivyShowCreateScan" class="finding-card space-y-2">
+                <div><label class="text-xs font-medium block mb-1">Organization</label><input type="text" class="input input-bordered input-sm w-full" x-model="telivyNewScan.org" placeholder="Acme Corp" /></div>
+                <div><label class="text-xs font-medium block mb-1">Domain</label><input type="text" class="input input-bordered input-sm w-full" x-model="telivyNewScan.domain" placeholder="acme.com" /></div>
+                <button class="btn btn-primary btn-sm gap-1" @click="telivyCreateScan()" :disabled="telivyLoading.createScan">
+                  <span class="loading loading-spinner loading-xs" x-show="telivyLoading.createScan"></span>
+                  Start Scan
+                </button>
+              </div>
+              <!-- Scan results -->
+              <div x-show="telivyScans.length > 0" class="space-y-2 max-h-60 overflow-y-auto">
+                <template x-for="s in telivyScans" :key="s.id">
+                  <div class="finding-card">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <span class="text-xs font-semibold" x-text="s.assessmentDetails?.organization_name || s.id"></span>
+                        <span class="text-xs opacity-50 ml-2" x-text="s.assessmentDetails?.domain_prim"></span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="badge badge-xs" :class="{'badge-success': s.securityScore === 'A', 'badge-warning': s.securityScore === 'B' || s.securityScore === 'C', 'badge-error': s.securityScore === 'D' || s.securityScore === 'F'}" x-text="s.securityScore || 'N/A'"></span>
+                        <span class="badge badge-xs badge-ghost" x-text="s.scanStatus"></span>
+                      </div>
+                    </div>
+                    <div class="flex gap-1 mt-2">
+                      <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
+                      <a :href="'/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf'" class="btn btn-ghost btn-xs" title="Download PDF" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="divider text-xs">Risk Assessments</div>
+            <div class="space-y-3 mb-4">
+              <div class="flex gap-2">
+                <button class="btn btn-sm btn-outline gap-1" @click="telivyListAssessments()" :disabled="telivyLoading.assessments">
+                  <span class="loading loading-spinner loading-xs" x-show="telivyLoading.assessments"></span>
+                  <i class="ti ti-report-analytics" x-show="!telivyLoading.assessments"></i> List Assessments
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="telivyShowCreateAssessment = !telivyShowCreateAssessment">
+                  <i class="ti ti-plus"></i> New Assessment
+                </button>
+              </div>
+              <!-- Create assessment form -->
+              <div x-show="telivyShowCreateAssessment" class="finding-card space-y-2">
+                <div><label class="text-xs font-medium block mb-1">Organization</label><input type="text" class="input input-bordered input-sm w-full" x-model="telivyNewAssessment.org" placeholder="Acme Corp" /></div>
+                <div><label class="text-xs font-medium block mb-1">Domain</label><input type="text" class="input input-bordered input-sm w-full" x-model="telivyNewAssessment.domain" placeholder="acme.com" /></div>
+                <button class="btn btn-primary btn-sm gap-1" @click="telivyCreateAssessment()" :disabled="telivyLoading.createAssessment">
+                  <span class="loading loading-spinner loading-xs" x-show="telivyLoading.createAssessment"></span>
+                  Start Assessment
+                </button>
+              </div>
+              <!-- Assessment results -->
+              <div x-show="telivyAssessments.length > 0" class="space-y-2 max-h-60 overflow-y-auto">
+                <template x-for="a in telivyAssessments" :key="a.id">
+                  <div class="finding-card">
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <span class="text-xs font-semibold" x-text="a.assessmentDetails?.organization_name || a.id"></span>
+                        <span class="text-xs opacity-50 ml-2" x-text="a.assessmentDetails?.domain_prim"></span>
+                      </div>
+                      <span class="badge badge-xs badge-ghost" x-text="a.scanStatus"></span>
+                    </div>
+                    <div x-show="a.executiveSummary" class="flex gap-2 mt-1 text-xs opacity-70">
+                      <template x-for="(score, cat) in (a.executiveSummary || {})" :key="cat">
+                        <span x-show="score?.securityScore"><span x-text="cat.replace(/([A-Z])/g, ' $1').trim() + ': '"></span><span class="font-bold" x-text="score?.securityScore"></span></span>
+                      </template>
+                    </div>
+                    <div class="flex gap-1 mt-2">
+                      <a :href="'/api/v1/telivy/risk-assessments/' + a.id + '/report'" class="btn btn-ghost btn-xs" title="Download Report" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Findings viewer -->
+            <div x-show="telivyFindings.length > 0" class="mt-4">
+              <div class="divider text-xs">Findings</div>
+              <div class="space-y-1 max-h-60 overflow-y-auto">
+                <template x-for="f in telivyFindings" :key="f.slug">
+                  <div class="finding-card flex justify-between items-center">
+                    <div>
+                      <span class="text-xs font-semibold" x-text="f.name"></span>
+                      <div class="text-xs opacity-50" x-text="f.description?.substring(0, 100) + '...'"></div>
+                    </div>
+                    <span class="badge badge-xs" :class="{'badge-error': f.severity === 'critical' || f.severity === 'high', 'badge-warning': f.severity === 'medium', 'badge-info': f.severity === 'low' || f.severity === 'info'}" x-text="f.severity"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div x-show="telivyError" class="alert alert-error text-sm mt-3">
+              <i class="ti ti-circle-x"></i> <span x-text="telivyError"></span>
+            </div>
+          </div>
+        </template>
+
         <!-- ═══════ LLM Provider Config Form ═══════ -->
         <template x-if="selected.category === 'llm'">
           <div>
@@ -546,6 +678,21 @@ function integrationsHub() {
     llmMsg: '',
     llmMsgType: '',
 
+    // Telivy state
+    telivyForm: { api_key: '' },
+    telivySaving: false,
+    telivyMsg: '',
+    telivyMsgType: '',
+    telivyLoading: { test: false, scans: false, assessments: false, createScan: false, createAssessment: false },
+    telivyScans: [],
+    telivyAssessments: [],
+    telivyFindings: [],
+    telivyError: null,
+    telivyShowCreateScan: false,
+    telivyShowCreateAssessment: false,
+    telivyNewScan: { org: '', domain: '' },
+    telivyNewAssessment: { org: '', domain: '' },
+
     // Notification form state
     notifForm: { webhook_url: '', smtp_host: '', smtp_port: 587, smtp_username: '', smtp_password: '', from_address: '', account_sid: '', auth_token: '', from_number: '', enabled: false, critical_enabled: true, high_enabled: true, medium_enabled: true, low_enabled: false },
     notifSaving: false,
@@ -591,8 +738,9 @@ function integrationsHub() {
     ],
 
     integrations: [
-      // Identity
+      // Identity & Security
       { id: 'entra', category: 'identity', name: 'Microsoft Entra ID', icon: 'ti-brand-azure', description: 'Sync users, verify MFA enrollment, and assess compliance posture from Azure AD.', settingsSection: 'entra' },
+      { id: 'telivy', category: 'identity', name: 'Telivy Security', icon: 'ti-shield-search', description: 'External vulnerability scanning, risk assessments, breach data detection, and downloadable security reports.' },
 
       // LLM
       { id: 'openai',       category: 'llm', name: 'OpenAI',        icon: 'ti-brand-openai',  description: 'GPT-4o and GPT-4 models for AI-powered compliance analysis and policy drafting.', provider: 'openai', settingsSection: 'llm' },
@@ -632,6 +780,7 @@ function integrationsHub() {
         this.loadNotifications(),
         this.loadEntraStatus(),
         this.loadMcpKeys(),
+        this.loadTelivyStatus(),
       ]);
       this.loaded = true;
     },
@@ -660,6 +809,16 @@ function integrationsHub() {
       this.llmMsg = '';
       this.entraResults = { test: null, users: null, mfa: null, assess: null };
       this.entraError = null;
+
+      // Reset Telivy
+      if (item.id === 'telivy') {
+        this.telivyForm.api_key = '';
+        this.telivyMsg = '';
+        this.telivyError = null;
+        this.telivyFindings = [];
+        this.telivyShowCreateScan = false;
+        this.telivyShowCreateAssessment = false;
+      }
 
       // Reset form messages
       this.notifMsg = '';
@@ -846,6 +1005,118 @@ function integrationsHub() {
         this.llmMsg = e.message;
         this.llmMsgType = 'error';
       } finally { this.llmSaving = false; }
+    },
+
+    // ── Telivy Status ──
+
+    async loadTelivyStatus() {
+      try {
+        const resp = await fetch('/api/v1/settings/storage/telivy');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const config = data.config || {};
+        if (config.api_key && config.api_key !== '••••••••') {
+          this.statuses['telivy'] = { configured: true, enabled: !!data.enabled, detail: 'API key configured' };
+        } else if (data.enabled) {
+          this.statuses['telivy'] = { configured: true, enabled: true, detail: 'Configured' };
+        }
+      } catch (e) { console.debug('Telivy status check skipped:', e); }
+    },
+
+    // ── Telivy ──
+
+    async saveTelivy() {
+      this.telivySaving = true; this.telivyMsg = '';
+      try {
+        // Store API key encrypted via storage provider mechanism
+        const resp = await fetch('/api/v1/settings/storage/telivy', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: true, config: { api_key: this.telivyForm.api_key } }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
+        this.telivyMsg = 'API key saved (encrypted)';
+        this.telivyMsgType = 'success';
+        this.telivyForm.api_key = '';
+        this.statuses['telivy'] = { configured: true, enabled: true, detail: 'API key configured' };
+      } catch (e) { this.telivyMsg = e.message; this.telivyMsgType = 'error'; }
+      finally { this.telivySaving = false; }
+    },
+
+    async testTelivy() {
+      this.telivyLoading.test = true; this.telivyError = null; this.telivyMsg = '';
+      try {
+        const resp = await fetch('/api/v1/telivy/test', { method: 'POST' });
+        const data = await resp.json();
+        if (data.connected) {
+          this.telivyMsg = 'Connected! ' + (data.total_scans || 0) + ' existing scans found.';
+          this.telivyMsgType = 'success';
+        } else {
+          this.telivyMsg = data.error || 'Connection failed';
+          this.telivyMsgType = 'error';
+        }
+      } catch (e) { this.telivyMsg = e.message; this.telivyMsgType = 'error'; }
+      finally { this.telivyLoading.test = false; }
+    },
+
+    async telivyListScans() {
+      this.telivyLoading.scans = true; this.telivyError = null;
+      try {
+        const resp = await fetch('/api/v1/telivy/external-scans');
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
+        const data = await resp.json();
+        this.telivyScans = data.assessments || [];
+      } catch (e) { this.telivyError = e.message; }
+      finally { this.telivyLoading.scans = false; }
+    },
+
+    async telivyCreateScan() {
+      this.telivyLoading.createScan = true; this.telivyError = null;
+      try {
+        const resp = await fetch('/api/v1/telivy/external-scans', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ organizationName: this.telivyNewScan.org, domain: this.telivyNewScan.domain }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
+        this.telivyShowCreateScan = false;
+        this.telivyNewScan = { org: '', domain: '' };
+        await this.telivyListScans();
+      } catch (e) { this.telivyError = e.message; }
+      finally { this.telivyLoading.createScan = false; }
+    },
+
+    async telivyViewFindings(scanId) {
+      this.telivyError = null;
+      try {
+        const resp = await fetch('/api/v1/telivy/external-scans/' + scanId + '/findings');
+        if (!resp.ok) throw new Error('Failed to load findings');
+        this.telivyFindings = await resp.json();
+      } catch (e) { this.telivyError = e.message; }
+    },
+
+    async telivyListAssessments() {
+      this.telivyLoading.assessments = true; this.telivyError = null;
+      try {
+        const resp = await fetch('/api/v1/telivy/risk-assessments');
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
+        const data = await resp.json();
+        this.telivyAssessments = data.assessments || [];
+      } catch (e) { this.telivyError = e.message; }
+      finally { this.telivyLoading.assessments = false; }
+    },
+
+    async telivyCreateAssessment() {
+      this.telivyLoading.createAssessment = true; this.telivyError = null;
+      try {
+        const resp = await fetch('/api/v1/telivy/risk-assessments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ organizationName: this.telivyNewAssessment.org, domain: this.telivyNewAssessment.domain }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
+        this.telivyShowCreateAssessment = false;
+        this.telivyNewAssessment = { org: '', domain: '' };
+        await this.telivyListAssessments();
+      } catch (e) { this.telivyError = e.message; }
+      finally { this.telivyLoading.createAssessment = false; }
     },
 
     // ── Notifications Config ──

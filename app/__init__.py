@@ -184,8 +184,11 @@ def registering_blueprints(app):
     app.register_blueprint(notification_bp)
 
     from app.masri.entra_routes import entra_bp
-
     app.register_blueprint(entra_bp)
+
+    from app.masri.telivy_routes import telivy_bp
+    app.register_blueprint(telivy_bp)
+
     return
 
 

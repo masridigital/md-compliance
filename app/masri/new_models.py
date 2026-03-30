@@ -248,7 +248,7 @@ class SettingsStorage(db.Model):
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     VALID_PROVIDERS = [
-        "local", "s3", "azure_blob", "sharepoint", "egnyte", "gcs"
+        "local", "s3", "azure_blob", "sharepoint", "egnyte", "gcs", "telivy"
     ]
 
     @validates("provider")
