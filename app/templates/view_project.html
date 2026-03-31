@@ -1582,20 +1582,31 @@
 							</div>
 						</div>
 						<!-- Assist Gaps Results -->
-						<div x-show="assistGapsResults" x-cloak class="mt-4">
+						<div x-show="assistGapsResults" x-cloak class="mt-4" id="assist-gaps-results">
 							<div class="divider text-xs">Gap Analysis & Recommendations</div>
 							<div x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0">
-								<span class="text-sm font-semibold mb-2 block">
-									<span x-text="assistGapsResults.recommendations.length"></span> recommendations for
-									<span x-text="assistGapsResults.total_gaps"></span> controls
-								</span>
-								<div class="max-h-96 overflow-y-auto space-y-2">
+								<div class="flex justify-between items-center mb-3">
+									<span class="text-sm font-semibold">
+										<span x-text="assistGapsResults.recommendations.length"></span> recommendations for
+										<span x-text="assistGapsResults.total_gaps"></span> controls
+									</span>
+									<button class="btn btn-xs btn-success gap-1" @click="addAllRecsToRiskRegister()">
+										<i class="ti ti-alert-triangle"></i> Add All as Risks
+									</button>
+								</div>
+								<div class="max-h-[32rem] overflow-y-auto space-y-2">
 									<template x-for="(r, idx) in assistGapsResults.recommendations" :key="idx">
 										<div class="bg-base-300 rounded-lg p-3">
-											<div class="flex items-center gap-2 mb-1">
-												<span class="badge badge-xs" :class="{'badge-error': r.priority === 'high', 'badge-warning': r.priority === 'medium', 'badge-info': r.priority === 'low'}" x-text="r.priority"></span>
-												<span class="text-xs font-mono opacity-60" x-text="r.ref_code || r.project_control_id"></span>
-												<span class="badge badge-xs badge-ghost" x-text="r.estimated_effort"></span>
+											<div class="flex items-center justify-between mb-1">
+												<div class="flex items-center gap-2">
+													<span class="badge badge-xs" :class="{'badge-error': r.priority === 'high', 'badge-warning': r.priority === 'medium', 'badge-info': r.priority === 'low'}" x-text="r.priority"></span>
+													<span class="text-xs font-mono opacity-60" x-text="r.ref_code || r.project_control_id"></span>
+													<span class="badge badge-xs badge-ghost" x-text="r.estimated_effort"></span>
+												</div>
+												<button class="btn btn-xs btn-ghost gap-1" @click="addRecToRiskRegister(r)" x-show="!r._added">
+													<i class="ti ti-alert-triangle text-warning"></i> Add Risk
+												</button>
+												<span x-show="r._added" class="text-xs text-success"><i class="ti ti-check"></i> Added</span>
 											</div>
 											<p class="text-xs font-medium" x-text="r.recommendation"></p>
 											<p class="text-xs opacity-60 mt-1"><i class="ti ti-clipboard-check mr-1"></i><strong>Evidence:</strong> <span x-text="r.evidence_suggestion"></span></p>
@@ -4842,10 +4853,50 @@ function project(){
 				this.assistGapsResults = await resp.json();
 				const count = this.assistGapsResults.recommendations ? this.assistGapsResults.recommendations.length : 0;
 				toast(`Found ${count} recommendations for ${this.assistGapsResults.total_gaps || 0} gaps`, 'success');
+				// Auto-scroll to recommendations panel
+				this.$nextTick(() => {
+					const el = document.getElementById('assist-gaps-results');
+					if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				});
 			} catch (e) {
 				this.aiError = 'Assist failed: ' + e.message;
 				toast(this.aiError, 'error');
 			} finally { this.assistGapsRunning = false; }
+		},
+
+		async addRecToRiskRegister(rec) {
+			try {
+				const priorityMap = { high: 'high', medium: 'moderate', low: 'low' };
+				const resp = await fetch(`/api/v1/projects/${this.projectId}/risks`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						title: `[${rec.ref_code || rec.project_control_id}] ${rec.recommendation.substring(0, 100)}`,
+						description: `Recommendation: ${rec.recommendation}\n\nEvidence needed: ${rec.evidence_suggestion || 'N/A'}${rec.policy_needed ? '\n\nPolicy needed: ' + (rec.template_suggestion || 'Yes') : ''}`,
+						risk: priorityMap[rec.priority] || 'unknown',
+						priority: priorityMap[rec.priority] || 'unknown',
+					}),
+				});
+				if (resp.ok) {
+					rec._added = true;
+					toast('Risk added to register', 'success');
+					this.getRisks();
+				} else {
+					const err = await resp.json().catch(() => ({}));
+					toast(err.error || 'Failed to add risk', 'error');
+				}
+			} catch(e) { toast('Error: ' + e.message, 'error'); }
+		},
+
+		async addAllRecsToRiskRegister() {
+			if (!this.assistGapsResults?.recommendations) return;
+			let added = 0;
+			for (const r of this.assistGapsResults.recommendations) {
+				if (r._added) continue;
+				await this.addRecToRiskRegister(r);
+				if (r._added) added++;
+			}
+			toast(`Added ${added} risks to register`, 'success');
 		},
 
 		async applyAutoMapResults() {
