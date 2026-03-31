@@ -873,7 +873,7 @@ def _fetch_models_for_provider(provider: str, api_key: str) -> list:
         resp = client.models.list(limit=100)
         return sorted([m.id for m in resp.data])
 
-    elif provider == "together":
+    elif provider in ("together", "together_ai"):
         import requests as _requests
         # Together AI model list can be slow — use longer timeout with retry
         for attempt in range(2):
