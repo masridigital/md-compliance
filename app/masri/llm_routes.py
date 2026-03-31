@@ -1046,6 +1046,7 @@ def auto_process():
                                 description=r.get("description", ""),
                                 risk=severity,
                                 tenant_id=tenant_id,
+                                project_id=project.id,
                             )
                             db.session.add(risk)
                             total_risks += 1
