@@ -732,6 +732,171 @@ def debug_integration_mapping(project_id):
     })
 
 
+@llm_bp.route("/auto-process", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def auto_process():
+    """
+    POST /api/v1/llm/auto-process
+
+    Automatically triggered when a scan/assessment is mapped to a client.
+    Steps:
+      1. Compile integration data for the tenant
+      2. Map findings to project controls via LLM
+      3. Add unmatched findings to the risk register
+    """
+    data = request.get_json(silent=True) or {}
+    tenant_id = data.get("tenant_id")
+    if not tenant_id:
+        return jsonify({"success": False, "error": "tenant_id required"}), 400
+
+    _validate_tenant_access(tenant_id)
+
+    from app import db
+    from app.models import Project, RiskRegister
+
+    # Find projects for this tenant
+    projects = db.session.execute(
+        db.select(Project).filter_by(tenant_id=tenant_id)
+    ).scalars().all()
+
+    if not projects:
+        return jsonify({"success": True, "controls_mapped": 0, "risks_added": 0,
+                        "message": "No projects found for this tenant"})
+
+    # Step 1: Compile integration data
+    try:
+        integration_data = _gather_integration_data(tenant_id)
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Data compilation failed: {e}"}), 500
+
+    if not integration_data or (not integration_data.get("telivy_scans") and not integration_data.get("entra_compliance")):
+        return jsonify({"success": True, "controls_mapped": 0, "risks_added": 0,
+                        "message": "No integration data to process"})
+
+    # Step 2 + 3: For each project, map to controls and add risks
+    total_mapped = 0
+    total_risks = 0
+
+    # Check if LLM is available for intelligent mapping
+    llm_available = False
+    try:
+        from app.masri.llm_service import LLMService
+        llm_available = LLMService.is_enabled()
+    except Exception:
+        pass
+
+    for project in projects:
+        controls = []
+        for pc in project.controls.all():
+            ctrl = pc.control
+            if ctrl:
+                controls.append({
+                    "project_control_id": pc.id,
+                    "ref_code": ctrl.ref_code or "",
+                    "name": ctrl.name or "",
+                    "description": ctrl.description or "",
+                    "review_status": pc.review_status or "not started",
+                })
+
+        if not controls:
+            continue
+
+        if llm_available:
+            # Use LLM to intelligently map findings to controls
+            try:
+                import json
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a compliance automation engine. Given security scan data "
+                            "and a list of compliance controls, do two things:\n"
+                            "1. Map each finding to the most relevant control and suggest a status\n"
+                            "2. List any findings that don't map to existing controls (these become risks)\n\n"
+                            "Respond with JSON: {\"mappings\": [{\"project_control_id\": \"...\", "
+                            "\"notes\": \"what the scan data shows for this control\"}], "
+                            "\"risks\": [{\"title\": \"...\", \"description\": \"...\", \"severity\": \"high|medium|low\"}]}"
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"## Integration Data\n{json.dumps(integration_data, indent=2, default=str)[:3000]}\n\n"
+                            f"## Controls ({len(controls)})\n{json.dumps(controls[:20], indent=2)}"
+                        ),
+                    },
+                ]
+
+                result = LLMService.chat(
+                    messages=messages,
+                    tenant_id=tenant_id,
+                    feature="auto_map",
+                    temperature=0.1,
+                    max_tokens=3000,
+                )
+
+                content = result["content"].strip()
+                if content.startswith("```"):
+                    content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+                parsed = json.loads(content)
+
+                # Apply control mappings (add notes)
+                for m in parsed.get("mappings", []):
+                    try:
+                        pc_id = m.get("project_control_id")
+                        notes = m.get("notes", "")
+                        if pc_id and notes:
+                            from app.models import ProjectControl
+                            pc = db.session.get(ProjectControl, pc_id)
+                            if pc:
+                                existing = pc.notes or ""
+                                pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
+                                total_mapped += 1
+                    except Exception:
+                        pass
+
+                # Add risks to risk register
+                for r in parsed.get("risks", []):
+                    try:
+                        title = r.get("title", "")
+                        if title:
+                            risk = RiskRegister(
+                                title=title,
+                                description=r.get("description", ""),
+                                tenant_id=tenant_id,
+                            )
+                            db.session.add(risk)
+                            total_risks += 1
+                    except Exception:
+                        pass
+
+                db.session.commit()
+            except Exception as e:
+                logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
+        else:
+            # No LLM — just add raw data as notes to the first control
+            try:
+                if controls and integration_data:
+                    import json
+                    from app.models import ProjectControl
+                    pc = db.session.get(ProjectControl, controls[0]["project_control_id"])
+                    if pc:
+                        pc.notes = (pc.notes or "") + f"\n\n[Integration Data]\n{json.dumps(integration_data, indent=2, default=str)[:500]}"
+                        total_mapped += 1
+                        db.session.commit()
+            except Exception:
+                pass
+
+    return jsonify({
+        "success": True,
+        "controls_mapped": total_mapped,
+        "risks_added": total_risks,
+        "projects_processed": len(projects),
+    })
+
+
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
     data = {}

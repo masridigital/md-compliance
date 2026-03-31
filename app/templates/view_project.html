@@ -1539,17 +1539,18 @@
 							<i class="ti ti-brain text-2xl text-primary"></i>
 							<h3 class="card-title text-md">AI Compliance Assistant</h3>
 						</div>
-						<p class="text-sm opacity-60 mb-4">Use AI to automatically analyze your integrations data and map findings to controls, or get help filling in gaps.</p>
+						<p class="text-sm opacity-60 mb-2">Integration data is <strong>automatically compiled and mapped</strong> to controls when you map scans to this client in Integrations. Risks are added to the Risk Register automatically.</p>
+						<p class="text-sm opacity-60 mb-4">Use the buttons below for <strong>manual actions</strong>: re-run the auto-map if you've added new data, or get AI suggestions for gaps that need human attention.</p>
 						<div class="flex gap-3 flex-wrap">
 							<button class="btn btn-primary btn-sm gap-2" @click="runAutoMap()" :disabled="autoMapRunning">
 								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
-								<i class="ti ti-wand" x-show="!autoMapRunning"></i>
-								Auto-Map Integrations
+								<i class="ti ti-refresh" x-show="!autoMapRunning"></i>
+								Re-run Auto-Map
 							</button>
 							<button class="btn btn-sm btn-outline btn-secondary gap-2" @click="runAssistGaps()" :disabled="assistGapsRunning">
 								<span class="loading loading-spinner loading-xs" x-show="assistGapsRunning"></span>
 								<i class="ti ti-bulb" x-show="!assistGapsRunning"></i>
-								AI Assist — Fill Gaps
+								AI Suggest Fixes
 							</button>
 						</div>
 						<!-- Auto-Map Results -->

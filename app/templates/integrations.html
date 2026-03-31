@@ -1647,6 +1647,22 @@ function integrationsHub() {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const tenantName = tenantId ? ((this.telivyTenants.find(t => t.id === tenantId) || {}).name || tenantId) : 'none';
         toast(`${type === 'scan' ? 'Scan' : 'Assessment'} mapped to ${tenantName}`, 'success');
+
+        // Auto-trigger: compile data → map to controls → populate risk register
+        if (tenantId) {
+          toast('Auto-processing: compiling data and mapping to controls...', 'info');
+          fetch('/api/v1/llm/auto-process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
+          }).then(r => r.json()).then(data => {
+            if (data.success) {
+              toast(`Processed: ${data.controls_mapped || 0} controls mapped, ${data.risks_added || 0} risks added`, 'success');
+            } else {
+              toast(data.error || 'Auto-process completed with warnings', 'warning');
+            }
+          }).catch(() => {});
+        }
       } catch(e) {
         toast('Failed to save mapping: ' + e.message, 'error');
       }
