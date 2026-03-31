@@ -781,6 +781,264 @@ def debug_integration_mapping(project_id):
     })
 
 
+def _bg_auto_process(app, tenant_id, scan_id, scan_type):
+    """Background worker for auto-process. Runs in a thread, never blocks gunicorn."""
+    import json
+    with app.app_context():
+        from app import db
+        from app.models import Project, RiskRegister, ConfigStore, ProjectControl
+
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+
+        integration_data = {}
+        telivy_raw = {}
+
+        # Step 1: Pull data from Telivy
+        if scan_id:
+            try:
+                from app.masri.telivy_routes import _get_telivy_client
+                client = _get_telivy_client()
+                if scan_type == "scan":
+                    try:
+                        findings = client.get_external_scan_findings(scan_id)
+                        if findings:
+                            telivy_raw["findings"] = findings[:30] if isinstance(findings, list) else []
+                    except Exception:
+                        pass
+                    try:
+                        scan_detail = client.get_external_scan(scan_id)
+                        if scan_detail:
+                            telivy_raw["scan"] = scan_detail
+                    except Exception:
+                        pass
+                elif scan_type == "assessment":
+                    try:
+                        assessment = client.get_risk_assessment(scan_id)
+                        if assessment:
+                            telivy_raw["assessment"] = assessment
+                    except Exception:
+                        pass
+                if telivy_raw:
+                    integration_data["telivy"] = telivy_raw
+            except Exception as e:
+                integration_data["telivy_error"] = str(e)
+
+        # Store raw data at tenant level
+        if integration_data.get("telivy"):
+            try:
+                existing = {}
+                record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+                if record and record.value:
+                    try:
+                        existing = json.loads(record.value)
+                    except Exception:
+                        pass
+                existing["telivy"] = integration_data["telivy"]
+                existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+                ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
+            except Exception:
+                pass
+
+        projects = db.session.execute(
+            db.select(Project).filter_by(tenant_id=tenant_id)
+        ).scalars().all()
+
+        if not projects or not integration_data.get("telivy"):
+            # Store result for polling
+            try:
+                ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
+                    "success": bool(integration_data.get("telivy")),
+                    "controls_mapped": 0, "risks_added": 0,
+                    "data_stored": bool(integration_data.get("telivy")),
+                    "message": "Data saved (no projects)." if integration_data.get("telivy") else "No data pulled.",
+                }, default=str))
+            except Exception:
+                pass
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+            return
+
+        # Step 2+3: LLM analysis
+        total_mapped = 0
+        total_risks = 0
+
+        llm_available = False
+        try:
+            from app.masri.llm_service import LLMService
+            llm_available = LLMService.is_enabled()
+        except Exception:
+            pass
+
+        for project in projects:
+            controls = []
+            for pc in project.controls.all():
+                ctrl = pc.control
+                if ctrl:
+                    controls.append({
+                        "project_control_id": pc.id,
+                        "ref_code": ctrl.ref_code or "",
+                        "name": ctrl.name or "",
+                        "description": ctrl.description or "",
+                    })
+            if not controls:
+                continue
+
+            if llm_available:
+                try:
+                    data_summary = _compress_for_llm(integration_data)
+                    fw_name = project.framework.name if project.framework else "Unknown"
+
+                    CHUNK_SIZE = 10
+                    all_mappings = []
+                    all_risks = []
+                    prev_summary = ""
+
+                    system_prompt = (
+                        "You are an expert compliance analyst reviewing security scan results against "
+                        f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
+                        "no explanation, no text before or after.\n\n"
+                        "Your tasks:\n"
+                        "1. MAP each scan finding to the most relevant compliance control in this batch\n"
+                        "2. CREATE detailed risk entries for findings that represent security gaps\n\n"
+                        "IMPORTANT:\n"
+                        "- Include specific details: affected hostnames, IPs, users, endpoints\n"
+                        "- Explain WHY each finding is a risk and recommend remediation\n"
+                        "- Only create risks for findings NOT already covered in previous batches\n\n"
+                        "JSON format:\n"
+                        '{"mappings":[{"project_control_id":"ID","notes":"finding details",'
+                        '"status":"compliant|partial|non_compliant"}],'
+                        '"risks":[{"title":"risk","description":"details + remediation",'
+                        '"severity":"critical|high|medium|low"}]}'
+                    )
+
+                    for chunk_idx in range(0, len(controls), CHUNK_SIZE):
+                        chunk = controls[chunk_idx:chunk_idx + CHUNK_SIZE]
+                        chunk_label = f"Batch {chunk_idx // CHUNK_SIZE + 1}/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE}"
+                        ctrl_list = "\n".join([
+                            f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                            for c in chunk
+                        ])
+                        user_content = f"Framework: {fw_name}\n\n"
+                        if chunk_idx == 0:
+                            user_content += f"SCAN RESULTS:\n{data_summary}\n\n"
+                        else:
+                            user_content += f"(Scan data provided in batch 1. Previous: {len(all_mappings)} mapped, {len(all_risks)} risks.)\n\n"
+                            if prev_summary:
+                                user_content += f"PREVIOUS:\n{prev_summary}\n\n"
+                        user_content += f"CONTROLS ({chunk_label}):\n{ctrl_list}"
+
+                        try:
+                            result = LLMService.chat(
+                                messages=[
+                                    {"role": "system", "content": system_prompt},
+                                    {"role": "user", "content": user_content},
+                                ],
+                                tenant_id=tenant_id, feature="auto_map",
+                                temperature=0.2, max_tokens=3000,
+                            )
+                            content = result["content"].strip()
+                            if content.startswith("```"):
+                                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                            parsed = None
+                            try:
+                                parsed = json.loads(content)
+                            except (json.JSONDecodeError, ValueError):
+                                bs = content.find("{")
+                                be = content.rfind("}")
+                                if bs >= 0 and be > bs:
+                                    try:
+                                        parsed = json.loads(content[bs:be + 1])
+                                    except Exception:
+                                        pass
+                            if parsed:
+                                all_mappings.extend(parsed.get("mappings", []))
+                                all_risks.extend(parsed.get("risks", []))
+                                rt = [r.get("title", "") for r in parsed.get("risks", [])]
+                                prev_summary = f"Mapped {len(parsed.get('mappings', []))} controls. Risks: {', '.join(rt[:5])}" if rt else ""
+                        except Exception as e:
+                            logger.warning("Auto-process chunk %d failed: %s", chunk_idx, e)
+
+                    # Apply mappings
+                    _STATUS_MAP = {
+                        "compliant": "complete", "partial": "ready for auditor",
+                        "non_compliant": "infosec action", "unknown": "infosec action",
+                    }
+                    for m in all_mappings:
+                        try:
+                            pc_id = m.get("project_control_id")
+                            notes = m.get("notes", "")
+                            if pc_id and notes:
+                                pc = db.session.get(ProjectControl, pc_id)
+                                if pc:
+                                    existing = pc.notes or ""
+                                    pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
+                                    llm_status = m.get("status", "").lower()
+                                    new_status = _STATUS_MAP.get(llm_status)
+                                    if new_status and pc.review_status in ("infosec action", "new", None, ""):
+                                        pc.review_status = new_status
+                                    total_mapped += 1
+                        except Exception:
+                            pass
+
+                    # Add risks
+                    _SEV = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
+                    for r in all_risks:
+                        try:
+                            title = r.get("title", "")
+                            if title:
+                                th = RiskRegister._compute_title_hash(title, tenant_id)
+                                dup = db.session.execute(
+                                    db.select(RiskRegister).filter_by(title_hash=th, tenant_id=tenant_id)
+                                ).scalars().first()
+                                if dup:
+                                    continue
+                                risk = RiskRegister(
+                                    title=title, title_hash=th,
+                                    description=r.get("description", ""),
+                                    risk=_SEV.get(r.get("severity", "").lower(), "unknown"),
+                                    tenant_id=tenant_id, project_id=project.id,
+                                )
+                                db.session.add(risk)
+                                total_risks += 1
+                        except Exception:
+                            pass
+                    db.session.commit()
+                except Exception as e:
+                    logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
+            else:
+                try:
+                    if controls:
+                        pc = db.session.get(ProjectControl, controls[0]["project_control_id"])
+                        if pc:
+                            pc.notes = (pc.notes or "") + f"\n\n[Integration Data]\n{json.dumps(integration_data, indent=2, default=str)[:500]}"
+                            total_mapped += 1
+                            db.session.commit()
+                except Exception:
+                    pass
+
+        # Store result for polling
+        try:
+            ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
+                "success": total_mapped > 0 or total_risks > 0,
+                "controls_mapped": total_mapped,
+                "risks_added": total_risks,
+                "projects_processed": len(projects),
+                "llm_available": llm_available,
+            }, default=str))
+        except Exception:
+            pass
+
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+
+
 @llm_bp.route("/auto-process", methods=["POST"])
 @limiter.limit("5 per minute")
 @login_required
@@ -788,11 +1046,8 @@ def auto_process():
     """
     POST /api/v1/llm/auto-process
 
-    Automatically triggered when a scan/assessment is mapped to a client.
-    Steps:
-      1. Compile integration data for the tenant
-      2. Map findings to project controls via LLM
-      3. Add unmatched findings to the risk register
+    Kicks off background processing. Returns immediately.
+    Poll GET /api/v1/llm/auto-process-status/<tenant_id> for results.
     """
     data = request.get_json(silent=True) or {}
     tenant_id = data.get("tenant_id")
@@ -806,286 +1061,37 @@ def auto_process():
     except Exception:
         pass
 
-    from app import db
-    from app.models import Project, RiskRegister, ConfigStore
-    import json
-
-    # Step 1: Pull data from Telivy
-    integration_data = {}
-    telivy_raw = {}
-
-    if scan_id:
-        try:
-            from app.masri.telivy_routes import _get_telivy_client
-            client = _get_telivy_client()
-
-            if scan_type == "scan":
-                try:
-                    findings = client.get_external_scan_findings(scan_id)
-                    if findings:
-                        telivy_raw["findings"] = findings[:30] if isinstance(findings, list) else []
-                except Exception:
-                    pass
-                try:
-                    scan_detail = client.get_external_scan(scan_id)
-                    if scan_detail:
-                        telivy_raw["scan"] = scan_detail
-                except Exception:
-                    pass
-            elif scan_type == "assessment":
-                try:
-                    assessment = client.get_risk_assessment(scan_id)
-                    if assessment:
-                        telivy_raw["assessment"] = assessment
-                except Exception:
-                    pass
-
-            if telivy_raw:
-                integration_data["telivy"] = telivy_raw
-        except Exception as e:
-            integration_data["telivy_error"] = str(e)
-
-    # Store raw data at TENANT level so projects can use it later
-    if integration_data and "telivy" in integration_data:
-        try:
-            existing = {}
-            record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
-            if record and record.value:
-                try:
-                    existing = json.loads(record.value)
-                except Exception:
-                    pass
-            existing["telivy"] = integration_data["telivy"]
-            existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
-            ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
-        except Exception:
-            pass
-
-    # Find projects — OK if none exist (data already stored at tenant level)
-    projects = db.session.execute(
-        db.select(Project).filter_by(tenant_id=tenant_id)
-    ).scalars().all()
-
-    if not projects:
-        has_data = bool(integration_data.get("telivy"))
-        return jsonify({
-            "success": has_data, "controls_mapped": 0, "risks_added": 0,
-            "data_stored": has_data,
-            "message": "Data saved to client." if has_data else "No data pulled.",
-            "data_sources": list(integration_data.keys()),
-        })
-
-    if not integration_data or "telivy" not in integration_data:
-        return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
-                        "message": "Could not pull data from Telivy.",
-                        "data_sources": list(integration_data.keys())})
-
-    # Step 2 + 3: For each project, map to controls and add risks
-    total_mapped = 0
-    total_risks = 0
-    llm_debug = None
-
-    # Check if LLM is available for intelligent mapping
-    llm_available = False
-    try:
-        from app.masri.llm_service import LLMService
-        llm_available = LLMService.is_enabled()
-    except Exception:
-        pass
-
-    for project in projects:
-        controls = []
-        for pc in project.controls.all():
-            ctrl = pc.control
-            if ctrl:
-                controls.append({
-                    "project_control_id": pc.id,
-                    "ref_code": ctrl.ref_code or "",
-                    "name": ctrl.name or "",
-                    "description": ctrl.description or "",
-                    "review_status": pc.review_status or "not started",
-                })
-
-        if not controls:
-            continue
-
-        if llm_available:
-            try:
-                data_summary = _compress_for_llm(integration_data)
-                fw_name = project.framework.name if project.framework else "Unknown"
-
-                # ── Chunked LLM calls: 10 controls per chunk ─────────
-                # Each chunk gets the scan data + previous results as context.
-                # This keeps each call well under token limits and avoids timeouts.
-                CHUNK_SIZE = 10
-                all_mappings = []
-                all_risks = []
-                prev_summary = ""
-
-                system_prompt = (
-                    "You are an expert compliance analyst reviewing security scan results against "
-                    f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
-                    "no explanation, no text before or after.\n\n"
-                    "Your tasks:\n"
-                    "1. MAP each scan finding to the most relevant compliance control in this batch\n"
-                    "2. CREATE detailed risk entries for findings that represent security gaps\n\n"
-                    "IMPORTANT:\n"
-                    "- Include specific details: affected hostnames, IPs, users, endpoints\n"
-                    "- Explain WHY each finding is a risk and recommend remediation\n"
-                    "- Only create risks for findings NOT already covered in previous batches\n\n"
-                    "JSON format:\n"
-                    '{"mappings":[{"project_control_id":"ID","notes":"finding details",'
-                    '"status":"compliant|partial|non_compliant"}],'
-                    '"risks":[{"title":"risk","description":"details + remediation",'
-                    '"severity":"critical|high|medium|low"}]}'
-                )
-
-                for chunk_idx in range(0, len(controls), CHUNK_SIZE):
-                    chunk = controls[chunk_idx:chunk_idx + CHUNK_SIZE]
-                    chunk_label = f"Batch {chunk_idx // CHUNK_SIZE + 1}/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE}"
-
-                    ctrl_list = "\n".join([
-                        f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                        for c in chunk
-                    ])
-
-                    user_content = f"Framework: {fw_name}\n\n"
-                    # Only include full scan data in first chunk; summaries after
-                    if chunk_idx == 0:
-                        user_content += f"SCAN RESULTS:\n{data_summary}\n\n"
-                    else:
-                        user_content += f"(Scan data provided in batch 1. Previous batches mapped {len(all_mappings)} controls and found {len(all_risks)} risks.)\n\n"
-                        if prev_summary:
-                            user_content += f"PREVIOUS FINDINGS SUMMARY:\n{prev_summary}\n\n"
-
-                    user_content += f"CONTROLS TO ANALYZE ({chunk_label}):\n{ctrl_list}"
-
-                    try:
-                        result = LLMService.chat(
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_content},
-                            ],
-                            tenant_id=tenant_id,
-                            feature="auto_map",
-                            temperature=0.2,
-                            max_tokens=3000,
-                        )
-
-                        content = result["content"].strip()
-                        if content.startswith("```"):
-                            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-                        # Extract JSON
-                        parsed = None
-                        try:
-                            parsed = json.loads(content)
-                        except (json.JSONDecodeError, ValueError):
-                            brace_start = content.find("{")
-                            brace_end = content.rfind("}")
-                            if brace_start >= 0 and brace_end > brace_start:
-                                try:
-                                    parsed = json.loads(content[brace_start:brace_end + 1])
-                                except Exception:
-                                    pass
-
-                        if parsed:
-                            chunk_maps = parsed.get("mappings", [])
-                            chunk_risks = parsed.get("risks", [])
-                            all_mappings.extend(chunk_maps)
-                            all_risks.extend(chunk_risks)
-                            # Build summary for next chunk's context
-                            risk_titles = [r.get("title", "") for r in chunk_risks]
-                            prev_summary = f"Mapped {len(chunk_maps)} controls. Risks found: {', '.join(risk_titles[:5])}" if risk_titles else f"Mapped {len(chunk_maps)} controls, no new risks."
-                        else:
-                            logger.warning("Auto-process chunk %d parse failed: %s", chunk_idx, content[:200])
-                    except Exception as e:
-                        logger.warning("Auto-process LLM chunk %d failed: %s", chunk_idx, e)
-                        # Continue with next chunk instead of aborting
-
-                llm_debug = {
-                    "chunks": (len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE,
-                    "parsed_mappings": len(all_mappings),
-                    "parsed_risks": len(all_risks),
-                }
-                parsed = {"mappings": all_mappings, "risks": all_risks}
-
-                # Apply control mappings (add notes + update status)
-                # ProjectControl VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
-                _STATUS_MAP = {
-                    "compliant": "complete", "partial": "ready for auditor",
-                    "non_compliant": "infosec action", "unknown": "infosec action",
-                }
-                for m in parsed.get("mappings", []):
-                    try:
-                        pc_id = m.get("project_control_id")
-                        notes = m.get("notes", "")
-                        if pc_id and notes:
-                            from app.models import ProjectControl
-                            pc = db.session.get(ProjectControl, pc_id)
-                            if pc:
-                                existing = pc.notes or ""
-                                pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
-                                llm_status = m.get("status", "").lower()
-                                new_status = _STATUS_MAP.get(llm_status)
-                                if new_status and pc.review_status in ("infosec action", "new", None, ""):
-                                    pc.review_status = new_status
-                                total_mapped += 1
-                    except Exception:
-                        pass
-
-                # Add risks to risk register (with dedup + severity)
-                _SEVERITY_MAP = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
-                for r in parsed.get("risks", []):
-                    try:
-                        title = r.get("title", "")
-                        if title:
-                            title_hash = RiskRegister._compute_title_hash(title, tenant_id)
-                            existing_risk = db.session.execute(
-                                db.select(RiskRegister).filter_by(title_hash=title_hash, tenant_id=tenant_id)
-                            ).scalars().first()
-                            if existing_risk:
-                                continue
-                            severity = _SEVERITY_MAP.get(r.get("severity", "").lower(), "unknown")
-                            risk = RiskRegister(
-                                title=title,
-                                title_hash=title_hash,
-                                description=r.get("description", ""),
-                                risk=severity,
-                                tenant_id=tenant_id,
-                                project_id=project.id,
-                            )
-                            db.session.add(risk)
-                            total_risks += 1
-                    except Exception:
-                        pass
-
-                db.session.commit()
-            except Exception as e:
-                logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
-        else:
-            # No LLM — just add raw data as notes to the first control
-            try:
-                if controls and integration_data:
-                    import json
-                    from app.models import ProjectControl
-                    pc = db.session.get(ProjectControl, controls[0]["project_control_id"])
-                    if pc:
-                        pc.notes = (pc.notes or "") + f"\n\n[Integration Data]\n{json.dumps(integration_data, indent=2, default=str)[:500]}"
-                        total_mapped += 1
-                        db.session.commit()
-            except Exception:
-                pass
+    import threading
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_bg_auto_process,
+        args=(app, tenant_id, scan_id, scan_type),
+        daemon=True,
+    )
+    t.start()
 
     return jsonify({
-        "success": total_mapped > 0 or total_risks > 0,
-        "controls_mapped": total_mapped,
-        "risks_added": total_risks,
-        "projects_processed": len(projects),
-        "llm_available": llm_available,
-        "data_sources": list(integration_data.keys()) if integration_data else [],
-        "llm_debug": llm_debug,
+        "success": True,
+        "message": "Processing started in background.",
+        "controls_mapped": 0,
+        "risks_added": 0,
+        "data_stored": True,
     })
+
+
+@llm_bp.route("/auto-process-status/<string:tenant_id>", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def auto_process_status(tenant_id):
+    """GET /api/v1/llm/auto-process-status/<tenant_id> — poll for results."""
+    from app.models import ConfigStore
+    try:
+        record = ConfigStore.find(f"auto_process_result_{tenant_id}")
+        if record and record.value:
+            return jsonify(_json.loads(record.value))
+    except Exception:
+        pass
+    return jsonify({"status": "processing"})
 
 
 def _compress_for_llm(data: dict) -> str:

@@ -1706,66 +1706,74 @@ function integrationsHub() {
       }).catch(() => {});
     },
 
-    // Track active AbortControllers per scan
-    _activeControllers: {},
+    // Track active poll intervals per scan
+    _activePollers: {},
 
     async _runAutoProcess(scanId, tenantId, type) {
-      // Cancel any previous in-flight request for this scan
-      if (this._activeControllers[scanId]) {
-        this._activeControllers[scanId].abort();
+      // Stop any existing poller for this scan
+      if (this._activePollers[scanId]) {
+        clearInterval(this._activePollers[scanId]);
+        delete this._activePollers[scanId];
       }
-      const controller = new AbortController();
-      this._activeControllers[scanId] = controller;
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout
-
       try {
+        // Fire-and-forget — returns instantly, processes in background
         const resp = await fetch('/api/v1/llm/auto-process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
-        delete this._activeControllers[scanId];
-
         const data = await resp.json();
-        const mapped = data.controls_mapped || 0;
-        const risks = data.risks_added || 0;
-        if (mapped > 0 || risks > 0) {
-          this.telivyScanMappings[scanId].process_status = 'done';
-          this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
-          toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
-        } else if (data.data_stored) {
-          this.telivyScanMappings[scanId].process_status = 'done';
-          this.telivyScanMappings[scanId].process_result = data.message || 'Data saved';
-          toast(data.message || 'Data saved to client', 'success');
-        } else {
-          const dbg = data.llm_debug;
-          const detail = dbg ? `LLM: ${dbg.parsed_mappings || 0} mappings, ${dbg.parsed_risks || 0} risks${dbg.parse_error ? ' (parse error)' : ''}` : (data.message || data.error || 'No response');
-          this.telivyScanMappings[scanId].process_status = data.error ? 'failed' : 'done';
-          this.telivyScanMappings[scanId].process_result = detail;
-          toast(detail, data.error ? 'error' : 'warning');
+        if (!data.success && data.error) {
+          this.telivyScanMappings[scanId].process_status = 'failed';
+          this.telivyScanMappings[scanId].process_error = data.error;
+          toast(data.error, 'error');
+          this._saveMapping();
+          return;
         }
+        toast('Processing started...', 'info');
+
+        // Poll for results every 5 seconds
+        let pollCount = 0;
+        const maxPolls = 60; // 5 min max
+        this._activePollers[scanId] = setInterval(async () => {
+          pollCount++;
+          if (pollCount > maxPolls) {
+            clearInterval(this._activePollers[scanId]);
+            delete this._activePollers[scanId];
+            this.telivyScanMappings[scanId].process_status = 'done';
+            this.telivyScanMappings[scanId].process_result = 'Timed out — check project for results';
+            this._saveMapping();
+            return;
+          }
+          try {
+            const statusResp = await fetch(`/api/v1/llm/auto-process-status/${tenantId}`);
+            if (!statusResp.ok) return;
+            const status = await statusResp.json();
+            if (status.controls_mapped !== undefined && status.status !== 'processing') {
+              clearInterval(this._activePollers[scanId]);
+              delete this._activePollers[scanId];
+              const mapped = status.controls_mapped || 0;
+              const risks = status.risks_added || 0;
+              this.telivyScanMappings[scanId].process_status = 'done';
+              this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
+              toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
+              this._saveMapping();
+            }
+          } catch(e) { /* keep polling */ }
+        }, 5000);
+
       } catch(e) {
-        clearTimeout(timeoutId);
-        delete this._activeControllers[scanId];
-        if (e.name === 'AbortError') {
-          this.telivyScanMappings[scanId].process_status = 'failed';
-          this.telivyScanMappings[scanId].process_result = 'Cancelled';
-          toast('Processing cancelled', 'warning');
-        } else {
-          this.telivyScanMappings[scanId].process_status = 'failed';
-          this.telivyScanMappings[scanId].process_error = e.message;
-          toast('Processing failed: ' + e.message, 'error');
-        }
+        this.telivyScanMappings[scanId].process_status = 'failed';
+        this.telivyScanMappings[scanId].process_error = e.message;
+        toast('Processing failed: ' + e.message, 'error');
+        this._saveMapping();
       }
-      this._saveMapping();
     },
 
     cancelAutoProcess(scanId) {
-      if (this._activeControllers[scanId]) {
-        this._activeControllers[scanId].abort();
-        delete this._activeControllers[scanId];
+      if (this._activePollers[scanId]) {
+        clearInterval(this._activePollers[scanId]);
+        delete this._activePollers[scanId];
       }
       if (this.telivyScanMappings[scanId]) {
         this.telivyScanMappings[scanId].process_status = 'failed';
