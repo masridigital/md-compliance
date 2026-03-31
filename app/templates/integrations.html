@@ -1612,16 +1612,31 @@ function integrationsHub() {
     },
 
     getScanTenantMapping(scanId) {
-      return this.telivyScanMappings[scanId] || '';
+      const m = this.telivyScanMappings[scanId];
+      if (!m) return '';
+      // Handle both old format (string tenant_id) and new format (object with tenant_id)
+      if (typeof m === 'string') return m;
+      return m.tenant_id || '';
     },
 
     async mapScanToTenant(scanId, tenantId, type) {
+      // Find the scan/assessment data to store alongside the mapping
+      const items = type === 'scan' ? this.telivyScans : this.telivyAssessments;
+      const item = items.find(i => i.id === scanId) || {};
       if (tenantId) {
-        this.telivyScanMappings[scanId] = tenantId;
+        this.telivyScanMappings[scanId] = {
+          tenant_id: tenantId,
+          type: type,
+          org: item.assessmentDetails?.organization_name || item.id || scanId,
+          score: item.securityScore || null,
+          status: item.scanStatus || null,
+          domain: item.assessmentDetails?.domain_prim || null,
+          mapped_at: new Date().toISOString(),
+        };
       } else {
         delete this.telivyScanMappings[scanId];
       }
-      // Save to BOTH localStorage and backend — await backend to confirm
+      // Save to BOTH localStorage and backend
       localStorage.setItem('telivy_scan_mappings', JSON.stringify(this.telivyScanMappings));
       try {
         const resp = await fetch('/api/v1/settings/telivy/mappings', {
@@ -1629,11 +1644,11 @@ function integrationsHub() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.telivyScanMappings),
         });
-        if (!resp.ok) throw new Error('Save failed');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const tenantName = tenantId ? ((this.telivyTenants.find(t => t.id === tenantId) || {}).name || tenantId) : 'none';
         toast(`${type === 'scan' ? 'Scan' : 'Assessment'} mapped to ${tenantName}`, 'success');
       } catch(e) {
-        toast('Failed to save mapping to server', 'error');
+        toast('Failed to save mapping: ' + e.message, 'error');
       }
     },
 

@@ -584,7 +584,12 @@ def get_telivy_mappings():
 @limiter.limit("10 per minute")
 @login_required
 def set_telivy_mappings():
-    """PUT /api/v1/settings/telivy/mappings — save scan-to-tenant mappings."""
+    """PUT /api/v1/settings/telivy/mappings — save scan-to-tenant mappings.
+
+    Accepts either:
+      - Simple format: { "scan_id": "tenant_id", ... }
+      - Rich format: { "scan_id": { "tenant_id": "...", "data": {...} }, ... }
+    """
     _require_admin()
     import json
     from app.models import ConfigStore
