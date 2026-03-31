@@ -969,6 +969,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                         "compliant": "complete", "partial": "ready for auditor",
                         "non_compliant": "infosec action", "unknown": "infosec action",
                     }
+                    _IMPL_MAP = {
+                        "compliant": 100, "partial": 50, "non_compliant": 25,
+                    }
+                    from app.models import ProjectSubControl
                     for m in all_mappings:
                         try:
                             pc_id = m.get("project_control_id")
@@ -982,6 +986,12 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                     new_status = _STATUS_MAP.get(llm_status)
                                     if new_status and pc.review_status in ("infosec action", "new", None, ""):
                                         pc.review_status = new_status
+                                    # Update subcontrol progress for the progress bar
+                                    impl_pct = _IMPL_MAP.get(llm_status, 0)
+                                    if impl_pct > 0:
+                                        for sc in pc.subcontrols.all():
+                                            if sc.is_applicable and (sc.implemented or 0) < impl_pct:
+                                                sc.implemented = impl_pct
                                     total_mapped += 1
                         except Exception:
                             pass
