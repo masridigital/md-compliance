@@ -418,27 +418,59 @@
               </div>
             </div>
 
-            <!-- Per-feature model assignment -->
+            <!-- Per-feature provider + model routing -->
             <div x-show="!llmSameModelForAll" class="space-y-2 mb-3">
-              <div class="flex gap-1 items-center mb-2">
-                <button class="btn btn-ghost btn-xs tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="llmModelsFetching">
-                  <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
-                  <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
-                </button>
-                <span class="text-xs opacity-50">Load models first, then assign per feature</span>
-              </div>
+              <p class="text-xs opacity-50 mb-2">Assign a provider + model per feature. Add extra providers below, then route each task to the best provider.</p>
               <template x-for="feat in llmFeatures" :key="feat.id">
-                <div class="flex items-center gap-2">
-                  <div class="w-32 flex-shrink-0">
-                    <span class="text-xs font-medium" x-text="feat.label"></span>
-                    <div class="text-xs opacity-40" x-text="feat.hint"></div>
+                <div class="flex items-center gap-2 bg-base-300 rounded-lg p-2">
+                  <div class="w-28 flex-shrink-0">
+                    <span class="text-xs font-semibold" x-text="feat.label"></span>
+                    <div class="text-[10px] opacity-40" x-text="feat.hint"></div>
                   </div>
-                  <select class="select select-bordered select-xs flex-1" x-model="llmFeatureModels[feat.id]">
-                    <option value="">Default</option>
-                    <template x-for="m in llmModels" :key="'f-'+feat.id+'-'+m"><option :value="m" x-text="m"></option></template>
+                  <select class="select select-bordered select-xs w-32"
+                          x-model="(llmFeatureModels[feat.id] || {}).provider"
+                          @change="if(!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {}; llmFeatureModels[feat.id].provider = $event.target.value">
+                    <option value="">Primary</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="together_ai">Together AI</option>
+                    <option value="azure_openai">Azure OpenAI</option>
                   </select>
+                  <input type="text" class="input input-bordered input-xs flex-1" placeholder="Model (blank = default)"
+                         :value="(llmFeatureModels[feat.id] || {}).model || ''"
+                         @change="if(!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {}; llmFeatureModels[feat.id].model = $event.target.value">
                 </div>
               </template>
+
+              <!-- Add additional provider -->
+              <div class="divider text-xs">Additional Providers</div>
+              <p class="text-xs opacity-50 mb-2">Add API keys for providers you want to route features to (beyond your primary).</p>
+              <div class="space-y-2" x-data="{ addingProvider: false, newProvider: { key: '', provider: '', api_key: '', model_name: '' } }">
+                <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
+                  <div class="flex items-center gap-2 bg-base-300 rounded p-2 text-xs">
+                    <span class="badge badge-xs badge-ghost capitalize" x-text="p.provider"></span>
+                    <span x-text="p.model || 'default model'"></span>
+                    <span class="badge badge-xs badge-success" x-show="p.has_key">Key saved</span>
+                    <button class="btn btn-xs btn-ghost btn-error ml-auto" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-trash"></i></button>
+                  </div>
+                </template>
+                <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1" @click="addingProvider = true"><i class="ti ti-plus"></i> Add Provider</button>
+                <div x-show="addingProvider" class="bg-base-300 rounded-lg p-3 space-y-2">
+                  <select class="select select-bordered select-xs w-full" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
+                    <option value="">Select provider...</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="together_ai">Together AI</option>
+                    <option value="azure_openai">Azure OpenAI</option>
+                  </select>
+                  <input type="password" class="input input-bordered input-xs w-full" placeholder="API Key" x-model="newProvider.api_key">
+                  <input type="text" class="input input-bordered input-xs w-full" placeholder="Default model (optional)" x-model="newProvider.model_name">
+                  <div class="flex gap-2">
+                    <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }">Save</button>
+                    <button class="btn btn-xs btn-ghost" @click="addingProvider = false">Cancel</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="flex gap-2 pt-2">
@@ -1068,15 +1100,16 @@ function integrationsHub() {
     llmSameModelForAll: true,
     llmFeatureModels: {},  // feature_id -> model_name override
     llmFeatures: [
-      { id: 'control_assess', label: 'Control Assessment', hint: 'Assess controls vs evidence' },
-      { id: 'gap_narrative', label: 'Gap Analysis', hint: 'Generate gap narratives' },
+      { id: 'data_parsing', label: 'Data Parsing', hint: 'Parse scan data + extract findings' },
+      { id: 'auto_map', label: 'Control Mapping', hint: 'Map findings to compliance controls' },
+      { id: 'assist_gaps', label: 'Gap Analysis', hint: 'Suggest fixes for control gaps' },
       { id: 'risk_score', label: 'Risk Scoring', hint: 'Evaluate and score risks' },
+      { id: 'control_assess', label: 'Control Assessment', hint: 'Assess controls vs evidence' },
       { id: 'policy_draft', label: 'Policy Drafting', hint: 'Generate policy documents' },
       { id: 'evidence_interpret', label: 'Evidence Analysis', hint: 'Interpret uploaded evidence' },
-      { id: 'wisp_assist', label: 'WISP Wizard', hint: 'AI assistance in WISP' },
       { id: 'summarize', label: 'Summarization', hint: 'Summarize long documents' },
-      { id: 'auto_map', label: 'Auto-Map', hint: 'Map integration data to controls' },
     ],
+    llmProvidersList: [],
     llmSaving: false,
     llmTesting: false,
     llmMsg: '',
@@ -1450,15 +1483,17 @@ function integrationsHub() {
             this.fetchLlmModels();
           }
         }
-        // Load per-feature models from localStorage
+        // Load per-feature routing from backend
         try {
-          const saved = localStorage.getItem('llm_feature_models');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            this.llmFeatureModels = parsed.models || {};
-            this.llmSameModelForAll = parsed.sameForAll !== false;
+          const featResp = await fetch('/api/v1/settings/llm/features');
+          if (featResp.ok) {
+            const featData = await featResp.json();
+            this.llmFeatureModels = featData.models || {};
+            this.llmSameModelForAll = featData.sameForAll !== false;
           }
         } catch(e) {}
+        // Load additional providers list
+        this.loadLlmProviders();
       } catch (e) { console.debug('Could not load LLM config:', e); }
     },
 
@@ -1500,6 +1535,36 @@ function integrationsHub() {
         await this.loadLlm();
       } catch (e) { this.llmMsg = e.message; this.llmMsgType = 'error'; }
       finally { this.llmSaving = false; }
+    },
+
+    async loadLlmProviders() {
+      try {
+        const resp = await fetch('/api/v1/settings/llm/providers');
+        if (resp.ok) this.llmProvidersList = await resp.json();
+      } catch(e) {}
+    },
+
+    async saveAdditionalProvider(p) {
+      try {
+        const resp = await fetch(`/api/v1/settings/llm/providers/${p.key || p.provider}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+        });
+        if (resp.ok) {
+          toast('Provider saved', 'success');
+          this.loadLlmProviders();
+        } else {
+          toast('Failed to save provider', 'error');
+        }
+      } catch(e) { toast('Error: ' + e.message, 'error'); }
+    },
+
+    async deleteAdditionalProvider(key) {
+      try {
+        await fetch(`/api/v1/settings/llm/providers/${key}`, { method: 'DELETE' });
+        toast('Provider removed', 'success');
+        this.loadLlmProviders();
+      } catch(e) { toast('Error: ' + e.message, 'error'); }
     },
 
     async testLlm() {

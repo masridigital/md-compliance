@@ -312,8 +312,12 @@ class LLMService:
             return False
 
     @staticmethod
-    def get_feature_model(feature: str) -> str:
-        """Get the model name assigned to a specific feature, or None for default."""
+    def get_feature_routing(feature: str) -> dict:
+        """Get the provider+model assigned to a specific feature, or None for default.
+
+        Returns:
+            dict with 'provider' and 'model' keys, or None to use default config.
+        """
         try:
             from app.models import ConfigStore
             import json
@@ -321,8 +325,43 @@ class LLMService:
             if record and record.value:
                 data = json.loads(record.value)
                 if data.get("sameForAll", True):
-                    return None  # Use default model
-                return data.get("models", {}).get(feature) or None
+                    return None
+                routing = data.get("models", {}).get(feature)
+                if routing and isinstance(routing, dict):
+                    return routing  # {provider, model, config_key}
+                if routing and isinstance(routing, str):
+                    return {"model": routing}  # Legacy: model name only
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def get_feature_model(feature: str) -> str:
+        """Get the model name for a feature (backward compat)."""
+        routing = LLMService.get_feature_routing(feature)
+        if routing:
+            return routing.get("model")
+        return None
+
+    @staticmethod
+    def _get_provider_config(provider_key: str) -> dict:
+        """Load a named provider config from ConfigStore.
+
+        Additional providers (beyond the primary SettingsLLM) are stored as
+        ConfigStore("llm_provider_{key}") with encrypted API keys.
+        """
+        try:
+            from app.models import ConfigStore
+            import json
+            record = ConfigStore.find(f"llm_provider_{provider_key}")
+            if record and record.value:
+                config = json.loads(record.value)
+                # Decrypt API key if present
+                if config.get("api_key_enc"):
+                    from app.masri.settings_service import decrypt_value
+                    config["api_key"] = decrypt_value(config["api_key_enc"])
+                    del config["api_key_enc"]
+                return config
         except Exception:
             pass
         return None
@@ -332,10 +371,13 @@ class LLMService:
         """
         Send a chat completion request through the configured provider.
 
+        Supports per-feature provider routing: each feature (auto_map, assist_gaps,
+        web_research, data_parsing, etc.) can use a different provider+model.
+
         Args:
             messages: list of {"role": ..., "content": ...} dicts
             tenant_id: optional, for budget/rate-limit enforcement
-            feature: optional feature name for per-feature model routing
+            feature: optional feature name for per-feature provider routing
             **kwargs: overrides passed to the provider (temperature, max_tokens, etc.)
 
         Returns:
@@ -344,15 +386,27 @@ class LLMService:
         Raises:
             RuntimeError: if LLM is not configured or limits exceeded
         """
+        # Start with default config
         config = LLMService._get_config()
         if config is None:
             raise RuntimeError("LLM is not configured or not enabled")
 
-        # Per-feature model override
+        # Per-feature provider+model override
         if feature and "model" not in kwargs:
-            feature_model = LLMService.get_feature_model(feature)
-            if feature_model:
-                kwargs["model"] = feature_model
+            routing = LLMService.get_feature_routing(feature)
+            if routing:
+                # If routing specifies a different provider, load that provider's config
+                if routing.get("provider") and routing["provider"] != config["provider"]:
+                    alt_config = LLMService._get_provider_config(routing["provider"])
+                    if alt_config:
+                        # Merge: use the alt provider but keep rate limits from primary
+                        rate_limit = config.get("rate_limit_per_hour")
+                        token_budget = config.get("token_budget_per_tenant")
+                        config = alt_config
+                        config["rate_limit_per_hour"] = rate_limit
+                        config["token_budget_per_tenant"] = token_budget
+                if routing.get("model"):
+                    kwargs["model"] = routing["model"]
 
         # Enforce rate limit
         if tenant_id and config.get("rate_limit_per_hour"):
@@ -376,7 +430,7 @@ class LLMService:
         try:
             result = provider.chat(messages, **kwargs)
         except Exception as e:
-            logger.error("LLM call failed (%s): %s", config["provider"], e)
+            logger.error("LLM call failed (%s/%s): %s", config.get("provider"), feature, e)
             raise RuntimeError(f"LLM call failed: {e}") from e
 
         # Track usage

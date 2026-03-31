@@ -589,7 +589,7 @@ def set_telivy_mappings():
 @limiter.limit("30 per minute")
 @login_required
 def get_llm_feature_models():
-    """GET /api/v1/settings/llm/features — get per-feature model assignments."""
+    """GET /api/v1/settings/llm/features — get per-feature provider+model routing."""
     _require_admin()
     try:
         from app.models import ConfigStore
@@ -606,7 +606,19 @@ def get_llm_feature_models():
 @limiter.limit("10 per minute")
 @login_required
 def set_llm_feature_models():
-    """PUT /api/v1/settings/llm/features — save per-feature model assignments."""
+    """PUT /api/v1/settings/llm/features — save per-feature provider+model routing.
+
+    Body: {
+        "sameForAll": false,
+        "models": {
+            "auto_map": {"provider": "together_ai", "model": "meta-llama/..."},
+            "assist_gaps": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
+            "web_research": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
+            "data_parsing": {"provider": "together_ai", "model": "meta-llama/..."},
+            "control_assist": {"provider": "openai", "model": "gpt-4o"},
+        }
+    }
+    """
     _require_admin()
     import json
     from app.models import ConfigStore
@@ -615,7 +627,137 @@ def set_llm_feature_models():
         "sameForAll": data.get("sameForAll", True),
         "models": data.get("models", {}),
     }))
-    return jsonify({"message": "Feature model assignments saved"})
+    return jsonify({"message": "Feature routing saved"})
+
+
+@settings_bp.route("/llm/providers", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_llm_providers():
+    """GET /api/v1/settings/llm/providers — list all configured LLM providers."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+
+    providers = []
+
+    # Primary provider from SettingsLLM
+    try:
+        from app.masri.settings_service import SettingsService
+        primary = SettingsService.get_active_llm_config()
+        if primary:
+            providers.append({
+                "key": primary.provider,
+                "provider": primary.provider,
+                "model": primary.model_name,
+                "is_primary": True,
+                "has_key": bool(primary.api_key_enc),
+            })
+    except Exception:
+        pass
+
+    # Additional providers from ConfigStore
+    try:
+        record = ConfigStore.find("llm_additional_providers")
+        if record and record.value:
+            extras = json.loads(record.value)
+            for key, cfg in extras.items():
+                providers.append({
+                    "key": key,
+                    "provider": cfg.get("provider", key),
+                    "model": cfg.get("model_name", ""),
+                    "is_primary": False,
+                    "has_key": bool(cfg.get("api_key_enc")),
+                })
+    except Exception:
+        pass
+
+    return jsonify(providers)
+
+
+@settings_bp.route("/llm/providers/<string:provider_key>", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_llm_provider(provider_key):
+    """PUT /api/v1/settings/llm/providers/<key> — add/update an additional LLM provider.
+
+    Body: { "provider": "anthropic", "model_name": "claude-sonnet-4-20250514", "api_key": "sk-..." }
+    """
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    from app.masri.settings_service import encrypt_value
+
+    data = request.get_json(silent=True) or {}
+    provider = data.get("provider", provider_key)
+    model_name = data.get("model_name", "")
+    api_key = data.get("api_key", "")
+
+    # Load existing providers
+    extras = {}
+    try:
+        record = ConfigStore.find("llm_additional_providers")
+        if record and record.value:
+            extras = json.loads(record.value)
+    except Exception:
+        pass
+
+    # Build config
+    cfg = extras.get(provider_key, {})
+    cfg["provider"] = provider
+    if model_name:
+        cfg["model_name"] = model_name
+    if api_key:
+        cfg["api_key_enc"] = encrypt_value(api_key)
+
+    extras[provider_key] = cfg
+    ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+
+    # Also store as individual provider config for LLMService routing
+    provider_config = {
+        "provider": provider,
+        "model_name": model_name or cfg.get("model_name", ""),
+    }
+    if api_key:
+        provider_config["api_key_enc"] = encrypt_value(api_key)
+    elif cfg.get("api_key_enc"):
+        provider_config["api_key_enc"] = cfg["api_key_enc"]
+    ConfigStore.upsert(f"llm_provider_{provider_key}", json.dumps(provider_config))
+
+    return jsonify({"message": f"Provider '{provider_key}' saved"})
+
+
+@settings_bp.route("/llm/providers/<string:provider_key>", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def delete_llm_provider(provider_key):
+    """DELETE /api/v1/settings/llm/providers/<key> — remove an additional provider."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+
+    extras = {}
+    try:
+        record = ConfigStore.find("llm_additional_providers")
+        if record and record.value:
+            extras = json.loads(record.value)
+    except Exception:
+        pass
+
+    if provider_key in extras:
+        del extras[provider_key]
+        ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+
+    # Remove individual config
+    try:
+        record = ConfigStore.find(f"llm_provider_{provider_key}")
+        if record:
+            db.session.delete(record)
+            db.session.commit()
+    except Exception:
+        pass
+
+    return jsonify({"message": f"Provider '{provider_key}' removed"})
 
 
 @settings_bp.route("/llm/test", methods=["POST"])
