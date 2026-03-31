@@ -237,9 +237,12 @@
                       <span x-show="telivyScanMappings[s.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
                       <span x-show="telivyScanMappings[s.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[s.id]?.process_result || 'Processed'"></span></span>
                       <span x-show="telivyScanMappings[s.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
+                      <button x-show="telivyScanMappings[s.id]?.process_status === 'processing'"
+                              class="btn btn-xs btn-ghost btn-error gap-1" @click="cancelAutoProcess(s.id)">
+                        <i class="ti ti-player-stop text-xs"></i> Cancel
+                      </button>
                       <button x-show="telivyScanMappings[s.id]?.process_status === 'done' || telivyScanMappings[s.id]?.process_status === 'failed'"
-                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(s.id, 'scan')"
-                              :disabled="telivyScanMappings[s.id]?.process_status === 'processing'">
+                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(s.id, 'scan')">
                         <i class="ti ti-refresh text-xs"></i> Re-run
                       </button>
                     </div>
@@ -312,9 +315,12 @@
                       <span x-show="telivyScanMappings[a.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
                       <span x-show="telivyScanMappings[a.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[a.id]?.process_result || 'Processed'"></span></span>
                       <span x-show="telivyScanMappings[a.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
+                      <button x-show="telivyScanMappings[a.id]?.process_status === 'processing'"
+                              class="btn btn-xs btn-ghost btn-error gap-1" @click="cancelAutoProcess(a.id)">
+                        <i class="ti ti-player-stop text-xs"></i> Cancel
+                      </button>
                       <button x-show="telivyScanMappings[a.id]?.process_status === 'done' || telivyScanMappings[a.id]?.process_status === 'failed'"
-                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(a.id, 'assessment')"
-                              :disabled="telivyScanMappings[a.id]?.process_status === 'processing'">
+                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(a.id, 'assessment')">
                         <i class="ti ti-refresh text-xs"></i> Re-run
                       </button>
                     </div>
@@ -1700,9 +1706,18 @@ function integrationsHub() {
       }).catch(() => {});
     },
 
+    // Track active AbortControllers per scan
+    _activeControllers: {},
+
     async _runAutoProcess(scanId, tenantId, type) {
+      // Cancel any previous in-flight request for this scan
+      if (this._activeControllers[scanId]) {
+        this._activeControllers[scanId].abort();
+      }
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
+      this._activeControllers[scanId] = controller;
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout
+
       try {
         const resp = await fetch('/api/v1/llm/auto-process', {
           method: 'POST',
@@ -1711,6 +1726,8 @@ function integrationsHub() {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+        delete this._activeControllers[scanId];
+
         const data = await resp.json();
         const mapped = data.controls_mapped || 0;
         const risks = data.risks_added || 0;
@@ -1730,11 +1747,32 @@ function integrationsHub() {
           toast(detail, data.error ? 'error' : 'warning');
         }
       } catch(e) {
-        this.telivyScanMappings[scanId].process_status = 'failed';
-        this.telivyScanMappings[scanId].process_error = e.message;
-        toast('Processing failed: ' + e.message, 'error');
+        clearTimeout(timeoutId);
+        delete this._activeControllers[scanId];
+        if (e.name === 'AbortError') {
+          this.telivyScanMappings[scanId].process_status = 'failed';
+          this.telivyScanMappings[scanId].process_result = 'Cancelled';
+          toast('Processing cancelled', 'warning');
+        } else {
+          this.telivyScanMappings[scanId].process_status = 'failed';
+          this.telivyScanMappings[scanId].process_error = e.message;
+          toast('Processing failed: ' + e.message, 'error');
+        }
       }
       this._saveMapping();
+    },
+
+    cancelAutoProcess(scanId) {
+      if (this._activeControllers[scanId]) {
+        this._activeControllers[scanId].abort();
+        delete this._activeControllers[scanId];
+      }
+      if (this.telivyScanMappings[scanId]) {
+        this.telivyScanMappings[scanId].process_status = 'failed';
+        this.telivyScanMappings[scanId].process_result = 'Cancelled';
+      }
+      this._saveMapping();
+      toast('Processing cancelled', 'warning');
     },
 
     async rerunAutoProcess(scanId, type) {
