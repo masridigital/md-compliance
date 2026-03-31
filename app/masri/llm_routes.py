@@ -716,6 +716,53 @@ def get_integration_data(project_id):
             telivy["findings"] = raw["telivy_findings"].get("count", 0)
         result["telivy"] = telivy
 
+    # Microsoft Security data (from cached collect_all_security_data)
+    ms_cached = raw.get("microsoft") or {}
+    if not ms_cached:
+        # Try reading from ConfigStore cache
+        try:
+            from app.models import ConfigStore as _CS
+            _rec = _CS.find(f"tenant_integration_data_{tenant_id}")
+            if _rec and _rec.value:
+                _cached = _json.loads(_rec.value)
+                ms_cached = _cached.get("microsoft", {})
+        except Exception:
+            pass
+    if ms_cached:
+        microsoft = {}
+        if ms_cached.get("secure_score"):
+            ss = ms_cached["secure_score"]
+            microsoft["secure_score"] = {
+                "current": ss.get("current_score", 0),
+                "max": ss.get("max_score", 0),
+                "controls": ss.get("control_scores", [])[:15],
+            }
+        if ms_cached.get("security_alerts"):
+            sa = ms_cached["security_alerts"]
+            microsoft["alerts"] = {
+                "count": sa.get("count", 0),
+                "by_severity": sa.get("by_severity", {}),
+                "items": sa.get("alerts", [])[:20],
+            }
+        if ms_cached.get("devices"):
+            microsoft["devices"] = ms_cached["devices"]
+        if ms_cached.get("risky_users"):
+            microsoft["risky_users"] = ms_cached["risky_users"][:20]
+        if ms_cached.get("risk_detections"):
+            microsoft["risk_detections"] = ms_cached["risk_detections"][:20]
+        if ms_cached.get("sign_in_summary"):
+            microsoft["sign_ins"] = ms_cached["sign_in_summary"]
+        if ms_cached.get("mfa"):
+            mfa_list = ms_cached["mfa"]
+            if isinstance(mfa_list, list):
+                total = len(mfa_list)
+                mfa_on = sum(1 for u in mfa_list if u.get("mfa_registered"))
+                microsoft["mfa"] = {"enrolled": mfa_on, "total": total, "rate": f"{int(mfa_on/total*100)}%" if total else "N/A"}
+        if ms_cached.get("compliance"):
+            microsoft["compliance_score"] = ms_cached["compliance"].get("overall_score", "N/A")
+        if microsoft:
+            result["microsoft"] = microsoft
+
     if raw.get("risk_register"):
         result["risks"] = {
             "count": raw["risk_register"].get("count", 0),
@@ -827,8 +874,29 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
             except Exception as e:
                 integration_data["telivy_error"] = str(e)
 
+        # Pull Microsoft Security data (Entra + Defender + Devices + Secure Score)
+        try:
+            from app.masri.new_models import SettingsEntra
+            entra_cfg = db.session.execute(
+                db.select(SettingsEntra).filter_by(tenant_id=None)
+            ).scalars().first()
+            if entra_cfg and entra_cfg.is_fully_configured():
+                from app.masri.entra_integration import EntraIntegration
+                creds = entra_cfg.get_credentials()
+                ms_client = EntraIntegration(
+                    tenant_id=creds["entra_tenant_id"],
+                    client_id=creds["client_id"],
+                    client_secret=creds["client_secret"],
+                )
+                ms_data = ms_client.collect_all_security_data()
+                if ms_data:
+                    integration_data["microsoft"] = ms_data
+        except Exception as e:
+            logger.debug("Microsoft data collection skipped: %s", e)
+
         # Store raw data at tenant level
-        if integration_data.get("telivy"):
+        has_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        if has_data:
             try:
                 existing = {}
                 record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
@@ -837,9 +905,12 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                         existing = json.loads(record.value)
                     except Exception:
                         pass
-                existing["telivy"] = integration_data["telivy"]
+                if integration_data.get("telivy"):
+                    existing["telivy"] = integration_data["telivy"]
+                if integration_data.get("microsoft"):
+                    existing["microsoft"] = integration_data["microsoft"]
                 existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
-                ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
+                ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:100000])
             except Exception:
                 pass
 
@@ -1294,9 +1365,74 @@ def _compress_for_llm(data: dict) -> str:
                 elif isinstance(f, str):
                     lines.append(f"- {f[:150]}")
 
-    # Entra data
+    # Microsoft Security data (from collect_all_security_data)
+    ms = data.get("microsoft", {})
+    if ms:
+        # Secure Score
+        ss = ms.get("secure_score", {})
+        if ss and not ss.get("error"):
+            lines.append(f"\nMICROSOFT SECURE SCORE: {ss.get('current_score', 0)}/{ss.get('max_score', 0)}")
+            for cs in ss.get("control_scores", [])[:10]:
+                if cs.get("score", 0) < cs.get("max_score", 1):
+                    lines.append(f"  - {cs['name']}: {cs['score']}/{cs['max_score']}")
+
+        # Security Alerts
+        alerts = ms.get("security_alerts", {})
+        if alerts and alerts.get("count"):
+            by_sev = alerts.get("by_severity", {})
+            lines.append(f"\nSECURITY ALERTS ({alerts['count']}): {by_sev.get('high', 0)} high, {by_sev.get('medium', 0)} medium, {by_sev.get('low', 0)} low")
+            for a in alerts.get("alerts", [])[:10]:
+                lines.append(f"  - [{a.get('severity', '?')}] {a.get('title', 'Alert')}: {a.get('description', '')[:120]}")
+
+        # Device Compliance
+        devices = ms.get("devices", {})
+        if devices and devices.get("total_devices"):
+            lines.append(f"\nDEVICE COMPLIANCE: {devices['compliant']}/{devices['total_devices']} compliant ({devices.get('compliance_rate', 0)}%), {devices.get('encrypted', 0)}/{devices['total_devices']} encrypted ({devices.get('encryption_rate', 0)}%)")
+            for d in devices.get("non_compliant_devices", [])[:5]:
+                lines.append(f"  - Non-compliant: {d.get('name', '?')} ({d.get('os', '?')}) user: {d.get('user', '?')}")
+            for d in devices.get("unencrypted_devices", [])[:5]:
+                lines.append(f"  - Unencrypted: {d.get('name', '?')} ({d.get('os', '?')}) user: {d.get('user', '?')}")
+
+        # Risky Users
+        risky = ms.get("risky_users", [])
+        if risky:
+            lines.append(f"\nRISKY USERS ({len(risky)}):")
+            for u in risky[:10]:
+                lines.append(f"  - {u.get('display_name', '?')} ({u.get('upn', '?')}): risk={u.get('risk_level', '?')}, state={u.get('risk_state', '?')}")
+
+        # Risk Detections
+        detections = ms.get("risk_detections", [])
+        if detections:
+            lines.append(f"\nRISK DETECTIONS ({len(detections)}):")
+            for d in detections[:10]:
+                lines.append(f"  - [{d.get('risk_level', '?')}] {d.get('risk_type', '?')}: user={d.get('user_display_name', '?')}, IP={d.get('ip_address', '?')}, location={d.get('location', '?')}")
+
+        # MFA Status
+        mfa = ms.get("mfa")
+        if isinstance(mfa, list) and mfa:
+            total = len(mfa)
+            mfa_on = sum(1 for u in mfa if u.get("mfa_registered"))
+            rate = int(mfa_on / total * 100) if total else 0
+            lines.append(f"\nMFA STATUS: {mfa_on}/{total} users ({rate}%)")
+            if rate < 100:
+                no_mfa = [u.get("display_name", "?") for u in mfa if not u.get("mfa_registered")][:5]
+                lines.append(f"  Users without MFA: {', '.join(no_mfa)}")
+
+        # Sign-in Summary
+        signins = ms.get("sign_in_summary", {})
+        if signins and not signins.get("error"):
+            lines.append(f"\nSIGN-IN ACTIVITY ({signins.get('days', 7)}d): {signins.get('total_signins', 0)} total, {signins.get('failed_signins', 0)} failed ({signins.get('failure_rate', 0)}%), {signins.get('risky_signins', 0)} risky")
+
+        # Entra compliance (legacy format support)
+        comp = ms.get("compliance", {})
+        if comp:
+            lines.append(f"\nENTRA COMPLIANCE SCORE: {comp.get('overall_score', 'N/A')}/100")
+            for rec in comp.get("recommendations", [])[:5]:
+                lines.append(f"  - {rec}")
+
+    # Legacy Entra data format (from _gather_integration_data)
     entra = data.get("entra_compliance", {})
-    if entra:
+    if entra and not ms:
         lines.append(f"\nEntra ID Compliance Score: {entra.get('overall_score', 'N/A')}/100")
         for rec in entra.get("recommendations", [])[:5]:
             lines.append(f"- {rec}")

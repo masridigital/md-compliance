@@ -94,6 +94,49 @@ All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortU
 - Auto-column creation at boot (`_ensure_db_columns`) for: `totp_secret_enc`, `totp_enabled`, `session_timeout_minutes`, `client_id` (mcp_api_keys), `archived` (tenants)
 - Migration files in `migrations/versions/`. Known issue: `0002_masri_additions.py` has singular table references (`tenant.id` instead of `tenants.id`) — works on existing DBs but fails on fresh installs.
 
+## Auto-Process Pipeline (Integration → LLM → Evidence → Risks)
+
+### Complete Data Flow
+```
+1. User maps scan to client on Integrations page (or Re-run triggers)
+2. POST /api/v1/llm/auto-process → returns immediately, spawns daemon thread
+3. _bg_auto_process() runs in background:
+   a. Pull Telivy data (scan details + findings via TelivyIntegration)
+   b. Pull Entra data (users, MFA, compliance via EntraIntegration)
+   c. Store raw data in ConfigStore("tenant_integration_data_{tenant_id}")
+   d. For each project in tenant:
+      - Load all ProjectControls
+      - Chunk into groups of 10
+      - For each chunk: compress data → send to LLM → parse JSON response
+      - Apply mappings: update notes, review_status, subcontrol.implemented
+      - Generate evidence: create ProjectEvidence with exhibit references
+      - Add risks: create RiskRegister entries with title_hash dedup
+      - Sync progress: _sync_project_progress() updates all subcontrols
+   e. Store result in ConfigStore("auto_process_result_{tenant_id}")
+4. Frontend polls GET /auto-process-status/{tenant_id} every 5s
+5. Progress bar, Risk Register, Evidence tab all update automatically
+```
+
+### Evidence Generation Rules
+- **Three tiers**: Complete (scan confirms compliance), Partial (data available, needs review), Draft (insufficient data)
+- **Never fabricates evidence** — only records what the scan actually found
+- **Exhibit references**: Lists specific documents needed (e.g., "Exhibit A: Telivy scan report", "Exhibit B: Screenshot of MFA policy")
+- **Context-specific**: MFA findings add Entra ID exhibit, encryption findings add BitLocker exhibit
+- **Fully editable**: Users modify description, add/remove exhibits, upload supporting documents
+
+### LLM Prompt Pattern for Control Mapping
+```
+System: Expert compliance analyst for {framework_name}
+- MUST respond with ONLY valid JSON
+- MAP findings to controls with project_control_id
+- CREATE risks with affected assets, IPs, users, remediation steps
+- Include specific details from scan data
+
+User: Framework + scan results (compressed) + control list (chunked)
+
+Response: {"mappings": [...], "risks": [...]}
+```
+
 ## File Structure (Key Files)
 ```
 app/

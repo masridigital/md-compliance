@@ -3042,6 +3042,92 @@
 						</div>
 					</template>
 
+					<!-- Microsoft Security -->
+					<template x-if="intData.microsoft">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-info" :class="showPreview ? 'ti-chevron-down' : 'ti-brand-azure'"></i>
+									<span class="font-semibold text-sm">Microsoft Security</span>
+									<span class="text-xs opacity-40" x-show="!showPreview" x-text="(intData.microsoft.alerts?.count || 0) + ' alerts, ' + (intData.microsoft.devices?.total_devices || 0) + ' devices'"></span>
+									<span class="badge badge-xs badge-info ml-auto">Live</span>
+								</div>
+								<!-- Summary stats -->
+								<div class="grid grid-cols-4 gap-2 text-center mb-3">
+									<div class="bg-base-300 rounded-lg p-2" x-show="intData.microsoft.secure_score">
+										<div class="text-lg font-bold" x-text="(intData.microsoft.secure_score?.current || 0) + '/' + (intData.microsoft.secure_score?.max || 0)"></div>
+										<div class="text-[10px] opacity-50">Secure Score</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2" x-show="intData.microsoft.alerts">
+										<div class="text-lg font-bold" :class="(intData.microsoft.alerts?.by_severity?.high || 0) > 0 ? 'text-error' : ''" x-text="intData.microsoft.alerts?.count || 0"></div>
+										<div class="text-[10px] opacity-50">Alerts</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2" x-show="intData.microsoft.devices">
+										<div class="text-lg font-bold" x-text="(intData.microsoft.devices?.compliance_rate || 0) + '%'"></div>
+										<div class="text-[10px] opacity-50">Device Compliance</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2" x-show="intData.microsoft.mfa">
+										<div class="text-lg font-bold" x-text="intData.microsoft.mfa?.rate || 'N/A'"></div>
+										<div class="text-[10px] opacity-50">MFA Rate</div>
+									</div>
+								</div>
+								<!-- Expanded details -->
+								<div x-show="showPreview" x-collapse x-cloak class="space-y-3 mt-2">
+									<!-- Security Alerts -->
+									<template x-if="intData.microsoft.alerts && intData.microsoft.alerts.items?.length">
+										<div>
+											<div class="text-xs font-semibold mb-1">Security Alerts</div>
+											<div class="max-h-48 overflow-y-auto space-y-1">
+												<template x-for="(a, i) in intData.microsoft.alerts.items" :key="i">
+													<div class="text-xs bg-base-300 rounded p-2 cursor-pointer" x-data="{ exp: false }" @click="exp = !exp">
+														<div class="flex justify-between items-center">
+															<span class="font-medium" x-text="a.title"></span>
+															<span class="badge badge-xs" :class="{'badge-error': a.severity === 'high', 'badge-warning': a.severity === 'medium', 'badge-info': a.severity === 'low'}" x-text="a.severity"></span>
+														</div>
+														<div x-show="exp" class="opacity-60 mt-1" x-text="a.description"></div>
+													</div>
+												</template>
+											</div>
+										</div>
+									</template>
+									<!-- Non-compliant Devices -->
+									<template x-if="intData.microsoft.devices?.non_compliant_devices?.length">
+										<div>
+											<div class="text-xs font-semibold mb-1">Non-Compliant Devices</div>
+											<template x-for="(d, i) in intData.microsoft.devices.non_compliant_devices.slice(0, 10)" :key="i">
+												<div class="text-xs bg-base-300 rounded p-2 mb-1 flex justify-between">
+													<span x-text="d.name + ' (' + d.os + ')'"></span>
+													<span class="opacity-40" x-text="d.user"></span>
+												</div>
+											</template>
+										</div>
+									</template>
+									<!-- Risky Users -->
+									<template x-if="intData.microsoft.risky_users?.length">
+										<div>
+											<div class="text-xs font-semibold mb-1">Risky Users</div>
+											<template x-for="(u, i) in intData.microsoft.risky_users" :key="i">
+												<div class="text-xs bg-base-300 rounded p-2 mb-1 flex justify-between">
+													<span x-text="u.display_name"></span>
+													<span class="badge badge-xs" :class="{'badge-error': u.risk_level === 'high', 'badge-warning': u.risk_level === 'medium'}" x-text="u.risk_level"></span>
+												</div>
+											</template>
+										</div>
+									</template>
+									<!-- Sign-in Summary -->
+									<template x-if="intData.microsoft.sign_ins">
+										<div class="text-xs bg-base-300 rounded p-2">
+											<span class="font-semibold">Sign-ins (7d):</span>
+											<span x-text="intData.microsoft.sign_ins.total_signins"></span> total,
+											<span class="text-error" x-text="intData.microsoft.sign_ins.failed_signins"></span> failed,
+											<span class="text-warning" x-text="intData.microsoft.sign_ins.risky_signins"></span> risky
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
 					<!-- Risk Register -->
 					<template x-if="intData.risks">
 						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
