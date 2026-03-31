@@ -2837,8 +2837,8 @@
 					<template x-if="intData.entra">
 						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
-								<div class="flex items-center gap-2 mb-3">
-									<i class="ti ti-brand-azure text-xl text-info"></i>
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-info" :class="showPreview ? 'ti-chevron-down' : 'ti-brand-azure'"></i>
 									<span class="font-semibold text-sm">Microsoft Entra ID</span>
 									<span class="badge badge-xs badge-success ml-auto">Live</span>
 								</div>
@@ -2889,9 +2889,10 @@
 					<template x-if="intData.telivy">
 						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
-								<div class="flex items-center gap-2 mb-3">
-									<i class="ti ti-shield-search text-xl text-success"></i>
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-success" :class="showPreview ? 'ti-chevron-down' : 'ti-shield-search'"></i>
 									<span class="font-semibold text-sm">Telivy Security</span>
+									<span class="text-xs opacity-40" x-show="!showPreview" x-text="(intData.telivy.findings || 0) + ' findings'"></span>
 									<span class="badge badge-xs badge-success ml-auto">Live</span>
 								</div>
 								<div class="grid grid-cols-2 gap-3 text-center mb-3">
@@ -2945,10 +2946,6 @@
 									<i class="ti ti-refresh text-xs" x-show="!running"></i>
 									<span x-text="running ? 'Re-pulling data...' : 'Re-pull & Analyze'"></span>
 								</button>
-								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.telivy.findings_list && intData.telivy.findings_list.length > 0">
-									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
-									<span x-text="showPreview ? 'Hide Findings' : 'Show Findings (' + (intData.telivy.findings_list || []).length + ')'"></span>
-								</button>
 								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-[32rem] overflow-y-auto space-y-1">
 									<template x-for="(f, i) in (intData.telivy.findings_list || [])" :key="i">
 										<div class="text-xs bg-base-300 rounded p-3 cursor-pointer" x-data="{ expanded: false }" @click="expanded = !expanded">
@@ -2986,18 +2983,15 @@
 					<template x-if="intData.risks">
 						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
-								<div class="flex items-center gap-2 mb-3">
-									<i class="ti ti-alert-triangle text-xl text-warning"></i>
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-warning" :class="showPreview ? 'ti-chevron-down' : 'ti-alert-triangle'"></i>
 									<span class="font-semibold text-sm">Risk Register</span>
+									<span class="text-xs opacity-40" x-show="!showPreview" x-text="(intData.risks.count || 0) + ' risks'"></span>
 								</div>
 								<div class="bg-base-300 rounded-lg p-3 text-center">
 									<div class="text-xl font-bold" x-text="intData.risks.count || 0"></div>
 									<div class="text-xs opacity-50">Registered Risks</div>
 								</div>
-								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.risks.items && intData.risks.items.length > 0">
-									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
-									<span x-text="showPreview ? 'Hide Risks' : 'Show Risks (' + (intData.risks.items || []).length + ')'"></span>
-								</button>
 								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-[32rem] overflow-y-auto space-y-1">
 									<template x-for="(r, i) in (intData.risks.items || [])" :key="i">
 										<div class="text-xs bg-base-300 rounded p-3 cursor-pointer" x-data="{ expanded: false }" @click="expanded = !expanded">
