@@ -424,19 +424,37 @@
                     <div class="text-[10px] opacity-40" x-text="feat.hint"></div>
                   </div>
                   <select class="select select-bordered select-xs w-32"
-                          x-model="(llmFeatureModels[feat.id] || {}).provider"
-                          @change="if(!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {}; llmFeatureModels[feat.id].provider = $event.target.value">
+                          @change="
+                            if (!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {};
+                            llmFeatureModels[feat.id].provider = $event.target.value;
+                          "
+                          :value="llmFeatureModels[feat.id]?.provider || ''">
                     <option value="">Primary</option>
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
                     <option value="together_ai">Together AI</option>
                     <option value="azure_openai">Azure OpenAI</option>
                   </select>
-                  <input type="text" class="input input-bordered input-xs flex-1" placeholder="Model (blank = default)"
-                         :value="(llmFeatureModels[feat.id] || {}).model || ''"
-                         @change="if(!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {}; llmFeatureModels[feat.id].model = $event.target.value">
+                  <select class="select select-bordered select-xs flex-1"
+                          @change="
+                            if (!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {};
+                            llmFeatureModels[feat.id].model = $event.target.value;
+                          "
+                          :value="llmFeatureModels[feat.id]?.model || ''">
+                    <option value="">Default</option>
+                    <template x-for="m in llmModels" :key="'fm-'+feat.id+'-'+m">
+                      <option :value="m" x-text="m"></option>
+                    </template>
+                  </select>
                 </div>
               </template>
+              <div class="flex gap-2 items-center mt-1">
+                <button class="btn btn-ghost btn-xs gap-1" @click="fetchLlmModels()" :disabled="llmModelsFetching">
+                  <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
+                  <i class="ti ti-refresh" x-show="!llmModelsFetching"></i> Load Models
+                </button>
+                <span class="text-[10px] opacity-40" x-text="llmModels.length ? llmModels.length + ' models loaded' : 'Click to load model list from your primary provider'"></span>
+              </div>
 
               <!-- Add additional provider -->
               <div class="divider text-xs">Additional Providers</div>
