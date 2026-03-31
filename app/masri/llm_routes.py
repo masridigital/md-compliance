@@ -522,33 +522,26 @@ def assist_gaps():
     _validate_tenant_access(tenant_id)
 
     try:
-        # Get controls with their current status — find gaps
-        # ProjectControl.VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
-        # Default is "infosec action". Gaps = anything NOT complete.
+        # Get controls with their current status
         gap_controls = []
         for pc in project.controls.all():
             ctrl = pc.control
-            if not ctrl:
-                continue
-            status = (pc.review_status or "").lower().strip()
-            # "complete" and "ready for auditor" are done — everything else is a gap
-            if status in ("complete", "ready for auditor"):
-                continue
-            evidence_count = 0
-            try:
-                evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
-            except Exception:
-                pass
-            gap_controls.append({
-                "project_control_id": pc.id,
-                "ref_code": ctrl.ref_code or "",
-                "name": ctrl.name or "",
-                "description": (ctrl.description or "")[:200],
-                "category": ctrl.category or "",
-                "review_status": pc.review_status or "infosec action",
-                "has_evidence": evidence_count > 0,
-                "notes": (pc.notes or "")[:200],
-            })
+            if ctrl and pc.review_status in ("not started", "not_started", "in progress", "in_progress", None, ""):
+                evidence_count = 0
+                try:
+                    evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
+                except Exception:
+                    pass
+                gap_controls.append({
+                    "project_control_id": pc.id,
+                    "ref_code": ctrl.ref_code or "",
+                    "name": ctrl.name or "",
+                    "description": ctrl.description or "",
+                    "category": ctrl.category or "",
+                    "review_status": pc.review_status or "not started",
+                    "has_evidence": evidence_count > 0,
+                    "notes": pc.notes or "",
+                })
 
         if not gap_controls:
             return jsonify({
@@ -560,59 +553,33 @@ def assist_gaps():
         from app.masri.llm_service import LLMService
         import json
 
-        # Also gather integration data to give the LLM context about actual findings
-        integration_context = ""
-        try:
-            raw = _gather_integration_data(tenant_id)
-            integration_context = _compress_for_llm(raw) if raw else ""
-        except Exception:
-            pass
-
-        fw_name = project.framework.name if project.framework else "Unknown"
-
         # Send gaps to LLM for recommendations
         all_recommendations = []
         chunk_size = 10
         for i in range(0, len(gap_controls), chunk_size):
             chunk = gap_controls[i:i + chunk_size]
-
-            # Build a concise control list instead of dumping full JSON
-            ctrl_text = "\n".join([
-                f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
-                + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
-                for c in chunk
-            ])
-
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are a compliance consultant specializing in " + fw_name + ". "
-                        "You will receive a list of compliance controls that have gaps "
-                        "(missing evidence, incomplete review, or no action taken yet).\n\n"
-                        "For EACH control in the list, provide a specific, actionable recommendation.\n\n"
-                        "You MUST respond with ONLY a valid JSON array — no markdown, no explanation, "
-                        "no text before or after the JSON. Example format:\n"
-                        '[{"project_control_id":"ID","priority":"high","recommendation":"Do X",'
-                        '"evidence_suggestion":"Collect Y","estimated_effort":"quick",'
-                        '"policy_needed":false,"template_suggestion":""}]\n\n'
-                        "Rules:\n"
-                        "- Include ALL controls from the input, not just some\n"
-                        "- priority: high (security/data-critical), medium (operational), low (administrative)\n"
-                        "- recommendation: 1-2 sentences, specific action to take NOW\n"
-                        "- evidence_suggestion: specific document/screenshot/config to collect\n"
-                        "- estimated_effort: quick (<1hr), moderate (1-4hr), significant (>4hr)\n"
-                        "- policy_needed: true if a written policy/procedure document is required\n"
-                        "- template_suggestion: suggested policy template name, or empty string"
+                        "You are a compliance consultant. Given a list of compliance controls "
+                        "that have gaps (missing evidence, not started, or in progress), provide "
+                        "specific, actionable recommendations for each.\n\n"
+                        "Respond with a JSON array:\n"
+                        '[{"project_control_id": "...", "priority": "high|medium|low", '
+                        '"recommendation": "specific action to take", '
+                        '"evidence_suggestion": "what evidence to collect", '
+                        '"estimated_effort": "quick|moderate|significant", '
+                        '"policy_needed": true/false, '
+                        '"template_suggestion": "suggested policy/procedure template name if applicable"}]\n\n'
+                        "Be specific and practical. Prioritize high-risk items."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Framework: {fw_name}\n\n"
-                        + (f"INTEGRATION SCAN DATA (for context):\n{integration_context}\n\n" if integration_context and integration_context != "No scan data available." else "")
-                        + f"CONTROLS NEEDING ACTION ({len(chunk)}):\n{ctrl_text}"
+                        f"Framework: {project.framework.name if project.framework else 'Unknown'}\n"
+                        f"## Controls with Gaps\n{json.dumps(chunk, indent=2)}"
                     ),
                 },
             ]
@@ -621,35 +588,20 @@ def assist_gaps():
                 messages=messages,
                 tenant_id=tenant_id,
                 feature="auto_map",
-                temperature=0.3,
-                max_tokens=4096,
+                temperature=0.2,
+                max_tokens=4000,
             )
 
             content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-            # Use the robust JSON extractor
-            parsed = _extract_json(content)
-            if parsed is not None:
+            try:
+                parsed = json.loads(content)
                 if isinstance(parsed, list):
                     all_recommendations.extend(parsed)
-                elif isinstance(parsed, dict) and "recommendations" in parsed:
-                    all_recommendations.extend(parsed["recommendations"])
-                elif isinstance(parsed, dict):
-                    # Single recommendation wrapped in object
-                    all_recommendations.append(parsed)
-            else:
-                logger.warning("LLM assist-gaps: could not parse JSON for chunk %d: %s", i, content[:200])
-                # Provide fallback recommendations for this chunk
-                for c in chunk:
-                    all_recommendations.append({
-                        "project_control_id": c["project_control_id"],
-                        "priority": "medium",
-                        "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
-                        "evidence_suggestion": "Document current implementation status and any existing controls.",
-                        "estimated_effort": "moderate",
-                        "policy_needed": False,
-                        "template_suggestion": "",
-                    })
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("LLM assist-gaps returned non-JSON for chunk %d", i)
 
         return jsonify({
             "project_id": project_id,
@@ -729,9 +681,6 @@ def get_integration_data(project_id):
             "items": raw["risk_register"].get("risks", [])[:10],
         }
 
-    if raw.get("_cached_at"):
-        result["_cached_at"] = raw["_cached_at"]
-
     return jsonify(result)
 
 
@@ -760,13 +709,8 @@ def debug_integration_mapping(project_id):
     except Exception as e:
         mappings = {"_error": str(e)}
 
-    # Find which IDs map to this tenant — handle both string and dict formats
-    matched = {}
-    for k, v in mappings.items():
-        if isinstance(v, str) and v == tenant_id:
-            matched[k] = v
-        elif isinstance(v, dict) and v.get("tenant_id") == tenant_id:
-            matched[k] = v
+    # Find which IDs map to this tenant
+    matched = {k: v for k, v in mappings.items() if v == tenant_id}
 
     # Check Telivy API key
     has_telivy_key = False
@@ -788,490 +732,6 @@ def debug_integration_mapping(project_id):
     })
 
 
-# ---------------------------------------------------------------------------
-# Background processing infrastructure
-# ---------------------------------------------------------------------------
-
-import threading
-import json as _json
-from datetime import datetime as _dt
-
-# In-memory store for active processing jobs — survives page navigation
-_active_jobs = {}  # tenant_id -> {"status": ..., "log": [...], "result": {...}}
-_jobs_lock = threading.Lock()
-
-
-def _log_step(tenant_id: str, step: str, detail: str = "", level: str = "info"):
-    """Append a timestamped log entry for a processing job."""
-    with _jobs_lock:
-        job = _active_jobs.get(tenant_id, {})
-        job.setdefault("log", []).append({
-            "ts": _dt.utcnow().isoformat(),
-            "step": step,
-            "detail": detail[:500],
-            "level": level,
-        })
-        _active_jobs[tenant_id] = job
-    # Also persist to ConfigStore for durability across restarts
-    try:
-        from app.models import ConfigStore
-        ConfigStore.upsert(
-            f"process_log_{tenant_id}",
-            _json.dumps(job, default=str)[:100000],
-        )
-    except Exception:
-        pass
-
-
-def _extract_json(content: str):
-    """Extract JSON from LLM response using brace-matching."""
-    # Strip markdown code blocks
-    if content.startswith("```"):
-        parts = content.split("\n", 1)
-        content = parts[1] if len(parts) > 1 else content
-        content = content.rsplit("```", 1)[0].strip()
-
-    try:
-        return _json.loads(content)
-    except (ValueError, _json.JSONDecodeError):
-        pass
-
-    # Brace-matching extraction
-    brace_start = content.find("{")
-    if brace_start < 0:
-        return None
-    depth = 0
-    in_string = False
-    escape_next = False
-    for i in range(brace_start, len(content)):
-        ch = content[i]
-        if escape_next:
-            escape_next = False
-            continue
-        if ch == "\\":
-            escape_next = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return _json.loads(content[brace_start:i + 1])
-                except Exception:
-                    return None
-    return None
-
-
-def _run_auto_process(app, tenant_id, scan_id, scan_type):
-    """Background worker: pull data, analyze with LLM, map controls, add risks."""
-    with app.app_context():
-        from app import db
-        from app.models import Project, RiskRegister, ConfigStore, ProjectControl
-        # Remove any stale session state from previous requests
-        try:
-            db.session.remove()
-        except Exception:
-            pass
-
-        with _jobs_lock:
-            _active_jobs[tenant_id] = {
-                "status": "running",
-                "started": _dt.utcnow().isoformat(),
-                "log": [],
-                "result": {},
-            }
-
-        integration_data = {}
-
-        # ── Step 1: Pull Telivy data ──────────────────────────────────
-        _log_step(tenant_id, "telivy_pull", f"Pulling scan data for {scan_id} (type={scan_type})")
-        telivy_raw = {}
-        if scan_id:
-            try:
-                from app.masri.telivy_routes import _get_telivy_client
-                client = _get_telivy_client()
-
-                if scan_type == "scan":
-                    try:
-                        scan_detail = client.get_external_scan(scan_id)
-                        if scan_detail:
-                            telivy_raw["scan"] = scan_detail
-                            details = scan_detail.get("assessmentDetails", {})
-                            _log_step(tenant_id, "telivy_scan",
-                                      f"Scan: {details.get('organization_name', 'Unknown')} | "
-                                      f"Score: {scan_detail.get('securityScore', 'N/A')} | "
-                                      f"Status: {scan_detail.get('scanStatus', 'Unknown')}")
-                    except Exception as e:
-                        _log_step(tenant_id, "telivy_scan", f"Failed: {e}", "warning")
-
-                    try:
-                        findings = client.get_external_scan_findings(scan_id)
-                        if findings and isinstance(findings, list):
-                            telivy_raw["findings"] = findings[:50]
-                            _log_step(tenant_id, "telivy_findings",
-                                      f"Retrieved {len(findings)} findings (keeping top 50)")
-                            # Log individual findings for live view
-                            for f in findings[:10]:
-                                if isinstance(f, dict):
-                                    name = f.get("name", f.get("slug", ""))
-                                    sev = f.get("severity", f.get("riskLevel", ""))
-                                    _log_step(tenant_id, "finding",
-                                              f"[{sev}] {name}", "data")
-                    except Exception as e:
-                        _log_step(tenant_id, "telivy_findings", f"Failed: {e}", "warning")
-
-                elif scan_type == "assessment":
-                    try:
-                        assessment = client.get_risk_assessment(scan_id)
-                        if assessment:
-                            telivy_raw["assessment"] = assessment
-                            details = assessment.get("assessmentDetails", {})
-                            _log_step(tenant_id, "telivy_assessment",
-                                      f"Assessment: {details.get('organization_name', 'Unknown')}")
-                            # Log exec summary scores
-                            exec_sum = assessment.get("executiveSummary", {})
-                            if exec_sum:
-                                for cat, scores in exec_sum.items():
-                                    if isinstance(scores, dict) and scores.get("securityScore"):
-                                        _log_step(tenant_id, "assessment_score",
-                                                  f"{cat}: {scores['securityScore']}", "data")
-                    except Exception as e:
-                        _log_step(tenant_id, "telivy_assessment", f"Failed: {e}", "warning")
-
-                if telivy_raw:
-                    integration_data["telivy"] = telivy_raw
-                    _log_step(tenant_id, "telivy_done",
-                              f"Telivy data collected: {list(telivy_raw.keys())}")
-                else:
-                    _log_step(tenant_id, "telivy_done", "No Telivy data retrieved", "warning")
-            except Exception as e:
-                _log_step(tenant_id, "telivy_error", str(e), "error")
-
-        # ── Step 2: Pull Entra ID data ────────────────────────────────
-        _log_step(tenant_id, "entra_pull", "Checking Entra ID configuration...")
-        try:
-            from app.masri.new_models import SettingsEntra
-            entra_cfg = db.session.execute(
-                db.select(SettingsEntra).filter_by(tenant_id=None)
-            ).scalars().first()
-            if entra_cfg and entra_cfg.is_fully_configured():
-                from app.masri.entra_integration import EntraIntegration
-                creds = entra_cfg.get_credentials()
-                entra_client = EntraIntegration(
-                    tenant_id=creds["entra_tenant_id"],
-                    client_id=creds["client_id"],
-                    client_secret=creds["client_secret"],
-                )
-                entra_raw = {}
-                try:
-                    users = entra_client.list_users()
-                    entra_raw["users"] = {"count": len(users), "sample": users[:5]}
-                    _log_step(tenant_id, "entra_users", f"Found {len(users)} users")
-                except Exception as e:
-                    _log_step(tenant_id, "entra_users", f"Failed: {e}", "warning")
-                try:
-                    mfa = entra_client.get_mfa_status()
-                    entra_raw["mfa"] = mfa
-                    if isinstance(mfa, list):
-                        mfa_on = sum(1 for u in mfa if u.get("mfa_registered"))
-                        _log_step(tenant_id, "entra_mfa", f"MFA: {mfa_on}/{len(mfa)} users enrolled")
-                except Exception as e:
-                    _log_step(tenant_id, "entra_mfa", f"Failed: {e}", "warning")
-                try:
-                    compliance = entra_client.assess_compliance()
-                    entra_raw["compliance"] = compliance
-                    _log_step(tenant_id, "entra_compliance",
-                              f"Score: {compliance.get('overall_score', 'N/A')}/100")
-                except Exception as e:
-                    _log_step(tenant_id, "entra_compliance", f"Failed: {e}", "warning")
-                if entra_raw:
-                    integration_data["entra"] = entra_raw
-            else:
-                _log_step(tenant_id, "entra_skip", "Entra ID not configured", "info")
-        except Exception as e:
-            _log_step(tenant_id, "entra_error", str(e), "warning")
-
-        # ── Step 3: Store raw data ────────────────────────────────────
-        has_any_data = bool(integration_data.get("telivy") or integration_data.get("entra"))
-        if has_any_data:
-            _log_step(tenant_id, "store_data", "Saving integration data to client record...")
-            try:
-                existing = {}
-                record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
-                if record and record.value:
-                    try:
-                        existing = _json.loads(record.value)
-                    except Exception:
-                        pass
-                if integration_data.get("telivy"):
-                    existing["telivy"] = integration_data["telivy"]
-                if integration_data.get("entra"):
-                    existing["entra"] = integration_data["entra"]
-                existing["_updated"] = _dt.utcnow().isoformat()
-                ConfigStore.upsert(
-                    f"tenant_integration_data_{tenant_id}",
-                    _json.dumps(existing, default=str)[:100000],
-                )
-                _log_step(tenant_id, "store_done", "Data saved to client ConfigStore")
-            except Exception as e:
-                _log_step(tenant_id, "store_error", str(e), "error")
-
-        # ── Step 4: Find projects ─────────────────────────────────────
-        projects = db.session.execute(
-            db.select(Project).filter_by(tenant_id=tenant_id)
-        ).scalars().all()
-
-        if not projects:
-            _log_step(tenant_id, "no_projects",
-                      "No projects found for this client — data stored at tenant level", "info")
-            with _jobs_lock:
-                _active_jobs[tenant_id]["status"] = "done"
-                _active_jobs[tenant_id]["result"] = {
-                    "controls_mapped": 0, "risks_added": 0,
-                    "data_stored": has_any_data, "projects": 0,
-                }
-            _log_step(tenant_id, "complete", "Processing complete (data stored, no projects to map)")
-            return
-
-        if not integration_data:
-            _log_step(tenant_id, "no_data", "No integration data to analyze", "error")
-            with _jobs_lock:
-                _active_jobs[tenant_id]["status"] = "failed"
-                _active_jobs[tenant_id]["result"] = {"error": "No data pulled"}
-            return
-
-        # ── Step 5: LLM analysis per project ──────────────────────────
-        total_mapped = 0
-        total_risks = 0
-
-        llm_available = False
-        try:
-            from app.masri.llm_service import LLMService
-            llm_available = LLMService.is_enabled()
-        except Exception:
-            pass
-
-        if not llm_available:
-            _log_step(tenant_id, "llm_skip", "LLM not configured — storing raw data only", "warning")
-
-        # ProjectControl VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
-        _STATUS_MAP = {
-            "compliant": "complete",
-            "partial": "ready for auditor",
-            "non_compliant": "infosec action",
-            "unknown": "infosec action",
-        }
-        _SEVERITY_MAP = {
-            "critical": "critical", "high": "high",
-            "medium": "moderate", "low": "low",
-        }
-
-        for project in projects:
-            fw_name = project.framework.name if project.framework else "Unknown"
-            _log_step(tenant_id, "project_start",
-                      f"Processing project: {project.name} ({fw_name})")
-
-            controls = []
-            for pc in project.controls.all():
-                ctrl = pc.control
-                if ctrl:
-                    controls.append({
-                        "project_control_id": pc.id,
-                        "ref_code": ctrl.ref_code or "",
-                        "name": ctrl.name or "",
-                        "description": ctrl.description or "",
-                    })
-
-            if not controls:
-                _log_step(tenant_id, "project_skip",
-                          f"No controls in {project.name} — skipping", "warning")
-                continue
-
-            _log_step(tenant_id, "controls_loaded",
-                      f"Found {len(controls)} controls in {fw_name}")
-
-            if llm_available:
-                try:
-                    # Build structured data chunks for LLM
-                    data_summary = _compress_for_llm(integration_data)
-                    _log_step(tenant_id, "llm_prepare",
-                              f"Prepared {len(data_summary)} chars of data for LLM analysis")
-
-                    # Send controls in chunks if >30 to handle large frameworks
-                    chunk_size = 25
-                    for chunk_idx in range(0, len(controls), chunk_size):
-                        chunk = controls[chunk_idx:chunk_idx + chunk_size]
-                        chunk_label = f"controls {chunk_idx + 1}-{chunk_idx + len(chunk)}" if len(controls) > chunk_size else "all controls"
-
-                        ctrl_list = "\n".join([
-                            f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                            for c in chunk
-                        ])
-
-                        _log_step(tenant_id, "llm_call",
-                                  f"Sending {chunk_label} to LLM for mapping...")
-
-                        messages = [
-                            {
-                                "role": "system",
-                                "content": (
-                                    "You are an expert compliance analyst reviewing security scan results against "
-                                    f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
-                                    "no explanation, no text before or after.\n\n"
-                                    "Your tasks:\n"
-                                    "1. MAP each scan finding to the most relevant compliance control\n"
-                                    "2. CREATE detailed risk entries for ALL findings that represent security gaps\n\n"
-                                    "IMPORTANT for risk entries:\n"
-                                    "- Create a risk for EVERY significant security finding (unencrypted devices, "
-                                    "missing MFA, open ports, weak configs, expired certs, vulnerable software, etc.)\n"
-                                    "- Include specific details: affected hostnames, IP addresses, user accounts, "
-                                    "device names, endpoint URLs, port numbers — whatever was in the scan\n"
-                                    "- Explain WHY this is a risk and what could happen if not remediated\n"
-                                    "- Be thorough — it's better to create too many risks than too few\n\n"
-                                    "JSON format:\n"
-                                    '{"mappings":[{"project_control_id":"ID","notes":"detailed finding with affected '
-                                    'assets/users/endpoints","status":"compliant|partial|non_compliant"}],'
-                                    '"risks":[{"title":"specific risk name","description":"Detailed description '
-                                    'including: what was found, which specific assets/users/endpoints are affected, '
-                                    'why this is dangerous, and recommended remediation steps",'
-                                    '"severity":"critical|high|medium|low"}]}'
-                                ),
-                            },
-                            {
-                                "role": "user",
-                                "content": (
-                                    f"Framework: {fw_name}\n\n"
-                                    f"SCAN RESULTS:\n{data_summary}\n\n"
-                                    f"CONTROLS:\n{ctrl_list}"
-                                ),
-                            },
-                        ]
-
-                        result = LLMService.chat(
-                            messages=messages,
-                            tenant_id=tenant_id,
-                            feature="auto_map",
-                            temperature=0.2,
-                            max_tokens=4096,
-                        )
-
-                        content = result["content"].strip()
-                        _log_step(tenant_id, "llm_response",
-                                  f"LLM responded ({len(content)} chars, model: {result.get('model', 'unknown')})")
-
-                        parsed = _extract_json(content)
-
-                        if parsed is None:
-                            _log_step(tenant_id, "llm_parse_fail",
-                                      f"Could not parse LLM JSON: {content[:200]}", "error")
-                            continue
-
-                        mappings = parsed.get("mappings", [])
-                        risks = parsed.get("risks", [])
-                        _log_step(tenant_id, "llm_parsed",
-                                  f"Parsed {len(mappings)} control mappings, {len(risks)} risks")
-
-                        # Apply mappings
-                        for m in mappings:
-                            try:
-                                pc_id = m.get("project_control_id")
-                                notes = m.get("notes", "")
-                                if pc_id and notes:
-                                    pc = db.session.get(ProjectControl, pc_id)
-                                    if pc:
-                                        existing_notes = pc.notes or ""
-                                        pc.notes = f"{existing_notes}\n\n[Auto-Mapped] {notes}".strip()
-                                        llm_status = m.get("status", "").lower()
-                                        new_status = _STATUS_MAP.get(llm_status)
-                                        if new_status and pc.review_status in ("infosec action", "new", None, ""):
-                                            pc.review_status = new_status
-                                        total_mapped += 1
-                                        _log_step(tenant_id, "mapped",
-                                                  f"Mapped: {pc_id} → {llm_status}", "data")
-                            except Exception:
-                                pass
-
-                        # Add risks
-                        for r in risks:
-                            try:
-                                title = r.get("title", "")
-                                if title:
-                                    title_hash = RiskRegister._compute_title_hash(title, tenant_id)
-                                    existing_risk = db.session.execute(
-                                        db.select(RiskRegister).filter_by(
-                                            title_hash=title_hash, tenant_id=tenant_id)
-                                    ).scalars().first()
-                                    if existing_risk:
-                                        continue
-                                    severity = _SEVERITY_MAP.get(
-                                        r.get("severity", "").lower(), "unknown")
-                                    risk_obj = RiskRegister(
-                                        title=title,
-                                        title_hash=title_hash,
-                                        description=r.get("description", ""),
-                                        risk=severity,
-                                        tenant_id=tenant_id,
-                                    )
-                                    db.session.add(risk_obj)
-                                    total_risks += 1
-                                    _log_step(tenant_id, "risk_added",
-                                              f"Risk: [{severity}] {title[:80]}", "data")
-                            except Exception:
-                                pass
-
-                        db.session.commit()
-
-                except Exception as e:
-                    _log_step(tenant_id, "llm_error",
-                              f"LLM processing failed for {project.name}: {e}", "error")
-                    logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
-            else:
-                # No LLM — attach raw data to first control
-                try:
-                    if controls:
-                        pc = db.session.get(ProjectControl, controls[0]["project_control_id"])
-                        if pc:
-                            pc.notes = (pc.notes or "") + f"\n\n[Integration Data]\n{_json.dumps(integration_data, indent=2, default=str)[:500]}"
-                            total_mapped += 1
-                            db.session.commit()
-                except Exception:
-                    pass
-
-        # ── Done ──────────────────────────────────────────────────────
-        _log_step(tenant_id, "complete",
-                  f"Processing complete: {total_mapped} controls mapped, {total_risks} risks added")
-
-        with _jobs_lock:
-            _active_jobs[tenant_id]["status"] = "done"
-            _active_jobs[tenant_id]["result"] = {
-                "controls_mapped": total_mapped,
-                "risks_added": total_risks,
-                "projects": len(projects),
-                "data_sources": list(integration_data.keys()),
-            }
-
-        # Persist final state
-        try:
-            ConfigStore.upsert(
-                f"process_log_{tenant_id}",
-                _json.dumps(_active_jobs.get(tenant_id, {}), default=str)[:100000],
-            )
-        except Exception:
-            pass
-        finally:
-            # Clean up session to prevent leaking into other threads
-            try:
-                db.session.remove()
-            except Exception:
-                pass
-
-
 @llm_bp.route("/auto-process", methods=["POST"])
 @limiter.limit("5 per minute")
 @login_required
@@ -1279,8 +739,11 @@ def auto_process():
     """
     POST /api/v1/llm/auto-process
 
-    Kicks off background processing for a tenant. Returns immediately.
-    Poll GET /api/v1/llm/process-status/<tenant_id> for progress.
+    Automatically triggered when a scan/assessment is mapped to a client.
+    Steps:
+      1. Compile integration data for the tenant
+      2. Map findings to project controls via LLM
+      3. Add unmatched findings to the risk register
     """
     data = request.get_json(silent=True) or {}
     tenant_id = data.get("tenant_id")
@@ -1294,203 +757,321 @@ def auto_process():
     except Exception:
         pass
 
-    # Check if already running
-    with _jobs_lock:
-        existing = _active_jobs.get(tenant_id, {})
-        if existing.get("status") == "running":
-            return jsonify({
-                "success": True,
-                "already_running": True,
-                "message": "Processing is already in progress for this client.",
-            })
+    from app import db
+    from app.models import Project, RiskRegister, ConfigStore
+    import json
 
-    # Launch in background thread
-    app = current_app._get_current_object()
-    t = threading.Thread(
-        target=_run_auto_process,
-        args=(app, tenant_id, scan_id, scan_type),
-        daemon=True,
-        name=f"auto-process-{tenant_id}",
-    )
-    t.start()
+    # Step 1: Pull data from Telivy
+    integration_data = {}
+    telivy_raw = {}
 
-    return jsonify({
-        "success": True,
-        "message": "Processing started in background.",
-        "status_url": f"/api/v1/llm/process-status/{tenant_id}",
-    })
-
-
-@llm_bp.route("/process-status/<string:tenant_id>", methods=["GET"])
-@limiter.limit("30 per minute")
-@login_required
-def process_status(tenant_id):
-    """
-    GET /api/v1/llm/process-status/<tenant_id>
-
-    Returns current processing status + live log for the frontend.
-    Supports ?since=<iso_timestamp> to only return new log entries.
-    """
-    try:
-        _validate_tenant_access(tenant_id)
-    except Exception:
-        pass
-
-    since = request.args.get("since")
-
-    # Check in-memory first (most current)
-    with _jobs_lock:
-        job = _active_jobs.get(tenant_id)
-
-    # Fall back to ConfigStore (persisted across restarts)
-    if not job:
+    if scan_id:
         try:
-            from app.models import ConfigStore
-            record = ConfigStore.find(f"process_log_{tenant_id}")
+            from app.masri.telivy_routes import _get_telivy_client
+            client = _get_telivy_client()
+
+            if scan_type == "scan":
+                try:
+                    findings = client.get_external_scan_findings(scan_id)
+                    if findings:
+                        telivy_raw["findings"] = findings[:30] if isinstance(findings, list) else []
+                except Exception:
+                    pass
+                try:
+                    scan_detail = client.get_external_scan(scan_id)
+                    if scan_detail:
+                        telivy_raw["scan"] = scan_detail
+                except Exception:
+                    pass
+            elif scan_type == "assessment":
+                try:
+                    assessment = client.get_risk_assessment(scan_id)
+                    if assessment:
+                        telivy_raw["assessment"] = assessment
+                except Exception:
+                    pass
+
+            if telivy_raw:
+                integration_data["telivy"] = telivy_raw
+        except Exception as e:
+            integration_data["telivy_error"] = str(e)
+
+    # Store raw data at TENANT level so projects can use it later
+    if integration_data and "telivy" in integration_data:
+        try:
+            existing = {}
+            record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
             if record and record.value:
-                job = _json.loads(record.value)
+                try:
+                    existing = json.loads(record.value)
+                except Exception:
+                    pass
+            existing["telivy"] = integration_data["telivy"]
+            existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+            ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
         except Exception:
             pass
 
-    if not job:
-        return jsonify({"status": "idle", "log": [], "result": {}})
+    # Find projects — OK if none exist (data already stored at tenant level)
+    projects = db.session.execute(
+        db.select(Project).filter_by(tenant_id=tenant_id)
+    ).scalars().all()
 
-    log = job.get("log", [])
+    if not projects:
+        has_data = bool(integration_data.get("telivy"))
+        return jsonify({
+            "success": has_data, "controls_mapped": 0, "risks_added": 0,
+            "data_stored": has_data,
+            "message": "Data saved to client." if has_data else "No data pulled.",
+            "data_sources": list(integration_data.keys()),
+        })
 
-    # Filter by timestamp if requested
-    if since:
-        log = [entry for entry in log if entry.get("ts", "") > since]
+    if not integration_data or "telivy" not in integration_data:
+        return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
+                        "message": "Could not pull data from Telivy.",
+                        "data_sources": list(integration_data.keys())})
+
+    # Step 2 + 3: For each project, map to controls and add risks
+    total_mapped = 0
+    total_risks = 0
+    llm_debug = None
+
+    # Check if LLM is available for intelligent mapping
+    llm_available = False
+    try:
+        from app.masri.llm_service import LLMService
+        llm_available = LLMService.is_enabled()
+    except Exception:
+        pass
+
+    for project in projects:
+        controls = []
+        for pc in project.controls.all():
+            ctrl = pc.control
+            if ctrl:
+                controls.append({
+                    "project_control_id": pc.id,
+                    "ref_code": ctrl.ref_code or "",
+                    "name": ctrl.name or "",
+                    "description": ctrl.description or "",
+                    "review_status": pc.review_status or "not started",
+                })
+
+        if not controls:
+            continue
+
+        if llm_available:
+            try:
+                # Compress integration data into a concise summary for the LLM
+                data_summary = _compress_for_llm(integration_data)
+
+                fw_name = project.framework.name if project.framework else "Unknown"
+
+                # Build a clean list of controls with just what the LLM needs
+                ctrl_list = "\n".join([
+                    f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                    for c in controls[:30]
+                ])
+
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a compliance analyst. You will receive security scan results "
+                            "and a list of compliance controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "Analyze the scan data and:\n"
+                            "1. Map relevant findings to controls using the project_control_id\n"
+                            "2. Create risk entries for findings that don't match any control\n\n"
+                            "JSON format (NO other text before or after):\n"
+                            '{"mappings":[{"project_control_id":"ID","notes":"what was found","status":"compliant|partial|non_compliant"}],'
+                            '"risks":[{"title":"risk name","description":"details","severity":"critical|high|medium|low"}]}'
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Framework: {fw_name}\n\n"
+                            f"SCAN RESULTS:\n{data_summary}\n\n"
+                            f"CONTROLS:\n{ctrl_list}"
+                        ),
+                    },
+                ]
+
+                result = LLMService.chat(
+                    messages=messages,
+                    tenant_id=tenant_id,
+                    feature="auto_map",
+                    temperature=0.2,
+                    max_tokens=4096,
+                )
+
+                content = result["content"].strip()
+
+                # Strip markdown code blocks
+                if content.startswith("```"):
+                    parts = content.split("\n", 1)
+                    content = parts[1] if len(parts) > 1 else content
+                    content = content.rsplit("```", 1)[0].strip()
+
+                # Try to find JSON in the response even if there's extra text
+                llm_debug = {"raw_length": len(content), "preview": content[:300]}
+                parsed = None
+                try:
+                    parsed = json.loads(content)
+                except (json.JSONDecodeError, ValueError):
+                    # Try to extract JSON from mixed text
+                    import re
+                    json_match = re.search(r'\{[^{}]*"mappings"[^{}]*\[.*?\].*?"risks"[^{}]*\[.*?\].*?\}', content, re.DOTALL)
+                    if json_match:
+                        try:
+                            parsed = json.loads(json_match.group())
+                        except Exception:
+                            pass
+                    if parsed is None:
+                        # Last resort: look for any JSON object
+                        brace_start = content.find("{")
+                        brace_end = content.rfind("}")
+                        if brace_start >= 0 and brace_end > brace_start:
+                            try:
+                                parsed = json.loads(content[brace_start:brace_end+1])
+                            except Exception:
+                                pass
+
+                if parsed is None:
+                    logger.warning("Auto-process: could not parse LLM response: %s", content[:300])
+                    llm_debug["parse_error"] = True
+                    parsed = {"mappings": [], "risks": []}
+                else:
+                    llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
+                    llm_debug["parsed_risks"] = len(parsed.get("risks", []))
+
+                # Apply control mappings (add notes)
+                for m in parsed.get("mappings", []):
+                    try:
+                        pc_id = m.get("project_control_id")
+                        notes = m.get("notes", "")
+                        if pc_id and notes:
+                            from app.models import ProjectControl
+                            pc = db.session.get(ProjectControl, pc_id)
+                            if pc:
+                                existing = pc.notes or ""
+                                pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
+                                total_mapped += 1
+                    except Exception:
+                        pass
+
+                # Add risks to risk register
+                for r in parsed.get("risks", []):
+                    try:
+                        title = r.get("title", "")
+                        if title:
+                            risk = RiskRegister(
+                                title=title,
+                                description=r.get("description", ""),
+                                tenant_id=tenant_id,
+                            )
+                            db.session.add(risk)
+                            total_risks += 1
+                    except Exception:
+                        pass
+
+                db.session.commit()
+            except Exception as e:
+                logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
+        else:
+            # No LLM — just add raw data as notes to the first control
+            try:
+                if controls and integration_data:
+                    import json
+                    from app.models import ProjectControl
+                    pc = db.session.get(ProjectControl, controls[0]["project_control_id"])
+                    if pc:
+                        pc.notes = (pc.notes or "") + f"\n\n[Integration Data]\n{json.dumps(integration_data, indent=2, default=str)[:500]}"
+                        total_mapped += 1
+                        db.session.commit()
+            except Exception:
+                pass
 
     return jsonify({
-        "status": job.get("status", "idle"),
-        "started": job.get("started"),
-        "log": log,
-        "result": job.get("result", {}),
-        "total_log_entries": len(job.get("log", [])),
+        "success": total_mapped > 0 or total_risks > 0,
+        "controls_mapped": total_mapped,
+        "risks_added": total_risks,
+        "projects_processed": len(projects),
+        "llm_available": llm_available,
+        "data_sources": list(integration_data.keys()) if integration_data else [],
+        "llm_debug": llm_debug,
     })
 
 
 def _compress_for_llm(data: dict) -> str:
-    """Compress integration data into a structured, LLM-friendly summary.
+    """Compress integration data into a concise text summary for the LLM.
 
-    Groups Telivy findings by severity and extracts compliance-relevant details
-    (category, CVE, remediation hints). Entra data is formatted as posture signals.
+    Instead of dumping raw JSON (which wastes tokens), extract the key
+    findings and present them as readable bullet points.
     """
-    sections = []
+    lines = []
 
-    # ── Telivy scan/assessment data ───────────────────────────────────
+    # Telivy scan data
     telivy = data.get("telivy", {})
     if telivy:
         scan = telivy.get("scan", {})
         assessment = telivy.get("assessment", {})
         findings = telivy.get("findings", [])
 
-        # Org overview
-        details = (scan or assessment or {}).get("assessmentDetails", {})
-        if details:
-            sections.append(
-                f"ORGANIZATION: {details.get('organization_name', 'Unknown')} "
-                f"({details.get('domain_prim', 'Unknown')})"
-            )
-
         if scan:
-            sections.append(f"Security Score: {scan.get('securityScore', 'N/A')}")
+            details = scan.get("assessmentDetails", {})
+            lines.append(f"Organization: {details.get('organization_name', 'Unknown')}")
+            lines.append(f"Domain: {details.get('domain_prim', 'Unknown')}")
+            lines.append(f"Security Score: {scan.get('securityScore', 'N/A')}")
+            lines.append(f"Scan Status: {scan.get('scanStatus', 'Unknown')}")
 
         if assessment:
+            details = assessment.get("assessmentDetails", {})
+            lines.append(f"Organization: {details.get('organization_name', 'Unknown')}")
+            lines.append(f"Domain: {details.get('domain_prim', 'Unknown')}")
+            lines.append(f"Assessment Status: {assessment.get('scanStatus', 'Unknown')}")
+            # Extract executive summary scores
             exec_sum = assessment.get("executiveSummary", {})
             if exec_sum:
-                scores = []
-                for cat, val in exec_sum.items():
-                    if isinstance(val, dict) and val.get("securityScore"):
-                        scores.append(f"{cat}={val['securityScore']}")
-                if scores:
-                    sections.append(f"Assessment Scores: {', '.join(scores)}")
+                for category, scores in exec_sum.items():
+                    if isinstance(scores, dict) and scores.get("securityScore"):
+                        lines.append(f"  {category}: Score {scores['securityScore']}")
 
-        # Findings grouped by severity for cleaner LLM analysis
         if findings:
-            by_severity = {"critical": [], "high": [], "medium": [], "low": [], "info": [], "other": []}
-            for f in findings:
-                if not isinstance(f, dict):
-                    continue
-                sev = (f.get("severity") or f.get("riskLevel") or "other").lower()
-                bucket = sev if sev in by_severity else "other"
-                name = f.get("name") or f.get("slug") or f.get("title") or "Unknown"
-                desc = (f.get("description") or f.get("details") or "")[:120]
-                category = f.get("category") or f.get("type") or ""
-                cve = f.get("cve") or f.get("cveId") or ""
-                remediation = (f.get("remediation") or f.get("recommendation") or "")[:100]
-                entry = name
-                if category:
-                    entry = f"[{category}] {entry}"
-                if desc:
-                    entry += f": {desc}"
-                if cve:
-                    entry += f" (CVE: {cve})"
-                if remediation:
-                    entry += f" | Fix: {remediation}"
-                by_severity[bucket].append(entry)
+            lines.append(f"\nFindings ({len(findings)}):")
+            for f in findings[:20]:
+                if isinstance(f, dict):
+                    name = f.get("name", f.get("slug", f.get("title", "Unknown")))
+                    severity = f.get("severity", f.get("riskLevel", ""))
+                    desc = f.get("description", f.get("details", ""))[:150]
+                    lines.append(f"- [{severity}] {name}: {desc}")
+                elif isinstance(f, str):
+                    lines.append(f"- {f[:150]}")
 
-            total = sum(len(v) for v in by_severity.values())
-            sections.append(f"\nSECURITY FINDINGS ({total} total):")
+    # Entra data
+    entra = data.get("entra_compliance", {})
+    if entra:
+        lines.append(f"\nEntra ID Compliance Score: {entra.get('overall_score', 'N/A')}/100")
+        for rec in entra.get("recommendations", [])[:5]:
+            lines.append(f"- {rec}")
 
-            for sev in ["critical", "high", "medium", "low", "info"]:
-                items = by_severity[sev]
-                if items:
-                    sections.append(f"\n[{sev.upper()}] ({len(items)}):")
-                    for item in items[:15]:
-                        sections.append(f"  - {item}")
-                    if len(items) > 15:
-                        sections.append(f"  ... and {len(items) - 15} more {sev} findings")
-
-    # ── Entra ID posture signals ──────────────────────────────────────
-    entra = data.get("entra_compliance") or {}
-    entra_container = data.get("entra", {})
-    if not entra and isinstance(entra_container, dict):
-        entra = entra_container.get("compliance", {})
-
-    if entra or entra_container:
-        sections.append("\nIDENTITY & ACCESS (Entra ID):")
-        if entra:
-            sections.append(f"  Compliance Score: {entra.get('overall_score', 'N/A')}/100")
-            for finding in entra.get("findings", []):
-                if isinstance(finding, dict):
-                    cat = finding.get("category", "")
-                    sections.append(f"  - {cat}: {_json.dumps({k: v for k, v in finding.items() if k != 'category'}, default=str)[:120]}")
-            for rec in entra.get("recommendations", [])[:5]:
-                sections.append(f"  Recommendation: {rec}")
-
-        mfa_data = entra_container.get("mfa") if isinstance(entra_container, dict) else None
-        if isinstance(mfa_data, list) and mfa_data:
-            total = len(mfa_data)
-            mfa_on = sum(1 for u in mfa_data if u.get("mfa_registered"))
-            rate = int(mfa_on / total * 100) if total else 0
-            sections.append(f"  MFA: {mfa_on}/{total} users ({rate}%)")
-            if rate < 100:
-                no_mfa = [u.get("display_name", "?") for u in mfa_data if not u.get("mfa_registered")][:5]
-                sections.append(f"  Users without MFA: {', '.join(no_mfa)}")
-
-        users_data = entra_container.get("users") if isinstance(entra_container, dict) else None
-        if isinstance(users_data, dict) and users_data.get("count"):
-            sections.append(f"  Total Users: {users_data['count']}")
-
-    # ── Existing risks ────────────────────────────────────────────────
+    # Risk register
     risks = data.get("risk_register", {})
-    if risks and risks.get("count"):
-        sections.append(f"\nEXISTING RISKS ({risks['count']}):")
+    if risks:
+        lines.append(f"\nExisting Risks ({risks.get('count', 0)}):")
         for r in risks.get("risks", [])[:5]:
             if isinstance(r, dict):
-                sections.append(f"  - [{r.get('risk', 'unknown')}] {r.get('title', 'Unknown')}: {r.get('description', '')[:80]}")
+                lines.append(f"- {r.get('title', 'Unknown')}: {r.get('description', '')[:100]}")
 
-    result = "\n".join(sections)
-    # Hard cap to stay within token limits
-    if len(result) > 8000:
-        result = result[:8000] + "\n... (data truncated)"
+    result = "\n".join(lines)
+    # Hard cap at 4000 chars to stay within token limits
+    if len(result) > 4000:
+        result = result[:4000] + "\n... (data truncated)"
     return result if result.strip() else "No scan data available."
 
 
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
-    import json
     data = {}
 
     # Entra ID
@@ -1503,9 +1084,9 @@ def _gather_integration_data(tenant_id: str) -> dict:
             db.select(SettingsEntra).filter_by(tenant_id=None)
         ).scalars().first()
         if entra and entra.is_fully_configured():
-            from app.masri.entra_integration import EntraIntegration
+            from app.masri.entra_integration import EntraClient
             creds = entra.get_credentials()
-            client = EntraIntegration(
+            client = EntraClient(
                 tenant_id=creds["entra_tenant_id"],
                 client_id=creds["client_id"],
                 client_secret=creds["client_secret"],
@@ -1596,7 +1177,7 @@ def _gather_integration_data(tenant_id: str) -> dict:
                 all_findings = []
                 for scan_id in list(mapped_ids)[:3]:
                     try:
-                        findings = client.get_external_scan_findings(scan_id)
+                        findings = client.get_scan_findings(scan_id)
                         if findings:
                             all_findings.extend(findings[:10] if isinstance(findings, list) else [])
                     except Exception:
@@ -1624,61 +1205,6 @@ def _gather_integration_data(tenant_id: str) -> dict:
             }
     except Exception as e:
         logger.debug("Risk data collection skipped: %s", e)
-
-    # Merge in cached tenant-level data from ConfigStore (stored by auto-process)
-    try:
-        from app.models import ConfigStore
-        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
-        if record and record.value:
-            cached = json.loads(record.value)
-            # If we didn't get live findings, use cached telivy data
-            if "telivy_findings" not in data and cached.get("telivy"):
-                telivy_cached = cached["telivy"]
-                if telivy_cached.get("findings"):
-                    data["telivy_findings"] = {
-                        "count": len(telivy_cached["findings"]),
-                        "findings": telivy_cached["findings"][:20],
-                    }
-                if "telivy_scans" not in data and telivy_cached.get("scan"):
-                    scan = telivy_cached["scan"]
-                    details = scan.get("assessmentDetails", {})
-                    data["telivy_scans"] = {
-                        "count": 1,
-                        "scans": [{
-                            "id": scan.get("id", ""),
-                            "org": details.get("organization_name", "Unknown"),
-                            "score": scan.get("securityScore"),
-                            "status": scan.get("scanStatus"),
-                            "type": "external_scan",
-                            "domain": details.get("domain_prim"),
-                        }],
-                    }
-                if "telivy_scans" not in data and telivy_cached.get("assessment"):
-                    assessment = telivy_cached["assessment"]
-                    details = assessment.get("assessmentDetails", {})
-                    data["telivy_scans"] = {
-                        "count": 1,
-                        "scans": [{
-                            "id": assessment.get("id", ""),
-                            "org": details.get("organization_name", "Unknown"),
-                            "score": assessment.get("securityScore"),
-                            "status": assessment.get("scanStatus"),
-                            "type": "risk_assessment",
-                            "domain": details.get("domain_prim"),
-                        }],
-                    }
-            # Entra cached data
-            if "entra_compliance" not in data and cached.get("entra"):
-                entra_cached = cached["entra"]
-                if entra_cached.get("compliance"):
-                    data["entra_compliance"] = entra_cached["compliance"]
-                if "entra_users" not in data and entra_cached.get("users"):
-                    data["entra_users"] = entra_cached["users"]
-                if "entra_mfa" not in data and entra_cached.get("mfa"):
-                    data["entra_mfa"] = entra_cached["mfa"]
-            data["_cached_at"] = cached.get("_updated")
-    except Exception as e:
-        logger.debug("ConfigStore cached data read failed: %s", e)
 
     if not data:
         data["note"] = "No integration data available. Configure Entra ID or Telivy in Integrations."
