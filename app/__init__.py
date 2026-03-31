@@ -46,7 +46,6 @@ def create_app(config_name="default"):
         ("load_smtp", _load_smtp_from_db),
         ("boot_stamp", _write_boot_stamp),
         ("db_columns", _ensure_db_columns),
-        ("fix_progress", _fix_mapped_control_progress),
     ]:
         try:
             fn(app)

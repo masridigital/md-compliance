@@ -1018,6 +1018,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                 total_risks += 1
                         except Exception:
                             pass
+                    # Sync ALL subcontrol progress for this project
+                    # (catches controls mapped in previous runs with stale progress)
+                    _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
                     db.session.commit()
                 except Exception as e:
                     logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
@@ -1103,6 +1106,20 @@ def auto_process_status(tenant_id):
     except Exception:
         pass
     return jsonify({"status": "processing"})
+
+
+def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
+    """Sync subcontrol.implemented for all controls in a project based on review_status."""
+    _IMPL = {"complete": 100, "ready for auditor": 50, "infosec action": 0}
+    try:
+        for pc in project.controls.all():
+            impl_pct = _IMPL.get(pc.review_status, 0)
+            if impl_pct > 0:
+                for sc in pc.subcontrols.all():
+                    if sc.is_applicable and (sc.implemented or 0) < impl_pct:
+                        sc.implemented = impl_pct
+    except Exception:
+        pass
 
 
 def _compress_for_llm(data: dict) -> str:
