@@ -1359,6 +1359,69 @@
 						</h3>
 					  </div>
 					</div>
+
+					<!-- ═══ AI Actions Bar ═══ -->
+					<div class="col-span-8 flex items-center gap-3 bg-base-200 rounded-lg p-3 border border-base-300">
+						<i class="ti ti-brain text-xl text-primary"></i>
+						<span class="text-sm font-semibold">AI Assistant</span>
+						<div class="flex gap-2 ml-auto">
+							<button class="btn btn-sm btn-primary gap-1" @click="runAutoMap()" :disabled="autoMapRunning">
+								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
+								<i class="ti ti-refresh" x-show="!autoMapRunning"></i>
+								Auto-Map
+							</button>
+							<button class="btn btn-sm btn-secondary gap-1" @click="runAssistGaps()" :disabled="assistGapsRunning">
+								<span class="loading loading-spinner loading-xs" x-show="assistGapsRunning"></span>
+								<i class="ti ti-bulb" x-show="!assistGapsRunning"></i>
+								Suggest Fixes
+							</button>
+						</div>
+					</div>
+
+					<!-- ═══ AI Recommendations (shows after Suggest Fixes) ═══ -->
+					<div class="col-span-8" x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0" x-cloak id="assist-gaps-results-top">
+						<div class="card bg-base-200 border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex justify-between items-center mb-3">
+									<div class="flex items-center gap-2">
+										<i class="ti ti-bulb text-warning"></i>
+										<span class="font-semibold text-sm">
+											<span x-text="assistGapsResults?.recommendations?.length || 0"></span> Recommendations
+										</span>
+									</div>
+									<button class="btn btn-xs btn-success gap-1" @click="addAllRecsToRiskRegister()">
+										<i class="ti ti-alert-triangle"></i> Add All as Risks
+									</button>
+								</div>
+								<div class="max-h-[28rem] overflow-y-auto space-y-2">
+									<template x-for="(r, idx) in (assistGapsResults?.recommendations || [])" :key="'rec-'+idx">
+										<div class="bg-base-300 rounded-lg p-3">
+											<div class="flex items-center justify-between mb-1">
+												<div class="flex items-center gap-2">
+													<span class="badge badge-xs" :class="{'badge-error': r.priority === 'high', 'badge-warning': r.priority === 'medium', 'badge-info': r.priority === 'low'}" x-text="r.priority"></span>
+													<span class="text-xs font-mono opacity-60" x-text="r.ref_code || r.project_control_id"></span>
+													<span class="badge badge-xs badge-ghost" x-text="r.estimated_effort"></span>
+												</div>
+												<button class="btn btn-xs btn-ghost gap-1" @click="addRecToRiskRegister(r)" x-show="!r._added">
+													<i class="ti ti-alert-triangle text-warning"></i> Add Risk
+												</button>
+												<span x-show="r._added" class="text-xs text-success"><i class="ti ti-check"></i> Added</span>
+											</div>
+											<p class="text-xs font-medium" x-text="r.recommendation"></p>
+											<p class="text-xs opacity-60 mt-1"><i class="ti ti-clipboard-check mr-1"></i><strong>Evidence:</strong> <span x-text="r.evidence_suggestion"></span></p>
+											<div x-show="r.policy_needed" class="text-xs text-warning mt-1">
+												<i class="ti ti-file-text mr-1"></i> Policy needed: <span x-text="r.template_suggestion"></span>
+											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="col-span-8" x-show="aiError" x-cloak>
+						<div class="text-xs text-error p-2" x-text="aiError"></div>
+					</div>
+
 					<div class="col-span-2 card border border-base-200 shadow-md bg-base-200 mb-20">
 						<div class="card-body text-sm">
 							<div class="flex flex-row mb-4">
@@ -4847,9 +4910,9 @@ function project(){
 				this.assistGapsResults = await resp.json();
 				const count = this.assistGapsResults.recommendations ? this.assistGapsResults.recommendations.length : 0;
 				toast(`Found ${count} recommendations for ${this.assistGapsResults.total_gaps || 0} gaps`, 'success');
-				// Auto-scroll to recommendations panel
+				// Auto-scroll to recommendations panel (use the top one if visible)
 				this.$nextTick(() => {
-					const el = document.getElementById('assist-gaps-results');
+					const el = document.getElementById('assist-gaps-results-top') || document.getElementById('assist-gaps-results');
 					if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 				});
 			} catch (e) {

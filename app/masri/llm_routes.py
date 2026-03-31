@@ -972,7 +972,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                     _IMPL_MAP = {
                         "compliant": 100, "partial": 50, "non_compliant": 25,
                     }
-                    from app.models import ProjectSubControl
+                    from app.models import ProjectSubControl, ProjectEvidence, EvidenceAssociation
                     for m in all_mappings:
                         try:
                             pc_id = m.get("project_control_id")
@@ -986,12 +986,51 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                     new_status = _STATUS_MAP.get(llm_status)
                                     if new_status and pc.review_status in ("infosec action", "new", None, ""):
                                         pc.review_status = new_status
-                                    # Update subcontrol progress for the progress bar
+                                    # Update subcontrol progress
                                     impl_pct = _IMPL_MAP.get(llm_status, 0)
                                     if impl_pct > 0:
                                         for sc in pc.subcontrols.all():
                                             if sc.is_applicable and (sc.implemented or 0) < impl_pct:
                                                 sc.implemented = impl_pct
+
+                                    # Auto-generate evidence from the finding
+                                    ctrl = pc.control
+                                    ref_code = ctrl.ref_code if ctrl else pc_id
+                                    ev_name = f"[Auto] {ref_code} - Integration Scan Evidence"
+                                    # Check if evidence already exists for this control
+                                    existing_ev = db.session.execute(
+                                        db.select(ProjectEvidence).filter_by(
+                                            name=ev_name, project_id=project.id)
+                                    ).scalars().first()
+                                    if not existing_ev:
+                                        try:
+                                            ev = ProjectEvidence(
+                                                name=ev_name,
+                                                description=(
+                                                    f"Auto-generated from integration scan data.\n\n"
+                                                    f"Status: {llm_status}\n"
+                                                    f"Finding: {notes}\n\n"
+                                                    f"Source: Telivy Security Scan\n"
+                                                    f"Action needed: {'None — control is compliant' if llm_status == 'compliant' else 'Review finding and upload supporting screenshot/document'}"
+                                                ),
+                                                content=notes,
+                                                group="integration_scan",
+                                                project_id=project.id,
+                                                tenant_id=tenant_id,
+                                            )
+                                            db.session.add(ev)
+                                            db.session.flush()  # Get ev.id
+                                            # Link to all applicable subcontrols
+                                            for sc in pc.subcontrols.all():
+                                                if sc.is_applicable:
+                                                    assoc = EvidenceAssociation(
+                                                        control_id=sc.id,
+                                                        evidence_id=ev.id,
+                                                    )
+                                                    db.session.add(assoc)
+                                        except Exception:
+                                            pass  # Duplicate name or other DB issue
+
                                     total_mapped += 1
                         except Exception:
                             pass
