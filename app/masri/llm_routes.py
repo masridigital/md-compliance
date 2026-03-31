@@ -681,6 +681,9 @@ def get_integration_data(project_id):
             "items": raw["risk_register"].get("risks", [])[:10],
         }
 
+    if raw.get("_cached_at"):
+        result["_cached_at"] = raw["_cached_at"]
+
     return jsonify(result)
 
 
@@ -796,8 +799,44 @@ def auto_process():
         except Exception as e:
             integration_data["telivy_error"] = str(e)
 
+    # Also pull Entra ID data if configured
+    try:
+        from app.masri.new_models import SettingsEntra
+        entra_cfg = db.session.execute(
+            db.select(SettingsEntra).filter_by(tenant_id=None)
+        ).scalars().first()
+        if entra_cfg and entra_cfg.is_fully_configured():
+            from app.masri.entra_integration import EntraIntegration
+            creds = entra_cfg.get_credentials()
+            entra_client = EntraIntegration(
+                tenant_id=creds["entra_tenant_id"],
+                client_id=creds["client_id"],
+                client_secret=creds["client_secret"],
+            )
+            entra_raw = {}
+            try:
+                users = entra_client.list_users()
+                entra_raw["users"] = {"count": len(users), "sample": users[:5]}
+            except Exception:
+                pass
+            try:
+                mfa = entra_client.get_mfa_status()
+                entra_raw["mfa"] = mfa
+            except Exception:
+                pass
+            try:
+                compliance = entra_client.assess_compliance()
+                entra_raw["compliance"] = compliance
+            except Exception:
+                pass
+            if entra_raw:
+                integration_data["entra"] = entra_raw
+    except Exception as e:
+        logger.debug("Entra data collection in auto-process skipped: %s", e)
+
     # Store raw data at TENANT level so projects can use it later
-    if integration_data and "telivy" in integration_data:
+    has_any_data = bool(integration_data.get("telivy") or integration_data.get("entra"))
+    if has_any_data:
         try:
             existing = {}
             record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
@@ -806,7 +845,10 @@ def auto_process():
                     existing = json.loads(record.value)
                 except Exception:
                     pass
-            existing["telivy"] = integration_data["telivy"]
+            if integration_data.get("telivy"):
+                existing["telivy"] = integration_data["telivy"]
+            if integration_data.get("entra"):
+                existing["entra"] = integration_data["entra"]
             existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
             ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
         except Exception:
@@ -818,18 +860,17 @@ def auto_process():
     ).scalars().all()
 
     if not projects:
-        has_data = bool(integration_data.get("telivy"))
         return jsonify({
-            "success": has_data, "controls_mapped": 0, "risks_added": 0,
-            "data_stored": has_data,
-            "message": "Data saved to client." if has_data else "No data pulled.",
+            "success": has_any_data, "controls_mapped": 0, "risks_added": 0,
+            "data_stored": has_any_data,
+            "message": "Data saved to client." if has_any_data else "No data pulled.",
             "data_sources": list(integration_data.keys()),
         })
 
-    if not integration_data or "telivy" not in integration_data:
+    if not integration_data:
         return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
-                        "message": "Could not pull data from Telivy.",
-                        "data_sources": list(integration_data.keys())})
+                        "message": "No integration data available.",
+                        "data_sources": []})
 
     # Step 2 + 3: For each project, map to controls and add risks
     total_mapped = 0
@@ -919,23 +960,35 @@ def auto_process():
                 try:
                     parsed = json.loads(content)
                 except (json.JSONDecodeError, ValueError):
-                    # Try to extract JSON from mixed text
-                    import re
-                    json_match = re.search(r'\{[^{}]*"mappings"[^{}]*\[.*?\].*?"risks"[^{}]*\[.*?\].*?\}', content, re.DOTALL)
-                    if json_match:
-                        try:
-                            parsed = json.loads(json_match.group())
-                        except Exception:
-                            pass
-                    if parsed is None:
-                        # Last resort: look for any JSON object
-                        brace_start = content.find("{")
-                        brace_end = content.rfind("}")
-                        if brace_start >= 0 and brace_end > brace_start:
-                            try:
-                                parsed = json.loads(content[brace_start:brace_end+1])
-                            except Exception:
-                                pass
+                    # Find the outermost JSON object using brace matching
+                    brace_start = content.find("{")
+                    if brace_start >= 0:
+                        depth = 0
+                        in_string = False
+                        escape_next = False
+                        for i in range(brace_start, len(content)):
+                            ch = content[i]
+                            if escape_next:
+                                escape_next = False
+                                continue
+                            if ch == "\\":
+                                escape_next = True
+                                continue
+                            if ch == '"' and not escape_next:
+                                in_string = not in_string
+                                continue
+                            if in_string:
+                                continue
+                            if ch == "{":
+                                depth += 1
+                            elif ch == "}":
+                                depth -= 1
+                                if depth == 0:
+                                    try:
+                                        parsed = json.loads(content[brace_start:i+1])
+                                    except Exception:
+                                        pass
+                                    break
 
                 if parsed is None:
                     logger.warning("Auto-process: could not parse LLM response: %s", content[:300])
@@ -945,7 +998,13 @@ def auto_process():
                     llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
                     llm_debug["parsed_risks"] = len(parsed.get("risks", []))
 
-                # Apply control mappings (add notes)
+                # Apply control mappings (add notes + update status)
+                _STATUS_MAP = {
+                    "compliant": "complete",
+                    "partial": "pending_review",
+                    "non_compliant": "info_required",
+                    "unknown": "new",
+                }
                 for m in parsed.get("mappings", []):
                     try:
                         pc_id = m.get("project_control_id")
@@ -956,18 +1015,34 @@ def auto_process():
                             if pc:
                                 existing = pc.notes or ""
                                 pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
+                                # Update review status based on LLM assessment
+                                llm_status = m.get("status", "").lower()
+                                new_status = _STATUS_MAP.get(llm_status)
+                                if new_status and pc.review_status in ("new", None):
+                                    pc.review_status = new_status
                                 total_mapped += 1
                     except Exception:
                         pass
 
                 # Add risks to risk register
+                _SEVERITY_MAP = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
                 for r in parsed.get("risks", []):
                     try:
                         title = r.get("title", "")
                         if title:
+                            # Check for duplicate by title_hash
+                            title_hash = RiskRegister._compute_title_hash(title, tenant_id)
+                            existing_risk = db.session.execute(
+                                db.select(RiskRegister).filter_by(title_hash=title_hash, tenant_id=tenant_id)
+                            ).scalars().first()
+                            if existing_risk:
+                                continue  # Skip duplicates
+                            severity = _SEVERITY_MAP.get(r.get("severity", "").lower(), "unknown")
                             risk = RiskRegister(
                                 title=title,
+                                title_hash=title_hash,
                                 description=r.get("description", ""),
+                                risk=severity,
                                 tenant_id=tenant_id,
                             )
                             db.session.add(risk)
@@ -1048,12 +1123,26 @@ def _compress_for_llm(data: dict) -> str:
                 elif isinstance(f, str):
                     lines.append(f"- {f[:150]}")
 
-    # Entra data
+    # Entra data — handle both auto-process format (data["entra"]["compliance"])
+    # and _gather_integration_data format (data["entra_compliance"])
     entra = data.get("entra_compliance", {})
+    entra_container = data.get("entra", {})
+    if not entra and isinstance(entra_container, dict):
+        entra = entra_container.get("compliance", {})
     if entra:
         lines.append(f"\nEntra ID Compliance Score: {entra.get('overall_score', 'N/A')}/100")
         for rec in entra.get("recommendations", [])[:5]:
             lines.append(f"- {rec}")
+    # Include MFA data if available
+    mfa_data = entra_container.get("mfa") if isinstance(entra_container, dict) else None
+    if isinstance(mfa_data, list) and mfa_data:
+        total = len(mfa_data)
+        mfa_on = sum(1 for u in mfa_data if u.get("mfa_registered"))
+        lines.append(f"\nMFA Status: {mfa_on}/{total} users have MFA enabled ({int(mfa_on/total*100) if total else 0}%)")
+    # Include user count
+    users_data = entra_container.get("users") if isinstance(entra_container, dict) else None
+    if isinstance(users_data, dict) and users_data.get("count"):
+        lines.append(f"Total Entra Users: {users_data['count']}")
 
     # Risk register
     risks = data.get("risk_register", {})
@@ -1084,9 +1173,9 @@ def _gather_integration_data(tenant_id: str) -> dict:
             db.select(SettingsEntra).filter_by(tenant_id=None)
         ).scalars().first()
         if entra and entra.is_fully_configured():
-            from app.masri.entra_integration import EntraClient
+            from app.masri.entra_integration import EntraIntegration
             creds = entra.get_credentials()
-            client = EntraClient(
+            client = EntraIntegration(
                 tenant_id=creds["entra_tenant_id"],
                 client_id=creds["client_id"],
                 client_secret=creds["client_secret"],
@@ -1177,7 +1266,7 @@ def _gather_integration_data(tenant_id: str) -> dict:
                 all_findings = []
                 for scan_id in list(mapped_ids)[:3]:
                     try:
-                        findings = client.get_scan_findings(scan_id)
+                        findings = client.get_external_scan_findings(scan_id)
                         if findings:
                             all_findings.extend(findings[:10] if isinstance(findings, list) else [])
                     except Exception:
@@ -1205,6 +1294,61 @@ def _gather_integration_data(tenant_id: str) -> dict:
             }
     except Exception as e:
         logger.debug("Risk data collection skipped: %s", e)
+
+    # Merge in cached tenant-level data from ConfigStore (stored by auto-process)
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if record and record.value:
+            cached = json.loads(record.value)
+            # If we didn't get live findings, use cached telivy data
+            if "telivy_findings" not in data and cached.get("telivy"):
+                telivy_cached = cached["telivy"]
+                if telivy_cached.get("findings"):
+                    data["telivy_findings"] = {
+                        "count": len(telivy_cached["findings"]),
+                        "findings": telivy_cached["findings"][:20],
+                    }
+                if "telivy_scans" not in data and telivy_cached.get("scan"):
+                    scan = telivy_cached["scan"]
+                    details = scan.get("assessmentDetails", {})
+                    data["telivy_scans"] = {
+                        "count": 1,
+                        "scans": [{
+                            "id": scan.get("id", ""),
+                            "org": details.get("organization_name", "Unknown"),
+                            "score": scan.get("securityScore"),
+                            "status": scan.get("scanStatus"),
+                            "type": "external_scan",
+                            "domain": details.get("domain_prim"),
+                        }],
+                    }
+                if "telivy_scans" not in data and telivy_cached.get("assessment"):
+                    assessment = telivy_cached["assessment"]
+                    details = assessment.get("assessmentDetails", {})
+                    data["telivy_scans"] = {
+                        "count": 1,
+                        "scans": [{
+                            "id": assessment.get("id", ""),
+                            "org": details.get("organization_name", "Unknown"),
+                            "score": assessment.get("securityScore"),
+                            "status": assessment.get("scanStatus"),
+                            "type": "risk_assessment",
+                            "domain": details.get("domain_prim"),
+                        }],
+                    }
+            # Entra cached data
+            if "entra_compliance" not in data and cached.get("entra"):
+                entra_cached = cached["entra"]
+                if entra_cached.get("compliance"):
+                    data["entra_compliance"] = entra_cached["compliance"]
+                if "entra_users" not in data and entra_cached.get("users"):
+                    data["entra_users"] = entra_cached["users"]
+                if "entra_mfa" not in data and entra_cached.get("mfa"):
+                    data["entra_mfa"] = entra_cached["mfa"]
+            data["_cached_at"] = cached.get("_updated")
+    except Exception as e:
+        logger.debug("ConfigStore cached data read failed: %s", e)
 
     if not data:
         data["note"] = "No integration data available. Configure Entra ID or Telivy in Integrations."
