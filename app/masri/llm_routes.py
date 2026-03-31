@@ -758,73 +758,77 @@ def auto_process():
         pass
 
     from app import db
-    from app.models import Project, RiskRegister
+    from app.models import Project, RiskRegister, ConfigStore
+    import json
 
-    # Find projects for this tenant
-    projects = db.session.execute(
-        db.select(Project).filter_by(tenant_id=tenant_id)
-    ).scalars().all()
-
-    if not projects:
-        return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
-                        "message": "No projects found for this tenant. Create a project first."})
-
-    # Step 1: Pull REAL data from Telivy for this specific scan/assessment
+    # Step 1: Pull data from Telivy
     integration_data = {}
     telivy_raw = {}
 
     if scan_id:
         try:
-            # Use the SAME client factory as the Telivy routes (test button uses this)
             from app.masri.telivy_routes import _get_telivy_client
-            try:
-                client = _get_telivy_client()
-            except RuntimeError as re:
-                return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
-                                "error": f"Telivy not configured: {re}",
-                                "message": "Save your Telivy API key in Integrations first."})
+            client = _get_telivy_client()
 
             if scan_type == "scan":
                 try:
                     findings = client.get_external_scan_findings(scan_id)
                     if findings:
                         telivy_raw["findings"] = findings[:30] if isinstance(findings, list) else []
-                except Exception as e:
-                    logger.debug("Could not get scan findings: %s", e)
+                except Exception:
+                    pass
                 try:
                     scan_detail = client.get_external_scan(scan_id)
                     if scan_detail:
                         telivy_raw["scan"] = scan_detail
-                except Exception as e:
-                    logger.debug("Could not get scan detail: %s", e)
-
+                except Exception:
+                    pass
             elif scan_type == "assessment":
                 try:
                     assessment = client.get_risk_assessment(scan_id)
                     if assessment:
                         telivy_raw["assessment"] = assessment
-                except Exception as e:
-                    logger.debug("Could not get assessment: %s", e)
+                except Exception:
+                    pass
 
             if telivy_raw:
                 integration_data["telivy"] = telivy_raw
-
         except Exception as e:
-            logger.warning("Telivy data pull failed: %s", e)
             integration_data["telivy_error"] = str(e)
 
-    # Also gather any other integration data
-    try:
-        other_data = _gather_integration_data(tenant_id)
-        for k, v in other_data.items():
-            if k not in integration_data:
-                integration_data[k] = v
-    except Exception:
-        pass
+    # Store raw data at TENANT level so projects can use it later
+    if integration_data and "telivy" in integration_data:
+        try:
+            existing = {}
+            record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+            if record and record.value:
+                try:
+                    existing = json.loads(record.value)
+                except Exception:
+                    pass
+            existing["telivy"] = integration_data["telivy"]
+            existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+            ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:50000])
+        except Exception:
+            pass
 
-    if not integration_data or all(k.startswith("_") or k == "note" for k in integration_data.keys()):
+    # Find projects — OK if none exist (data already stored at tenant level)
+    projects = db.session.execute(
+        db.select(Project).filter_by(tenant_id=tenant_id)
+    ).scalars().all()
+
+    if not projects:
+        has_data = bool(integration_data.get("telivy"))
+        return jsonify({
+            "success": has_data, "controls_mapped": 0, "risks_added": 0,
+            "data_stored": has_data,
+            "message": "Data saved to client." if has_data else "No data pulled.",
+            "data_sources": list(integration_data.keys()),
+        })
+
+    if not integration_data or "telivy" not in integration_data:
         return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
-                        "message": "Could not pull data from Telivy. Check your API key in Integrations.",
+                        "message": "Could not pull data from Telivy.",
                         "data_sources": list(integration_data.keys())})
 
     # Step 2 + 3: For each project, map to controls and add risks
