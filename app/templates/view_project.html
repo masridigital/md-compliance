@@ -2817,7 +2817,7 @@
 
 					<!-- Entra ID -->
 					<template x-if="intData.entra">
-						<div class="card bg-base-200 border border-base-300">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
 								<div class="flex items-center gap-2 mb-3">
 									<i class="ti ti-brand-azure text-xl text-info"></i>
@@ -2838,13 +2838,38 @@
 										<div class="text-xs opacity-50">Compliance Score</div>
 									</div>
 								</div>
+								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-3 gap-1">
+									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+									<span x-text="showPreview ? 'Hide Details' : 'Preview Data'"></span>
+								</button>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-2 space-y-2 max-h-64 overflow-y-auto">
+									<template x-if="intData.entra.user_list && intData.entra.user_list.length > 0">
+										<div>
+											<div class="text-xs font-semibold mb-1">Users (sample)</div>
+											<template x-for="u in intData.entra.user_list" :key="u.id">
+												<div class="text-xs bg-base-300 rounded p-1.5 mb-1 flex justify-between">
+													<span x-text="u.display_name || u.email"></span>
+													<span class="opacity-40" x-text="u.account_enabled ? 'Active' : 'Disabled'"></span>
+												</div>
+											</template>
+										</div>
+									</template>
+									<template x-if="intData.entra.recommendations && intData.entra.recommendations.length > 0">
+										<div>
+											<div class="text-xs font-semibold mb-1">Recommendations</div>
+											<template x-for="(r, i) in intData.entra.recommendations" :key="i">
+												<div class="text-xs bg-base-300 rounded p-1.5 mb-1"><i class="ti ti-alert-circle text-warning mr-1"></i><span x-text="r"></span></div>
+											</template>
+										</div>
+									</template>
+								</div>
 							</div>
 						</div>
 					</template>
 
 					<!-- Telivy -->
 					<template x-if="intData.telivy">
-						<div class="card bg-base-200 border border-base-300">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
 								<div class="flex items-center gap-2 mb-3">
 									<i class="ti ti-shield-search text-xl text-success"></i>
@@ -2865,16 +2890,34 @@
 								<template x-for="s in (intData.telivy.scan_details || [])" :key="s.id">
 									<div class="flex justify-between items-center text-xs bg-base-300 rounded p-2 mb-1">
 										<span class="font-medium" x-text="s.org || s.id"></span>
-										<span class="badge badge-xs" :class="{'badge-success': s.score === 'A', 'badge-warning': s.score === 'B' || s.score === 'C', 'badge-error': s.score === 'D' || s.score === 'F'}" x-text="'Score: ' + (s.score || 'N/A')"></span>
+										<div class="flex items-center gap-2">
+											<span class="opacity-40" x-text="s.status || ''"></span>
+											<span class="badge badge-xs" :class="{'badge-success': s.score === 'A', 'badge-warning': s.score === 'B' || s.score === 'C', 'badge-error': s.score === 'D' || s.score === 'F'}" x-text="'Score: ' + (s.score || 'N/A')"></span>
+										</div>
 									</div>
 								</template>
+								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.telivy.findings_list && intData.telivy.findings_list.length > 0">
+									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+									<span x-text="showPreview ? 'Hide Findings' : 'Preview Findings (' + (intData.telivy.findings_list || []).length + ')'"></span>
+								</button>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-64 overflow-y-auto space-y-1">
+									<template x-for="(f, i) in (intData.telivy.findings_list || [])" :key="i">
+										<div class="text-xs bg-base-300 rounded p-2">
+											<div class="flex justify-between items-center">
+												<span class="font-medium" x-text="f.name || f.slug || f.title || 'Finding'"></span>
+												<span class="badge badge-xs" :class="{'badge-error': f.severity === 'critical' || f.severity === 'high', 'badge-warning': f.severity === 'medium', 'badge-info': f.severity === 'low'}" x-text="f.severity || ''"></span>
+											</div>
+											<div x-show="f.description" class="opacity-50 mt-0.5" x-text="(f.description || '').substring(0, 120) + (f.description && f.description.length > 120 ? '...' : '')"></div>
+										</div>
+									</template>
+								</div>
 							</div>
 						</div>
 					</template>
 
 					<!-- Risk Register -->
 					<template x-if="intData.risks">
-						<div class="card bg-base-200 border border-base-300">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
 							<div class="card-body p-4">
 								<div class="flex items-center gap-2 mb-3">
 									<i class="ti ti-alert-triangle text-xl text-warning"></i>
@@ -2883,6 +2926,18 @@
 								<div class="bg-base-300 rounded-lg p-3 text-center">
 									<div class="text-xl font-bold" x-text="intData.risks.count || 0"></div>
 									<div class="text-xs opacity-50">Registered Risks</div>
+								</div>
+								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.risks.items && intData.risks.items.length > 0">
+									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+									<span x-text="showPreview ? 'Hide Risks' : 'Preview Risks'"></span>
+								</button>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-64 overflow-y-auto space-y-1">
+									<template x-for="(r, i) in (intData.risks.items || [])" :key="i">
+										<div class="text-xs bg-base-300 rounded p-2 flex justify-between items-center">
+											<span class="font-medium" x-text="r.title || r.name || 'Risk'"></span>
+											<span class="badge badge-xs" :class="{'badge-error': r.severity === 'critical' || r.severity === 'high', 'badge-warning': r.severity === 'medium', 'badge-info': r.severity === 'low'}" x-text="r.severity || r.impact || ''"></span>
+										</div>
+									</template>
 								</div>
 							</div>
 						</div>

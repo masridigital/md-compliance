@@ -639,16 +639,20 @@ def get_integration_data(project_id):
         entra = {}
         if raw.get("entra_users"):
             entra["users"] = raw["entra_users"].get("count", 0)
+            entra["user_list"] = raw["entra_users"].get("sample", [])[:10]
         if raw.get("entra_mfa"):
             mfa_list = raw["entra_mfa"]
             if isinstance(mfa_list, list):
                 total = len(mfa_list)
                 mfa_on = sum(1 for u in mfa_list if u.get("mfa_registered"))
                 entra["mfa_rate"] = f"{int(mfa_on/total*100)}%" if total else "N/A"
+                entra["mfa_details"] = mfa_list[:10]
             elif isinstance(mfa_list, dict):
                 entra["mfa_rate"] = mfa_list.get("mfa_rate", "N/A")
         if raw.get("entra_compliance"):
             entra["score"] = raw["entra_compliance"].get("overall_score", "N/A")
+            entra["recommendations"] = raw["entra_compliance"].get("recommendations", [])
+            entra["findings"] = raw["entra_compliance"].get("findings", [])
         result["entra"] = entra
 
     if raw.get("telivy_scans") or raw.get("telivy_findings"):
@@ -656,15 +660,19 @@ def get_integration_data(project_id):
         if raw.get("telivy_scans"):
             telivy["scans"] = raw["telivy_scans"].get("count", 0)
             telivy["scan_details"] = [
-                {"id": s.get("id"), "org": s.get("org"), "score": s.get("score")}
+                {"id": s.get("id"), "org": s.get("org"), "score": s.get("score"), "status": s.get("status")}
                 for s in raw["telivy_scans"].get("scans", [])
             ]
         if raw.get("telivy_findings"):
+            telivy["findings_list"] = raw["telivy_findings"].get("findings", [])[:20]
             telivy["findings"] = raw["telivy_findings"].get("count", 0)
         result["telivy"] = telivy
 
     if raw.get("risk_register"):
-        result["risks"] = {"count": raw["risk_register"].get("count", 0)}
+        result["risks"] = {
+            "count": raw["risk_register"].get("count", 0),
+            "items": raw["risk_register"].get("risks", [])[:10],
+        }
 
     return jsonify(result)
 
