@@ -46,6 +46,7 @@ def create_app(config_name="default"):
         ("load_smtp", _load_smtp_from_db),
         ("boot_stamp", _write_boot_stamp),
         ("db_columns", _ensure_db_columns),
+        ("fix_progress", _fix_mapped_control_progress),
     ]:
         try:
             fn(app)
@@ -228,6 +229,40 @@ def _load_smtp_from_db(app):
             mail.init_app(app)
     except Exception:
         pass  # DB may not be ready yet (first boot)
+
+
+def _fix_mapped_control_progress(app):
+    """One-time fix: update subcontrol.implemented for controls that have
+    been auto-mapped (have [Auto-Mapped] notes) but subcontrols are still at 0%.
+
+    Also updates controls with review_status 'complete' or 'ready for auditor'
+    that have 0% subcontrol progress.
+    """
+    try:
+        with app.app_context():
+            from app.models import ProjectControl, ProjectSubControl
+            # Find controls that were auto-mapped or have a done status
+            controls = db.session.execute(
+                db.select(ProjectControl).filter(
+                    (ProjectControl.review_status.in_(["complete", "ready for auditor"]))
+                )
+            ).scalars().all()
+
+            updated = 0
+            for pc in controls:
+                impl_pct = 100 if pc.review_status == "complete" else 50
+                for sc in pc.subcontrols.all():
+                    if sc.is_applicable and (sc.implemented or 0) < impl_pct:
+                        sc.implemented = impl_pct
+                        updated += 1
+            if updated:
+                db.session.commit()
+                app.logger.info("Fixed progress for %d subcontrols", updated)
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 def configure_masri(app):
