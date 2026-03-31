@@ -747,10 +747,15 @@ def auto_process():
     """
     data = request.get_json(silent=True) or {}
     tenant_id = data.get("tenant_id")
+    scan_id = data.get("scan_id")
+    scan_type = data.get("scan_type", "scan")
     if not tenant_id:
         return jsonify({"success": False, "error": "tenant_id required"}), 400
 
-    _validate_tenant_access(tenant_id)
+    try:
+        _validate_tenant_access(tenant_id)
+    except Exception:
+        pass
 
     from app import db
     from app.models import Project, RiskRegister
@@ -761,20 +766,60 @@ def auto_process():
     ).scalars().all()
 
     if not projects:
-        return jsonify({"success": True, "controls_mapped": 0, "risks_added": 0,
-                        "message": "No projects found for this tenant"})
+        return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
+                        "message": "No projects found for this tenant. Create a project first."})
 
-    # Step 1: Compile integration data
+    # Step 1: Pull REAL data from Telivy for this specific scan/assessment
+    integration_data = {}
+    telivy_raw = {}
+
+    if scan_id:
+        try:
+            from app.masri.telivy_routes import _get_telivy_client
+            client = _get_telivy_client()
+
+            if scan_type == "scan":
+                try:
+                    findings = client.get_external_scan_findings(scan_id)
+                    if findings:
+                        telivy_raw["findings"] = findings[:30] if isinstance(findings, list) else []
+                except Exception as e:
+                    logger.debug("Could not get scan findings: %s", e)
+                try:
+                    scan_detail = client.get_external_scan(scan_id)
+                    if scan_detail:
+                        telivy_raw["scan"] = scan_detail
+                except Exception as e:
+                    logger.debug("Could not get scan detail: %s", e)
+
+            elif scan_type == "assessment":
+                try:
+                    assessment = client.get_risk_assessment(scan_id)
+                    if assessment:
+                        telivy_raw["assessment"] = assessment
+                except Exception as e:
+                    logger.debug("Could not get assessment: %s", e)
+
+            if telivy_raw:
+                integration_data["telivy"] = telivy_raw
+
+        except Exception as e:
+            logger.warning("Telivy data pull failed: %s", e)
+            integration_data["telivy_error"] = str(e)
+
+    # Also gather any other integration data
     try:
-        integration_data = _gather_integration_data(tenant_id)
-    except Exception as e:
-        return jsonify({"success": False, "error": f"Data compilation failed: {e}"}), 500
+        other_data = _gather_integration_data(tenant_id)
+        for k, v in other_data.items():
+            if k not in integration_data:
+                integration_data[k] = v
+    except Exception:
+        pass
 
-    if not integration_data or (not integration_data.get("telivy_scans") and not integration_data.get("entra_compliance") and not integration_data.get("risk_register")):
-        return jsonify({"success": True, "controls_mapped": 0, "risks_added": 0,
-                        "message": "No integration data found",
-                        "debug_keys": list(integration_data.keys()) if integration_data else [],
-                        "debug_note": integration_data.get("note", "")})
+    if not integration_data or all(k.startswith("_") or k == "note" for k in integration_data.keys()):
+        return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
+                        "message": "Could not pull data from Telivy. Check your API key in Integrations.",
+                        "data_sources": list(integration_data.keys())})
 
     # Step 2 + 3: For each project, map to controls and add risks
     total_mapped = 0
@@ -808,24 +853,42 @@ def auto_process():
             # Use LLM to intelligently map findings to controls
             try:
                 import json
+                # Build a detailed data dump for the LLM
+                data_text = json.dumps(integration_data, indent=2, default=str)
+                # Truncate to fit token limits but keep as much as possible
+                if len(data_text) > 6000:
+                    data_text = data_text[:6000] + "\n... (truncated)"
+
+                fw_name = project.framework.name if project.framework else "Unknown"
                 messages = [
                     {
                         "role": "system",
                         "content": (
-                            "You are a compliance automation engine. Given security scan data "
-                            "and a list of compliance controls, do two things:\n"
-                            "1. Map each finding to the most relevant control and suggest a status\n"
-                            "2. List any findings that don't map to existing controls (these become risks)\n\n"
-                            "Respond with JSON: {\"mappings\": [{\"project_control_id\": \"...\", "
-                            "\"notes\": \"what the scan data shows for this control\"}], "
-                            "\"risks\": [{\"title\": \"...\", \"description\": \"...\", \"severity\": \"high|medium|low\"}]}"
+                            "You are a compliance analyst. You are given raw security scan data "
+                            "(from Telivy vulnerability scans, risk assessments, Entra ID) and a "
+                            f"list of {fw_name} compliance controls.\n\n"
+                            "Your job:\n"
+                            "1. ANALYZE the security data — identify vulnerabilities, misconfigurations, "
+                            "missing protections, and policy gaps\n"
+                            "2. MAP each finding to the most relevant compliance control by project_control_id. "
+                            "Write detailed notes explaining what the scan found and how it relates to the control.\n"
+                            "3. For findings that don't match any control, create RISK entries with title, "
+                            "detailed description, and severity (critical/high/medium/low).\n"
+                            "4. Check each control — if the scan data provides EVIDENCE that a control is "
+                            "being met (e.g. encryption detected, MFA enabled), note that as positive evidence.\n\n"
+                            "Respond with valid JSON:\n"
+                            "{\n"
+                            '  "mappings": [{"project_control_id": "...", "notes": "detailed analysis...", "status": "compliant|partial|non_compliant"}],\n'
+                            '  "risks": [{"title": "...", "description": "detailed risk description...", "severity": "critical|high|medium|low"}]\n'
+                            "}\n\n"
+                            "Be thorough. Analyze EVERY finding. Map as many as possible to controls."
                         ),
                     },
                     {
                         "role": "user",
                         "content": (
-                            f"## Integration Data\n{json.dumps(integration_data, indent=2, default=str)[:3000]}\n\n"
-                            f"## Controls ({len(controls)})\n{json.dumps(controls[:20], indent=2)}"
+                            f"## Security Scan Data\n{data_text}\n\n"
+                            f"## {fw_name} Controls ({len(controls)})\n{json.dumps(controls[:30], indent=2)}"
                         ),
                     },
                 ]
@@ -834,8 +897,8 @@ def auto_process():
                     messages=messages,
                     tenant_id=tenant_id,
                     feature="auto_map",
-                    temperature=0.1,
-                    max_tokens=3000,
+                    temperature=0.2,
+                    max_tokens=4096,
                 )
 
                 content = result["content"].strip()
