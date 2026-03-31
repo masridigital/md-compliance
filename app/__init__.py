@@ -20,7 +20,7 @@ import os as _os
 
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["2000 per day", "500 per hour"],
     storage_uri=_os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
 )
 
@@ -378,6 +378,15 @@ def configure_errors(app):
     @app.errorhandler(403)
     def not_authorized(e):
         return handle_error(e, "Unauthorized")
+
+    @app.errorhandler(429)
+    def rate_limit_error(e):
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "message": "Rate limit exceeded. Please wait a moment and try again.", "code": 429}), 429
+        try:
+            return render_template("layouts/errors/default.html", title="Rate Limited", description="Too many requests. Please wait a moment and try again."), 429
+        except Exception:
+            return "<h1>Rate Limited</h1><p>Too many requests. Please wait a moment and try again. <a href='/'>Go Home</a></p>", 429
 
     @app.errorhandler(500)
     def internal_error(e):
