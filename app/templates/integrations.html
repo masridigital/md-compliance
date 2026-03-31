@@ -371,7 +371,7 @@
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
                   <option value="azure_openai">Azure OpenAI</option>
-                  <option value="together">Together AI</option>
+                  <option value="together_ai">Together AI</option>
                 </select>
               </div>
               <div>
@@ -402,15 +402,11 @@
             <div x-show="llmSameModelForAll" class="mb-3">
               <label class="text-xs font-medium block mb-1">Default Model</label>
               <div class="flex gap-1 items-center">
-                <template x-if="llmModels.length > 0">
-                  <select class="select select-bordered select-sm w-full" x-model="llmForm.model_name" @change="llmFeatureModels = {}">
-                    <option value="">Select a model...</option>
-                    <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m"></option></template>
-                  </select>
-                </template>
-                <template x-if="llmModels.length === 0">
-                  <input type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o'" />
-                </template>
+                <select x-show="llmModels.length > 0" class="select select-bordered select-sm w-full" x-model="llmForm.model_name" @change="llmFeatureModels = {}">
+                  <option value="">Select a model...</option>
+                  <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
+                </select>
+                <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-sm w-full" x-model="llmForm.model_name" :placeholder="llmForm.provider === 'anthropic' ? 'claude-sonnet-4-20250514' : 'gpt-4o'" />
                 <button class="btn btn-ghost btn-sm btn-square tooltip" data-tip="Fetch models" @click="fetchLlmModels()" :disabled="llmModelsFetching">
                   <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
                   <i class="ti ti-refresh text-lg" x-show="!llmModelsFetching"></i>
