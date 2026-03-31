@@ -146,28 +146,17 @@ def update_tenant_branding(tenant_id):
 @limiter.limit("60 per minute")
 @login_required
 def get_llm_config():
-    """GET /api/v1/settings/llm — all LLM configs (all slots)."""
+    """GET /api/v1/settings/llm — current LLM configuration."""
     _require_admin()
     try:
-        configs = SettingsService.get_all_llm_configs()
-        if not configs:
-            return jsonify({"slots": []})
-        slots = []
-        for llm in configs:
-            d = llm.as_dict()
-            d.pop("api_key", None)
-            d.pop("api_key_enc", None)
-            slots.append(d)
-        # Also return the active one for backward compat
-        active = SettingsService.get_active_llm_config()
-        active_data = None
-        if active:
-            active_data = active.as_dict()
-            active_data.pop("api_key", None)
-            active_data.pop("api_key_enc", None)
-        return jsonify({"slots": slots, "active": active_data,
-                        # backward compat flat fields
-                        **(active_data or {})})
+        llm = SettingsService.get_active_llm_config()
+        if llm is None:
+            # Return empty but valid config
+            return jsonify({"provider": "", "model_name": "", "enabled": False, "has_api_key": False})
+        data = llm.as_dict()
+        data.pop("api_key", None)
+        data.pop("api_key_enc", None)
+        return jsonify(data)
     except Exception as e:
         logger.exception("Error fetching LLM config")
         return jsonify({"error": "Failed to retrieve LLM configuration"}), 500

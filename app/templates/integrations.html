@@ -1097,7 +1097,7 @@ function integrationsHub() {
         setup_guide: '1. Log into portal.telivy.com\n2. Go to Account → Integrations → API Keys\n3. Generate a new API key\n4. Copy the key and paste it below' },
 
       // LLM — single unified card with 3 slots
-      { id: 'llm_unified', category: 'llm', name: 'AI / LLM Providers', icon: 'ti-brain', description: 'Configure up to 3 AI providers (primary, secondary, tertiary). Used for control assessment, gap analysis, policy drafting, and WISP generation. The platform uses the primary provider first and falls back to secondary/tertiary if unavailable.',
+      { id: 'llm_unified', category: 'llm', name: 'AI / LLM Providers', icon: 'ti-brain', description: 'Configure your AI provider and assign different models to different features (risk scoring, policy drafting, control assessment, etc.). Uncheck "same model for all" to customize per feature.',
         setup_guide: 'Supported providers:\n\n• OpenAI: platform.openai.com → API Keys → sk-...\n  Models: gpt-4o, gpt-4-turbo\n\n• Anthropic: console.anthropic.com → API Keys → sk-ant-...\n  Models: claude-sonnet-4-20250514\n\n• Azure OpenAI: Azure Portal → OpenAI resource → Keys\n  Requires: Endpoint URL + Deployment Name\n\n• Together AI: api.together.xyz → Settings → API Keys\n  Models: meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' },
 
       // MCP Server
@@ -1271,14 +1271,10 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
-        // Handle both old format (flat) and new format (slots array)
-        const slots = data.slots || [];
-        const active = data.active || slots.find(s => s.enabled) || (data.provider ? data : null);
-        const configured = slots.length > 0 ? slots.some(s => s.provider) : !!data.provider;
         this.statuses['llm_unified'] = {
-          configured: configured,
-          enabled: !!(active && active.enabled),
-          detail: active && active.provider ? (active.provider + ': ' + (active.model_name || '')) : '',
+          configured: !!data.provider,
+          enabled: !!data.enabled,
+          detail: data.provider ? (data.provider + ': ' + (data.model_name || '')) : '',
         };
       } catch (e) { console.debug('LLM status check skipped:', e); }
     },
@@ -1363,18 +1359,20 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/settings/llm');
         if (!resp.ok) return;
         const data = await resp.json();
-        // Load from active config or first slot
-        const cfg = data.active || (data.slots && data.slots[0]) || data;
-        if (cfg && cfg.provider) {
+        if (data) {
           this.llmForm = {
-            provider: cfg.provider || '',
+            provider: data.provider || '',
             api_key: '',
-            model_name: cfg.model_name || '',
-            azure_endpoint: cfg.azure_endpoint || '',
-            azure_deployment: cfg.azure_deployment || '',
-            enabled: !!cfg.enabled,
-            has_api_key: !!cfg.has_api_key,
+            model_name: data.model_name || '',
+            azure_endpoint: data.azure_endpoint || '',
+            azure_deployment: data.azure_deployment || '',
+            enabled: !!data.enabled,
+            has_api_key: !!data.has_api_key,
           };
+          // Auto-load models if key is saved
+          if (data.has_api_key && data.provider) {
+            this.fetchLlmModels();
+          }
         }
         // Load per-feature models from localStorage
         try {
