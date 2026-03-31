@@ -1004,14 +1004,42 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                     ).scalars().first()
                                     if not existing_ev:
                                         try:
+                                            # Determine completeness — only mark complete if we have
+                                            # concrete scan data. Otherwise mark as partial/draft.
+                                            has_concrete_data = bool(notes and len(notes) > 50)
+                                            is_compliant = llm_status == "compliant"
+
+                                            if is_compliant and has_concrete_data:
+                                                ev_status = "Complete — scan confirms compliance"
+                                            elif has_concrete_data:
+                                                ev_status = "Partial — scan data available, needs review"
+                                            else:
+                                                ev_status = "Draft — insufficient scan data"
+
+                                            # Build exhibit references based on what evidence is needed
+                                            ctrl_name = ctrl.name if ctrl else ref_code
+                                            exhibits = []
+                                            exhibits.append(f"Exhibit A: Telivy scan report showing {ref_code} compliance status (Source: Telivy Portal → Scan Report → {ref_code})")
+                                            if not is_compliant:
+                                                exhibits.append(f"Exhibit B: Screenshot of current configuration or policy addressing this control")
+                                                exhibits.append(f"Exhibit C: Remediation plan or change ticket documenting the fix")
+                                            if "MFA" in (notes or "").upper() or "mfa" in (ctrl_name or "").lower():
+                                                exhibits.append(f"Exhibit {'D' if not is_compliant else 'B'}: Screenshot of MFA enforcement policy (Source: Entra ID → Security → MFA)")
+                                            if "encrypt" in (notes or "").lower() or "encrypt" in (ctrl_name or "").lower():
+                                                exhibits.append(f"Exhibit {'D' if not is_compliant else 'B'}: Screenshot of encryption settings (Source: Device management or BitLocker status)")
+
                                             ev = ProjectEvidence(
                                                 name=ev_name,
                                                 description=(
-                                                    f"Auto-generated from integration scan data.\n\n"
-                                                    f"Status: {llm_status}\n"
-                                                    f"Finding: {notes}\n\n"
-                                                    f"Source: Telivy Security Scan\n"
-                                                    f"Action needed: {'None — control is compliant' if llm_status == 'compliant' else 'Review finding and upload supporting screenshot/document'}"
+                                                    f"Evidence Status: {ev_status}\n\n"
+                                                    f"Control: {ref_code} — {ctrl_name}\n"
+                                                    f"Compliance Status: {llm_status}\n"
+                                                    f"Source: Telivy Security Scan\n\n"
+                                                    f"What the scan found:\n{notes}\n\n"
+                                                    f"--- REQUIRED EXHIBITS ---\n" +
+                                                    "\n".join(exhibits) +
+                                                    f"\n\nUpload each exhibit as a supporting document. "
+                                                    f"{'Review only — control appears compliant.' if is_compliant else 'This evidence is incomplete until all exhibits are uploaded.'}"
                                                 ),
                                                 content=notes,
                                                 group="integration_scan",
@@ -1174,14 +1202,35 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                         notes_parts = (pc.notes or "").split("[Auto-Mapped]")
                         finding_text = notes_parts[-1].strip() if len(notes_parts) > 1 else pc.notes or ""
                         status_label = pc.review_status or "infosec action"
+                        has_data = bool(finding_text and len(finding_text) > 50)
+                        is_compliant = status_label == "complete"
+
+                        if is_compliant and has_data:
+                            ev_status = "Complete — scan confirms compliance"
+                        elif has_data:
+                            ev_status = "Partial — needs review"
+                        else:
+                            ev_status = "Draft — insufficient data"
+
+                        ctrl_obj = pc.control
+                        ctrl_name = ctrl_obj.name if ctrl_obj else ref_code
+                        exhibits = []
+                        exhibits.append(f"Exhibit A: Telivy scan report for {ref_code} (Source: Telivy Portal)")
+                        if not is_compliant:
+                            exhibits.append(f"Exhibit B: Screenshot of current configuration or policy")
+                            exhibits.append(f"Exhibit C: Remediation plan or change ticket")
+
                         ev = ProjectEvidence(
                             name=ev_name,
                             description=(
-                                f"Auto-generated from integration scan.\n\n"
-                                f"Status: {status_label}\n"
-                                f"Finding: {finding_text[:500]}\n\n"
-                                f"Source: Telivy Security Scan\n"
-                                f"Action: {'Compliant — no action needed' if status_label == 'complete' else 'Upload supporting screenshot/document'}"
+                                f"Evidence Status: {ev_status}\n\n"
+                                f"Control: {ref_code} — {ctrl_name}\n"
+                                f"Compliance Status: {status_label}\n"
+                                f"Source: Telivy Security Scan\n\n"
+                                f"What the scan found:\n{finding_text[:500]}\n\n"
+                                f"--- REQUIRED EXHIBITS ---\n" +
+                                "\n".join(exhibits) +
+                                f"\n\nUpload each exhibit as a supporting document."
                             ),
                             content=finding_text[:1000],
                             group="integration_scan",
