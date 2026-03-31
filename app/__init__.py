@@ -40,9 +40,17 @@ def create_app(config_name="default"):
     configure_masri(app)
     configure_security_headers(app)
     _validate_secret_key(app)
-    _load_smtp_from_db(app)
-    _write_boot_stamp(app)
-    _ensure_db_columns(app)
+
+    # These are all optional startup tasks — NONE can crash the app
+    for fn_name, fn in [
+        ("load_smtp", _load_smtp_from_db),
+        ("boot_stamp", _write_boot_stamp),
+        ("db_columns", _ensure_db_columns),
+    ]:
+        try:
+            fn(app)
+        except Exception as e:
+            app.logger.warning("Startup task '%s' failed (non-fatal): %s", fn_name, e)
 
     @app.before_request
     def enforce_session_timeout():
@@ -377,33 +385,44 @@ def configure_errors(app):
     def internal_error(e):
         return handle_error(e, "Internal error")
 
+    @app.errorhandler(Exception)
+    def handle_any_exception(e):
+        """Catch-all for ANY unhandled exception — never show a raw traceback."""
+        app.logger.exception("Unhandled exception: %s", e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            if request.path.startswith("/api/"):
+                return jsonify({"ok": False, "message": "Internal server error", "code": 500}), 500
+            return render_template("layouts/errors/default.html", title="Error", description="Something went wrong. Please try again."), 500
+        except Exception:
+            return "<h1>Error</h1><p>Something went wrong. <a href='/'>Go Home</a></p>", 500
+
     @app.errorhandler(exc.SQLAlchemyError)
     def handle_db_exceptions(e):
-        app.logger.warning(f"Database error: {e}")
+        app.logger.warning("Database error: %s", str(e)[:300])
         try:
             db.session.rollback()
         except Exception:
             pass
 
         error_str = str(e)
-        # Check if it's a missing column error — tell user to run migrations
         if "UndefinedColumn" in error_str or "does not exist" in error_str:
             error = "Database schema needs updating. Restart the app or run: flask db upgrade"
-            app.logger.error("Missing DB column detected — run migrations: %s", error_str[:200])
         elif app.debug:
-            try:
-                error = str(e.orig)
-            except Exception:
-                error = "Database error occurred"
+            error = error_str[:200]
         else:
-            error = "An unexpected error occurred. Please try again."
+            error = "A database error occurred. Please try again or contact your administrator."
 
-        if request.path.startswith("/api/"):
-            return jsonify({"ok": False, "message": error, "code": 500}), 500
-        return (
-            render_template("layouts/errors/default.html", title="Error", description=error),
-            500,
-        )
+        try:
+            if request.path.startswith("/api/"):
+                return jsonify({"ok": False, "message": error, "code": 500}), 500
+            return render_template("layouts/errors/default.html", title="Error", description=error), 500
+        except Exception:
+            # If even the error template fails, return plain text
+            return f"<h1>Error</h1><p>{error}</p><a href='/'>Go Home</a>", 500
 
 
 def configure_logging(app):
