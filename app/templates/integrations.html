@@ -216,7 +216,7 @@
                     </div>
                     <div class="flex items-center gap-1 mt-2 flex-wrap">
                       <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
-                      <a :href="'/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf'" class="btn btn-ghost btn-xs" title="Download PDF" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-32"
                                 @change="mapScanToTenant(s.id, $event.target.value, 'scan')">
@@ -294,7 +294,7 @@
                       </template>
                     </div>
                     <div class="flex items-center gap-1 mt-2 flex-wrap">
-                      <a :href="'/api/v1/telivy/risk-assessments/' + a.id + '/report'" class="btn btn-ghost btn-xs" title="Download Report" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-32"
                                 @change="mapScanToTenant(a.id, $event.target.value, 'assessment')">
@@ -1002,6 +1002,52 @@
     </template>
   </div>
 
+  <!-- ═══ Report Viewer Drawer ═══ -->
+  <div x-show="reportViewerOpen" x-transition.opacity
+       class="fixed inset-0 z-50 flex justify-end bg-black/40"
+       @click.self="reportViewerOpen = false" x-cloak>
+    <div class="w-full max-w-4xl bg-base-100 shadow-xl h-full flex flex-col"
+         @click.stop x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="ti ti-file-type-pdf text-lg text-error"></i>
+          <span class="font-semibold text-sm truncate" x-text="reportTitle"></span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <a :href="reportDownloadUrl" target="_blank" class="btn btn-xs btn-ghost gap-1" title="Download">
+            <i class="ti ti-download"></i> Download
+          </a>
+          <a :href="reportUrl" target="_blank" class="btn btn-xs btn-ghost gap-1" title="Open in new tab">
+            <i class="ti ti-external-link"></i>
+          </a>
+          <button class="btn btn-xs btn-ghost btn-circle" @click="reportViewerOpen = false">
+            <i class="ti ti-x"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Report history tabs -->
+      <div x-show="reportHistory.length > 1" class="px-4 py-2 border-b border-base-300 flex gap-2 overflow-x-auto">
+        <template x-for="(h, idx) in reportHistory.slice(0, 10)" :key="idx">
+          <button class="btn btn-xs shrink-0" :class="reportUrl === h.url ? 'btn-primary' : 'btn-ghost'"
+                  @click="reportUrl = h.url; reportTitle = h.title; reportDownloadUrl = h.url.replace('&inline=true','').replace('?inline=true','')">
+            <span x-text="h.title.substring(0, 20) + (h.title.length > 20 ? '...' : '')"></span>
+            <span class="text-[10px] opacity-40 ml-1" x-text="new Date(h.viewedAt).toLocaleDateString()"></span>
+          </button>
+        </template>
+      </div>
+
+      <!-- PDF embed -->
+      <div class="flex-1 bg-base-200">
+        <iframe :src="reportUrl" class="w-full h-full border-0" x-show="reportViewerOpen"></iframe>
+      </div>
+    </div>
+  </div>
+
 </div>
 {%endblock%}
 
@@ -1161,6 +1207,7 @@ function integrationsHub() {
         this.loadTelivyStatus(),
       ]);
       this.loaded = true;
+      this.loadReportHistory();
     },
 
     getStatus(id) {
@@ -1795,6 +1842,34 @@ function integrationsHub() {
       this._saveMapping();
       toast('Re-running AI analysis...', 'info');
       await this._runAutoProcess(scanId, tenantId, type);
+    },
+
+    // ── Report viewer ──
+    reportViewerOpen: false,
+    reportUrl: '',
+    reportTitle: '',
+    reportDownloadUrl: '',
+    reportHistory: [],
+
+    viewReport(url, title, type, itemId) {
+      this.reportUrl = url;
+      this.reportTitle = title;
+      this.reportDownloadUrl = url.replace('&inline=true', '').replace('?inline=true', '');
+      this.reportViewerOpen = true;
+
+      // Track in report history (localStorage)
+      const history = JSON.parse(localStorage.getItem('telivy_report_history') || '[]');
+      const entry = { url, title, type, itemId, viewedAt: new Date().toISOString() };
+      // Remove duplicate for same item
+      const filtered = history.filter(h => h.itemId !== itemId);
+      filtered.unshift(entry);
+      // Keep last 20
+      this.reportHistory = filtered.slice(0, 20);
+      localStorage.setItem('telivy_report_history', JSON.stringify(this.reportHistory));
+    },
+
+    loadReportHistory() {
+      this.reportHistory = JSON.parse(localStorage.getItem('telivy_report_history') || '[]');
     },
 
     async telivyAiAutoMap(scanId, type) {

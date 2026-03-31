@@ -198,12 +198,14 @@ def download_external_scan_report(scan_id):
     import io
     fmt = request.args.get("format", "pdf")
     detailed = request.args.get("detailed", "false").lower() == "true"
+    inline = request.args.get("inline", "false").lower() == "true"
     try:
         client = _get_telivy_client()
         content = client.download_external_scan_report(scan_id, detailed=detailed, fmt=fmt)
         mime = "application/pdf" if fmt == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         return send_file(io.BytesIO(content), mimetype=mime,
-                         as_attachment=True, download_name=f"telivy-scan-{scan_id}.{fmt}")
+                         as_attachment=not inline,
+                         download_name=f"telivy-scan-{scan_id}.{fmt}")
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -312,13 +314,15 @@ def download_risk_assessment_report(assessment_id):
     """GET /api/v1/telivy/risk-assessments/:id/report"""
     import io
     report_type = request.args.get("reportType", "telivy_complete_report_pdf")
+    inline = request.args.get("inline", "false").lower() == "true"
     try:
         client = _get_telivy_client()
         content = client.download_risk_assessment_report(assessment_id, report_type=report_type)
         ext = "pdf" if "pdf" in report_type else "docx"
         mime = "application/pdf" if ext == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         return send_file(io.BytesIO(content), mimetype=mime,
-                         as_attachment=True, download_name=f"telivy-assessment-{assessment_id}.{ext}")
+                         as_attachment=not inline,
+                         download_name=f"telivy-assessment-{assessment_id}.{ext}")
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
