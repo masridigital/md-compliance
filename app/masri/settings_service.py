@@ -280,84 +280,30 @@ class SettingsService:
 
     @staticmethod
     def get_active_llm_config():
-        """
-        Returns the first enabled SettingsLLM record by slot priority (1→2→3), or None.
-        Handles NULL slot values from pre-migration rows.
-        """
+        """Returns the first enabled SettingsLLM record, or None."""
         from app import db
         from app.masri.new_models import SettingsLLM
-        from sqlalchemy import func
         return db.session.execute(
             db.select(SettingsLLM).filter_by(enabled=True)
-            .order_by(func.coalesce(SettingsLLM.slot, 1).asc())
         ).scalars().first()
 
     @staticmethod
     def get_all_llm_configs():
-        """Returns all LLM config slots ordered by slot number."""
+        """Returns all LLM config rows."""
         from app import db
         from app.masri.new_models import SettingsLLM
-        from sqlalchemy import func
-
-        # Backfill: ensure existing rows without slot get slot=1
-        orphans = db.session.execute(
-            db.select(SettingsLLM).filter(SettingsLLM.slot.is_(None))
-        ).scalars().all()
-        for o in orphans:
-            o.slot = 1
-            o.label = "Primary"
-        if orphans:
-            db.session.commit()
-        return db.session.execute(
-            db.select(SettingsLLM).order_by(SettingsLLM.slot.asc())
-        ).scalars().all()
+        return db.session.execute(db.select(SettingsLLM)).scalars().all()
 
     @staticmethod
     def update_llm_config(data: dict, slot: int = None):
-        """
-        Create or update an LLM settings row for a given slot.
-
-        If slot is provided, operates on that specific slot.
-        If 'api_key' is present in data it is encrypted before storage.
-        """
+        """Create or update the LLM settings row."""
         from app import db
         from app.masri.new_models import SettingsLLM
 
-        # Try slot-based lookup, fall back to simple first-row if columns don't exist
-        llm = None
-        try:
-            if slot is not None:
-                from sqlalchemy import or_
-                if slot == 1:
-                    llm = db.session.execute(
-                        db.select(SettingsLLM).filter(
-                            or_(SettingsLLM.slot == 1, SettingsLLM.slot.is_(None))
-                        )
-                    ).scalars().first()
-                else:
-                    llm = db.session.execute(
-                        db.select(SettingsLLM).filter_by(slot=slot)
-                    ).scalars().first()
-        except Exception:
-            # slot column likely doesn't exist yet — fall back
-            db.session.rollback()
-            llm = None
-
+        llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
         if llm is None:
-            # Fall back: get any existing row, or create one
-            llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
-            if llm is None:
-                llm = SettingsLLM()
-                db.session.add(llm)
-
-        # Set slot/label if the columns exist
-        try:
-            if slot is not None and getattr(llm, 'slot', 'MISSING') != 'MISSING':
-                llm.slot = slot
-                labels = {1: "Primary", 2: "Secondary", 3: "Tertiary"}
-                llm.label = labels.get(slot, f"Slot {slot}")
-        except Exception:
-            pass
+            llm = SettingsLLM()
+            db.session.add(llm)
 
         safe_fields = {"provider", "model_name", "azure_endpoint",
                         "azure_deployment", "enabled",

@@ -183,10 +183,8 @@ def update_llm_config():
     if err:
         return err
     try:
-        slot = data.pop("slot", None)
-        if slot is not None:
-            slot = int(slot)
-        llm = SettingsService.update_llm_config(data, slot=slot)
+        data.pop("slot", None)  # slot no longer used
+        llm = SettingsService.update_llm_config(data)
         result = llm.as_dict()
         result.pop("api_key", None)
         result.pop("api_key_enc", None)

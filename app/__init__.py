@@ -155,8 +155,6 @@ def _ensure_db_columns(app):
 
             # Define columns to ensure exist: (table, column, sql_type, default)
             needed = [
-                ("settings_llm", "slot", "INTEGER", "1"),
-                ("settings_llm", "label", "VARCHAR(255)", "'Primary'"),
                 ("users", "totp_secret_enc", "TEXT", "NULL"),
                 ("users", "totp_enabled", "BOOLEAN", "false"),
                 ("users", "session_timeout_minutes", "INTEGER", "NULL"),
