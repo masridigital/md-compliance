@@ -711,14 +711,15 @@ def get_integration_data(project_id):
                 for s in raw["telivy_scans"].get("scans", [])
             ]
         if raw.get("telivy_findings"):
-            telivy["findings_list"] = raw["telivy_findings"].get("findings", [])[:20]
+            # Return full finding objects with all details for expandable UI
+            telivy["findings_list"] = raw["telivy_findings"].get("findings", [])[:50]
             telivy["findings"] = raw["telivy_findings"].get("count", 0)
         result["telivy"] = telivy
 
     if raw.get("risk_register"):
         result["risks"] = {
             "count": raw["risk_register"].get("count", 0),
-            "items": raw["risk_register"].get("risks", [])[:10],
+            "items": raw["risk_register"].get("risks", [])[:30],
         }
 
     if raw.get("_cached_at"):

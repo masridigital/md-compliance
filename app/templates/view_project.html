@@ -2898,23 +2898,53 @@
 									<div class="flex justify-between items-center text-xs bg-base-300 rounded p-2 mb-1">
 										<span class="font-medium" x-text="s.org || s.id"></span>
 										<div class="flex items-center gap-2">
-											<span class="opacity-40" x-text="s.status || ''"></span>
-											<span class="badge badge-xs" :class="{'badge-success': s.score === 'A', 'badge-warning': s.score === 'B' || s.score === 'C', 'badge-error': s.score === 'D' || s.score === 'F'}" x-text="'Score: ' + (s.score || 'N/A')"></span>
+											<span class="badge badge-xs badge-ghost capitalize" x-text="(s.status || 'unknown').replace('_', ' ')"></span>
+											<span x-show="s.score" class="badge badge-xs" :class="{'badge-success': String(s.score).match(/^[AB]/i), 'badge-warning': String(s.score).match(/^[C]/i), 'badge-error': String(s.score).match(/^[DEF]/i), 'badge-ghost': !String(s.score).match(/^[A-F]/i)}" x-text="s.score"></span>
 										</div>
 									</div>
 								</template>
+								<!-- Re-run AI analysis from project view -->
+								<button class="btn btn-xs btn-ghost gap-1 mt-2" x-data="{ running: false }" @click="
+									running = true;
+									const pid = window.location.pathname.split('/projects/')[1]?.split('/')[0];
+									fetch('/api/v1/llm/auto-map', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({project_id: pid}) })
+										.then(r => r.json())
+										.then(d => { running = false; toast(d.message || 'Re-analysis triggered. Refresh to see results.', 'success'); loadIntegrationData(); })
+										.catch(e => { running = false; toast('Failed: ' + e.message, 'error'); });
+								" :disabled="running">
+									<span class="loading loading-spinner loading-xs" x-show="running"></span>
+									<i class="ti ti-refresh text-xs" x-show="!running"></i> Re-run AI Analysis
+								</button>
 								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.telivy.findings_list && intData.telivy.findings_list.length > 0">
 									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
-									<span x-text="showPreview ? 'Hide Findings' : 'Preview Findings (' + (intData.telivy.findings_list || []).length + ')'"></span>
+									<span x-text="showPreview ? 'Hide Findings' : 'Show Findings (' + (intData.telivy.findings_list || []).length + ')'"></span>
 								</button>
-								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-64 overflow-y-auto space-y-1">
+								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-[32rem] overflow-y-auto space-y-1">
 									<template x-for="(f, i) in (intData.telivy.findings_list || [])" :key="i">
-										<div class="text-xs bg-base-300 rounded p-2">
+										<div class="text-xs bg-base-300 rounded p-3 cursor-pointer" x-data="{ expanded: false }" @click="expanded = !expanded">
 											<div class="flex justify-between items-center">
-												<span class="font-medium" x-text="f.name || f.slug || f.title || 'Finding'"></span>
-												<span class="badge badge-xs" :class="{'badge-error': f.severity === 'critical' || f.severity === 'high', 'badge-warning': f.severity === 'medium', 'badge-info': f.severity === 'low'}" x-text="f.severity || ''"></span>
+												<div class="flex items-center gap-2">
+													<i class="ti text-[10px] shrink-0" :class="expanded ? 'ti-chevron-down' : 'ti-chevron-right'"></i>
+													<span class="font-semibold" x-text="f.name || f.slug || f.title || 'Finding'"></span>
+												</div>
+												<span class="badge badge-xs shrink-0 ml-2" :class="{'badge-error': (f.severity||'').match(/critical|high/i), 'badge-warning': (f.severity||'').match(/medium/i), 'badge-info': (f.severity||'').match(/low|info/i)}" x-text="f.severity || f.riskLevel || ''"></span>
 											</div>
-											<div x-show="f.description" class="opacity-50 mt-0.5" x-text="(f.description || '').substring(0, 120) + (f.description && f.description.length > 120 ? '...' : '')"></div>
+											<div x-show="!expanded && f.description" class="opacity-50 mt-1 pl-5" x-text="(f.description || '').substring(0, 100) + '...'"></div>
+											<div x-show="expanded" x-collapse x-cloak class="mt-2 pl-5 space-y-2" @click.stop>
+												<div x-show="f.description" class="opacity-70 leading-relaxed" x-text="f.description"></div>
+												<div x-show="f.remediation || f.recommendation" class="text-success">
+													<span class="font-semibold">Remediation:</span> <span x-text="f.remediation || f.recommendation || ''"></span>
+												</div>
+												<div x-show="f.category || f.type" class="opacity-40">
+													Category: <span x-text="f.category || f.type || ''"></span>
+												</div>
+												<div x-show="f.cve || f.cveId" class="opacity-40">
+													CVE: <span x-text="f.cve || f.cveId || ''"></span>
+												</div>
+												<div x-show="f.affectedAssets || f.affected_assets" class="opacity-40">
+													Affected: <span x-text="f.affectedAssets || f.affected_assets || ''"></span>
+												</div>
+											</div>
 										</div>
 									</template>
 								</div>
@@ -2936,16 +2966,32 @@
 								</div>
 								<button @click="showPreview = !showPreview" class="btn btn-xs btn-ghost mt-2 gap-1" x-show="intData.risks.items && intData.risks.items.length > 0">
 									<i class="ti" :class="showPreview ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
-									<span x-text="showPreview ? 'Hide Risks' : 'Preview Risks'"></span>
+									<span x-text="showPreview ? 'Hide Risks' : 'Show Risks (' + (intData.risks.items || []).length + ')'"></span>
 								</button>
-								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-80 overflow-y-auto space-y-2">
+								<div x-show="showPreview" x-collapse x-cloak class="mt-2 max-h-[32rem] overflow-y-auto space-y-1">
 									<template x-for="(r, i) in (intData.risks.items || [])" :key="i">
-										<div class="text-xs bg-base-300 rounded p-3">
-											<div class="flex justify-between items-center mb-1">
-												<span class="font-semibold" x-text="r.title || r.name || 'Risk'"></span>
-												<span class="badge badge-xs shrink-0 ml-2" :class="{'badge-error': r.risk === 'critical' || r.risk === 'high', 'badge-warning': r.risk === 'moderate', 'badge-info': r.risk === 'low'}" x-text="r.risk || r.severity || 'unknown'"></span>
+										<div class="text-xs bg-base-300 rounded p-3 cursor-pointer" x-data="{ expanded: false }" @click="expanded = !expanded">
+											<div class="flex justify-between items-center">
+												<div class="flex items-center gap-2">
+													<i class="ti text-[10px] shrink-0" :class="expanded ? 'ti-chevron-down' : 'ti-chevron-right'"></i>
+													<span class="font-semibold" x-text="r.title || r.name || 'Risk'"></span>
+												</div>
+												<div class="flex items-center gap-2 shrink-0 ml-2">
+													<span class="badge badge-xs" :class="{'badge-error': (r.risk||r.severity||'').match(/critical|high/), 'badge-warning': (r.risk||r.severity||'') === 'moderate', 'badge-info': (r.risk||r.severity||'') === 'low'}" x-text="r.risk || r.severity || 'unknown'"></span>
+													<span class="badge badge-xs badge-ghost" x-text="r.status || 'new'"></span>
+												</div>
 											</div>
-											<p x-show="r.description" class="opacity-60 mt-1 leading-relaxed" x-text="r.description"></p>
+											<div x-show="!expanded && r.description" class="opacity-50 mt-1 pl-5" x-text="(r.description || '').substring(0, 100) + '...'"></div>
+											<div x-show="expanded" x-collapse x-cloak class="mt-2 pl-5 space-y-2" @click.stop>
+												<div x-show="r.description" class="opacity-70 leading-relaxed whitespace-pre-line" x-text="r.description"></div>
+												<div x-show="r.remediation" class="text-success">
+													<span class="font-semibold">Remediation:</span> <span x-text="r.remediation || ''"></span>
+												</div>
+												<div class="flex gap-4 opacity-40 mt-1">
+													<span x-show="r.priority">Priority: <span x-text="r.priority || ''"></span></span>
+													<span x-show="r.date_added">Added: <span x-text="r.date_added ? new Date(r.date_added).toLocaleDateString() : ''"></span></span>
+												</div>
+											</div>
 										</div>
 									</template>
 								</div>
