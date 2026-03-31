@@ -1672,14 +1672,16 @@ function integrationsHub() {
               body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
             });
             const procData = await procResp.json();
-            if (procData.success) {
+            const mapped = procData.controls_mapped || 0;
+            const risks = procData.risks_added || 0;
+            if (mapped > 0 || risks > 0) {
               this.telivyScanMappings[scanId].process_status = 'done';
-              this.telivyScanMappings[scanId].process_result = `${procData.controls_mapped || 0} controls, ${procData.risks_added || 0} risks`;
-              toast(`Processed: ${procData.controls_mapped || 0} controls mapped, ${procData.risks_added || 0} risks added`, 'success');
+              this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
+              toast(`Processed: ${mapped} controls mapped, ${risks} risks added`, 'success');
             } else {
-              this.telivyScanMappings[scanId].process_status = 'failed';
-              this.telivyScanMappings[scanId].process_error = procData.error || 'Unknown error';
-              toast(procData.error || 'Auto-process failed', 'error');
+              this.telivyScanMappings[scanId].process_status = procData.message ? 'failed' : 'done';
+              this.telivyScanMappings[scanId].process_result = procData.message || `0 mapped (LLM: ${procData.llm_available ? 'yes' : 'no'}, sources: ${(procData.data_sources || []).join(', ') || 'none'})`;
+              toast(procData.message || `Processed but found 0 mappings (sources: ${(procData.data_sources || []).join(', ') || 'none'})`, mapped > 0 ? 'success' : 'warning');
             }
           } catch(e2) {
             this.telivyScanMappings[scanId].process_status = 'failed';

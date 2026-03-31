@@ -770,9 +770,11 @@ def auto_process():
     except Exception as e:
         return jsonify({"success": False, "error": f"Data compilation failed: {e}"}), 500
 
-    if not integration_data or (not integration_data.get("telivy_scans") and not integration_data.get("entra_compliance")):
+    if not integration_data or (not integration_data.get("telivy_scans") and not integration_data.get("entra_compliance") and not integration_data.get("risk_register")):
         return jsonify({"success": True, "controls_mapped": 0, "risks_added": 0,
-                        "message": "No integration data to process"})
+                        "message": "No integration data found",
+                        "debug_keys": list(integration_data.keys()) if integration_data else [],
+                        "debug_note": integration_data.get("note", "")})
 
     # Step 2 + 3: For each project, map to controls and add risks
     total_mapped = 0
@@ -840,7 +842,11 @@ def auto_process():
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-                parsed = json.loads(content)
+                try:
+                    parsed = json.loads(content)
+                except (json.JSONDecodeError, ValueError):
+                    logger.warning("Auto-process LLM returned non-JSON: %s", content[:200])
+                    parsed = {"mappings": [], "risks": []}
 
                 # Apply control mappings (add notes)
                 for m in parsed.get("mappings", []):
@@ -890,10 +896,12 @@ def auto_process():
                 pass
 
     return jsonify({
-        "success": True,
+        "success": total_mapped > 0 or total_risks > 0,
         "controls_mapped": total_mapped,
         "risks_added": total_risks,
         "projects_processed": len(projects),
+        "llm_available": llm_available,
+        "data_sources": list(integration_data.keys()) if integration_data else [],
     })
 
 
