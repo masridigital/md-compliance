@@ -744,62 +744,90 @@ def _gather_integration_data(tenant_id: str) -> dict:
             api_key = current_app.config.get("TELIVY_API_KEY")
 
         if api_key:
-            from app.masri.telivy_integration import TelivyClient
-            client = TelivyClient(api_key=api_key)
+            from app.masri.telivy_integration import TelivyIntegration
+            client = TelivyIntegration(api_key=api_key)
 
-            # Get scan-to-tenant mappings from DB
-            mapped_scan_ids = set()
+            # Get scan-to-tenant mappings from DB (includes BOTH scans and assessments)
+            mapped_ids = set()
             try:
                 from app.models import ConfigStore
                 import json as _json
                 mapping_record = ConfigStore.find("telivy_scan_mappings")
                 if mapping_record and mapping_record.value:
                     mappings = _json.loads(mapping_record.value)
-                    # Find scans mapped to THIS tenant
-                    for scan_id, mapped_tid in mappings.items():
+                    for item_id, mapped_tid in mappings.items():
                         if mapped_tid == tenant_id:
-                            mapped_scan_ids.add(scan_id)
+                            mapped_ids.add(item_id)
             except Exception:
                 pass
 
-            try:
-                scans = client.list_external_scans()
-                # Filter to only scans mapped to this tenant (or all if no mappings)
-                if mapped_scan_ids:
-                    tenant_scans = [s for s in scans if s.get("id") in mapped_scan_ids]
-                else:
-                    tenant_scans = scans[:3]  # Fallback: use first 3
+            telivy_data = {"scans": [], "assessments": [], "findings": []}
 
-                if tenant_scans:
-                    data["telivy_scans"] = {
-                        "count": len(tenant_scans),
-                        "scans": [
-                            {
-                                "id": s.get("id"),
-                                "org": s.get("assessmentDetails", {}).get("organization_name"),
-                                "score": s.get("securityScore"),
-                                "status": s.get("scanStatus"),
-                            }
-                            for s in tenant_scans
-                        ],
-                    }
-                    # Get findings for all mapped scans
-                    all_findings = []
-                    for s in tenant_scans[:3]:
-                        if s.get("id"):
-                            try:
-                                findings = client.get_scan_findings(s["id"])
-                                if findings:
-                                    all_findings.extend(findings[:10])
-                            except Exception:
-                                pass
-                    if all_findings:
-                        data["telivy_findings"] = {
-                            "count": len(all_findings),
-                            "findings": all_findings[:20],
-                        }
+            # External scans
+            try:
+                raw_scans = client.list_external_scans()
+                if isinstance(raw_scans, list):
+                    scans = raw_scans
+                elif isinstance(raw_scans, dict):
+                    scans = raw_scans.get("scans", raw_scans.get("data", []))
+                    if isinstance(scans, dict):
+                        scans = []
+                else:
+                    scans = []
+                tenant_scans = [s for s in scans if s.get("id") in mapped_ids] if mapped_ids else []
+                for s in tenant_scans:
+                    telivy_data["scans"].append({
+                        "id": s.get("id"),
+                        "org": s.get("assessmentDetails", {}).get("organization_name"),
+                        "score": s.get("securityScore"),
+                        "status": s.get("scanStatus"),
+                        "type": "scan",
+                    })
+                    # Get findings
+                    try:
+                        findings = client.get_scan_findings(s["id"])
+                        if findings:
+                            telivy_data["findings"].extend(findings[:10])
+                    except Exception:
+                        pass
             except Exception as e:
-                logger.debug("Telivy scan fetch failed: %s", e)
+                logger.debug("Telivy external scans fetch failed: %s", e)
+
+            # Risk assessments
+            try:
+                raw_assessments = client.list_risk_assessments()
+                # Handle both list and dict-with-key formats
+                if isinstance(raw_assessments, list):
+                    assessments = raw_assessments
+                elif isinstance(raw_assessments, dict):
+                    assessments = raw_assessments.get("assessments", raw_assessments.get("data", []))
+                    if isinstance(assessments, dict):
+                        assessments = []
+                else:
+                    assessments = []
+                tenant_assessments = [a for a in assessments if a.get("id") in mapped_ids] if mapped_ids else []
+                for a in tenant_assessments:
+                    telivy_data["assessments"].append({
+                        "id": a.get("id"),
+                        "org": a.get("assessmentDetails", {}).get("organization_name"),
+                        "score": a.get("securityScore"),
+                        "status": a.get("scanStatus"),
+                        "type": "assessment",
+                    })
+            except Exception as e:
+                logger.debug("Telivy risk assessments fetch failed: %s", e)
+
+            total_items = len(telivy_data["scans"]) + len(telivy_data["assessments"])
+            if total_items > 0:
+                data["telivy_scans"] = {
+                    "count": total_items,
+                    "scans": telivy_data["scans"] + telivy_data["assessments"],
+                }
+            if telivy_data["findings"]:
+                data["telivy_findings"] = {
+                    "count": len(telivy_data["findings"]),
+                    "findings": telivy_data["findings"][:20],
+                }
     except Exception as e:
         logger.debug("Telivy data collection skipped: %s", e)
 
