@@ -1163,16 +1163,18 @@ function integrationsHub() {
       this.entraResults = { test: null, users: null, mfa: null, assess: null };
       this.entraError = null;
 
-      // Reset Telivy
+      // Load Telivy — don't reset API key (it's saved in DB)
       if (item.id === 'telivy') {
-        this.telivyForm.api_key = '';
         this.telivyMsg = '';
         this.telivyError = null;
         this.telivyFindings = [];
         this.telivyShowCreateScan = false;
+        this.telivyShowCreateAssessment = false;
         this.loadTelivyTenants();
         this.loadScanMappings();
-        this.telivyShowCreateAssessment = false;
+        // Auto-load scans if configured
+        this.telivyListScans().catch(() => {});
+        this.telivyListAssessments().catch(() => {});
       }
 
       // Reset form messages
@@ -1466,14 +1468,23 @@ function integrationsHub() {
 
     async loadTelivyStatus() {
       try {
+        // Check if Telivy has a stored config
         const resp = await fetch('/api/v1/settings/storage/telivy');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const config = data.config || {};
-        if (config.api_key && config.api_key !== '••••••••') {
-          this.statuses['telivy'] = { configured: true, enabled: !!data.enabled, detail: 'API key configured' };
-        } else if (data.enabled) {
-          this.statuses['telivy'] = { configured: true, enabled: true, detail: 'Configured' };
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.enabled || data.has_config || data.config_enc) {
+            this.statuses['telivy'] = { configured: true, enabled: true, detail: 'API key configured' };
+            return;
+          }
+        }
+        // Also check if there are any scan mappings (means Telivy is in use)
+        const mapResp = await fetch('/api/v1/settings/telivy/mappings');
+        if (mapResp.ok) {
+          const maps = await mapResp.json();
+          if (Object.keys(maps).length > 0) {
+            this.statuses['telivy'] = { configured: true, enabled: true, detail: Object.keys(maps).length + ' scan(s) mapped' };
+            return;
+          }
         }
       } catch (e) { console.debug('Telivy status check skipped:', e); }
     },
@@ -1583,38 +1594,49 @@ function integrationsHub() {
     },
 
     async loadScanMappings() {
-      // Load from backend first, then localStorage as fallback
+      // Load from backend (authoritative), merge with localStorage
       try {
         const resp = await fetch('/api/v1/settings/telivy/mappings');
         if (resp.ok) {
           const data = await resp.json();
-          if (data && Object.keys(data).length > 0) {
-            this.telivyScanMappings = data;
-            return;
-          }
+          // Merge: backend wins, but keep localStorage entries for new mappings
+          const local = {};
+          try { Object.assign(local, JSON.parse(localStorage.getItem('telivy_scan_mappings') || '{}')); } catch(e) {}
+          this.telivyScanMappings = { ...local, ...data };
         }
-      } catch(e) {}
-      try {
-        const stored = localStorage.getItem('telivy_scan_mappings');
-        if (stored) this.telivyScanMappings = JSON.parse(stored);
-      } catch(e) {}
+      } catch(e) {
+        // Fallback to localStorage only
+        try {
+          const stored = localStorage.getItem('telivy_scan_mappings');
+          if (stored) this.telivyScanMappings = JSON.parse(stored);
+        } catch(e2) {}
+      }
     },
 
     getScanTenantMapping(scanId) {
       return this.telivyScanMappings[scanId] || '';
     },
 
-    mapScanToTenant(scanId, tenantId, type) {
-      this.telivyScanMappings[scanId] = tenantId;
+    async mapScanToTenant(scanId, tenantId, type) {
+      if (tenantId) {
+        this.telivyScanMappings[scanId] = tenantId;
+      } else {
+        delete this.telivyScanMappings[scanId];
+      }
+      // Save to BOTH localStorage and backend — await backend to confirm
       localStorage.setItem('telivy_scan_mappings', JSON.stringify(this.telivyScanMappings));
-      // Also save to backend so server-side AI can use the mappings
-      fetch('/api/v1/settings/telivy/mappings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.telivyScanMappings),
-      }).catch(() => {});
-      const tenantName = (this.telivyTenants.find(t => t.id === tenantId) || {}).name || tenantId;
-      toast(`${type === 'scan' ? 'Scan' : 'Assessment'} mapped to ${tenantName}`, 'success');
+      try {
+        const resp = await fetch('/api/v1/settings/telivy/mappings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.telivyScanMappings),
+        });
+        if (!resp.ok) throw new Error('Save failed');
+        const tenantName = tenantId ? ((this.telivyTenants.find(t => t.id === tenantId) || {}).name || tenantId) : 'none';
+        toast(`${type === 'scan' ? 'Scan' : 'Assessment'} mapped to ${tenantName}`, 'success');
+      } catch(e) {
+        toast('Failed to save mapping to server', 'error');
+      }
     },
 
     async telivyAiAutoMap(scanId, type) {
