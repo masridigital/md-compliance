@@ -684,6 +684,54 @@ def get_integration_data(project_id):
     return jsonify(result)
 
 
+@llm_bp.route("/integration-debug/<string:project_id>", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def debug_integration_mapping(project_id):
+    """GET /api/v1/llm/integration-debug/<project_id> — debug mapping info."""
+    from app import db
+    from app.models import Project, ConfigStore
+    import json as _json
+
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    tenant_id = project.tenant_id
+    tenant_name = project.tenant.name if project.tenant else "unknown"
+
+    # Get all mappings
+    mappings = {}
+    try:
+        record = ConfigStore.find("telivy_scan_mappings")
+        if record and record.value:
+            mappings = _json.loads(record.value)
+    except Exception as e:
+        mappings = {"_error": str(e)}
+
+    # Find which IDs map to this tenant
+    matched = {k: v for k, v in mappings.items() if v == tenant_id}
+
+    # Check Telivy API key
+    has_telivy_key = False
+    try:
+        result = db.session.execute(
+            db.text("SELECT config_enc FROM settings_storage WHERE provider = 'telivy' LIMIT 1")
+        ).scalar()
+        has_telivy_key = bool(result)
+    except Exception:
+        pass
+
+    return jsonify({
+        "project_id": project_id,
+        "tenant_id": tenant_id,
+        "tenant_name": tenant_name,
+        "all_mappings": mappings,
+        "matched_for_tenant": matched,
+        "has_telivy_api_key": has_telivy_key,
+    })
+
+
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
     data = {}
