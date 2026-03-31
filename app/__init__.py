@@ -133,16 +133,32 @@ def _write_boot_stamp(app):
 
     Any session whose _boot_stamp doesn't match will be forced to re-login.
     This guarantees ALL users are logged out after a server restart or update.
+
+    With multiple gunicorn workers, only the FIRST worker writes the stamp;
+    subsequent workers read the existing one so all workers share the same value.
     """
     import time
-    stamp = str(int(time.time()))
     try:
         with app.app_context():
             from app.models import ConfigStore
+            # Check if another worker already wrote a stamp within the last 30 seconds
+            existing = ConfigStore.find("server_boot_stamp")
+            if existing and existing.value:
+                try:
+                    existing_ts = int(existing.value)
+                    now_ts = int(time.time())
+                    if now_ts - existing_ts < 30:
+                        # Another worker just wrote this — reuse it
+                        app.config["_BOOT_STAMP"] = existing.value
+                        return
+                except (ValueError, TypeError):
+                    pass
+            # First worker: write new stamp
+            stamp = str(int(time.time()))
             ConfigStore.upsert("server_boot_stamp", stamp)
             app.config["_BOOT_STAMP"] = stamp
     except Exception:
-        app.config["_BOOT_STAMP"] = stamp
+        app.config["_BOOT_STAMP"] = str(int(time.time()))
 
 
 def _ensure_db_columns(app):
