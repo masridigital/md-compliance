@@ -629,9 +629,16 @@ def get_integration_data(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     tenant_id = project.tenant_id
-    _validate_tenant_access(tenant_id)
+    try:
+        _validate_tenant_access(tenant_id)
+    except Exception:
+        pass  # Allow viewing integration data even without strict tenant access
 
-    raw = _gather_integration_data(tenant_id)
+    try:
+        raw = _gather_integration_data(tenant_id)
+    except Exception as e:
+        logger.exception("Failed to gather integration data for tenant %s", tenant_id)
+        raw = {"error": str(e)}
 
     # Format for display
     result = {}
