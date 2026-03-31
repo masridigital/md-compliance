@@ -911,97 +911,104 @@ def auto_process():
 
         if llm_available:
             try:
-                # Compress integration data into a concise summary for the LLM
                 data_summary = _compress_for_llm(integration_data)
-
                 fw_name = project.framework.name if project.framework else "Unknown"
 
-                # Build a clean list of controls with just what the LLM needs
-                ctrl_list = "\n".join([
-                    f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                    for c in controls[:30]
-                ])
+                # ── Chunked LLM calls: 10 controls per chunk ─────────
+                # Each chunk gets the scan data + previous results as context.
+                # This keeps each call well under token limits and avoids timeouts.
+                CHUNK_SIZE = 10
+                all_mappings = []
+                all_risks = []
+                prev_summary = ""
 
-                messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert compliance analyst reviewing security scan results against "
-                            f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
-                            "no explanation, no text before or after.\n\n"
-                            "Your tasks:\n"
-                            "1. MAP each scan finding to the most relevant compliance control\n"
-                            "2. CREATE detailed risk entries for ALL findings that represent security gaps\n\n"
-                            "IMPORTANT for risk entries:\n"
-                            "- Create a risk for EVERY significant finding (missing MFA, open ports, weak configs, "
-                            "expired certs, vulnerable software, unencrypted data, etc.)\n"
-                            "- Include specific details: affected hostnames, IPs, users, endpoints, port numbers\n"
-                            "- Explain WHY this is a risk and recommended remediation steps\n"
-                            "- Be thorough — create risks for all significant findings\n\n"
-                            "JSON format:\n"
-                            '{"mappings":[{"project_control_id":"ID","notes":"detailed finding with affected '
-                            'assets","status":"compliant|partial|non_compliant"}],'
-                            '"risks":[{"title":"specific risk","description":"What was found, which assets are '
-                            'affected, why dangerous, remediation steps","severity":"critical|high|medium|low"}]}'
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Framework: {fw_name}\n\n"
-                            f"SCAN RESULTS:\n{data_summary}\n\n"
-                            f"CONTROLS:\n{ctrl_list}"
-                        ),
-                    },
-                ]
-
-                result = LLMService.chat(
-                    messages=messages,
-                    tenant_id=tenant_id,
-                    feature="auto_map",
-                    temperature=0.2,
-                    max_tokens=4096,
+                system_prompt = (
+                    "You are an expert compliance analyst reviewing security scan results against "
+                    f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
+                    "no explanation, no text before or after.\n\n"
+                    "Your tasks:\n"
+                    "1. MAP each scan finding to the most relevant compliance control in this batch\n"
+                    "2. CREATE detailed risk entries for findings that represent security gaps\n\n"
+                    "IMPORTANT:\n"
+                    "- Include specific details: affected hostnames, IPs, users, endpoints\n"
+                    "- Explain WHY each finding is a risk and recommend remediation\n"
+                    "- Only create risks for findings NOT already covered in previous batches\n\n"
+                    "JSON format:\n"
+                    '{"mappings":[{"project_control_id":"ID","notes":"finding details",'
+                    '"status":"compliant|partial|non_compliant"}],'
+                    '"risks":[{"title":"risk","description":"details + remediation",'
+                    '"severity":"critical|high|medium|low"}]}'
                 )
 
-                content = result["content"].strip()
+                for chunk_idx in range(0, len(controls), CHUNK_SIZE):
+                    chunk = controls[chunk_idx:chunk_idx + CHUNK_SIZE]
+                    chunk_label = f"Batch {chunk_idx // CHUNK_SIZE + 1}/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE}"
 
-                # Strip markdown code blocks
-                if content.startswith("```"):
-                    parts = content.split("\n", 1)
-                    content = parts[1] if len(parts) > 1 else content
-                    content = content.rsplit("```", 1)[0].strip()
+                    ctrl_list = "\n".join([
+                        f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                        for c in chunk
+                    ])
 
-                # Try to find JSON in the response even if there's extra text
-                llm_debug = {"raw_length": len(content), "preview": content[:300]}
-                parsed = None
-                try:
-                    parsed = json.loads(content)
-                except (json.JSONDecodeError, ValueError):
-                    # Try to extract JSON from mixed text
-                    import re
-                    json_match = re.search(r'\{[^{}]*"mappings"[^{}]*\[.*?\].*?"risks"[^{}]*\[.*?\].*?\}', content, re.DOTALL)
-                    if json_match:
+                    user_content = f"Framework: {fw_name}\n\n"
+                    # Only include full scan data in first chunk; summaries after
+                    if chunk_idx == 0:
+                        user_content += f"SCAN RESULTS:\n{data_summary}\n\n"
+                    else:
+                        user_content += f"(Scan data provided in batch 1. Previous batches mapped {len(all_mappings)} controls and found {len(all_risks)} risks.)\n\n"
+                        if prev_summary:
+                            user_content += f"PREVIOUS FINDINGS SUMMARY:\n{prev_summary}\n\n"
+
+                    user_content += f"CONTROLS TO ANALYZE ({chunk_label}):\n{ctrl_list}"
+
+                    try:
+                        result = LLMService.chat(
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_content},
+                            ],
+                            tenant_id=tenant_id,
+                            feature="auto_map",
+                            temperature=0.2,
+                            max_tokens=3000,
+                        )
+
+                        content = result["content"].strip()
+                        if content.startswith("```"):
+                            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+                        # Extract JSON
+                        parsed = None
                         try:
-                            parsed = json.loads(json_match.group())
-                        except Exception:
-                            pass
-                    if parsed is None:
-                        # Last resort: look for any JSON object
-                        brace_start = content.find("{")
-                        brace_end = content.rfind("}")
-                        if brace_start >= 0 and brace_end > brace_start:
-                            try:
-                                parsed = json.loads(content[brace_start:brace_end+1])
-                            except Exception:
-                                pass
+                            parsed = json.loads(content)
+                        except (json.JSONDecodeError, ValueError):
+                            brace_start = content.find("{")
+                            brace_end = content.rfind("}")
+                            if brace_start >= 0 and brace_end > brace_start:
+                                try:
+                                    parsed = json.loads(content[brace_start:brace_end + 1])
+                                except Exception:
+                                    pass
 
-                if parsed is None:
-                    logger.warning("Auto-process: could not parse LLM response: %s", content[:300])
-                    llm_debug["parse_error"] = True
-                    parsed = {"mappings": [], "risks": []}
-                else:
-                    llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
-                    llm_debug["parsed_risks"] = len(parsed.get("risks", []))
+                        if parsed:
+                            chunk_maps = parsed.get("mappings", [])
+                            chunk_risks = parsed.get("risks", [])
+                            all_mappings.extend(chunk_maps)
+                            all_risks.extend(chunk_risks)
+                            # Build summary for next chunk's context
+                            risk_titles = [r.get("title", "") for r in chunk_risks]
+                            prev_summary = f"Mapped {len(chunk_maps)} controls. Risks found: {', '.join(risk_titles[:5])}" if risk_titles else f"Mapped {len(chunk_maps)} controls, no new risks."
+                        else:
+                            logger.warning("Auto-process chunk %d parse failed: %s", chunk_idx, content[:200])
+                    except Exception as e:
+                        logger.warning("Auto-process LLM chunk %d failed: %s", chunk_idx, e)
+                        # Continue with next chunk instead of aborting
+
+                llm_debug = {
+                    "chunks": (len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE,
+                    "parsed_mappings": len(all_mappings),
+                    "parsed_risks": len(all_risks),
+                }
+                parsed = {"mappings": all_mappings, "risks": all_risks}
 
                 # Apply control mappings (add notes + update status)
                 # ProjectControl VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]

@@ -46,7 +46,7 @@ class OpenAIProvider(_BaseProvider):
         import openai
 
         api_key = self.config.get("api_key", "")
-        client = openai.OpenAI(api_key=api_key)
+        client = openai.OpenAI(api_key=api_key, timeout=90.0)
 
         model = kwargs.pop("model", self.config.get("model_name", "gpt-4o"))
         temperature = kwargs.pop("temperature", 0.3)
@@ -80,7 +80,7 @@ class AnthropicProvider(_BaseProvider):
         import anthropic
 
         api_key = self.config.get("api_key", "")
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key, timeout=90.0)
 
         model = kwargs.pop("model", self.config.get("model_name", "claude-sonnet-4-20250514"))
         max_tokens = kwargs.pop("max_tokens", 4096)
@@ -137,6 +137,7 @@ class AzureOpenAIProvider(_BaseProvider):
             api_key=api_key,
             azure_endpoint=endpoint,
             api_version="2024-06-01",
+            timeout=90.0,
         )
 
         temperature = kwargs.pop("temperature", 0.3)
@@ -177,6 +178,7 @@ class TogetherAIProvider(_BaseProvider):
         client = openai.OpenAI(
             api_key=api_key,
             base_url="https://api.together.xyz/v1",
+            timeout=90.0,
         )
 
         response = client.chat.completions.create(

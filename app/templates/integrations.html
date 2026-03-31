@@ -1701,12 +1701,16 @@ function integrationsHub() {
     },
 
     async _runAutoProcess(scanId, tenantId, type) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
       try {
         const resp = await fetch('/api/v1/llm/auto-process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         const data = await resp.json();
         const mapped = data.controls_mapped || 0;
         const risks = data.risks_added || 0;
