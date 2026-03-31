@@ -234,9 +234,9 @@
                     </div>
                     <!-- Processing status -->
                     <div x-show="telivyScanMappings[s.id] && telivyScanMappings[s.id].process_status" class="mt-1">
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[s.id]?.process_result || 'Processed'"></span></span>
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed: <span x-text="telivyScanMappings[s.id]?.process_error || 'Unknown'"></span></span>
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing... <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[s.id]?.tenant_id)" title="View live log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[s.id]?.process_result || 'Processed'"></span> <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[s.id]?.tenant_id)" title="View log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[s.id]?.tenant_id)" title="View log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
                     </div>
                   </div>
                 </template>
@@ -298,9 +298,9 @@
                     </div>
                     <!-- Processing status -->
                     <div x-show="telivyScanMappings[a.id] && telivyScanMappings[a.id].process_status" class="mt-1">
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[a.id]?.process_result || 'Processed'"></span></span>
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed: <span x-text="telivyScanMappings[a.id]?.process_error || 'Unknown'"></span></span>
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing... <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[a.id]?.tenant_id)" title="View live log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[a.id]?.process_result || 'Processed'"></span> <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[a.id]?.tenant_id)" title="View log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed <button class="btn btn-xs btn-ghost btn-circle ml-1" @click="openProcessLog(telivyScanMappings[a.id]?.tenant_id)" title="View log"><i class="ti ti-terminal-2 text-xs"></i></button></span>
                     </div>
                   </div>
                 </template>
@@ -974,6 +974,90 @@
     </template>
   </div>
 
+  <!-- ═══ Live Processing Log Drawer ═══ -->
+  <div x-show="showProcessLog" x-transition
+       class="fixed inset-0 z-50 flex justify-end bg-black/30"
+       @click.self="showProcessLog = false; _stopPolling();">
+    <div class="w-full max-w-lg bg-base-100 shadow-xl h-full flex flex-col"
+         @click.stop>
+      <!-- Header -->
+      <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+        <div class="flex items-center gap-2">
+          <i class="ti ti-terminal-2 text-lg"></i>
+          <span class="font-semibold text-sm">Processing Log</span>
+          <span x-show="processLogStatus === 'running'"
+                class="badge badge-xs badge-info gap-1">
+            <span class="loading loading-spinner loading-xs"></span> Running
+          </span>
+          <span x-show="processLogStatus === 'done'"
+                class="badge badge-xs badge-success">Complete</span>
+          <span x-show="processLogStatus === 'failed'"
+                class="badge badge-xs badge-error">Failed</span>
+        </div>
+        <button class="btn btn-xs btn-ghost btn-circle"
+                @click="showProcessLog = false; _stopPolling();">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+
+      <!-- Result summary -->
+      <template x-if="processLogStatus === 'done' && processLogResult">
+        <div class="px-4 py-2 bg-success/10 border-b border-base-300 text-xs">
+          <div class="flex gap-4">
+            <span><strong x-text="processLogResult.controls_mapped || 0"></strong> controls mapped</span>
+            <span><strong x-text="processLogResult.risks_added || 0"></strong> risks added</span>
+            <span><strong x-text="processLogResult.projects || 0"></strong> projects</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Log entries -->
+      <div id="process-log-container" class="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-xs bg-base-200">
+        <template x-if="processLog.length === 0 && processLogStatus === 'idle'">
+          <div class="text-center py-8 opacity-40">
+            <i class="ti ti-terminal-2 text-3xl block mb-2"></i>
+            <p>No processing activity yet</p>
+          </div>
+        </template>
+        <template x-for="(entry, idx) in processLog" :key="idx">
+          <div class="flex gap-2 items-start py-0.5 px-1 rounded"
+               :class="{
+                 'bg-error/10': entry.level === 'error',
+                 'bg-warning/10': entry.level === 'warning',
+                 'bg-info/10': entry.level === 'data',
+               }">
+            <span class="opacity-30 shrink-0 tabular-nums" x-text="entry.ts?.split('T')[1]?.split('.')[0] || ''"></span>
+            <span class="shrink-0 w-5 text-center"
+                  :class="{
+                    'text-error': entry.level === 'error',
+                    'text-warning': entry.level === 'warning',
+                    'text-info': entry.level === 'data',
+                    'text-success': entry.step === 'complete' || entry.step === 'mapped' || entry.step === 'risk_added',
+                  }">
+              <i class="ti"
+                 :class="{
+                   'ti-alert-triangle': entry.level === 'error' || entry.level === 'warning',
+                   'ti-database': entry.level === 'data',
+                   'ti-check': entry.step === 'complete' || entry.step === 'mapped',
+                   'ti-alert-circle': entry.step === 'risk_added',
+                   'ti-arrow-right': !['error','warning','data'].includes(entry.level) && !['complete','mapped','risk_added'].includes(entry.step),
+                 }"></i>
+            </span>
+            <span class="break-all">
+              <span class="font-semibold opacity-60" x-text="entry.step"></span>
+              <span x-text="entry.detail"></span>
+            </span>
+          </div>
+        </template>
+        <!-- Live cursor when running -->
+        <div x-show="processLogStatus === 'running'" class="flex items-center gap-2 py-1 px-1 text-info">
+          <span class="loading loading-dots loading-xs"></span>
+          <span class="animate-pulse">Processing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 {%endblock%}
 
@@ -1133,6 +1217,8 @@ function integrationsHub() {
         this.loadTelivyStatus(),
       ]);
       this.loaded = true;
+      // Resume polling for any in-progress jobs
+      this._resumePolling();
     },
 
     getStatus(id) {
@@ -1678,6 +1764,14 @@ function integrationsHub() {
       }).catch(() => {});
     },
 
+    // Live processing log viewer state
+    processLog: [],
+    processLogTenantId: null,
+    processLogStatus: 'idle',
+    processLogResult: {},
+    showProcessLog: false,
+    _pollTimer: null,
+
     async _runAutoProcess(scanId, tenantId, type) {
       try {
         const resp = await fetch('/api/v1/llm/auto-process', {
@@ -1686,29 +1780,121 @@ function integrationsHub() {
           body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
         });
         const data = await resp.json();
-        const mapped = data.controls_mapped || 0;
-        const risks = data.risks_added || 0;
-        if (mapped > 0 || risks > 0) {
-          this.telivyScanMappings[scanId].process_status = 'done';
-          this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
-          toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
-        } else if (data.data_stored) {
-          this.telivyScanMappings[scanId].process_status = 'done';
-          this.telivyScanMappings[scanId].process_result = data.message || 'Data saved';
-          toast(data.message || 'Data saved to client', 'success');
+        if (data.success || data.already_running) {
+          // Start polling for status
+          this._startPolling(tenantId, scanId);
         } else {
-          const dbg = data.llm_debug;
-          const detail = dbg ? `LLM: ${dbg.parsed_mappings || 0} mappings, ${dbg.parsed_risks || 0} risks${dbg.parse_error ? ' (parse error)' : ''}` : (data.message || data.error || 'No response');
-          this.telivyScanMappings[scanId].process_status = data.error ? 'failed' : 'done';
-          this.telivyScanMappings[scanId].process_result = detail;
-          toast(detail, data.error ? 'error' : 'warning');
+          this.telivyScanMappings[scanId].process_status = 'failed';
+          this.telivyScanMappings[scanId].process_error = data.error || 'Failed to start';
+          toast(data.error || 'Failed to start processing', 'error');
+          this._saveMapping();
         }
       } catch(e) {
         this.telivyScanMappings[scanId].process_status = 'failed';
         this.telivyScanMappings[scanId].process_error = e.message;
         toast('Processing failed: ' + e.message, 'error');
+        this._saveMapping();
       }
-      this._saveMapping();
+    },
+
+    _startPolling(tenantId, scanId) {
+      this.processLogTenantId = tenantId;
+      this.processLogStatus = 'running';
+      if (this._pollTimer) clearInterval(this._pollTimer);
+      this._pollTimer = setInterval(() => this._pollStatus(tenantId, scanId), 2000);
+      // Do an immediate poll
+      this._pollStatus(tenantId, scanId);
+    },
+
+    async _pollStatus(tenantId, scanId) {
+      try {
+        const resp = await fetch(`/api/v1/llm/process-status/${tenantId}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        this.processLog = data.log || [];
+        this.processLogStatus = data.status || 'idle';
+        this.processLogResult = data.result || {};
+
+        // Update the scan mapping status
+        if (scanId && this.telivyScanMappings[scanId]) {
+          if (data.status === 'done') {
+            const r = data.result || {};
+            const mapped = r.controls_mapped || 0;
+            const risks = r.risks_added || 0;
+            this.telivyScanMappings[scanId].process_status = 'done';
+            this.telivyScanMappings[scanId].process_result =
+              mapped > 0 || risks > 0
+                ? `${mapped} controls, ${risks} risks`
+                : (r.data_stored ? 'Data saved' : 'Complete');
+            toast(`Processed: ${mapped} controls mapped, ${risks} risks added`, 'success');
+            this._saveMapping();
+            this._stopPolling();
+          } else if (data.status === 'failed') {
+            this.telivyScanMappings[scanId].process_status = 'failed';
+            this.telivyScanMappings[scanId].process_error = (data.result || {}).error || 'Processing failed';
+            toast('Processing failed', 'error');
+            this._saveMapping();
+            this._stopPolling();
+          }
+        } else if (data.status === 'done' || data.status === 'failed') {
+          this._stopPolling();
+        }
+
+        // Auto-scroll the log viewer
+        this.$nextTick(() => {
+          const el = document.getElementById('process-log-container');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      } catch(e) { /* silent */ }
+    },
+
+    _stopPolling() {
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+      }
+    },
+
+    openProcessLog(tenantId) {
+      this.showProcessLog = true;
+      this.processLogTenantId = tenantId;
+      // Load existing log
+      this._pollStatus(tenantId, null);
+      // If still running, keep polling
+      if (this.processLogStatus === 'running') {
+        this._startPolling(tenantId, null);
+      }
+    },
+
+    // On page load, check if any mapped scans are still processing
+    async _resumePolling() {
+      for (const [scanId, mapping] of Object.entries(this.telivyScanMappings || {})) {
+        if (mapping && typeof mapping === 'object' && mapping.process_status === 'processing') {
+          const tenantId = mapping.tenant_id;
+          if (tenantId) {
+            try {
+              const resp = await fetch(`/api/v1/llm/process-status/${tenantId}`);
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data.status === 'running') {
+                  this._startPolling(tenantId, scanId);
+                  return; // Only poll one at a time
+                } else if (data.status === 'done') {
+                  const r = data.result || {};
+                  mapping.process_status = 'done';
+                  mapping.process_result = r.controls_mapped
+                    ? `${r.controls_mapped} controls, ${r.risks_added || 0} risks`
+                    : 'Complete';
+                  this._saveMapping();
+                } else if (data.status === 'failed') {
+                  mapping.process_status = 'failed';
+                  this._saveMapping();
+                }
+              }
+            } catch(e) { /* silent */ }
+          }
+        }
+      }
     },
 
     async telivyAiAutoMap(scanId, type) {
