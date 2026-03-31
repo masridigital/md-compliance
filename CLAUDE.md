@@ -55,11 +55,14 @@ All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortU
 - **DO NOT** use `session_factory` or create isolated SQLAlchemy sessions — this caused a full site crash. Use `db.session.remove()` instead.
 
 ### LLM Integration
+- **Multi-provider routing**: Each feature can use a different provider+model. Config stored in `ConfigStore("llm_feature_models")` as `{sameForAll: false, models: {feature: {provider, model}}}`. Additional providers stored in `ConfigStore("llm_provider_{key}")` with encrypted API keys.
+- **Feature names**: `data_parsing`, `auto_map`, `assist_gaps`, `risk_score`, `control_assess`, `policy_draft`, `evidence_interpret`, `summarize`
+- **Provider configs**: Primary in `SettingsLLM` table, additional in `ConfigStore("llm_additional_providers")`. Each has encrypted `api_key_enc`.
 - **Chunked calls**: 10 controls per LLM call. Large frameworks (100+ controls) get multiple calls with context passing between chunks.
 - **90s timeout** on all LLM provider API calls.
 - **JSON extraction**: LLM responses often contain markdown/text around JSON. Use brace-matching extraction (find `{`, match nested braces, parse).
 - **Status mapping**: LLM returns `compliant|partial|non_compliant`. Map to ProjectControl statuses: `complete|ready for auditor|infosec action`.
-- **Progress update**: When mapping controls, also update `subcontrol.implemented` (compliant=100, partial=50, non_compliant=25) — this drives the progress bar.
+- **Progress update**: When mapping controls, also update `subcontrol.implemented` (compliant=100, partial=50, non_compliant=25) + `_sync_project_progress()` for all controls — this drives the progress bar.
 
 ### Telivy Integration
 - **API key retrieval chain**: DB `SettingsStorage` → raw SQL fallback → env var `TELIVY_API_KEY`
