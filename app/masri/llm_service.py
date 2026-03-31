@@ -266,7 +266,21 @@ class LLMService:
         """
         from app.masri.settings_service import SettingsService
 
-        llm = SettingsService.get_active_llm_config()
+        llm = None
+        try:
+            llm = SettingsService.get_active_llm_config()
+        except Exception:
+            pass
+        # Fallback if slot column causes issues
+        if llm is None:
+            try:
+                from app import db
+                from app.masri.new_models import SettingsLLM
+                llm = db.session.execute(
+                    db.select(SettingsLLM).filter_by(enabled=True)
+                ).scalars().first()
+            except Exception:
+                pass
         if llm is None:
             return None
 
@@ -303,8 +317,23 @@ class LLMService:
     @staticmethod
     def is_enabled() -> bool:
         """Check whether LLM functionality is enabled and configured."""
-        config = LLMService._get_config()
-        return config is not None
+        try:
+            config = LLMService._get_config()
+            if config is not None:
+                return True
+        except Exception:
+            pass
+        # Fallback: direct simple query without slot column
+        try:
+            from app import db
+            from app.masri.new_models import SettingsLLM
+            llm = db.session.execute(
+                db.select(SettingsLLM).filter_by(enabled=True)
+            ).scalars().first()
+            return llm is not None
+        except Exception:
+            pass
+        return False
 
     @staticmethod
     def get_feature_model(feature: str) -> str:
