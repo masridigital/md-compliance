@@ -522,26 +522,33 @@ def assist_gaps():
     _validate_tenant_access(tenant_id)
 
     try:
-        # Get controls with their current status
+        # Get controls with their current status — find gaps
+        # ProjectControl.VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
+        # Default is "infosec action". Gaps = anything NOT complete.
         gap_controls = []
         for pc in project.controls.all():
             ctrl = pc.control
-            if ctrl and pc.review_status in ("not started", "not_started", "in progress", "in_progress", None, ""):
-                evidence_count = 0
-                try:
-                    evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
-                except Exception:
-                    pass
-                gap_controls.append({
-                    "project_control_id": pc.id,
-                    "ref_code": ctrl.ref_code or "",
-                    "name": ctrl.name or "",
-                    "description": ctrl.description or "",
-                    "category": ctrl.category or "",
-                    "review_status": pc.review_status or "not started",
-                    "has_evidence": evidence_count > 0,
-                    "notes": pc.notes or "",
-                })
+            if not ctrl:
+                continue
+            status = (pc.review_status or "").lower().strip()
+            # "complete" and "ready for auditor" are done — everything else is a gap
+            if status in ("complete", "ready for auditor"):
+                continue
+            evidence_count = 0
+            try:
+                evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
+            except Exception:
+                pass
+            gap_controls.append({
+                "project_control_id": pc.id,
+                "ref_code": ctrl.ref_code or "",
+                "name": ctrl.name or "",
+                "description": (ctrl.description or "")[:200],
+                "category": ctrl.category or "",
+                "review_status": pc.review_status or "infosec action",
+                "has_evidence": evidence_count > 0,
+                "notes": (pc.notes or "")[:200],
+            })
 
         if not gap_controls:
             return jsonify({
@@ -553,33 +560,59 @@ def assist_gaps():
         from app.masri.llm_service import LLMService
         import json
 
+        # Also gather integration data to give the LLM context about actual findings
+        integration_context = ""
+        try:
+            raw = _gather_integration_data(tenant_id)
+            integration_context = _compress_for_llm(raw) if raw else ""
+        except Exception:
+            pass
+
+        fw_name = project.framework.name if project.framework else "Unknown"
+
         # Send gaps to LLM for recommendations
         all_recommendations = []
         chunk_size = 10
         for i in range(0, len(gap_controls), chunk_size):
             chunk = gap_controls[i:i + chunk_size]
+
+            # Build a concise control list instead of dumping full JSON
+            ctrl_text = "\n".join([
+                f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
+                + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
+                for c in chunk
+            ])
+
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are a compliance consultant. Given a list of compliance controls "
-                        "that have gaps (missing evidence, not started, or in progress), provide "
-                        "specific, actionable recommendations for each.\n\n"
-                        "Respond with a JSON array:\n"
-                        '[{"project_control_id": "...", "priority": "high|medium|low", '
-                        '"recommendation": "specific action to take", '
-                        '"evidence_suggestion": "what evidence to collect", '
-                        '"estimated_effort": "quick|moderate|significant", '
-                        '"policy_needed": true/false, '
-                        '"template_suggestion": "suggested policy/procedure template name if applicable"}]\n\n'
-                        "Be specific and practical. Prioritize high-risk items."
+                        "You are a compliance consultant specializing in " + fw_name + ". "
+                        "You will receive a list of compliance controls that have gaps "
+                        "(missing evidence, incomplete review, or no action taken yet).\n\n"
+                        "For EACH control in the list, provide a specific, actionable recommendation.\n\n"
+                        "You MUST respond with ONLY a valid JSON array — no markdown, no explanation, "
+                        "no text before or after the JSON. Example format:\n"
+                        '[{"project_control_id":"ID","priority":"high","recommendation":"Do X",'
+                        '"evidence_suggestion":"Collect Y","estimated_effort":"quick",'
+                        '"policy_needed":false,"template_suggestion":""}]\n\n'
+                        "Rules:\n"
+                        "- Include ALL controls from the input, not just some\n"
+                        "- priority: high (security/data-critical), medium (operational), low (administrative)\n"
+                        "- recommendation: 1-2 sentences, specific action to take NOW\n"
+                        "- evidence_suggestion: specific document/screenshot/config to collect\n"
+                        "- estimated_effort: quick (<1hr), moderate (1-4hr), significant (>4hr)\n"
+                        "- policy_needed: true if a written policy/procedure document is required\n"
+                        "- template_suggestion: suggested policy template name, or empty string"
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Framework: {project.framework.name if project.framework else 'Unknown'}\n"
-                        f"## Controls with Gaps\n{json.dumps(chunk, indent=2)}"
+                        f"Framework: {fw_name}\n\n"
+                        + (f"INTEGRATION SCAN DATA (for context):\n{integration_context}\n\n" if integration_context and integration_context != "No scan data available." else "")
+                        + f"CONTROLS NEEDING ACTION ({len(chunk)}):\n{ctrl_text}"
                     ),
                 },
             ]
@@ -588,20 +621,35 @@ def assist_gaps():
                 messages=messages,
                 tenant_id=tenant_id,
                 feature="auto_map",
-                temperature=0.2,
-                max_tokens=4000,
+                temperature=0.3,
+                max_tokens=4096,
             )
 
             content = result["content"].strip()
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
-            try:
-                parsed = json.loads(content)
+            # Use the robust JSON extractor
+            parsed = _extract_json(content)
+            if parsed is not None:
                 if isinstance(parsed, list):
                     all_recommendations.extend(parsed)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning("LLM assist-gaps returned non-JSON for chunk %d", i)
+                elif isinstance(parsed, dict) and "recommendations" in parsed:
+                    all_recommendations.extend(parsed["recommendations"])
+                elif isinstance(parsed, dict):
+                    # Single recommendation wrapped in object
+                    all_recommendations.append(parsed)
+            else:
+                logger.warning("LLM assist-gaps: could not parse JSON for chunk %d: %s", i, content[:200])
+                # Provide fallback recommendations for this chunk
+                for c in chunk:
+                    all_recommendations.append({
+                        "project_control_id": c["project_control_id"],
+                        "priority": "medium",
+                        "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
+                        "evidence_suggestion": "Document current implementation status and any existing controls.",
+                        "estimated_effort": "moderate",
+                        "policy_needed": False,
+                        "template_suggestion": "",
+                    })
 
         return jsonify({
             "project_id": project_id,
@@ -712,8 +760,13 @@ def debug_integration_mapping(project_id):
     except Exception as e:
         mappings = {"_error": str(e)}
 
-    # Find which IDs map to this tenant
-    matched = {k: v for k, v in mappings.items() if v == tenant_id}
+    # Find which IDs map to this tenant — handle both string and dict formats
+    matched = {}
+    for k, v in mappings.items():
+        if isinstance(v, str) and v == tenant_id:
+            matched[k] = v
+        elif isinstance(v, dict) and v.get("tenant_id") == tenant_id:
+            matched[k] = v
 
     # Check Telivy API key
     has_telivy_key = False
@@ -1002,11 +1055,12 @@ def _run_auto_process(app, tenant_id, scan_id, scan_type):
         if not llm_available:
             _log_step(tenant_id, "llm_skip", "LLM not configured — storing raw data only", "warning")
 
+        # ProjectControl VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
         _STATUS_MAP = {
             "compliant": "complete",
-            "partial": "pending_review",
-            "non_compliant": "info_required",
-            "unknown": "new",
+            "partial": "ready for auditor",
+            "non_compliant": "infosec action",
+            "unknown": "infosec action",
         }
         _SEVERITY_MAP = {
             "critical": "critical", "high": "high",
@@ -1062,14 +1116,26 @@ def _run_auto_process(app, tenant_id, scan_id, scan_type):
                             {
                                 "role": "system",
                                 "content": (
-                                    "You are a compliance analyst. You will receive security scan results "
-                                    "and a list of compliance controls. You MUST respond with ONLY valid JSON.\n\n"
-                                    "Analyze the scan data and:\n"
-                                    "1. Map relevant findings to controls using the project_control_id\n"
-                                    "2. Create risk entries for findings that don't match any control\n\n"
-                                    "JSON format (NO other text before or after):\n"
-                                    '{"mappings":[{"project_control_id":"ID","notes":"what was found","status":"compliant|partial|non_compliant"}],'
-                                    '"risks":[{"title":"risk name","description":"details","severity":"critical|high|medium|low"}]}'
+                                    "You are an expert compliance analyst reviewing security scan results against "
+                                    f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
+                                    "no explanation, no text before or after.\n\n"
+                                    "Your tasks:\n"
+                                    "1. MAP each scan finding to the most relevant compliance control\n"
+                                    "2. CREATE detailed risk entries for ALL findings that represent security gaps\n\n"
+                                    "IMPORTANT for risk entries:\n"
+                                    "- Create a risk for EVERY significant security finding (unencrypted devices, "
+                                    "missing MFA, open ports, weak configs, expired certs, vulnerable software, etc.)\n"
+                                    "- Include specific details: affected hostnames, IP addresses, user accounts, "
+                                    "device names, endpoint URLs, port numbers — whatever was in the scan\n"
+                                    "- Explain WHY this is a risk and what could happen if not remediated\n"
+                                    "- Be thorough — it's better to create too many risks than too few\n\n"
+                                    "JSON format:\n"
+                                    '{"mappings":[{"project_control_id":"ID","notes":"detailed finding with affected '
+                                    'assets/users/endpoints","status":"compliant|partial|non_compliant"}],'
+                                    '"risks":[{"title":"specific risk name","description":"Detailed description '
+                                    'including: what was found, which specific assets/users/endpoints are affected, '
+                                    'why this is dangerous, and recommended remediation steps",'
+                                    '"severity":"critical|high|medium|low"}]}'
                                 ),
                             },
                             {
@@ -1118,7 +1184,7 @@ def _run_auto_process(app, tenant_id, scan_id, scan_type):
                                         pc.notes = f"{existing_notes}\n\n[Auto-Mapped] {notes}".strip()
                                         llm_status = m.get("status", "").lower()
                                         new_status = _STATUS_MAP.get(llm_status)
-                                        if new_status and pc.review_status in ("new", None):
+                                        if new_status and pc.review_status in ("infosec action", "new", None, ""):
                                             pc.review_status = new_status
                                         total_mapped += 1
                                         _log_step(tenant_id, "mapped",
@@ -1360,10 +1426,10 @@ def _compress_for_llm(data: dict) -> str:
                 items = by_severity[sev]
                 if items:
                     sections.append(f"\n[{sev.upper()}] ({len(items)}):")
-                    for item in items[:8]:
+                    for item in items[:15]:
                         sections.append(f"  - {item}")
-                    if len(items) > 8:
-                        sections.append(f"  ... and {len(items) - 8} more {sev} findings")
+                    if len(items) > 15:
+                        sections.append(f"  ... and {len(items) - 15} more {sev} findings")
 
     # ── Entra ID posture signals ──────────────────────────────────────
     entra = data.get("entra_compliance") or {}
@@ -1406,8 +1472,8 @@ def _compress_for_llm(data: dict) -> str:
 
     result = "\n".join(sections)
     # Hard cap to stay within token limits
-    if len(result) > 6000:
-        result = result[:6000] + "\n... (data truncated)"
+    if len(result) > 8000:
+        result = result[:8000] + "\n... (data truncated)"
     return result if result.strip() else "No scan data available."
 
 
