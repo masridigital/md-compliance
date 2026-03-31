@@ -2794,114 +2794,99 @@
 			</div>
 
 			<div class="col-span-6" x-show="selectedTab === 'integrations' && !tabLoading" x-data="integrationDataTab()" x-init="loadIntegrationData()">
-				<div class="card border border-base-200 bg-base-200">
-					<div class="card-body">
-						<div class="flex justify-between items-center mb-4">
-							<h2 class="card-title">Integration Data</h2>
-							<div class="flex gap-2">
-								<button class="btn btn-sm btn-primary gap-1" @click="loadIntegrationData()" :disabled="intLoading">
-									<span class="loading loading-spinner loading-xs" x-show="intLoading"></span>
-									<i class="ti ti-refresh" x-show="!intLoading"></i> Pull Latest
-								</button>
-								<a href="/integrations" class="btn btn-sm btn-ghost border border-base-300">
-									<i class="ti ti-settings mr-1"></i> Configure
-								</a>
-							</div>
-						</div>
 
-						<!-- Loading -->
-						<div x-show="intLoading" class="text-center py-8"><span class="loading loading-dots loading-md"></span></div>
+				<!-- Loading -->
+				<div x-show="intLoading" class="text-center py-12"><span class="loading loading-dots loading-lg"></span></div>
 
-						<!-- No data -->
-						<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks" class="text-center py-8 opacity-50">
-							<i class="ti ti-plug-connected-x text-3xl block mb-2"></i>
-							<p class="text-sm">No integration data found for this client.</p>
-							<p class="text-xs opacity-60 mt-1">Configure Entra ID or Telivy in <a href="/integrations" class="underline">Integrations</a>, then map scans to this client.</p>
-						</div>
+				<!-- No data at all — completely empty -->
+				<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks" class="text-center py-16 opacity-40">
+					<i class="ti ti-plug-connected-x text-4xl block mb-3"></i>
+					<p class="text-sm font-medium">No integration data available for this project</p>
+					<p class="text-xs mt-1">Map scans and configure integrations in the <a href="/integrations" class="underline">Integrations</a> page to see data here.</p>
+				</div>
 
-						<div x-show="!intLoading" class="space-y-4">
-							<!-- Entra ID Data -->
-							<template x-if="intData.entra">
-								<div class="card bg-base-300 border border-base-content/10">
-									<div class="card-body p-4">
-										<div class="flex items-center gap-2 mb-3">
-											<i class="ti ti-brand-azure text-xl text-info"></i>
-											<span class="font-semibold text-sm">Microsoft Entra ID</span>
-											<span class="badge badge-xs badge-success ml-auto">Connected</span>
-										</div>
-										<div class="grid grid-cols-3 gap-3 text-center">
-											<div class="bg-base-200 rounded-lg p-3">
-												<div class="text-lg font-bold" x-text="intData.entra.users || '-'"></div>
-												<div class="text-xs opacity-50">Users</div>
-											</div>
-											<div class="bg-base-200 rounded-lg p-3">
-												<div class="text-lg font-bold" x-text="intData.entra.mfa_rate || '-'"></div>
-												<div class="text-xs opacity-50">MFA Rate</div>
-											</div>
-											<div class="bg-base-200 rounded-lg p-3">
-												<div class="text-lg font-bold" x-text="intData.entra.score || '-'"></div>
-												<div class="text-xs opacity-50">Score</div>
-											</div>
-										</div>
-									</div>
-								</div>
-							</template>
+				<!-- Data cards — only shown when data exists -->
+				<div x-show="!intLoading && (intData.entra || intData.telivy || intData.risks)" class="space-y-4">
 
-							<!-- Telivy Data -->
-							<template x-if="intData.telivy">
-								<div class="card bg-base-300 border border-base-content/10">
-									<div class="card-body p-4">
-										<div class="flex items-center gap-2 mb-3">
-											<i class="ti ti-shield-search text-xl text-success"></i>
-											<span class="font-semibold text-sm">Telivy Security</span>
-											<span class="badge badge-xs badge-success ml-auto">Connected</span>
-										</div>
-										<div class="grid grid-cols-2 gap-3 text-center">
-											<div class="bg-base-200 rounded-lg p-3">
-												<div class="text-lg font-bold" x-text="intData.telivy.scans || 0"></div>
-												<div class="text-xs opacity-50">Mapped Scans</div>
-											</div>
-											<div class="bg-base-200 rounded-lg p-3">
-												<div class="text-lg font-bold" x-text="intData.telivy.findings || 0"></div>
-												<div class="text-xs opacity-50">Findings</div>
-											</div>
-										</div>
-										<div x-show="intData.telivy.scan_details && intData.telivy.scan_details.length > 0" class="mt-3 space-y-1">
-											<template x-for="s in (intData.telivy.scan_details || [])" :key="s.id">
-												<div class="flex justify-between items-center text-xs bg-base-200 rounded p-2">
-													<span class="font-medium" x-text="s.org || s.id"></span>
-													<span class="badge badge-xs" :class="{'badge-success': s.score === 'A', 'badge-warning': s.score === 'B' || s.score === 'C', 'badge-error': s.score === 'D' || s.score === 'F'}" x-text="s.score || 'N/A'"></span>
-												</div>
-											</template>
-										</div>
-									</div>
-								</div>
-							</template>
-
-							<!-- Risk Register Data -->
-							<template x-if="intData.risks">
-								<div class="card bg-base-300 border border-base-content/10">
-									<div class="card-body p-4">
-										<div class="flex items-center gap-2 mb-3">
-											<i class="ti ti-alert-triangle text-xl text-warning"></i>
-											<span class="font-semibold text-sm">Risk Register</span>
-										</div>
-										<div class="bg-base-200 rounded-lg p-3 text-center">
-											<div class="text-lg font-bold" x-text="intData.risks.count || 0"></div>
-											<div class="text-xs opacity-50">Registered Risks</div>
-										</div>
-									</div>
-								</div>
-							</template>
-						</div>
-
-						<!-- AI Action -->
-						<div class="divider text-xs mt-4">AI Auto-Map</div>
-						<p class="text-xs opacity-50 mb-2">Use AI to automatically map the integration data above to your project's controls.</p>
-						<button class="btn btn-sm btn-primary gap-1" @click="switchTab({tab: 'summary'})">
-							<i class="ti ti-brain"></i> Go to AI Assistant
+					<div class="flex justify-between items-center mb-2">
+						<h3 class="text-lg font-semibold">Integration Data</h3>
+						<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="loadIntegrationData()" :disabled="intLoading">
+							<i class="ti ti-refresh"></i> Refresh
 						</button>
 					</div>
+
+					<!-- Entra ID -->
+					<template x-if="intData.entra">
+						<div class="card bg-base-200 border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-brand-azure text-xl text-info"></i>
+									<span class="font-semibold text-sm">Microsoft Entra ID</span>
+									<span class="badge badge-xs badge-success ml-auto">Live</span>
+								</div>
+								<div class="grid grid-cols-3 gap-3 text-center">
+									<div class="bg-base-300 rounded-lg p-3">
+										<div class="text-xl font-bold" x-text="intData.entra.users || '-'"></div>
+										<div class="text-xs opacity-50">Directory Users</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-3">
+										<div class="text-xl font-bold" x-text="intData.entra.mfa_rate || '-'"></div>
+										<div class="text-xs opacity-50">MFA Enrollment</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-3">
+										<div class="text-xl font-bold" x-text="(intData.entra.score || '-') + '/100'"></div>
+										<div class="text-xs opacity-50">Compliance Score</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</template>
+
+					<!-- Telivy -->
+					<template x-if="intData.telivy">
+						<div class="card bg-base-200 border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-shield-search text-xl text-success"></i>
+									<span class="font-semibold text-sm">Telivy Security</span>
+									<span class="badge badge-xs badge-success ml-auto">Live</span>
+								</div>
+								<div class="grid grid-cols-2 gap-3 text-center mb-3">
+									<div class="bg-base-300 rounded-lg p-3">
+										<div class="text-xl font-bold" x-text="intData.telivy.scans || 0"></div>
+										<div class="text-xs opacity-50">Mapped Scans</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-3">
+										<div class="text-xl font-bold" x-text="intData.telivy.findings || 0"></div>
+										<div class="text-xs opacity-50">Security Findings</div>
+									</div>
+								</div>
+								<!-- Scan detail rows -->
+								<template x-for="s in (intData.telivy.scan_details || [])" :key="s.id">
+									<div class="flex justify-between items-center text-xs bg-base-300 rounded p-2 mb-1">
+										<span class="font-medium" x-text="s.org || s.id"></span>
+										<span class="badge badge-xs" :class="{'badge-success': s.score === 'A', 'badge-warning': s.score === 'B' || s.score === 'C', 'badge-error': s.score === 'D' || s.score === 'F'}" x-text="'Score: ' + (s.score || 'N/A')"></span>
+									</div>
+								</template>
+							</div>
+						</div>
+					</template>
+
+					<!-- Risk Register -->
+					<template x-if="intData.risks">
+						<div class="card bg-base-200 border border-base-300">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-alert-triangle text-xl text-warning"></i>
+									<span class="font-semibold text-sm">Risk Register</span>
+								</div>
+								<div class="bg-base-300 rounded-lg p-3 text-center">
+									<div class="text-xl font-bold" x-text="intData.risks.count || 0"></div>
+									<div class="text-xs opacity-50">Registered Risks</div>
+								</div>
+							</div>
+						</div>
+					</template>
 				</div>
 			</div>
 
