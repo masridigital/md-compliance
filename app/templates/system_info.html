@@ -111,13 +111,19 @@
                         <div class="text-xs font-mono opacity-60 py-0.5" x-text="c"></div>
                     </template>
                 </div>
-                <button x-show="updateStatus.available" class="btn btn-sm btn-success gap-1" @click="applyUpdates()" :disabled="updateApplying">
-                    <span class="loading loading-spinner loading-xs" x-show="updateApplying"></span>
-                    <i class="ti ti-download" x-show="!updateApplying"></i>
-                    Apply Updates
-                </button>
-                <p x-show="updateStatus.available" class="text-xs text-warning mt-2"><i class="ti ti-alert-triangle"></i> Applying updates will restart the app and log out all active users.</p>
+                <div x-show="updateStatus.available" class="flex gap-2 flex-wrap">
+                    <button class="btn btn-sm btn-success gap-1" @click="applyUpdates()" :disabled="updateApplying">
+                        <span class="loading loading-spinner loading-xs" x-show="updateApplying"></span>
+                        <i class="ti ti-download" x-show="!updateApplying"></i>
+                        Update Now
+                    </button>
+                    <button class="btn btn-sm btn-ghost border border-base-300 gap-1" @click="navigator.clipboard.writeText('cd /path/to/md-compliance && git pull && docker compose --profile production up -d --build'); toast('Deploy command copied!', 'success')">
+                        <i class="ti ti-copy"></i> Copy Deploy Command
+                    </button>
+                </div>
+                <p x-show="updateStatus.available" class="text-xs text-warning mt-2"><i class="ti ti-alert-triangle"></i> "Update Now" pulls code and restarts within the container. For a full Docker rebuild, use the deploy command via SSH.</p>
                 <div x-show="updateResult" class="text-xs mt-2" :class="updateResult && updateResult.success ? 'text-success' : 'text-error'" x-text="updateResult ? updateResult.message : ''"></div>
+                <div x-show="updateStatus && !updateStatus.available" class="mt-2"><span class="text-xs text-success"><i class="ti ti-check"></i> Already up to date — no action needed.</span></div>
             </div>
 
             <!-- Auto-update schedule -->

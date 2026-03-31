@@ -219,11 +219,10 @@
                       <a :href="'/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf'" class="btn btn-ghost btn-xs" title="Download PDF" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-32"
-                                :value="getScanTenantMapping(s.id)"
                                 @change="mapScanToTenant(s.id, $event.target.value, 'scan')">
-                          <option value="">Map to client...</option>
+                          <option value="" :selected="!getScanTenantMapping(s.id)">Map to client...</option>
                           <template x-for="t in telivyTenants" :key="'st-'+t.id">
-                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                            <option :value="t.id" x-text="t.name" class="capitalize" :selected="getScanTenantMapping(s.id) === t.id"></option>
                           </template>
                         </select>
                         <button class="btn btn-ghost btn-xs tooltip" data-tip="AI auto-map findings to controls"
@@ -278,11 +277,10 @@
                       <a :href="'/api/v1/telivy/risk-assessments/' + a.id + '/report'" class="btn btn-ghost btn-xs" title="Download Report" target="_blank"><i class="ti ti-file-type-pdf"></i></a>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-32"
-                                :value="getScanTenantMapping(a.id)"
                                 @change="mapScanToTenant(a.id, $event.target.value, 'assessment')">
-                          <option value="">Map to client...</option>
+                          <option value="" :selected="!getScanTenantMapping(a.id)">Map to client...</option>
                           <template x-for="t in telivyTenants" :key="'at-'+t.id">
-                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+                            <option :value="t.id" x-text="t.name" class="capitalize" :selected="getScanTenantMapping(a.id) === t.id"></option>
                           </template>
                         </select>
                         <button class="btn btn-ghost btn-xs tooltip" data-tip="AI auto-map to controls"
