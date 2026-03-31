@@ -1148,7 +1148,8 @@ def auto_process_status(tenant_id):
 
 
 def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
-    """Sync subcontrol.implemented for all controls in a project based on review_status."""
+    """Sync subcontrol.implemented and backfill evidence for all mapped controls."""
+    from app.models import ProjectEvidence, EvidenceAssociation
     _IMPL = {"complete": 100, "ready for auditor": 50, "infosec action": 0}
     try:
         for pc in project.controls.all():
@@ -1157,6 +1158,44 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                 for sc in pc.subcontrols.all():
                     if sc.is_applicable and (sc.implemented or 0) < impl_pct:
                         sc.implemented = impl_pct
+
+            # Backfill evidence for mapped controls that don't have auto-evidence yet
+            if pc.notes and "[Auto-Mapped]" in (pc.notes or ""):
+                ctrl = pc.control
+                ref_code = ctrl.ref_code if ctrl else pc.id
+                ev_name = f"[Auto] {ref_code} - Integration Scan Evidence"
+                existing_ev = db.session.execute(
+                    db.select(ProjectEvidence).filter_by(
+                        name=ev_name, project_id=project.id)
+                ).scalars().first()
+                if not existing_ev:
+                    try:
+                        # Extract the auto-mapped notes
+                        notes_parts = (pc.notes or "").split("[Auto-Mapped]")
+                        finding_text = notes_parts[-1].strip() if len(notes_parts) > 1 else pc.notes or ""
+                        status_label = pc.review_status or "infosec action"
+                        ev = ProjectEvidence(
+                            name=ev_name,
+                            description=(
+                                f"Auto-generated from integration scan.\n\n"
+                                f"Status: {status_label}\n"
+                                f"Finding: {finding_text[:500]}\n\n"
+                                f"Source: Telivy Security Scan\n"
+                                f"Action: {'Compliant — no action needed' if status_label == 'complete' else 'Upload supporting screenshot/document'}"
+                            ),
+                            content=finding_text[:1000],
+                            group="integration_scan",
+                            project_id=project.id,
+                            tenant_id=project.tenant_id,
+                        )
+                        db.session.add(ev)
+                        db.session.flush()
+                        for sc in pc.subcontrols.all():
+                            if sc.is_applicable:
+                                db.session.add(EvidenceAssociation(
+                                    control_id=sc.id, evidence_id=ev.id))
+                    except Exception:
+                        pass
     except Exception:
         pass
 
