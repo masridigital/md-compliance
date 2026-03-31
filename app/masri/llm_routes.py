@@ -775,8 +775,14 @@ def auto_process():
 
     if scan_id:
         try:
+            # Use the SAME client factory as the Telivy routes (test button uses this)
             from app.masri.telivy_routes import _get_telivy_client
-            client = _get_telivy_client()
+            try:
+                client = _get_telivy_client()
+            except RuntimeError as re:
+                return jsonify({"success": False, "controls_mapped": 0, "risks_added": 0,
+                                "error": f"Telivy not configured: {re}",
+                                "message": "Save your Telivy API key in Integrations first."})
 
             if scan_type == "scan":
                 try:
