@@ -616,6 +616,59 @@ def assist_gaps():
         return jsonify({"error": "Assist gaps failed: " + str(e)}), 500
 
 
+@llm_bp.route("/integration-data/<string:project_id>", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def get_integration_data(project_id):
+    """GET /api/v1/llm/integration-data/<project_id> — get live integration data for display."""
+    from app import db
+    from app.models import Project
+
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    tenant_id = project.tenant_id
+    _validate_tenant_access(tenant_id)
+
+    raw = _gather_integration_data(tenant_id)
+
+    # Format for display
+    result = {}
+    if raw.get("entra_users") or raw.get("entra_mfa") or raw.get("entra_compliance"):
+        entra = {}
+        if raw.get("entra_users"):
+            entra["users"] = raw["entra_users"].get("count", 0)
+        if raw.get("entra_mfa"):
+            mfa_list = raw["entra_mfa"]
+            if isinstance(mfa_list, list):
+                total = len(mfa_list)
+                mfa_on = sum(1 for u in mfa_list if u.get("mfa_registered"))
+                entra["mfa_rate"] = f"{int(mfa_on/total*100)}%" if total else "N/A"
+            elif isinstance(mfa_list, dict):
+                entra["mfa_rate"] = mfa_list.get("mfa_rate", "N/A")
+        if raw.get("entra_compliance"):
+            entra["score"] = raw["entra_compliance"].get("overall_score", "N/A")
+        result["entra"] = entra
+
+    if raw.get("telivy_scans") or raw.get("telivy_findings"):
+        telivy = {}
+        if raw.get("telivy_scans"):
+            telivy["scans"] = raw["telivy_scans"].get("count", 0)
+            telivy["scan_details"] = [
+                {"id": s.get("id"), "org": s.get("org"), "score": s.get("score")}
+                for s in raw["telivy_scans"].get("scans", [])
+            ]
+        if raw.get("telivy_findings"):
+            telivy["findings"] = raw["telivy_findings"].get("count", 0)
+        result["telivy"] = telivy
+
+    if raw.get("risk_register"):
+        result["risks"] = {"count": raw["risk_register"].get("count", 0)}
+
+    return jsonify(result)
+
+
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
     data = {}
