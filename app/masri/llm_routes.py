@@ -818,7 +818,7 @@ def _log_step(tenant_id: str, step: str, detail: str = "", level: str = "info"):
         _active_jobs[tenant_id] = job
 
 
-def _extract_json(content: str) -> dict | None:
+def _extract_json(content: str):
     """Extract JSON from LLM response using brace-matching."""
     # Strip markdown code blocks
     if content.startswith("```"):
