@@ -632,16 +632,16 @@ def get_integration_data(project_id):
     try:
         _validate_tenant_access(tenant_id)
     except Exception:
-        pass  # Allow viewing integration data even without strict tenant access
+        pass
 
     try:
         raw = _gather_integration_data(tenant_id)
     except Exception as e:
         logger.exception("Failed to gather integration data for tenant %s", tenant_id)
-        raw = {"error": str(e)}
+        raw = {"_error": str(e)}
 
     # Format for display
-    result = {}
+    result = {"_debug": {"tenant_id": tenant_id, "project_id": project_id, "raw_keys": list(raw.keys())}}
     if raw.get("entra_users") or raw.get("entra_mfa") or raw.get("entra_compliance"):
         entra = {}
         if raw.get("entra_users"):
@@ -749,17 +749,21 @@ def _gather_integration_data(tenant_id: str) -> dict:
 
             # Get scan-to-tenant mappings from DB (includes BOTH scans and assessments)
             mapped_ids = set()
+            all_mappings = {}
             try:
                 from app.models import ConfigStore
                 import json as _json
                 mapping_record = ConfigStore.find("telivy_scan_mappings")
                 if mapping_record and mapping_record.value:
-                    mappings = _json.loads(mapping_record.value)
-                    for item_id, mapped_tid in mappings.items():
+                    all_mappings = _json.loads(mapping_record.value)
+                    for item_id, mapped_tid in all_mappings.items():
                         if mapped_tid == tenant_id:
                             mapped_ids.add(item_id)
             except Exception:
                 pass
+
+            logger.info("Telivy gather: tenant=%s, mapped_ids=%s, all_mappings=%s", tenant_id, mapped_ids, list(all_mappings.keys())[:5])
+            data["_telivy_debug"] = {"tenant_id": tenant_id, "mapped_ids": list(mapped_ids), "total_mappings": len(all_mappings)}
 
             telivy_data = {"scans": [], "assessments": [], "findings": []}
 
