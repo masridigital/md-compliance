@@ -861,45 +861,38 @@ def auto_process():
             continue
 
         if llm_available:
-            # Use LLM to intelligently map findings to controls
             try:
-                import json
-                # Build a detailed data dump for the LLM
-                data_text = json.dumps(integration_data, indent=2, default=str)
-                # Truncate to fit token limits but keep as much as possible
-                if len(data_text) > 6000:
-                    data_text = data_text[:6000] + "\n... (truncated)"
+                # Compress integration data into a concise summary for the LLM
+                data_summary = _compress_for_llm(integration_data)
 
                 fw_name = project.framework.name if project.framework else "Unknown"
+
+                # Build a clean list of controls with just what the LLM needs
+                ctrl_list = "\n".join([
+                    f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                    for c in controls[:30]
+                ])
+
                 messages = [
                     {
                         "role": "system",
                         "content": (
-                            "You are a compliance analyst. You are given raw security scan data "
-                            "(from Telivy vulnerability scans, risk assessments, Entra ID) and a "
-                            f"list of {fw_name} compliance controls.\n\n"
-                            "Your job:\n"
-                            "1. ANALYZE the security data — identify vulnerabilities, misconfigurations, "
-                            "missing protections, and policy gaps\n"
-                            "2. MAP each finding to the most relevant compliance control by project_control_id. "
-                            "Write detailed notes explaining what the scan found and how it relates to the control.\n"
-                            "3. For findings that don't match any control, create RISK entries with title, "
-                            "detailed description, and severity (critical/high/medium/low).\n"
-                            "4. Check each control — if the scan data provides EVIDENCE that a control is "
-                            "being met (e.g. encryption detected, MFA enabled), note that as positive evidence.\n\n"
-                            "Respond with valid JSON:\n"
-                            "{\n"
-                            '  "mappings": [{"project_control_id": "...", "notes": "detailed analysis...", "status": "compliant|partial|non_compliant"}],\n'
-                            '  "risks": [{"title": "...", "description": "detailed risk description...", "severity": "critical|high|medium|low"}]\n'
-                            "}\n\n"
-                            "Be thorough. Analyze EVERY finding. Map as many as possible to controls."
+                            "You are a compliance analyst. You will receive security scan results "
+                            "and a list of compliance controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "Analyze the scan data and:\n"
+                            "1. Map relevant findings to controls using the project_control_id\n"
+                            "2. Create risk entries for findings that don't match any control\n\n"
+                            "JSON format (NO other text before or after):\n"
+                            '{"mappings":[{"project_control_id":"ID","notes":"what was found","status":"compliant|partial|non_compliant"}],'
+                            '"risks":[{"title":"risk name","description":"details","severity":"critical|high|medium|low"}]}'
                         ),
                     },
                     {
                         "role": "user",
                         "content": (
-                            f"## Security Scan Data\n{data_text}\n\n"
-                            f"## {fw_name} Controls ({len(controls)})\n{json.dumps(controls[:30], indent=2)}"
+                            f"Framework: {fw_name}\n\n"
+                            f"SCAN RESULTS:\n{data_summary}\n\n"
+                            f"CONTROLS:\n{ctrl_list}"
                         ),
                     },
                 ]
@@ -913,18 +906,44 @@ def auto_process():
                 )
 
                 content = result["content"].strip()
-                if content.startswith("```"):
-                    content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
+                # Strip markdown code blocks
+                if content.startswith("```"):
+                    parts = content.split("\n", 1)
+                    content = parts[1] if len(parts) > 1 else content
+                    content = content.rsplit("```", 1)[0].strip()
+
+                # Try to find JSON in the response even if there's extra text
                 llm_debug = {"raw_length": len(content), "preview": content[:300]}
+                parsed = None
                 try:
                     parsed = json.loads(content)
-                    llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
-                    llm_debug["parsed_risks"] = len(parsed.get("risks", []))
                 except (json.JSONDecodeError, ValueError):
-                    logger.warning("Auto-process LLM returned non-JSON: %s", content[:300])
+                    # Try to extract JSON from mixed text
+                    import re
+                    json_match = re.search(r'\{[^{}]*"mappings"[^{}]*\[.*?\].*?"risks"[^{}]*\[.*?\].*?\}', content, re.DOTALL)
+                    if json_match:
+                        try:
+                            parsed = json.loads(json_match.group())
+                        except Exception:
+                            pass
+                    if parsed is None:
+                        # Last resort: look for any JSON object
+                        brace_start = content.find("{")
+                        brace_end = content.rfind("}")
+                        if brace_start >= 0 and brace_end > brace_start:
+                            try:
+                                parsed = json.loads(content[brace_start:brace_end+1])
+                            except Exception:
+                                pass
+
+                if parsed is None:
+                    logger.warning("Auto-process: could not parse LLM response: %s", content[:300])
                     llm_debug["parse_error"] = True
                     parsed = {"mappings": [], "risks": []}
+                else:
+                    llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
+                    llm_debug["parsed_risks"] = len(parsed.get("risks", []))
 
                 # Apply control mappings (add notes)
                 for m in parsed.get("mappings", []):
@@ -982,6 +1001,73 @@ def auto_process():
         "data_sources": list(integration_data.keys()) if integration_data else [],
         "llm_debug": llm_debug,
     })
+
+
+def _compress_for_llm(data: dict) -> str:
+    """Compress integration data into a concise text summary for the LLM.
+
+    Instead of dumping raw JSON (which wastes tokens), extract the key
+    findings and present them as readable bullet points.
+    """
+    lines = []
+
+    # Telivy scan data
+    telivy = data.get("telivy", {})
+    if telivy:
+        scan = telivy.get("scan", {})
+        assessment = telivy.get("assessment", {})
+        findings = telivy.get("findings", [])
+
+        if scan:
+            details = scan.get("assessmentDetails", {})
+            lines.append(f"Organization: {details.get('organization_name', 'Unknown')}")
+            lines.append(f"Domain: {details.get('domain_prim', 'Unknown')}")
+            lines.append(f"Security Score: {scan.get('securityScore', 'N/A')}")
+            lines.append(f"Scan Status: {scan.get('scanStatus', 'Unknown')}")
+
+        if assessment:
+            details = assessment.get("assessmentDetails", {})
+            lines.append(f"Organization: {details.get('organization_name', 'Unknown')}")
+            lines.append(f"Domain: {details.get('domain_prim', 'Unknown')}")
+            lines.append(f"Assessment Status: {assessment.get('scanStatus', 'Unknown')}")
+            # Extract executive summary scores
+            exec_sum = assessment.get("executiveSummary", {})
+            if exec_sum:
+                for category, scores in exec_sum.items():
+                    if isinstance(scores, dict) and scores.get("securityScore"):
+                        lines.append(f"  {category}: Score {scores['securityScore']}")
+
+        if findings:
+            lines.append(f"\nFindings ({len(findings)}):")
+            for f in findings[:20]:
+                if isinstance(f, dict):
+                    name = f.get("name", f.get("slug", f.get("title", "Unknown")))
+                    severity = f.get("severity", f.get("riskLevel", ""))
+                    desc = f.get("description", f.get("details", ""))[:150]
+                    lines.append(f"- [{severity}] {name}: {desc}")
+                elif isinstance(f, str):
+                    lines.append(f"- {f[:150]}")
+
+    # Entra data
+    entra = data.get("entra_compliance", {})
+    if entra:
+        lines.append(f"\nEntra ID Compliance Score: {entra.get('overall_score', 'N/A')}/100")
+        for rec in entra.get("recommendations", [])[:5]:
+            lines.append(f"- {rec}")
+
+    # Risk register
+    risks = data.get("risk_register", {})
+    if risks:
+        lines.append(f"\nExisting Risks ({risks.get('count', 0)}):")
+        for r in risks.get("risks", [])[:5]:
+            if isinstance(r, dict):
+                lines.append(f"- {r.get('title', 'Unknown')}: {r.get('description', '')[:100]}")
+
+    result = "\n".join(lines)
+    # Hard cap at 4000 chars to stay within token limits
+    if len(result) > 4000:
+        result = result[:4000] + "\n... (data truncated)"
+    return result if result.strip() else "No scan data available."
 
 
 def _gather_integration_data(tenant_id: str) -> dict:
