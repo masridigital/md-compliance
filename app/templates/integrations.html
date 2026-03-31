@@ -294,6 +294,7 @@
                       </template>
                     </div>
                     <div class="flex items-center gap-1 mt-2 flex-wrap">
+                      <button class="btn btn-ghost btn-xs" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i></button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-32"
@@ -1642,6 +1643,44 @@ function integrationsHub() {
       } catch (e) { this.telivyError = e.message; }
     },
 
+    async telivyViewAssessmentDetails(assessmentId) {
+      this.telivyError = null;
+      try {
+        // Fetch assessment details + devices
+        const [detailResp, devResp] = await Promise.all([
+          fetch('/api/v1/telivy/risk-assessments/' + assessmentId),
+          fetch('/api/v1/telivy/risk-assessments/' + assessmentId + '/devices'),
+        ]);
+        const detail = detailResp.ok ? await detailResp.json() : {};
+        const devices = devResp.ok ? await devResp.json() : [];
+        // Build findings-like list from executive summary + devices
+        const findings = [];
+        const exec = detail.executiveSummary || {};
+        for (const [cat, scores] of Object.entries(exec)) {
+          if (scores && typeof scores === 'object' && scores.securityScore) {
+            findings.push({
+              name: cat.replace(/([A-Z])/g, ' $1').trim(),
+              severity: scores.securityScore === 'A' || scores.securityScore === 'B' ? 'low' : scores.securityScore === 'C' ? 'medium' : 'high',
+              description: `Score: ${scores.securityScore}. ${scores.description || ''}`.trim(),
+              category: 'Executive Summary',
+            });
+          }
+        }
+        // Add devices as findings
+        if (Array.isArray(devices)) {
+          for (const d of devices.slice(0, 20)) {
+            findings.push({
+              name: d.hostname || d.deviceName || d.ip || 'Device',
+              severity: d.riskLevel || d.risk || 'info',
+              description: `IP: ${d.ip || 'N/A'}, OS: ${d.os || d.operatingSystem || 'N/A'}, Status: ${d.scanStatus || d.status || 'N/A'}`,
+              category: 'Device',
+            });
+          }
+        }
+        this.telivyFindings = findings;
+      } catch (e) { this.telivyError = e.message; }
+    },
+
     async telivyListAssessments() {
       this.telivyLoading.assessments = true; this.telivyError = null;
       try {
@@ -1840,7 +1879,7 @@ function integrationsHub() {
       this.telivyScanMappings[scanId].process_result = '';
       this.telivyScanMappings[scanId].process_error = '';
       this._saveMapping();
-      toast('Re-running AI analysis...', 'info');
+      toast('Re-pulling data from Telivy + AI analysis...', 'info');
       await this._runAutoProcess(scanId, tenantId, type);
     },
 
