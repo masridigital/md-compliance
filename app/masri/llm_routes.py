@@ -830,6 +830,7 @@ def auto_process():
     # Step 2 + 3: For each project, map to controls and add risks
     total_mapped = 0
     total_risks = 0
+    llm_debug = None
 
     # Check if LLM is available for intelligent mapping
     llm_available = False
@@ -911,10 +912,14 @@ def auto_process():
                 if content.startswith("```"):
                     content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
+                llm_debug = {"raw_length": len(content), "preview": content[:300]}
                 try:
                     parsed = json.loads(content)
+                    llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
+                    llm_debug["parsed_risks"] = len(parsed.get("risks", []))
                 except (json.JSONDecodeError, ValueError):
-                    logger.warning("Auto-process LLM returned non-JSON: %s", content[:200])
+                    logger.warning("Auto-process LLM returned non-JSON: %s", content[:300])
+                    llm_debug["parse_error"] = True
                     parsed = {"mappings": [], "risks": []}
 
                 # Apply control mappings (add notes)
@@ -971,6 +976,7 @@ def auto_process():
         "projects_processed": len(projects),
         "llm_available": llm_available,
         "data_sources": list(integration_data.keys()) if integration_data else [],
+        "llm_debug": llm_debug,
     })
 
 

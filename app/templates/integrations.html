@@ -1679,9 +1679,13 @@ function integrationsHub() {
               this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
               toast(`Processed: ${mapped} controls mapped, ${risks} risks added`, 'success');
             } else {
+              const dbg = procData.llm_debug;
+              const detail = dbg ? `LLM returned ${dbg.parsed_mappings || 0} mappings, ${dbg.parsed_risks || 0} risks${dbg.parse_error ? ' (JSON parse error)' : ''}` : (procData.message || 'No LLM response');
               this.telivyScanMappings[scanId].process_status = procData.message ? 'failed' : 'done';
-              this.telivyScanMappings[scanId].process_result = procData.message || `0 mapped (LLM: ${procData.llm_available ? 'yes' : 'no'}, sources: ${(procData.data_sources || []).join(', ') || 'none'})`;
-              toast(procData.message || `Processed but found 0 mappings (sources: ${(procData.data_sources || []).join(', ') || 'none'})`, mapped > 0 ? 'success' : 'warning');
+              this.telivyScanMappings[scanId].process_result = detail;
+              toast(detail, 'warning');
+              // Log full debug to console for troubleshooting
+              console.log('Auto-process result:', procData);
             }
           } catch(e2) {
             this.telivyScanMappings[scanId].process_status = 'failed';
