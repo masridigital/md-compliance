@@ -522,26 +522,32 @@ def assist_gaps():
     _validate_tenant_access(tenant_id)
 
     try:
-        # Get controls with their current status
+        # Get controls with their current status — find gaps
+        # ProjectControl.VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
+        # Default is "infosec action". Gaps = anything NOT complete.
         gap_controls = []
         for pc in project.controls.all():
             ctrl = pc.control
-            if ctrl and pc.review_status in ("not started", "not_started", "in progress", "in_progress", None, ""):
-                evidence_count = 0
-                try:
-                    evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
-                except Exception:
-                    pass
-                gap_controls.append({
-                    "project_control_id": pc.id,
-                    "ref_code": ctrl.ref_code or "",
-                    "name": ctrl.name or "",
-                    "description": ctrl.description or "",
-                    "category": ctrl.category or "",
-                    "review_status": pc.review_status or "not started",
-                    "has_evidence": evidence_count > 0,
-                    "notes": pc.notes or "",
-                })
+            if not ctrl:
+                continue
+            status = (pc.review_status or "").lower().strip()
+            if status in ("complete", "ready for auditor"):
+                continue
+            evidence_count = 0
+            try:
+                evidence_count = pc.evidence.count() if hasattr(pc, 'evidence') else 0
+            except Exception:
+                pass
+            gap_controls.append({
+                "project_control_id": pc.id,
+                "ref_code": ctrl.ref_code or "",
+                "name": ctrl.name or "",
+                "description": (ctrl.description or "")[:200],
+                "category": ctrl.category or "",
+                "review_status": pc.review_status or "infosec action",
+                "has_evidence": evidence_count > 0,
+                "notes": (pc.notes or "")[:200],
+            })
 
         if not gap_controls:
             return jsonify({
@@ -553,55 +559,89 @@ def assist_gaps():
         from app.masri.llm_service import LLMService
         import json
 
-        # Send gaps to LLM for recommendations
+        # Gather integration data for context
+        integration_context = ""
+        try:
+            raw = _gather_integration_data(tenant_id)
+            integration_context = _compress_for_llm(raw) if raw else ""
+        except Exception:
+            pass
+
+        fw_name = project.framework.name if project.framework else "Unknown"
+
         all_recommendations = []
         chunk_size = 10
         for i in range(0, len(gap_controls), chunk_size):
             chunk = gap_controls[i:i + chunk_size]
+            ctrl_text = "\n".join([
+                f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
+                + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
+                for c in chunk
+            ])
+
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are a compliance consultant. Given a list of compliance controls "
-                        "that have gaps (missing evidence, not started, or in progress), provide "
-                        "specific, actionable recommendations for each.\n\n"
-                        "Respond with a JSON array:\n"
-                        '[{"project_control_id": "...", "priority": "high|medium|low", '
-                        '"recommendation": "specific action to take", '
-                        '"evidence_suggestion": "what evidence to collect", '
-                        '"estimated_effort": "quick|moderate|significant", '
-                        '"policy_needed": true/false, '
-                        '"template_suggestion": "suggested policy/procedure template name if applicable"}]\n\n'
-                        "Be specific and practical. Prioritize high-risk items."
+                        f"You are a compliance consultant specializing in {fw_name}. "
+                        "You will receive controls that have gaps. "
+                        "For EACH control, provide a specific recommendation.\n\n"
+                        "You MUST respond with ONLY a valid JSON array — no markdown, no text:\n"
+                        '[{"project_control_id":"ID","priority":"high","recommendation":"Do X",'
+                        '"evidence_suggestion":"Collect Y","estimated_effort":"quick",'
+                        '"policy_needed":false,"template_suggestion":""}]\n\n'
+                        "Rules: include ALL controls, priority=high|medium|low, "
+                        "estimated_effort=quick|moderate|significant"
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Framework: {project.framework.name if project.framework else 'Unknown'}\n"
-                        f"## Controls with Gaps\n{json.dumps(chunk, indent=2)}"
+                        f"Framework: {fw_name}\n\n"
+                        + (f"SCAN DATA:\n{integration_context}\n\n" if integration_context and integration_context != "No scan data available." else "")
+                        + f"CONTROLS ({len(chunk)}):\n{ctrl_text}"
                     ),
                 },
             ]
 
             result = LLMService.chat(
-                messages=messages,
-                tenant_id=tenant_id,
-                feature="auto_map",
-                temperature=0.2,
-                max_tokens=4000,
+                messages=messages, tenant_id=tenant_id,
+                feature="auto_map", temperature=0.3, max_tokens=4096,
             )
 
             content = result["content"].strip()
             if content.startswith("```"):
                 content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
+            parsed = None
             try:
                 parsed = json.loads(content)
-                if isinstance(parsed, list):
-                    all_recommendations.extend(parsed)
             except (json.JSONDecodeError, ValueError):
-                logger.warning("LLM assist-gaps returned non-JSON for chunk %d", i)
+                # Try brace extraction
+                brace_start = content.find("[")
+                brace_end = content.rfind("]")
+                if brace_start >= 0 and brace_end > brace_start:
+                    try:
+                        parsed = json.loads(content[brace_start:brace_end + 1])
+                    except Exception:
+                        pass
+
+            if parsed and isinstance(parsed, list):
+                all_recommendations.extend(parsed)
+            elif parsed and isinstance(parsed, dict) and "recommendations" in parsed:
+                all_recommendations.extend(parsed["recommendations"])
+            else:
+                logger.warning("LLM assist-gaps: parse failed chunk %d: %s", i, content[:200])
+                for c in chunk:
+                    all_recommendations.append({
+                        "project_control_id": c["project_control_id"],
+                        "priority": "medium",
+                        "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
+                        "evidence_suggestion": "Document current implementation status.",
+                        "estimated_effort": "moderate",
+                        "policy_needed": False, "template_suggestion": "",
+                    })
 
         return jsonify({
             "project_id": project_id,
@@ -681,6 +721,9 @@ def get_integration_data(project_id):
             "items": raw["risk_register"].get("risks", [])[:10],
         }
 
+    if raw.get("_cached_at"):
+        result["_cached_at"] = raw["_cached_at"]
+
     return jsonify(result)
 
 
@@ -710,7 +753,13 @@ def debug_integration_mapping(project_id):
         mappings = {"_error": str(e)}
 
     # Find which IDs map to this tenant
-    matched = {k: v for k, v in mappings.items() if v == tenant_id}
+    # Handle both string and dict mapping formats
+    matched = {}
+    for k, v in mappings.items():
+        if isinstance(v, str) and v == tenant_id:
+            matched[k] = v
+        elif isinstance(v, dict) and v.get("tenant_id") == tenant_id:
+            matched[k] = v
 
     # Check Telivy API key
     has_telivy_key = False
@@ -877,14 +926,23 @@ def auto_process():
                     {
                         "role": "system",
                         "content": (
-                            "You are a compliance analyst. You will receive security scan results "
-                            "and a list of compliance controls. You MUST respond with ONLY valid JSON.\n\n"
-                            "Analyze the scan data and:\n"
-                            "1. Map relevant findings to controls using the project_control_id\n"
-                            "2. Create risk entries for findings that don't match any control\n\n"
-                            "JSON format (NO other text before or after):\n"
-                            '{"mappings":[{"project_control_id":"ID","notes":"what was found","status":"compliant|partial|non_compliant"}],'
-                            '"risks":[{"title":"risk name","description":"details","severity":"critical|high|medium|low"}]}'
+                            "You are an expert compliance analyst reviewing security scan results against "
+                            f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
+                            "no explanation, no text before or after.\n\n"
+                            "Your tasks:\n"
+                            "1. MAP each scan finding to the most relevant compliance control\n"
+                            "2. CREATE detailed risk entries for ALL findings that represent security gaps\n\n"
+                            "IMPORTANT for risk entries:\n"
+                            "- Create a risk for EVERY significant finding (missing MFA, open ports, weak configs, "
+                            "expired certs, vulnerable software, unencrypted data, etc.)\n"
+                            "- Include specific details: affected hostnames, IPs, users, endpoints, port numbers\n"
+                            "- Explain WHY this is a risk and recommended remediation steps\n"
+                            "- Be thorough — create risks for all significant findings\n\n"
+                            "JSON format:\n"
+                            '{"mappings":[{"project_control_id":"ID","notes":"detailed finding with affected '
+                            'assets","status":"compliant|partial|non_compliant"}],'
+                            '"risks":[{"title":"specific risk","description":"What was found, which assets are '
+                            'affected, why dangerous, remediation steps","severity":"critical|high|medium|low"}]}'
                         ),
                     },
                     {
@@ -945,7 +1003,12 @@ def auto_process():
                     llm_debug["parsed_mappings"] = len(parsed.get("mappings", []))
                     llm_debug["parsed_risks"] = len(parsed.get("risks", []))
 
-                # Apply control mappings (add notes)
+                # Apply control mappings (add notes + update status)
+                # ProjectControl VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
+                _STATUS_MAP = {
+                    "compliant": "complete", "partial": "ready for auditor",
+                    "non_compliant": "infosec action", "unknown": "infosec action",
+                }
                 for m in parsed.get("mappings", []):
                     try:
                         pc_id = m.get("project_control_id")
@@ -956,18 +1019,32 @@ def auto_process():
                             if pc:
                                 existing = pc.notes or ""
                                 pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
+                                llm_status = m.get("status", "").lower()
+                                new_status = _STATUS_MAP.get(llm_status)
+                                if new_status and pc.review_status in ("infosec action", "new", None, ""):
+                                    pc.review_status = new_status
                                 total_mapped += 1
                     except Exception:
                         pass
 
-                # Add risks to risk register
+                # Add risks to risk register (with dedup + severity)
+                _SEVERITY_MAP = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
                 for r in parsed.get("risks", []):
                     try:
                         title = r.get("title", "")
                         if title:
+                            title_hash = RiskRegister._compute_title_hash(title, tenant_id)
+                            existing_risk = db.session.execute(
+                                db.select(RiskRegister).filter_by(title_hash=title_hash, tenant_id=tenant_id)
+                            ).scalars().first()
+                            if existing_risk:
+                                continue
+                            severity = _SEVERITY_MAP.get(r.get("severity", "").lower(), "unknown")
                             risk = RiskRegister(
                                 title=title,
+                                title_hash=title_hash,
                                 description=r.get("description", ""),
+                                risk=severity,
                                 tenant_id=tenant_id,
                             )
                             db.session.add(risk)
@@ -1072,6 +1149,7 @@ def _compress_for_llm(data: dict) -> str:
 
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
+    import json
     data = {}
 
     # Entra ID
@@ -1084,9 +1162,9 @@ def _gather_integration_data(tenant_id: str) -> dict:
             db.select(SettingsEntra).filter_by(tenant_id=None)
         ).scalars().first()
         if entra and entra.is_fully_configured():
-            from app.masri.entra_integration import EntraClient
+            from app.masri.entra_integration import EntraIntegration
             creds = entra.get_credentials()
-            client = EntraClient(
+            client = EntraIntegration(
                 tenant_id=creds["entra_tenant_id"],
                 client_id=creds["client_id"],
                 client_secret=creds["client_secret"],
@@ -1177,7 +1255,7 @@ def _gather_integration_data(tenant_id: str) -> dict:
                 all_findings = []
                 for scan_id in list(mapped_ids)[:3]:
                     try:
-                        findings = client.get_scan_findings(scan_id)
+                        findings = client.get_external_scan_findings(scan_id)
                         if findings:
                             all_findings.extend(findings[:10] if isinstance(findings, list) else [])
                     except Exception:
@@ -1205,6 +1283,49 @@ def _gather_integration_data(tenant_id: str) -> dict:
             }
     except Exception as e:
         logger.debug("Risk data collection skipped: %s", e)
+
+    # Merge in cached tenant-level data from ConfigStore (stored by auto-process)
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if record and record.value:
+            cached = json.loads(record.value)
+            if "telivy_findings" not in data and cached.get("telivy"):
+                telivy_cached = cached["telivy"]
+                if telivy_cached.get("findings"):
+                    data["telivy_findings"] = {
+                        "count": len(telivy_cached["findings"]),
+                        "findings": telivy_cached["findings"][:20],
+                    }
+                if "telivy_scans" not in data and telivy_cached.get("scan"):
+                    scan = telivy_cached["scan"]
+                    details = scan.get("assessmentDetails", {})
+                    data["telivy_scans"] = {
+                        "count": 1,
+                        "scans": [{"id": scan.get("id", ""), "org": details.get("organization_name", "Unknown"),
+                                   "score": scan.get("securityScore"), "status": scan.get("scanStatus"),
+                                   "type": "external_scan", "domain": details.get("domain_prim")}],
+                    }
+                if "telivy_scans" not in data and telivy_cached.get("assessment"):
+                    assessment = telivy_cached["assessment"]
+                    details = assessment.get("assessmentDetails", {})
+                    data["telivy_scans"] = {
+                        "count": 1,
+                        "scans": [{"id": assessment.get("id", ""), "org": details.get("organization_name", "Unknown"),
+                                   "score": assessment.get("securityScore"), "status": assessment.get("scanStatus"),
+                                   "type": "risk_assessment", "domain": details.get("domain_prim")}],
+                    }
+            if "entra_compliance" not in data and cached.get("entra"):
+                entra_cached = cached["entra"]
+                if entra_cached.get("compliance"):
+                    data["entra_compliance"] = entra_cached["compliance"]
+                if "entra_users" not in data and entra_cached.get("users"):
+                    data["entra_users"] = entra_cached["users"]
+                if "entra_mfa" not in data and entra_cached.get("mfa"):
+                    data["entra_mfa"] = entra_cached["mfa"]
+            data["_cached_at"] = cached.get("_updated")
+    except Exception as e:
+        logger.debug("ConfigStore cached data read failed: %s", e)
 
     if not data:
         data["note"] = "No integration data available. Configure Entra ID or Telivy in Integrations."
