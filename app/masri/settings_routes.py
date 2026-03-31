@@ -1209,3 +1209,23 @@ def reset_integration(integration_type):
         logger.exception("Error resetting integration %s", integration_type)
         db.session.rollback()
         return jsonify({"error": f"Reset failed: {str(e)}"}), 500
+
+
+# ===========================================================================
+# System Logs (real-time in-app viewer)
+# ===========================================================================
+
+@settings_bp.route("/system-logs", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_system_logs():
+    """GET /api/v1/settings/system-logs — recent application logs for in-app viewer."""
+    _require_admin()
+    from app.masri.log_buffer import get_recent_logs
+
+    limit = request.args.get("limit", 200, type=int)
+    level = request.args.get("level")
+    since = request.args.get("since")
+
+    logs = get_recent_logs(limit=min(limit, 500), level=level, since=since)
+    return jsonify(logs)

@@ -487,6 +487,15 @@ def configure_logging(app):
     app.logger.addHandler(handler)
     app.logger.setLevel(app.config["LOG_LEVEL"])
 
+    # Also add a ring buffer handler to capture logs for the in-app viewer
+    from app.masri.log_buffer import BufferHandler
+    buf_handler = BufferHandler(capacity=500)
+    buf_handler.setFormatter(formatter)
+    buf_handler.setLevel(logging.DEBUG)
+    app.logger.addHandler(buf_handler)
+    # Also capture root logger (catches all library logs)
+    logging.getLogger().addHandler(buf_handler)
+
     app.logger.info("Enabled standard Flask logging")
 
 

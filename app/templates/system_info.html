@@ -193,6 +193,64 @@
         </div>
     </div>
 
+    <!-- Real-time Error Log -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="card-title text-md"><i class="ti ti-terminal-2 mr-1"></i> Application Logs</h3>
+                <div class="flex items-center gap-2">
+                    <select class="select select-xs select-bordered" x-model="logLevel" @change="loadLogs()">
+                        <option value="">All Levels</option>
+                        <option value="ERROR">Errors Only</option>
+                        <option value="WARNING">Warnings+</option>
+                        <option value="INFO">Info+</option>
+                    </select>
+                    <label class="flex items-center gap-1 text-xs">
+                        <input type="checkbox" class="toggle toggle-xs toggle-info" x-model="logAutoRefresh" @change="toggleLogRefresh()">
+                        Live
+                    </label>
+                    <button class="btn btn-xs btn-ghost gap-1" @click="loadLogs()" :disabled="logLoading">
+                        <i class="ti ti-refresh"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="bg-base-300 rounded-lg font-mono text-xs overflow-hidden">
+                <div id="log-container" class="max-h-96 overflow-y-auto p-3 space-y-0.5">
+                    <div x-show="logEntries.length === 0 && !logLoading" class="text-center py-8 opacity-40">
+                        <i class="ti ti-terminal-2 text-2xl block mb-2"></i>
+                        <p>No log entries yet. Click refresh or enable live mode.</p>
+                    </div>
+                    <template x-for="(entry, idx) in logEntries" :key="idx">
+                        <div class="py-0.5 px-1 rounded flex gap-2 cursor-pointer hover:bg-base-100/50"
+                             :class="{
+                                'bg-error/10': entry.level === 'ERROR',
+                                'bg-warning/10': entry.level === 'WARNING',
+                             }"
+                             @click="entry._expanded = !entry._expanded">
+                            <span class="opacity-30 shrink-0 tabular-nums" x-text="entry.ts?.split('T')[1]?.split('.')[0] || ''"></span>
+                            <span class="shrink-0 w-16"
+                                  :class="{
+                                    'text-error font-bold': entry.level === 'ERROR',
+                                    'text-warning': entry.level === 'WARNING',
+                                    'text-info': entry.level === 'INFO',
+                                    'opacity-40': entry.level === 'DEBUG',
+                                  }" x-text="entry.level"></span>
+                            <span class="break-all" x-text="entry._expanded ? entry.message : entry.message.substring(0, 200)"></span>
+                        </div>
+                        <div x-show="entry._expanded && entry.traceback" x-cloak
+                             class="ml-20 p-2 bg-error/5 rounded text-error whitespace-pre-wrap text-[10px] max-h-48 overflow-auto"
+                             x-text="entry.traceback" @click.stop></div>
+                    </template>
+                    <div x-show="logLoading" class="text-center py-4"><span class="loading loading-dots loading-sm"></span></div>
+                </div>
+            </div>
+            <div class="flex justify-between items-center mt-2 text-xs opacity-40">
+                <span x-text="logEntries.length + ' entries'"></span>
+                <span x-show="logAutoRefresh" class="flex items-center gap-1 text-info"><span class="loading loading-ring loading-xs"></span> Refreshing every 3s</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Quick Links -->
     <div class="card bg-base-200 border border-base-300">
         <div class="card-body">
@@ -346,6 +404,39 @@ function systemInfo() {
         else { this.smtpMsg = 'Failed to save'; this.smtpMsgType = 'error'; }
       } catch(e) { this.smtpMsg = 'Error'; this.smtpMsgType = 'error'; }
       this.smtpSaving = false;
+    },
+
+    // ── System Logs ──
+    logEntries: [],
+    logLoading: false,
+    logLevel: '',
+    logAutoRefresh: false,
+    _logInterval: null,
+
+    async loadLogs() {
+      this.logLoading = true;
+      try {
+        let url = '/api/v1/settings/system-logs?limit=300';
+        if (this.logLevel) url += '&level=' + this.logLevel;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          this.logEntries = (await resp.json()).map(e => ({ ...e, _expanded: false }));
+          this.$nextTick(() => {
+            const el = document.getElementById('log-container');
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+        }
+      } catch(e) { console.warn('Failed to load logs:', e); }
+      this.logLoading = false;
+    },
+
+    toggleLogRefresh() {
+      if (this.logAutoRefresh) {
+        this.loadLogs();
+        this._logInterval = setInterval(() => this.loadLogs(), 3000);
+      } else {
+        if (this._logInterval) { clearInterval(this._logInterval); this._logInterval = null; }
+      }
     },
 
     async testSmtp() {
