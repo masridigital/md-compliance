@@ -874,8 +874,13 @@ def _run_auto_process(app, tenant_id, scan_id, scan_type):
 
         # Create an isolated session for background work — prevents
         # "unexpected error" on concurrent requests.
-        Session = _main_db.session.session_factory
-        session = Session()
+        try:
+            Session = _main_db.session.session_factory
+            session = Session()
+        except AttributeError:
+            # Older Flask-SQLAlchemy: fall back to creating session from engine
+            from sqlalchemy.orm import Session as _Session
+            session = _Session(bind=_main_db.engine)
 
         try:
             _do_auto_process(app, session, tenant_id, scan_id, scan_type,
@@ -1514,6 +1519,7 @@ def _compress_for_llm(data: dict) -> str:
 
 def _gather_integration_data(tenant_id: str) -> dict:
     """Collect all available integration data for a tenant."""
+    import json
     data = {}
 
     # Entra ID
