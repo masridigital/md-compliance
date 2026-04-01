@@ -517,15 +517,26 @@
                         </select>
                       </td>
                       <td class="py-1">
-                        <select class="select select-bordered select-xs w-full"
-                                x-model="llmTierConfig[tier.id].model"
-                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }"
-                                @mousedown="if (getModelsForTier(tier.id).length === 0 && !llmModelsFetching) fetchLlmModels()">
-                          <option value="">Select model...</option>
-                          <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
-                            <option :value="m" x-text="m"></option>
-                          </template>
-                        </select>
+                        <div class="flex gap-1">
+                          <select class="select select-bordered select-xs flex-1"
+                                  x-model="llmTierConfig[tier.id].model"
+                                  x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
+                            <option value="">Select model...</option>
+                            <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
+                              <option :value="m" x-text="m"></option>
+                            </template>
+                          </select>
+                          <button class="btn btn-ghost btn-xs btn-square shrink-0" title="Load models" @click="
+                            const prov = llmTierConfig[tier.id]?.provider || llmForm.provider;
+                            if (!prov) return;
+                            fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                              .then(r=>r.json()).then(d=>{
+                                llmModelsByProvider = { ...llmModelsByProvider, [prov]: d.models||[] };
+                                if (!llmTierConfig[tier.id]?.provider || llmTierConfig[tier.id].provider === llmForm.provider) { llmModels = d.models||[]; }
+                                toast((d.models||[]).length + ' models loaded', 'success');
+                              }).catch(()=>{});
+                          "><i class="ti ti-refresh text-xs"></i></button>
+                        </div>
                       </td>
                     </tr>
                   </template>
