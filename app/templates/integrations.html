@@ -528,7 +528,7 @@
                       <option value="openai">OpenAI</option>
                       <option value="azure_openai">Azure OpenAI</option>
                     </select>
-                    <select class="select select-bordered select-xs flex-1" style="max-width: 220px;"
+                    <select class="select select-bordered select-xs w-40 min-w-0"
                             x-model="llmTierConfig[tier.id].model"
                             @mousedown="if (!tierModels[tier.id]?.length && !tierLoaded[tier.id]) loadTierModels(tier.id)"
                             @change="saveLlmSlot()">

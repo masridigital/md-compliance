@@ -409,15 +409,17 @@ class LLMService:
     def _get_provider_config(provider_key: str) -> dict:
         """Load a named provider config from ConfigStore.
 
-        Additional providers (beyond the primary SettingsLLM) are stored as
-        ConfigStore("llm_provider_{key}") with encrypted API keys.
+        Single source of truth: ConfigStore("llm_additional_providers").
         """
         try:
             from app.models import ConfigStore
             import json
-            record = ConfigStore.find(f"llm_provider_{provider_key}")
+            record = ConfigStore.find("llm_additional_providers")
             if record and record.value:
-                config = json.loads(record.value)
+                extras = json.loads(record.value)
+                config = extras.get(provider_key, {})
+                if not config:
+                    return None
                 # Decrypt API key if present
                 if config.get("api_key_enc"):
                     from app.masri.settings_service import decrypt_value
