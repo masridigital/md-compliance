@@ -407,7 +407,7 @@
                       <span class="loading loading-spinner loading-xs" x-show="testing"></span>
                       <i class="ti ti-plug-connected" x-show="!testing"></i> Test
                     </button>
-                    <span class="text-[10px]" :class="result && !result.includes('ail') && !result.includes('rror') && !result.includes('heck') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                    <span class="text-[10px]" :class="result.startsWith('Connected') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
                   </div>
                 </div>
               </div>
@@ -423,37 +423,45 @@
                     <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
                     <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
-                  <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                    <input type="password" class="input input-bordered input-xs w-full" placeholder="API key"
-                           @change="saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: $event.target.value }); $event.target.value = ''; toast('Key updated', 'success');">
-                    <div class="flex gap-1" x-data="{ secModels: [] }" x-init="
-                      if (llmModelsByProvider[p.provider]?.length) { secModels = llmModelsByProvider[p.provider]; }
-                    ">
+                  <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
+                       x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }">
+                    <div class="flex gap-1">
+                      <input type="password" class="input input-bordered input-xs flex-1" placeholder="API key" x-model="newKey">
+                      <button class="btn btn-xs btn-primary gap-1" x-show="newKey.length > 0" @click="
+                        saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey }); newKey = ''; toast('Key saved', 'success');
+                      "><i class="ti ti-device-floppy"></i> Save</button>
+                    </div>
+                    <div class="flex gap-1">
                       <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
                               @mousedown="if (!secModels.length) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }"
-                              @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model updated', 'success');">
+                              @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model saved', 'success');">
                         <option value="">Select model...</option>
                         <template x-for="m in secModels" :key="'sec-'+m"><option :value="m" x-text="m"></option></template>
                       </select>
-                      <input x-show="secModels.length === 0" type="text" class="input input-bordered input-xs flex-1" placeholder="Model name"
-                             @focus="fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{});"
-                             @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model updated', 'success');">
+                      <input x-show="secModels.length === 0" type="text" class="input input-bordered input-xs flex-1" placeholder="Model name (click refresh to load list)"
+                             @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model saved', 'success');">
                       <button class="btn btn-ghost btn-xs btn-square" @click="
                         fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) })
-                          .then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; toast(secModels.length + ' models loaded', 'success'); }).catch(()=>{});
+                          .then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{});
                       "><i class="ti ti-refresh"></i></button>
                     </div>
-                    <div class="flex items-center gap-2" x-data="{ result: '', testing: false }">
+                    <div class="flex items-center gap-2">
                       <button class="btn btn-xs btn-outline gap-1" :disabled="testing" @click="
                         testing = true; result = '';
                         fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) })
-                          .then(r => r.json().then(d => { testing = false; result = r.ok ? (d.message || 'Connected') : (d.error || 'Failed'); llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: r.ok ? 'ok' : 'fail' }; }))
+                          .then(r => r.json().then(d => {
+                            testing = false;
+                            result = r.ok ? (d.message || 'Connected') : (d.error || 'Failed');
+                            llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: r.ok ? 'ok' : 'fail' };
+                            // Auto-load models on successful test
+                            if (r.ok) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r2=>r2.json()).then(d2=>{ secModels = d2.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }
+                          }))
                           .catch(() => { testing = false; result = 'Failed'; llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: 'fail' }; });
                       ">
                         <span class="loading loading-spinner loading-xs" x-show="testing"></span>
                         <i class="ti ti-plug-connected" x-show="!testing"></i> Test
                       </button>
-                      <span class="text-[10px]" :class="result && !result.includes('ail') && !result.includes('rror') && !result.includes('heck') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                      <span class="text-[10px]" :class="result.startsWith('Connected') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
                     </div>
                   </div>
                 </div>
