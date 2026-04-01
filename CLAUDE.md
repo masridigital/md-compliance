@@ -56,7 +56,8 @@ All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortU
 
 ### LLM Integration
 - **Multi-provider routing**: Each feature can use a different provider+model. Config stored in `ConfigStore("llm_feature_models")` as `{sameForAll: false, models: {feature: {provider, model}}}`. Additional providers stored in `ConfigStore("llm_provider_{key}")` with encrypted API keys.
-- **Feature names**: `data_parsing`, `auto_map`, `assist_gaps`, `risk_score`, `control_assess`, `policy_draft`, `evidence_interpret`, `summarize`
+- **4-tier routing system** (not per-feature): Tier 1 (extraction) → Tier 2 (mapping) → Tier 3 (analysis) → Tier 4 (advanced). Users configure 4 dropdowns, not 11+. Features are hardcoded to tiers in `FEATURE_TIERS` dict.
+- **Feature names**: `data_parsing`, `auto_map`, `assist_gaps`, `risk_score`, `control_assess`, `policy_draft`, `evidence_interpret`, `summarize`, `user_risk_profile`, `device_risk_profile`
 - **Provider configs**: Primary in `SettingsLLM` table, additional in `ConfigStore("llm_additional_providers")`. Each has encrypted `api_key_enc`.
 - **Chunked calls**: 10 controls per LLM call. Large frameworks (100+ controls) get multiple calls with context passing between chunks.
 - **90s timeout** on all LLM provider API calls.
