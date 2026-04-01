@@ -336,23 +336,15 @@ def _generate_recommendations(configured_providers):
 
 
 def _llm_enhanced_recommendations(LLMService, configured_providers, base_recommendations):
-    """Use LLM to refine recommendations based on current model landscape."""
+    """Use LLM to select best battle-tested, cost-effective models per tier."""
     # Build context about available models
     provider_info = []
     for provider, info in configured_providers.items():
         model_count = len(info.get("models", []))
-        sample_models = info.get("models", [])[:15]
+        models = info.get("models", [])[:30]
         provider_info.append(
-            f"Provider: {provider} ({model_count} models available)\n"
-            f"Sample models: {', '.join(sample_models)}"
-        )
-
-    tier_info = []
-    for tier_id, reqs in TIER_REQUIREMENTS.items():
-        current = base_recommendations.get(tier_id, {})
-        tier_info.append(
-            f"Tier {tier_id}: {reqs['needs']}\n"
-            f"Current recommendation: {current.get('provider', '?')} / {current.get('model', '?')}"
+            f"Provider: {provider} ({model_count} models)\n"
+            f"Models: {', '.join(models)}"
         )
 
     try:
@@ -361,27 +353,41 @@ def _llm_enhanced_recommendations(LLMService, configured_providers, base_recomme
                 {
                     "role": "system",
                     "content": (
-                        "You are an AI model selection expert for a compliance platform. "
-                        "Given the available providers/models and 4 task tiers, recommend the "
-                        "best model for each tier. Consider: cost, speed, JSON reliability, "
-                        "reasoning capability. Respond with ONLY valid JSON:\n"
-                        '{"extraction":{"provider":"...","model":"...","reason":"..."},'
-                        '"mapping":{"provider":"...","model":"...","reason":"..."},'
-                        '"analysis":{"provider":"...","model":"...","reason":"..."},'
-                        '"advanced":{"provider":"...","model":"...","reason":"..."}}'
+                        "You are an AI model procurement expert for an enterprise compliance platform. "
+                        "Your job is to select the BEST model for each of 4 task tiers.\n\n"
+                        "SELECTION CRITERIA (in order of priority):\n"
+                        "1. BATTLE-TESTED: Prefer widely-adopted, production-proven models over new/experimental ones. "
+                        "Models that have been available for months with proven track records are preferred.\n"
+                        "2. BEST VALUE: Best performance per dollar. Don't pick the cheapest if it degrades quality. "
+                        "Don't pick the most expensive if a mid-tier model handles the task equally well.\n"
+                        "3. TASK FIT: Match model strengths to tier requirements.\n"
+                        "4. JSON RELIABILITY: For Tiers 1-2, the model MUST produce clean JSON consistently.\n\n"
+                        "TIER DEFINITIONS:\n"
+                        "- extraction: High-volume data parsing, structured extraction, summarization. "
+                        "Needs: fast, cheap, reliable JSON. Does NOT need strong reasoning.\n"
+                        "- mapping: Map security findings to compliance controls. "
+                        "Needs: good instruction following, reliable JSON, some domain knowledge.\n"
+                        "- analysis: Generate remediation recommendations, gap analysis. "
+                        "Needs: strong reasoning, ability to reference specific data points.\n"
+                        "- advanced: Policy drafting, risk narratives, complex compliance writing. "
+                        "Needs: best reasoning available, nuanced long-form output.\n\n"
+                        "IMPORTANT: Only recommend models from the AVAILABLE providers listed below. "
+                        "If a provider has no models listed, skip it.\n\n"
+                        "Respond with ONLY valid JSON:\n"
+                        '{"extraction":{"provider":"...","model":"exact model ID from the list","reason":"1 sentence why"},'
+                        '"mapping":{"provider":"...","model":"exact model ID","reason":"..."},'
+                        '"analysis":{"provider":"...","model":"exact model ID","reason":"..."},'
+                        '"advanced":{"provider":"...","model":"exact model ID","reason":"..."}}'
                     ),
                 },
                 {
                     "role": "user",
-                    "content": (
-                        "AVAILABLE PROVIDERS:\n" + "\n\n".join(provider_info) +
-                        "\n\nTIER REQUIREMENTS:\n" + "\n\n".join(tier_info)
-                    ),
+                    "content": "AVAILABLE PROVIDERS AND MODELS:\n\n" + "\n\n".join(provider_info),
                 },
             ],
             feature="assist_gaps",  # Tier 3 — needs reasoning
-            temperature=0.2,
-            max_tokens=1000,
+            temperature=0.1,
+            max_tokens=800,
         )
 
         content = result["content"].strip()

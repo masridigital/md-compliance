@@ -486,28 +486,44 @@
                   llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
                   toast('Default recommendations applied. Click Save.', 'info');
                 "><i class="ti ti-wand"></i> Apply Defaults</button>
-                <button class="btn btn-xs btn-ghost gap-1" x-data="{ refreshing: false }" @click="
-                  refreshing = true;
+                <button class="btn btn-xs btn-primary gap-1" x-data="{ researching: false }" @click="
+                  researching = true;
+                  toast('Researching best models across your providers...', 'info');
                   fetch('/api/v1/settings/llm/recommendations/refresh', { method: 'POST' })
-                    .then(() => { toast('AI is researching best models — check back in a minute.', 'info'); refreshing = false; })
-                    .catch(() => { refreshing = false; });
-                " :disabled="refreshing">
-                  <span class="loading loading-spinner loading-xs" x-show="refreshing"></span>
-                  <i class="ti ti-brain" x-show="!refreshing"></i> AI Research Models
+                    .then(() => {
+                      // Poll for results every 3s (max 60s)
+                      let polls = 0;
+                      const pid = setInterval(() => {
+                        polls++;
+                        if (polls > 20) { clearInterval(pid); researching = false; toast('Research taking longer than expected. Try again.', 'warning'); return; }
+                        fetch('/api/v1/settings/llm/recommendations')
+                          .then(r => r.json())
+                          .then(data => {
+                            if (data.recommendations) {
+                              // Check if these are fresh (generated within last 2 min)
+                              const genTime = data.generated_at ? new Date(data.generated_at) : new Date(0);
+                              const now = new Date();
+                              if ((now - genTime) < 120000) {
+                                clearInterval(pid);
+                                researching = false;
+                                llmTierConfig = {};
+                                for (const [tid, rec] of Object.entries(data.recommendations)) {
+                                  llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
+                                }
+                                // Show what was picked
+                                const picks = Object.entries(data.recommendations).map(([t,r]) => t + ': ' + (r.provider||'?').replace('_',' ') + ' / ' + (r.model||'default')).join(', ');
+                                toast('AI picks applied: ' + picks + '. Click Save.', 'success');
+                              }
+                            }
+                          }).catch(() => {});
+                      }, 3000);
+                    })
+                    .catch(() => { researching = false; toast('Failed to start research', 'error'); });
+                " :disabled="researching">
+                  <span class="loading loading-spinner loading-xs" x-show="researching"></span>
+                  <i class="ti ti-sparkles" x-show="!researching"></i>
+                  <span x-text="researching ? 'Researching...' : 'Research & Apply Best Models'"></span>
                 </button>
-                <button class="btn btn-xs btn-ghost gap-1" @click="
-                  fetch('/api/v1/settings/llm/recommendations')
-                    .then(r => r.json())
-                    .then(data => {
-                      if (data.recommendations) {
-                        llmTierConfig = {};
-                        for (const [tid, rec] of Object.entries(data.recommendations)) {
-                          llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
-                        }
-                        toast('AI-recommended config applied (generated ' + (data.generated_at || 'recently').split('T')[0] + '). Click Save.', 'success');
-                      } else { toast(data.message || 'No recommendations yet', 'warning'); }
-                    }).catch(() => toast('Failed to load recommendations', 'error'));
-                "><i class="ti ti-sparkles"></i> Apply AI Picks</button>
               </div>
             </div>
 
