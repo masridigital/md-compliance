@@ -371,6 +371,33 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 
 ---
 
+## Pending / Future Features
+
+### Global Risk Dashboard (Home Page)
+The Risk Register on the home screen should show ALL risks across ALL clients:
+- Cross-client, cross-project view of all registered risks
+- Labels per client showing which tenant the risk belongs to
+- Project name shown per risk
+- If a risk applies to multiple projects on same client, mark it
+- Filterable by client, severity, status
+- Links to the specific project's Risk Register page
+
+### Nginx Branded Error Page
+Custom 502/503/504 page at `nginx/error-pages/502.html`:
+- Shows "MD Compliance — Application is starting up..." with spinner
+- Auto-refreshes every 5 seconds until app responds
+- Masri Digital branding
+- Requires `error_page 502 503 504 /502.html` in nginx config
+- Volume mounted in docker-compose.yml: `./nginx/error-pages:/usr/share/nginx/error-pages:ro`
+- All nginx templates in setup.sh include the error_page directive
+
+### Gunicorn Preload
+Added `--preload` flag to gunicorn in run.sh:
+- App loaded once by master process, then forked to workers
+- Reduces per-worker startup time (no duplicate Flask app init)
+
+---
+
 ## Things to NEVER Do
 1. **NEVER** push to main without running a security review first — use a security review agent in parallel during development, or run a full audit before the final push
 2. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)

@@ -528,13 +528,17 @@
                       <option value="openai">OpenAI</option>
                       <option value="azure_openai">Azure OpenAI</option>
                     </select>
-                    <select class="select select-bordered select-xs flex-1"
+                    <select class="select select-bordered select-xs flex-1" style="max-width: 220px;"
                             x-model="llmTierConfig[tier.id].model"
                             @mousedown="if (!tierModels[tier.id]?.length && !tierLoaded[tier.id]) loadTierModels(tier.id)"
                             @change="saveLlmSlot()">
                       <option value="">Select model...</option>
+                      <!-- Show saved model even before list loads -->
+                      <template x-if="llmTierConfig[tier.id].model && !(tierModels[tier.id] || []).includes(llmTierConfig[tier.id].model)">
+                        <option :value="llmTierConfig[tier.id].model" x-text="llmTierConfig[tier.id].model.split('/').pop()" selected></option>
+                      </template>
                       <template x-for="m in (tierModels[tier.id] || [])" :key="'t-'+tier.id+'-'+m">
-                        <option :value="m" x-text="m"></option>
+                        <option :value="m" x-text="m.split('/').pop()"></option>
                       </template>
                     </select>
                   </div>

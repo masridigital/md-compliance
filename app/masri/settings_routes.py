@@ -786,16 +786,26 @@ def test_llm_connection():
             try:
                 from app.models import ConfigStore
                 import json as _json
+                # Check individual provider config
                 record = ConfigStore.find(f"llm_provider_{provider}")
                 if record and record.value:
                     cfg = _json.loads(record.value)
                     if cfg.get("api_key_enc"):
                         from app.masri.settings_service import decrypt_value
                         api_key = decrypt_value(cfg["api_key_enc"])
-            except Exception:
-                pass
+                # Also check the additional_providers store
+                if not api_key:
+                    extras_record = ConfigStore.find("llm_additional_providers")
+                    if extras_record and extras_record.value:
+                        extras = _json.loads(extras_record.value)
+                        prov_cfg = extras.get(provider, {})
+                        if prov_cfg.get("api_key_enc"):
+                            from app.masri.settings_service import decrypt_value
+                            api_key = decrypt_value(prov_cfg["api_key_enc"])
+            except Exception as e:
+                logger.debug("Additional provider key lookup failed for %s: %s", provider, e)
 
-        # Second try: primary provider config
+        # Second try: primary provider config (only if same provider)
         if not api_key:
             try:
                 llm = SettingsService.get_active_llm_config()
@@ -870,8 +880,16 @@ def fetch_llm_models():
                 if cfg.get("api_key_enc"):
                     from app.masri.settings_service import decrypt_value
                     api_key = decrypt_value(cfg["api_key_enc"])
-        except Exception:
-            pass
+            if not api_key:
+                extras_record = ConfigStore.find("llm_additional_providers")
+                if extras_record and extras_record.value:
+                    extras = _json2.loads(extras_record.value)
+                    prov_cfg = extras.get(provider, {})
+                    if prov_cfg.get("api_key_enc"):
+                        from app.masri.settings_service import decrypt_value
+                        api_key = decrypt_value(prov_cfg["api_key_enc"])
+        except Exception as e:
+            logger.debug("Additional provider key lookup failed for %s: %s", provider, e)
 
     if not api_key:
         try:
