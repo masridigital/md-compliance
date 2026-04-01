@@ -342,6 +342,6 @@ docker-compose up -d --build
 4. **NEVER** run synchronous LLM calls in the request thread (120s gunicorn timeout)
 5. **NEVER** set default rate limits below 500/hour (causes lockout during active development)
 6. **NEVER** reference `slot` or `label` columns on `SettingsLLM` — they don't exist in the DB
-7. **NEVER** call external APIs (Graph, Telivy) on page load — always read from ConfigStore cache
+7. **NEVER** call Microsoft Graph API on page load — always read from ConfigStore cache (throttling risk). Telivy API calls on page load are OK (no throttling).
 8. **NEVER** send raw JSON dumps to LLM — always use `_compress_for_llm()` for token efficiency
 9. **NEVER** create a single LLM prompt for multiple data sources — each source gets its own phase

@@ -1719,14 +1719,17 @@ def _gather_integration_data(tenant_id: str) -> dict:
     except Exception as e:
         logger.debug("ConfigStore cached data read failed: %s", e)
 
-    # 2. Supplement with Telivy scan mappings (for display of mapped scan info)
+    # 2. Telivy: live API calls OK (no throttling) — enrich cached data with live findings
     try:
         from app.models import ConfigStore
         from app import db as _db
+
+        # Get scan-to-tenant mappings
         mapping_record = ConfigStore.find("telivy_scan_mappings")
         if mapping_record and mapping_record.value:
             all_mappings = json.loads(mapping_record.value)
             mapped_items = []
+            mapped_ids = set()
             for item_id, mapping in all_mappings.items():
                 if isinstance(mapping, str):
                     mapped_tid = mapping
@@ -1742,8 +1745,45 @@ def _gather_integration_data(tenant_id: str) -> dict:
                     continue
                 if mapped_tid == tenant_id:
                     mapped_items.append(item_data)
+                    mapped_ids.add(item_id)
             if mapped_items and "telivy_scans" not in data:
                 data["telivy_scans"] = {"count": len(mapped_items), "scans": mapped_items}
+
+            # Fetch live findings from Telivy API (OK — no throttling)
+            if mapped_ids and "telivy_findings" not in data:
+                try:
+                    from flask import current_app
+                    api_key = None
+                    try:
+                        result = _db.session.execute(
+                            _db.text("SELECT config_enc FROM settings_storage WHERE provider = 'telivy' LIMIT 1")
+                        ).scalar()
+                        if result:
+                            from app.masri.settings_service import decrypt_value
+                            config = json.loads(decrypt_value(result))
+                            api_key = config.get("api_key")
+                    except Exception:
+                        pass
+                    if not api_key:
+                        api_key = current_app.config.get("TELIVY_API_KEY")
+                    if api_key:
+                        from app.masri.telivy_integration import TelivyIntegration
+                        client = TelivyIntegration(api_key=api_key)
+                        all_findings = []
+                        for scan_id in list(mapped_ids)[:3]:
+                            try:
+                                findings = client.get_external_scan_findings(scan_id)
+                                if findings and isinstance(findings, list):
+                                    all_findings.extend(findings[:15])
+                            except Exception:
+                                pass
+                        if all_findings:
+                            data["telivy_findings"] = {
+                                "count": len(all_findings),
+                                "findings": all_findings[:50],
+                            }
+                except Exception:
+                    pass
     except Exception:
         pass
 
