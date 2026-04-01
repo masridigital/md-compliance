@@ -409,3 +409,6 @@ Added `--preload` flag to gunicorn in run.sh:
 7. **NEVER** call Microsoft Graph API on page load — always read from ConfigStore cache (throttling risk). Telivy API calls on page load are OK (no throttling).
 8. **NEVER** send raw JSON dumps to LLM — always use `_compress_for_llm()` for token efficiency
 9. **NEVER** create a single LLM prompt for multiple data sources — each source gets its own phase
+10. **NEVER** store the same data in multiple ConfigStore keys — use ONE key per data type. Duplicate storage causes stale data and DB errors. Example: additional provider keys go in `ConfigStore("llm_additional_providers")` ONLY, not also in `ConfigStore("llm_provider_{key}")`.
+11. **NEVER** send Alpine.js proxy objects directly to `JSON.stringify()` for API calls — extract plain values first. Alpine wraps objects in Proxy which can contain circular references or non-serializable data.
+12. **NEVER** create Flask routes under `/storage/X` — use `/storage-X` (hyphenated) because `/storage/<string:provider>` catches everything.
