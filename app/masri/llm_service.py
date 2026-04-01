@@ -382,6 +382,30 @@ class LLMService:
         return None
 
     @staticmethod
+    def _get_fallback_config(failed_provider: str) -> dict:
+        """Load the fallback provider config when a tier's provider fails."""
+        try:
+            from app.models import ConfigStore
+            import json
+            record = ConfigStore.find("llm_feature_models")
+            if record and record.value:
+                data = json.loads(record.value)
+                tiers = data.get("tiers", {})
+                fallback_key = tiers.get("fallback_provider", "")
+                if fallback_key and fallback_key != failed_provider:
+                    # Try loading the fallback provider's config
+                    alt = LLMService._get_provider_config(fallback_key)
+                    if alt:
+                        return alt
+            # Default fallback: try the primary config
+            primary = LLMService._get_config()
+            if primary and primary.get("provider") != failed_provider:
+                return primary
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
     def _get_provider_config(provider_key: str) -> dict:
         """Load a named provider config from ConfigStore.
 
@@ -469,6 +493,20 @@ class LLMService:
             result = provider.chat(messages, **kwargs)
         except Exception as e:
             logger.error("LLM call failed (%s/%s): %s", config.get("provider"), feature, e)
+            # Try fallback provider if configured
+            fallback = LLMService._get_fallback_config(config.get("provider"))
+            if fallback:
+                try:
+                    logger.info("Falling back to %s for %s", fallback.get("provider"), feature)
+                    fb_provider = LLMService._get_provider(fallback)
+                    result = fb_provider.chat(messages, **kwargs)
+                    result["fallback"] = True
+                    result["original_provider"] = config.get("provider")
+                    if tenant_id:
+                        _usage.record(tenant_id, result["usage"]["total_tokens"])
+                    return result
+                except Exception as e2:
+                    logger.error("Fallback also failed (%s): %s", fallback.get("provider"), e2)
             raise RuntimeError(f"LLM call failed for provider {config.get('provider', 'unknown')}. Check API key and model configuration.") from e
 
         # Track usage

@@ -377,10 +377,17 @@
                   <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                  <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key" />
+                  <div class="flex gap-1">
+                    <input type="password" class="input input-bordered input-xs flex-1" x-model="llmForm.api_key" placeholder="API key" />
+                    <button class="btn btn-xs btn-primary gap-1" x-show="llmForm.api_key.length > 0" @click="
+                      saveLlmSlot();
+                      setTimeout(() => testSingleLlmProvider(llmForm.provider), 1000);
+                    "><i class="ti ti-device-floppy"></i> Save</button>
+                  </div>
                   <div class="flex gap-1">
                     <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name"
-                            @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()">
+                            @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()"
+                            @change="saveLlmSlot()">
                       <option value="">Select model...</option>
                       <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
                     </select>
@@ -495,17 +502,27 @@
               <span class="text-xs">Use primary for all</span>
             </label>
 
-            <div x-show="!llmSameModelForAll" class="mb-2 space-y-1">
+            <div x-show="!llmSameModelForAll" class="mb-2 space-y-1" x-data="{
+              tierModels: { extraction: [], mapping: [], analysis: [], advanced: [] },
+              tierLoaded: {},
+              loadTierModels(tierId) {
+                const prov = llmTierConfig[tierId]?.provider || llmForm.provider;
+                if (!prov) return;
+                fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                  .then(r=>r.json()).then(d=>{ this.tierModels[tierId] = d.models||[]; this.tierLoaded[tierId] = true; }).catch(()=>{});
+              }
+            }" x-init="
+              // Auto-load models for all tiers on page open
+              llmTiers.forEach((t, i) => {
+                if(!llmTierConfig[t.id]) llmTierConfig[t.id] = { provider: '', model: '' };
+                setTimeout(() => loadTierModels(t.id), 300 + i * 400);
+              });
+            ">
+              <!-- Explanation of primary model vs tier models -->
+              <p class="text-[10px] opacity-50 mb-1">The model selected on each provider above is the default. Below you can override which provider + model handles each task type.</p>
+
               <template x-for="tier in llmTiers" :key="tier.id">
-                <div class="bg-base-300 rounded p-2" x-data="{
-                  models: [],
-                  loadModels() {
-                    const prov = llmTierConfig[tier.id]?.provider || llmForm.provider;
-                    if (!prov) return;
-                    fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
-                      .then(r=>r.json()).then(d=>{ this.models = d.models||[]; }).catch(()=>{});
-                  }
-                }" x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
+                <div class="bg-base-300 rounded p-2">
                   <div class="flex items-center gap-2">
                     <div class="w-24 shrink-0">
                       <div class="text-[10px] font-bold" x-text="tier.label"></div>
@@ -513,7 +530,7 @@
                     </div>
                     <select class="select select-bordered select-xs w-28"
                             x-model="llmTierConfig[tier.id].provider"
-                            @change="models = []; loadModels()">
+                            @change="tierModels[tier.id] = []; tierLoaded[tier.id] = false; loadTierModels(tier.id); saveLlmSlot()">
                       <option value="">Select...</option>
                       <option value="together_ai">Together AI</option>
                       <option value="anthropic">Anthropic</option>
@@ -522,16 +539,36 @@
                     </select>
                     <select class="select select-bordered select-xs flex-1"
                             x-model="llmTierConfig[tier.id].model"
-                            @mousedown="if (!models.length) loadModels()">
+                            @mousedown="if (!tierModels[tier.id]?.length && !tierLoaded[tier.id]) loadTierModels(tier.id)"
+                            @change="saveLlmSlot()">
                       <option value="">Select model...</option>
-                      <template x-for="m in models" :key="'t-'+tier.id+'-'+m">
+                      <template x-for="m in (tierModels[tier.id] || [])" :key="'t-'+tier.id+'-'+m">
                         <option :value="m" x-text="m"></option>
                       </template>
                     </select>
-                    <button class="btn btn-ghost btn-xs btn-square shrink-0" @click="loadModels()" title="Load models"><i class="ti ti-refresh text-xs"></i></button>
                   </div>
                 </div>
               </template>
+
+              <!-- Fallback config -->
+              <div class="bg-base-300 rounded p-2 mt-1">
+                <div class="flex items-center gap-2">
+                  <div class="w-24 shrink-0">
+                    <div class="text-[10px] font-bold">Fallback</div>
+                    <div class="text-[9px] opacity-40">If tier fails</div>
+                  </div>
+                  <select class="select select-bordered select-xs flex-1"
+                          x-model="llmTierConfig.fallback_provider"
+                          x-init="if(!llmTierConfig.fallback_provider) llmTierConfig.fallback_provider = ''"
+                          @change="saveLlmSlot()">
+                    <option value="">Use primary provider</option>
+                    <option value="together_ai">Together AI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="azure_openai">Azure OpenAI</option>
+                  </select>
+                </div>
+              </div>
               <div class="flex gap-1 mt-1">
                 <button class="btn btn-xs btn-ghost gap-1" @click="
                   llmTierConfig = {};
@@ -581,17 +618,6 @@
               </div>
             </div>
 
-            <!-- ── Actions ── -->
-            <div class="flex gap-2 pt-1">
-              <button class="btn btn-primary btn-sm gap-1" @click="saveLlmSlot()" :disabled="llmSaving">
-                <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
-                <i class="ti ti-device-floppy" x-show="!llmSaving"></i> Save
-              </button>
-              <button class="btn btn-sm btn-outline gap-1" @click="testLlm()" :disabled="llmTesting">
-                <span class="loading loading-spinner loading-xs" x-show="llmTesting"></span>
-                <i class="ti ti-plug-connected" x-show="!llmTesting"></i> Test
-              </button>
-            </div>
             <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
 
             <div class="divider text-xs my-2">Reset</div>
