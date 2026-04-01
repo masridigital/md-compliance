@@ -131,10 +131,28 @@ GET  /api/v1/llm/integration-data/:id    Cached integration data for project
 
 ### Telivy
 ```
-GET  /api/v1/telivy/external-scans       List scans
-GET  /api/v1/telivy/external-scans/:id/findings  Scan findings
-GET  /api/v1/telivy/external-scans/:id/report    PDF report (inline/download)
-GET  /api/v1/telivy/risk-assessments     List assessments
+POST /api/v1/telivy/test                              Test connection
+GET  /api/v1/telivy/external-scans                    List external scans
+POST /api/v1/telivy/external-scans                    Create new scan
+GET  /api/v1/telivy/external-scans/:id                Scan details
+GET  /api/v1/telivy/external-scans/:id/findings       Scan findings
+GET  /api/v1/telivy/external-scans/:id/breach-data    Breach data
+GET  /api/v1/telivy/external-scans/:id/report         PDF/DOCX report
+GET  /api/v1/telivy/risk-assessments                  List assessments
+POST /api/v1/telivy/risk-assessments                  Create assessment
+GET  /api/v1/telivy/risk-assessments/:id              Assessment details
+GET  /api/v1/telivy/risk-assessments/:id/devices      Device inventory
+GET  /api/v1/telivy/risk-assessments/:id/scan-status  Scan completion status
+GET  /api/v1/telivy/risk-assessments/:id/report       Assessment report
+```
+
+### Entra ID / Microsoft 365
+```
+POST /api/v1/entra/test                     Test Graph API connection
+GET  /api/v1/entra/users                    Directory users
+GET  /api/v1/entra/mfa-status               MFA enrollment report
+POST /api/v1/entra/assess                   Compliance posture assessment
+GET  /api/v1/entra/csp-clients              CSP/partner managed tenants
 ```
 
 ### Settings
