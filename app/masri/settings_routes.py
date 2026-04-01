@@ -859,7 +859,20 @@ def fetch_llm_models():
     provider = data.get("provider", "").strip()
     api_key = data.get("api_key", "").strip()
 
-    # Fall back to saved key if not provided
+    # Fall back to saved key — check additional providers first, then primary
+    if not api_key and provider:
+        try:
+            from app.models import ConfigStore
+            import json as _json2
+            record = ConfigStore.find(f"llm_provider_{provider}")
+            if record and record.value:
+                cfg = _json2.loads(record.value)
+                if cfg.get("api_key_enc"):
+                    from app.masri.settings_service import decrypt_value
+                    api_key = decrypt_value(cfg["api_key_enc"])
+        except Exception:
+            pass
+
     if not api_key:
         try:
             llm = SettingsService.get_active_llm_config()

@@ -495,53 +495,43 @@
               <span class="text-xs">Use primary for all</span>
             </label>
 
-            <div x-show="!llmSameModelForAll" class="mb-2">
-              <table class="table table-xs w-full">
-                <thead><tr class="text-[10px]"><th>Tier</th><th>Provider</th><th>Model</th></tr></thead>
-                <tbody>
-                  <template x-for="tier in llmTiers" :key="tier.id">
-                    <tr>
-                      <td class="py-1">
-                        <span class="text-[10px] font-bold" x-text="tier.label"></span>
-                        <div class="text-[9px] opacity-40" x-text="tier.features"></div>
-                      </td>
-                      <td class="py-1">
-                        <select class="select select-bordered select-xs w-24"
-                                x-model="llmTierConfig[tier.id].provider"
-                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
-                          <option value="">Select provider...</option>
-                          <option value="together_ai">Together AI</option>
-                          <option value="anthropic">Anthropic</option>
-                          <option value="openai">OpenAI</option>
-                          <option value="azure_openai">Azure OpenAI</option>
-                        </select>
-                      </td>
-                      <td class="py-1">
-                        <div class="flex gap-1">
-                          <select class="select select-bordered select-xs flex-1"
-                                  x-model="llmTierConfig[tier.id].model"
-                                  x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
-                            <option value="">Select model...</option>
-                            <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
-                              <option :value="m" x-text="m"></option>
-                            </template>
-                          </select>
-                          <button class="btn btn-ghost btn-xs btn-square shrink-0" title="Load models" @click="
-                            const prov = llmTierConfig[tier.id]?.provider || llmForm.provider;
-                            if (!prov) return;
-                            fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
-                              .then(r=>r.json()).then(d=>{
-                                llmModelsByProvider = { ...llmModelsByProvider, [prov]: d.models||[] };
-                                if (!llmTierConfig[tier.id]?.provider || llmTierConfig[tier.id].provider === llmForm.provider) { llmModels = d.models||[]; }
-                                toast((d.models||[]).length + ' models loaded', 'success');
-                              }).catch(()=>{});
-                          "><i class="ti ti-refresh text-xs"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
+            <div x-show="!llmSameModelForAll" class="mb-2 space-y-1">
+              <template x-for="tier in llmTiers" :key="tier.id">
+                <div class="bg-base-300 rounded p-2" x-data="{
+                  models: [],
+                  loadModels() {
+                    const prov = llmTierConfig[tier.id]?.provider || llmForm.provider;
+                    if (!prov) return;
+                    fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                      .then(r=>r.json()).then(d=>{ this.models = d.models||[]; }).catch(()=>{});
+                  }
+                }" x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
+                  <div class="flex items-center gap-2">
+                    <div class="w-24 shrink-0">
+                      <div class="text-[10px] font-bold" x-text="tier.label"></div>
+                      <div class="text-[9px] opacity-40" x-text="tier.features"></div>
+                    </div>
+                    <select class="select select-bordered select-xs w-28"
+                            x-model="llmTierConfig[tier.id].provider"
+                            @change="models = []; loadModels()">
+                      <option value="">Select...</option>
+                      <option value="together_ai">Together AI</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="azure_openai">Azure OpenAI</option>
+                    </select>
+                    <select class="select select-bordered select-xs flex-1"
+                            x-model="llmTierConfig[tier.id].model"
+                            @mousedown="if (!models.length) loadModels()">
+                      <option value="">Select model...</option>
+                      <template x-for="m in models" :key="'t-'+tier.id+'-'+m">
+                        <option :value="m" x-text="m"></option>
+                      </template>
+                    </select>
+                    <button class="btn btn-ghost btn-xs btn-square shrink-0" @click="loadModels()" title="Load models"><i class="ti ti-refresh text-xs"></i></button>
+                  </div>
+                </div>
+              </template>
               <div class="flex gap-1 mt-1">
                 <button class="btn btn-xs btn-ghost gap-1" @click="
                   llmTierConfig = {};
