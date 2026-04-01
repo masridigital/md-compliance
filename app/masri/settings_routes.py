@@ -1454,6 +1454,54 @@ def refresh_model_recommendations_endpoint():
 @settings_bp.route("/system-logs", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
+@settings_bp.route("/storage/status", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_storage_status_endpoint():
+    """GET /api/v1/settings/storage/status — storage configuration overview."""
+    _require_admin()
+    from app.masri.storage_router import get_storage_status
+    return jsonify(get_storage_status())
+
+
+@settings_bp.route("/storage/roles", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_storage_roles():
+    """GET /api/v1/settings/storage/roles — role-to-provider assignments."""
+    _require_admin()
+    from app.masri.storage_router import _get_role_config
+    config = _get_role_config()
+    return jsonify(config if config else {
+        "evidence": "local",
+        "reports": "local",
+        "backups": "local",
+        "default": "local",
+    })
+
+
+@settings_bp.route("/storage/roles", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_storage_roles():
+    """PUT /api/v1/settings/storage/roles — assign providers to roles.
+
+    Body: { "evidence": "s3", "reports": "azure_blob", "backups": "s3", "default": "local" }
+    """
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    data = request.get_json(silent=True) or {}
+    # Only allow known roles
+    allowed_roles = {"evidence", "reports", "backups", "default"}
+    clean = {k: v for k, v in data.items() if k in allowed_roles and isinstance(v, str)}
+    ConfigStore.upsert("storage_role_config", json.dumps(clean))
+    return jsonify({"message": "Storage role assignments saved", "roles": clean})
+
+
+@settings_bp.route("/system-logs", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
 def get_system_logs():
     """GET /api/v1/settings/system-logs — recent application logs for in-app viewer."""
     _require_admin()

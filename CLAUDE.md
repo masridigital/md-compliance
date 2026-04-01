@@ -335,6 +335,40 @@ docker-compose up -d --build
 | Microsoft data missing on page load | Live API calls on every load | Cache-first: reads from ConfigStore |
 | Risk profiles not showing | Auto-process not re-run since feature added | Re-run triggers computation |
 
+## Storage System
+
+### Storage Router (`app/masri/storage_router.py`)
+Routes file operations to the correct provider based on role assignments.
+
+**Roles:**
+- `evidence` — User-uploaded evidence files (screenshots, docs, configs)
+- `reports` — Generated compliance reports (WISP, audit, Telivy PDFs)
+- `backups` — Integration data snapshots, DB exports
+
+**Priority chain (per role):**
+1. Explicit role assignment in `ConfigStore("storage_role_config")`
+2. Default provider (marked `is_default` in `SettingsStorage`)
+3. Local filesystem (always available)
+
+**Fallback:** If configured provider fails, automatically retries with local storage. Never loses a file.
+
+**Providers:** Local, S3, Azure Blob, SharePoint, Egnyte (all in `storage_providers.py`)
+
+**API endpoints:**
+- `GET /api/v1/settings/storage/status` — overview of all configured providers + role assignments
+- `GET /api/v1/settings/storage/roles` — current role → provider mapping
+- `PUT /api/v1/settings/storage/roles` — assign providers to roles
+
+**Usage:**
+```python
+from app.masri.storage_router import store_file, get_file, get_file_url
+path = store_file(file_data, "screenshot.png", "projects/abc", role="evidence")
+data = get_file(path, role="evidence")
+url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
+```
+
+---
+
 ## Things to NEVER Do
 1. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
 2. **NEVER** use `dict | None` type hints (PEP 604) — may crash on older Python
