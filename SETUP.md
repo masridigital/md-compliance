@@ -349,48 +349,70 @@ Add to your server's crontab:
 
 ## Storage Integrations
 
-Storage providers are configured in **Settings UI → Storage**. Only one provider is active at a time.
+Storage providers are configured in **Integrations → Storage**. Multiple providers can be configured simultaneously, each assigned to a specific role.
+
+### Storage Roles
+
+| Role | Purpose | Default |
+|------|---------|---------|
+| **Evidence** | User-uploaded evidence files (screenshots, docs, configs) | Local |
+| **Reports** | Generated compliance reports (WISP, audit, Telivy PDFs) | Local |
+| **Backups** | Integration data snapshots (auto-backed up daily) | Local |
+
+Configure role assignments in **Integrations → Storage → Storage Routing**. Each role can use a different provider. If a configured provider fails, the system automatically falls back to local storage — files are never lost.
 
 ### Azure Blob Storage
 
 1. Create a Storage Account in the [Azure Portal](https://portal.azure.com)
 2. Under **Access control (IAM)**, assign the `Storage Blob Data Contributor` role to your app's managed identity (or create a connection string for key-based access)
-3. In Settings UI → Storage: select **Azure Blob**, enter your Storage Account name and connection string
-
-Per-tenant containers are created automatically on first use.
+3. In Integrations → Storage: select **Azure Blob**, enter your Storage Account name and key
+4. Per-tenant containers are created automatically on first use
 
 ### SharePoint (Microsoft 365)
 
 1. Register an Azure AD app at [portal.azure.com](https://portal.azure.com) → App registrations
 2. Add API permissions: `Sites.ReadWrite.All`, `Files.ReadWrite.All`
 3. Create a client secret
-4. In Settings UI → Storage: select **SharePoint**, enter Tenant ID, Client ID, Client Secret, and Site URL
-
-Auto-folder structure is created per tenant on first use.
+4. In Integrations → Storage: select **SharePoint**, enter Tenant ID, Client ID, Client Secret, and Site URL
+5. Auto-folder structure is created per tenant on first use
 
 ### Amazon S3 (or S3-compatible)
 
-In Settings UI → Storage: select **S3**, enter:
+In Integrations → Storage: select **S3**, enter:
 - Access Key ID
 - Secret Access Key
 - Bucket Name
-- Region (or custom endpoint URL for S3-compatible stores)
+- Region (or custom endpoint URL for MinIO, R2, etc.)
 
 ### Egnyte
 
-In Settings UI → Storage: select **Egnyte**, enter:
+In Integrations → Storage: select **Egnyte**, enter:
 - Egnyte domain (e.g. `mycompany.egnyte.com`)
 - API token
 
 ### Local Storage
 
-Files are stored on the server filesystem. Path is configured by the `LOCAL_STORAGE_PATH` environment variable (default: `app/uploads/`). Not recommended for production multi-worker deployments.
+Default. Files stored on the server filesystem. Path configurable via `LOCAL_STORAGE_PATH` environment variable. Suitable for single-server deployments.
 
 ---
 
-## Microsoft Entra ID
+## Microsoft Entra ID / Microsoft 365
 
-The Entra ID integration uses Microsoft Graph API to pull user lists, MFA status, conditional access policies, and Intune device compliance into the compliance dashboard.
+The Microsoft integration pulls comprehensive security data from Entra ID, Defender, Intune, Identity Protection, and SharePoint via the Microsoft Graph API.
+
+### Data Collected
+
+- **Users** — Directory inventory, account status
+- **MFA enrollment** — Per-user MFA registration status
+- **Secure Score** — Overall security posture with gap controls
+- **Security alerts** — Defender alerts with severity/category
+- **Security incidents** — Incident tracking
+- **Device compliance** — Intune managed devices, encryption status
+- **Risky users** — Identity Protection risk flags
+- **Risk detections** — Risk events with IPs, locations
+- **Sign-in activity** — Failures, anomalies, risky sign-ins
+- **Conditional Access** — Policy inventory and status
+- **SharePoint sites** — Site inventory for data governance
 
 ### App Registration Steps
 
@@ -400,44 +422,68 @@ The Entra ID integration uses Microsoft Graph API to pull user lists, MFA status
 4. Click **Register**
 5. Copy the **Application (client) ID** and **Directory (tenant) ID**
 6. Go to **Certificates & secrets → New client secret** — copy the value immediately
-7. Go to **API permissions → Add a permission → Microsoft Graph → Application permissions**
-   - `User.Read.All`
-   - `Policy.Read.All`
-   - `Reports.Read.All`
-   - `DeviceManagementManagedDevices.Read.All` *(optional, for Intune)*
-8. Click **Grant admin consent**
-9. Add the three values to your `.env`:
+7. Go to **API permissions → Add a permission → Microsoft Graph → Application permissions**. Add ALL of these:
 
-```env
-ENTRA_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-ENTRA_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-ENTRA_CLIENT_SECRET=your-secret-value
-```
+| Permission | Used For |
+|-----------|----------|
+| `User.Read.All` | User inventory |
+| `UserAuthenticationMethod.Read.All` | MFA enrollment |
+| `Policy.Read.All` | Conditional Access |
+| `SecurityAlert.Read.All` | Defender alerts |
+| `SecurityEvents.Read.All` | Secure Score |
+| `SecurityIncident.Read.All` | Security incidents |
+| `DeviceManagementManagedDevices.Read.All` | Intune devices |
+| `IdentityRiskEvent.Read.All` | Risky users + detections |
+| `AuditLog.Read.All` | Sign-in + audit logs |
+| `Sites.Read.All` | SharePoint sites |
+| `Organization.Read.All` | Org profile |
+
+8. Click **Grant admin consent for [your tenant]** (requires Global Admin)
+9. In MD Compliance → **Integrations → Entra ID** tile: enter Tenant ID, Client ID, Client Secret
+10. Click **Save** then **Test** to verify connection
+
+> **Note:** Microsoft data is cached to prevent API throttling. Data refreshes automatically every 24 hours, or manually via the Re-run button on the project Integrations tab.
 
 ---
 
 ## LLM Configuration
 
-LLM features are configured entirely in **Settings UI → LLM** (no restart required).
+LLM is configured in **Integrations → AI / LLM Providers** (no restart required).
 
 ### Supported Providers
 
-| Provider | Models |
-|----------|--------|
-| **OpenAI** | GPT-4o, GPT-4, GPT-3.5-turbo |
-| **Anthropic** | Claude 3.5 Sonnet, Claude 3 Opus |
+| Provider | Example Models |
+|----------|---------------|
+| **OpenAI** | GPT-4o, GPT-4o-mini, o3-mini |
+| **Anthropic** | Claude Opus 4.6, Claude Sonnet 4, Claude Haiku 4.5 |
+| **Together AI** | Llama 3.3 70B, DeepSeek V3, Qwen 2.5, Kimi K2.5 |
 | **Azure OpenAI** | Your custom deployment names |
-| **Ollama** | Llama 3, Mistral, any locally-hosted model |
+
+### Multi-Provider Routing (4 Tiers)
+
+Different AI tasks can use different providers for cost optimization:
+
+| Tier | Tasks | Recommended |
+|------|-------|-------------|
+| **1: Extraction** | Data parsing, summarization, evidence interpretation | Together AI (fast, cheap) |
+| **2: Mapping** | Control mapping, risk scoring, compliance analysis | Together AI (good JSON output) |
+| **3: Analysis** | Gap recommendations, remediation suggestions | Anthropic Claude Sonnet |
+| **4: Advanced** | Policy drafting, risk narratives, risk profiles | Anthropic Claude Sonnet/Opus |
+
+Click **"Research & Apply Best Models"** in the LLM tile to have AI analyze your configured providers and recommend the best model for each tier based on capabilities and cost.
 
 ### What LLM Powers
 
-- Control assessment assistance
-- Gap narrative generation
-- Evidence interpretation
-- Risk scoring
-- WISP wizard content generation
+- **Auto-process pipeline**: 3-phase analysis (Telivy → Microsoft → Cross-source) mapping findings to compliance controls
+- **AI Suggest Fixes**: Gap analysis with specific remediation recommendations
+- **Auto-evidence generation**: Creates evidence entries with exhibit references
+- **Risk narratives**: AI-generated explanations for high-risk users/devices
+- **Control assessment**: Assess controls against evidence
+- **Gap narratives**: Generate compliance gap descriptions
+- **WISP wizard**: AI content generation for security programs
+- **Weekly model recommendations**: AI researches best models for each tier
 
-Per-tenant token budgets can be set in the Settings UI to control costs.
+Per-tenant token budgets and hourly rate limits configurable in the LLM settings.
 
 ---
 
