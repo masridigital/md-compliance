@@ -572,14 +572,14 @@
                 </div>
               </template>
 
-              <!-- Fallback config -->
+              <!-- Fallback config (aligned with tier rows: w-24 label + rest) -->
               <div class="bg-base-300 rounded p-2 mt-1">
                 <div class="flex items-center gap-2">
                   <div class="w-24 shrink-0">
                     <div class="text-[10px] font-bold">Fallback</div>
                     <div class="text-[9px] opacity-40">If tier fails</div>
                   </div>
-                  <select class="select select-bordered select-xs w-40"
+                  <select class="select select-bordered select-xs w-28"
                           x-model="llmTierConfig.fallback_provider"
                           x-init="if(!llmTierConfig.fallback_provider) llmTierConfig.fallback_provider = ''"
                           @change="saveLlmSlot()">
@@ -589,6 +589,7 @@
                     <option value="openai">OpenAI</option>
                     <option value="azure_openai">Azure OpenAI</option>
                   </select>
+                  <div class="w-40 min-w-0"></div>
                 </div>
               </div>
               <button class="btn btn-xs btn-ghost gap-1 mt-1" @click="
