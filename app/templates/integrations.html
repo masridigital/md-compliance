@@ -414,67 +414,81 @@
               </div>
             </div>
 
-            <!-- Per-feature provider + model routing -->
-            <div x-show="!llmSameModelForAll" class="space-y-2 mb-3">
-              <p class="text-xs opacity-50 mb-2">Assign a provider + model per feature. Add extra providers below, then route each task to the best provider.</p>
-              <template x-for="feat in llmFeatures" :key="feat.id">
-                <div class="flex items-center gap-2 bg-base-300 rounded-lg p-2">
-                  <div class="w-28 flex-shrink-0">
-                    <span class="text-xs font-semibold" x-text="feat.label"></span>
-                    <div class="text-[10px] opacity-40" x-text="feat.hint"></div>
+            <!-- Tier-based LLM routing (4 tiers) -->
+            <div x-show="!llmSameModelForAll" class="space-y-3 mb-3">
+              <p class="text-xs opacity-50 mb-2">Configure 4 tiers by task complexity. Cheaper models handle bulk extraction; smarter models handle analysis and recommendations.</p>
+
+              <template x-for="tier in llmTiers" :key="tier.id">
+                <div class="bg-base-300 rounded-lg p-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <i class="ti" :class="tier.icon + ' text-primary'"></i>
+                    <span class="text-xs font-bold" x-text="tier.label"></span>
                   </div>
-                  <select class="select select-bordered select-xs w-32"
-                          @change="
-                            if (!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {};
-                            llmFeatureModels[feat.id].provider = $event.target.value;
-                          "
-                          :value="llmFeatureModels[feat.id]?.provider || ''">
-                    <option value="">Primary</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="together_ai">Together AI</option>
-                    <option value="azure_openai">Azure OpenAI</option>
-                  </select>
-                  <select class="select select-bordered select-xs flex-1"
-                          @change="
-                            if (!llmFeatureModels[feat.id]) llmFeatureModels[feat.id] = {};
-                            llmFeatureModels[feat.id].model = $event.target.value;
-                          "
-                          :value="llmFeatureModels[feat.id]?.model || ''">
-                    <option value="">Default</option>
-                    <template x-for="m in llmModels" :key="'fm-'+feat.id+'-'+m">
-                      <option :value="m" x-text="m"></option>
-                    </template>
-                  </select>
+                  <div class="text-[10px] opacity-40 mb-1" x-text="'Handles: ' + tier.features"></div>
+                  <div class="text-[10px] opacity-50 mb-2 italic" x-text="'Recommended: ' + tier.recommended"></div>
+                  <div class="flex gap-2">
+                    <select class="select select-bordered select-xs w-36"
+                            @change="llmTierConfig[tier.id].provider = $event.target.value"
+                            :value="llmTierConfig[tier.id]?.provider || ''">
+                      <option value="">Primary</option>
+                      <option value="together_ai">Together AI</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="azure_openai">Azure OpenAI</option>
+                    </select>
+                    <select class="select select-bordered select-xs flex-1"
+                            @change="llmTierConfig[tier.id].model = $event.target.value"
+                            :value="llmTierConfig[tier.id]?.model || ''">
+                      <option value="">Default model</option>
+                      <template x-for="m in llmModels" :key="'t-'+tier.id+'-'+m">
+                        <option :value="m" x-text="m"></option>
+                      </template>
+                    </select>
+                  </div>
                 </div>
               </template>
-              <div class="flex gap-2 items-center mt-1">
+
+              <div class="flex gap-2 items-center">
                 <button class="btn btn-ghost btn-xs gap-1" @click="fetchLlmModels()" :disabled="llmModelsFetching">
                   <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
                   <i class="ti ti-refresh" x-show="!llmModelsFetching"></i> Load Models
                 </button>
-                <span class="text-[10px] opacity-40" x-text="llmModels.length ? llmModels.length + ' models loaded' : 'Click to load model list from your primary provider'"></span>
+                <span class="text-[10px] opacity-40" x-text="llmModels.length ? llmModels.length + ' models loaded' : 'Click to fetch model list'"></span>
               </div>
 
-              <!-- Add additional provider -->
-              <div class="divider text-xs">Additional Providers</div>
-              <p class="text-xs opacity-50 mb-2">Add API keys for providers you want to route features to (beyond your primary).</p>
+              <!-- Quick apply recommended config -->
+              <button class="btn btn-xs btn-ghost gap-1" @click="
+                llmTierConfig = {
+                  extraction: { provider: 'together_ai', model: '' },
+                  mapping: { provider: 'together_ai', model: '' },
+                  analysis: { provider: 'anthropic', model: '' },
+                  advanced: { provider: 'anthropic', model: '' },
+                };
+                toast('Recommended: Together AI for Tiers 1-2, Anthropic for Tiers 3-4. Click Save.', 'info');
+              "><i class="ti ti-wand"></i> Apply Recommended Config</button>
+
+              <!-- Additional Provider API Keys -->
+              <div class="divider text-xs">Additional Provider API Keys</div>
+              <p class="text-xs opacity-50 mb-2">Add API keys for providers beyond your primary (e.g., add Anthropic key if primary is Together AI).</p>
               <div class="space-y-2" x-data="{ addingProvider: false, newProvider: { key: '', provider: '', api_key: '', model_name: '' } }">
                 <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
                   <div class="flex items-center gap-2 bg-base-300 rounded p-2 text-xs">
-                    <span class="badge badge-xs badge-ghost capitalize" x-text="p.provider"></span>
-                    <span x-text="p.model || 'default model'"></span>
+                    <span class="badge badge-xs badge-ghost capitalize" x-text="p.provider.replace('_', ' ')"></span>
+                    <span x-text="p.model || 'default model'" class="opacity-60"></span>
                     <span class="badge badge-xs badge-success" x-show="p.has_key">Key saved</span>
                     <button class="btn btn-xs btn-ghost btn-error ml-auto" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-trash"></i></button>
                   </div>
                 </template>
+                <div x-show="llmProvidersList.filter(p => !p.is_primary).length === 0" class="text-xs opacity-40 text-center py-2">
+                  No additional providers. Add one to enable multi-provider routing.
+                </div>
                 <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1" @click="addingProvider = true"><i class="ti ti-plus"></i> Add Provider</button>
                 <div x-show="addingProvider" class="bg-base-300 rounded-lg p-3 space-y-2">
                   <select class="select select-bordered select-xs w-full" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
                     <option value="">Select provider...</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
                     <option value="together_ai">Together AI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
                     <option value="azure_openai">Azure OpenAI</option>
                   </select>
                   <input type="password" class="input input-bordered input-xs w-full" placeholder="API Key" x-model="newProvider.api_key">
@@ -1113,16 +1127,30 @@ function integrationsHub() {
     llmForm: { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false },
     llmSameModelForAll: true,
     llmFeatureModels: {},  // feature_id -> model_name override
-    llmFeatures: [
-      { id: 'data_parsing', label: 'Data Parsing', hint: 'Parse scan data + extract findings' },
-      { id: 'auto_map', label: 'Control Mapping', hint: 'Map findings to compliance controls' },
-      { id: 'assist_gaps', label: 'Gap Analysis', hint: 'Suggest fixes for control gaps' },
-      { id: 'risk_score', label: 'Risk Scoring', hint: 'Evaluate and score risks' },
-      { id: 'control_assess', label: 'Control Assessment', hint: 'Assess controls vs evidence' },
-      { id: 'policy_draft', label: 'Policy Drafting', hint: 'Generate policy documents' },
-      { id: 'evidence_interpret', label: 'Evidence Analysis', hint: 'Interpret uploaded evidence' },
-      { id: 'summarize', label: 'Summarization', hint: 'Summarize long documents' },
+    llmTiers: [
+      { id: 'extraction', label: 'Tier 1: Data Extraction', icon: 'ti-database',
+        hint: 'Parsing raw scan data, formatting, extracting structured fields',
+        features: 'Data Parsing, Summarization, Evidence Interpretation',
+        recommended: 'Together AI (Llama/Qwen) — fast, cheap, high volume' },
+      { id: 'mapping', label: 'Tier 2: Compliance Mapping', icon: 'ti-map-pin',
+        hint: 'Mapping findings to controls, risk scoring, status assignment',
+        features: 'Auto-Map Controls, Control Assessment, Risk Scoring',
+        recommended: 'Together AI (larger model) — needs good JSON + domain knowledge' },
+      { id: 'analysis', label: 'Tier 3: Analysis & Recommendations', icon: 'ti-bulb',
+        hint: 'Gap analysis, remediation suggestions, evidence review',
+        features: 'Gap Analysis, Assist Gaps, Risk Narratives',
+        recommended: 'Claude Sonnet — strong reasoning for compliance recommendations' },
+      { id: 'advanced', label: 'Tier 4: Deep Reasoning & Policy', icon: 'ti-brain',
+        hint: 'Policy drafting, user/device risk profiles, complex analysis',
+        features: 'Policy Drafting, User Risk Profiles, Device Risk Profiles',
+        recommended: 'Claude Opus — best for nuanced long-form compliance writing' },
     ],
+    llmTierConfig: {
+      extraction: { provider: '', model: '' },
+      mapping: { provider: '', model: '' },
+      analysis: { provider: '', model: '' },
+      advanced: { provider: '', model: '' },
+    },
     llmProvidersList: [],
     llmSaving: false,
     llmTesting: false,
@@ -1497,13 +1525,20 @@ function integrationsHub() {
             this.fetchLlmModels();
           }
         }
-        // Load per-feature routing from backend
+        // Load tier-based routing from backend
         try {
           const featResp = await fetch('/api/v1/settings/llm/features');
           if (featResp.ok) {
             const featData = await featResp.json();
-            this.llmFeatureModels = featData.models || {};
             this.llmSameModelForAll = featData.sameForAll !== false;
+            if (featData.tiers) {
+              this.llmTierConfig = {
+                extraction: featData.tiers.extraction || { provider: '', model: '' },
+                mapping: featData.tiers.mapping || { provider: '', model: '' },
+                analysis: featData.tiers.analysis || { provider: '', model: '' },
+                advanced: featData.tiers.advanced || { provider: '', model: '' },
+              };
+            }
           }
         } catch(e) {}
         // Load additional providers list
@@ -1532,10 +1567,11 @@ function integrationsHub() {
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
 
-        // Save per-feature model assignments to both localStorage and backend
-        const featureConfig = { sameForAll: this.llmSameModelForAll, models: this.llmFeatureModels };
-        localStorage.setItem('llm_feature_models', JSON.stringify(featureConfig));
-        // Also save to backend ConfigStore for server-side routing
+        // Save tier-based routing to backend ConfigStore
+        const featureConfig = {
+          sameForAll: this.llmSameModelForAll,
+          tiers: this.llmTierConfig,
+        };
         fetch('/api/v1/settings/llm/features', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

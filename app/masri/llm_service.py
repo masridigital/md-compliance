@@ -311,12 +311,40 @@ class LLMService:
         except Exception:
             return False
 
+    # Feature → Tier mapping (hardcoded, not user-configurable)
+    # Users configure 4 tiers, not 10+ individual features.
+    FEATURE_TIERS = {
+        # Tier 1 — Extraction: high-volume structured parsing, cheapest models
+        "data_parsing": "extraction",
+        "summarize": "extraction",
+        "evidence_interpret": "extraction",
+
+        # Tier 2 — Mapping: compliance control mapping, needs good JSON output
+        "auto_map": "mapping",
+        "control_assess": "mapping",
+        "risk_score": "mapping",
+
+        # Tier 3 — Analysis: recommendations + gap analysis, needs reasoning
+        "assist_gaps": "analysis",
+        "gap_narrative": "analysis",
+
+        # Tier 4 — Advanced: policy drafting, risk profiles, complex analysis
+        "policy_draft": "advanced",
+        "user_risk_profile": "advanced",
+        "device_risk_profile": "advanced",
+    }
+
     @staticmethod
     def get_feature_routing(feature: str) -> dict:
-        """Get the provider+model assigned to a specific feature, or None for default.
+        """Get the provider+model for a feature via its tier assignment.
+
+        Routing priority:
+        1. Direct per-feature override (legacy, if set)
+        2. Tier-based routing (recommended)
+        3. Default primary config
 
         Returns:
-            dict with 'provider' and 'model' keys, or None to use default config.
+            dict with 'provider' and 'model' keys, or None for default.
         """
         try:
             from app.models import ConfigStore
@@ -326,11 +354,21 @@ class LLMService:
                 data = json.loads(record.value)
                 if data.get("sameForAll", True):
                     return None
+
+                # Check tier-based routing first
+                tiers = data.get("tiers", {})
+                if tiers:
+                    tier = LLMService.FEATURE_TIERS.get(feature, "standard")
+                    tier_config = tiers.get(tier)
+                    if tier_config and isinstance(tier_config, dict) and tier_config.get("provider"):
+                        return tier_config
+
+                # Fallback: direct per-feature override (legacy)
                 routing = data.get("models", {}).get(feature)
                 if routing and isinstance(routing, dict):
-                    return routing  # {provider, model, config_key}
+                    return routing
                 if routing and isinstance(routing, str):
-                    return {"model": routing}  # Legacy: model name only
+                    return {"model": routing}
         except Exception:
             pass
         return None

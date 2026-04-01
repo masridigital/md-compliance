@@ -606,17 +606,22 @@ def get_llm_feature_models():
 @limiter.limit("10 per minute")
 @login_required
 def set_llm_feature_models():
-    """PUT /api/v1/settings/llm/features — save per-feature provider+model routing.
+    """PUT /api/v1/settings/llm/features — save tier-based or per-feature routing.
 
-    Body: {
+    Tier-based (recommended):
+    {
         "sameForAll": false,
-        "models": {
-            "auto_map": {"provider": "together_ai", "model": "meta-llama/..."},
-            "assist_gaps": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
-            "web_research": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
-            "data_parsing": {"provider": "together_ai", "model": "meta-llama/..."},
-            "control_assist": {"provider": "openai", "model": "gpt-4o"},
+        "tiers": {
+            "fast": {"provider": "together_ai", "model": "meta-llama/..."},
+            "standard": {"provider": "together_ai", "model": "meta-llama/..."},
+            "advanced": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"}
         }
+    }
+
+    Legacy per-feature (still supported):
+    {
+        "sameForAll": false,
+        "models": {"auto_map": {"provider": "...", "model": "..."}}
     }
     """
     _require_admin()
@@ -625,6 +630,7 @@ def set_llm_feature_models():
     data = request.get_json(silent=True) or {}
     ConfigStore.upsert("llm_feature_models", json.dumps({
         "sameForAll": data.get("sameForAll", True),
+        "tiers": data.get("tiers", {}),
         "models": data.get("models", {}),
     }))
     return jsonify({"message": "Feature routing saved"})
