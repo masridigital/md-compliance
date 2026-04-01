@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request, abort
+from app import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -928,6 +929,7 @@ def oauth_metadata():
 
 
 @mcp_bp.route("/token", methods=["POST"])
+@limiter.limit("10 per minute")
 def oauth_token():
     """
     OAuth 2.0 Token Endpoint — Client Credentials Grant.

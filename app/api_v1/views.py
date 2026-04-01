@@ -607,7 +607,7 @@ def get_controls_for_project(pid):
 @limiter.limit("30 per minute")
 @login_required
 def create_risk_for_project(pid):
-    result = Authorizer(current_user).can_user_access_project(pid)
+    result = Authorizer(current_user).can_user_manage_project(pid)
     data, err = validate_payload(RiskCreateSchema, request.get_json())
     if err:
         return err
@@ -638,7 +638,7 @@ def get_risks_for_project(pid):
 @limiter.limit("30 per minute")
 @login_required
 def update_risk_for_project(pid, rid):
-    Authorizer(current_user).can_user_access_project(pid)
+    Authorizer(current_user).can_user_manage_project(pid)
     data, err = validate_payload(RiskCreateSchema, request.get_json())
     if err:
         return err

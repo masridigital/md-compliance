@@ -49,16 +49,29 @@ class StorageProvider(ABC):
 # ===========================================================================
 
 class LocalStorageProvider(StorageProvider):
-    """Local filesystem storage — refactored from gapps FileStorageHandler."""
+    """Local filesystem storage with path traversal protection."""
 
     def __init__(self, base_path: str):
-        self.base_path = base_path
-        os.makedirs(base_path, exist_ok=True)
+        self.base_path = os.path.realpath(base_path)
+        os.makedirs(self.base_path, exist_ok=True)
+
+    def _safe_path(self, *parts):
+        """Resolve path and ensure it stays within base_path. Prevents traversal."""
+        joined = os.path.join(self.base_path, *parts)
+        resolved = os.path.realpath(joined)
+        if not resolved.startswith(self.base_path):
+            raise PermissionError(f"Path traversal blocked: {resolved}")
+        return resolved
 
     def upload_file(self, file: BinaryIO, file_name: str, folder: str) -> str:
-        dest_dir = os.path.join(self.base_path, folder)
+        from werkzeug.utils import secure_filename
+        safe_name = secure_filename(file_name) or "unnamed_file"
+        dest_dir = self._safe_path(folder)
         os.makedirs(dest_dir, exist_ok=True)
-        dest_path = os.path.join(dest_dir, file_name)
+        dest_path = os.path.join(dest_dir, safe_name)
+        # Final check after joining filename
+        if not os.path.realpath(dest_path).startswith(self.base_path):
+            raise PermissionError("Path traversal blocked in filename")
 
         if isinstance(file, str):
             shutil.move(file, dest_path)
@@ -71,21 +84,26 @@ class LocalStorageProvider(StorageProvider):
         return dest_path
 
     def get_file(self, path: str) -> bytes:
-        full_path = path if os.path.isabs(path) else os.path.join(self.base_path, path)
+        full_path = self._safe_path(path) if not os.path.isabs(path) else path
+        # Always validate against base_path even for absolute paths
+        if not os.path.realpath(full_path).startswith(self.base_path):
+            raise PermissionError("Path traversal blocked")
         if not os.path.isfile(full_path):
-            raise FileNotFoundError(f"File not found: {full_path}")
+            raise FileNotFoundError("File not found")
         with open(full_path, "rb") as f:
             return f.read()
 
     def delete_file(self, path: str) -> bool:
-        full_path = path if os.path.isabs(path) else os.path.join(self.base_path, path)
+        full_path = self._safe_path(path) if not os.path.isabs(path) else path
+        if not os.path.realpath(full_path).startswith(self.base_path):
+            raise PermissionError("Path traversal blocked")
         if not os.path.isfile(full_path):
-            raise FileNotFoundError(f"File not found: {full_path}")
+            raise FileNotFoundError("File not found")
         os.remove(full_path)
         return True
 
     def list_files(self, folder: str) -> list:
-        full_path = os.path.join(self.base_path, folder)
+        full_path = self._safe_path(folder)
         if not os.path.isdir(full_path):
             return []
         results = []

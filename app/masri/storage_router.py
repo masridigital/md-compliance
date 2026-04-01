@@ -136,12 +136,20 @@ def store_file(file_data, file_name, folder, role="evidence", tenant_id=None):
     provider, actual_provider = _get_provider_instance(provider_name, tenant_id)
 
     try:
+        from werkzeug.utils import secure_filename
+        safe_name = secure_filename(file_name) or "unnamed_file"
+        # Sanitize folder — remove traversal sequences
+        safe_folder = "/".join(
+            p for p in folder.replace("\\", "/").split("/")
+            if p and p != ".." and p != "."
+        )
+
         # Ensure file_data is a file-like object
         if isinstance(file_data, bytes):
             import io
             file_data = io.BytesIO(file_data)
 
-        path = provider.upload_file(file_data, file_name, folder)
+        path = provider.upload_file(file_data, safe_name, safe_folder)
 
         result = {
             "path": path,

@@ -213,13 +213,19 @@ class FileStorageHandler:
         return size
 
     def delete_local_file(self, path):
+        # Validate path stays within evidence folder
+        base = current_app.config.get("EVIDENCE_FOLDER", "")
+        if base:
+            resolved = os.path.realpath(path)
+            if not resolved.startswith(os.path.realpath(base)):
+                raise PermissionError("Path traversal blocked — cannot delete outside evidence folder")
         try:
             os.remove(path)
             return True
         except FileNotFoundError:
-            raise Exception(f"File not found for deletion:{path}")
-        except Exception as e:
-            raise Exception(f"Unknown error when deleting local file: {path}")
+            raise Exception("File not found for deletion")
+        except Exception:
+            raise Exception("Error deleting file")
 
     def delete_s3_file(self, path):
         self._check_provider("s3")
@@ -257,17 +263,23 @@ class FileStorageHandler:
     def get_local_file(self, path, as_blob=False):
         self._check_provider("local")
 
-        if not self.does_file_exist(path):
-            raise FileDoesNotExist(f"File:{path} does not exist in local")
+        base = current_app.config["EVIDENCE_FOLDER"]
+        if not path.startswith(base):
+            path = os.path.join(base, path)
 
-        if not path.startswith(current_app.config["EVIDENCE_FOLDER"]):
-            path = os.path.join(current_app.config["EVIDENCE_FOLDER"], path)
+        # Resolve symlinks and ensure path stays within evidence folder
+        resolved = os.path.realpath(path)
+        if not resolved.startswith(os.path.realpath(base)):
+            raise PermissionError("Path traversal blocked")
+
+        if not os.path.isfile(resolved):
+            raise FileDoesNotExist(f"File does not exist")
 
         if as_blob:
-            with open(path, "rb") as file:
+            with open(resolved, "rb") as file:
                 return file.read()
 
-        return os.path.relpath(path, current_app.config["EVIDENCE_FOLDER"])
+        return os.path.relpath(resolved, base)
 
     # S3 Methods
     def upload_to_s3(self, file, file_name=None, folder=None, abs_path=None):

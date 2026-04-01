@@ -106,10 +106,10 @@ def entra_users():
         users = client.list_users(limit=limit)
         return jsonify({"users": users, "count": len(users)})
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Invalid request"}), 400
     except Exception as e:
         logger.exception("Entra user listing failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @entra_bp.route("/mfa-status", methods=["GET"])
@@ -138,10 +138,10 @@ def entra_mfa_status():
             },
         })
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Invalid request"}), 400
     except Exception as e:
         logger.exception("Entra MFA status check failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @entra_bp.route("/csp-clients", methods=["GET"])
@@ -160,10 +160,10 @@ def entra_csp_clients():
         csp_clients = client.list_csp_clients()
         return jsonify({"clients": csp_clients, "count": len(csp_clients)})
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Invalid request"}), 400
     except Exception as e:
         logger.exception("CSP client list failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @entra_bp.route("/csp-clients/import", methods=["POST"])
@@ -251,7 +251,7 @@ def entra_assess():
         assessment = client.assess_compliance()
         return jsonify({"assessment": assessment})
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Invalid request"}), 400
     except Exception as e:
         logger.exception("Entra compliance assessment failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500

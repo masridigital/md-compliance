@@ -47,8 +47,10 @@ def get_feature_flags():
 
 
 @api.route("/users/exist", methods=["POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("3 per minute")
+@login_required
 def does_user_exist():
+    """Check if user exists — requires authentication to prevent enumeration."""
     data, err = validate_payload(UserExistSchema, request.get_json())
     if err:
         return err
