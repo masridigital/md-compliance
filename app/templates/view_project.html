@@ -3128,6 +3128,122 @@
 						</div>
 					</template>
 
+					<!-- Risk Profiles -->
+					<template x-if="intData.risk_profiles">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showUsers: false, showDevices: false }">
+							<div class="card-body p-4">
+								<!-- Summary row -->
+								<div class="grid grid-cols-4 gap-2 text-center mb-3">
+									<div class="bg-base-300 rounded-lg p-2">
+										<div class="text-lg font-bold" x-text="intData.risk_profiles.summary?.total_users || 0"></div>
+										<div class="text-[10px] opacity-50">Total Users</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2">
+										<div class="text-lg font-bold text-error" x-text="intData.risk_profiles.summary?.high_risk_users || 0"></div>
+										<div class="text-[10px] opacity-50">High Risk Users</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2">
+										<div class="text-lg font-bold" x-text="intData.risk_profiles.summary?.total_devices || 0"></div>
+										<div class="text-[10px] opacity-50">Total Devices</div>
+									</div>
+									<div class="bg-base-300 rounded-lg p-2">
+										<div class="text-lg font-bold text-error" x-text="intData.risk_profiles.summary?.high_risk_devices || 0"></div>
+										<div class="text-[10px] opacity-50">High Risk Devices</div>
+									</div>
+								</div>
+
+								<!-- User Risk Profiles -->
+								<div class="cursor-pointer select-none flex items-center gap-2 mb-2" @click="showUsers = !showUsers">
+									<i class="ti text-lg text-warning" :class="showUsers ? 'ti-chevron-down' : 'ti-user-exclamation'"></i>
+									<span class="text-xs font-bold">User Risk Profiles</span>
+									<span class="text-[10px] opacity-40" x-text="'Avg score: ' + (intData.risk_profiles.summary?.avg_user_score || 0) + '/100'"></span>
+								</div>
+								<div x-show="showUsers" x-collapse x-cloak class="max-h-[24rem] overflow-y-auto space-y-1 mb-3">
+									<template x-for="(u, i) in (intData.risk_profiles.users || [])" :key="'u-'+i">
+										<div class="text-xs bg-base-300 rounded p-2 cursor-pointer" x-data="{ exp: false }" @click="exp = !exp">
+											<div class="flex justify-between items-center">
+												<div class="flex items-center gap-2">
+													<div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+														 :class="{
+															'bg-error/20 text-error': u.risk_level === 'critical',
+															'bg-warning/20 text-warning': u.risk_level === 'high',
+															'bg-info/20 text-info': u.risk_level === 'medium',
+															'bg-success/20 text-success': u.risk_level === 'low',
+														 }" x-text="u.score"></div>
+													<div>
+														<span class="font-semibold" x-text="u.display_name"></span>
+														<span class="opacity-40 ml-1" x-text="u.type === 'shared_mailbox' ? '(shared)' : ''"></span>
+														<div class="opacity-40" x-text="u.upn"></div>
+													</div>
+												</div>
+												<div class="flex items-center gap-2">
+													<span x-show="!u.mfa_enrolled" class="badge badge-xs badge-error">No MFA</span>
+													<span x-show="u.is_admin" class="badge badge-xs badge-warning">Admin</span>
+													<span class="badge badge-xs" :class="{
+														'badge-error': u.risk_level === 'critical',
+														'badge-warning': u.risk_level === 'high',
+														'badge-info': u.risk_level === 'medium',
+														'badge-success': u.risk_level === 'low',
+													}" x-text="u.risk_level"></span>
+												</div>
+											</div>
+											<div x-show="exp" x-collapse x-cloak class="mt-2 pl-10 space-y-1" @click.stop>
+												<template x-for="(f, fi) in u.risk_factors" :key="fi">
+													<div class="text-[10px] opacity-60 flex items-center gap-1">
+														<i class="ti ti-alert-circle text-warning"></i> <span x-text="f"></span>
+													</div>
+												</template>
+											</div>
+										</div>
+									</template>
+								</div>
+
+								<!-- Device Risk Profiles -->
+								<div class="cursor-pointer select-none flex items-center gap-2 mb-2" @click="showDevices = !showDevices">
+									<i class="ti text-lg text-info" :class="showDevices ? 'ti-chevron-down' : 'ti-device-laptop'"></i>
+									<span class="text-xs font-bold">Device Risk Profiles</span>
+									<span class="text-[10px] opacity-40" x-text="'Avg score: ' + (intData.risk_profiles.summary?.avg_device_score || 0) + '/100'"></span>
+								</div>
+								<div x-show="showDevices" x-collapse x-cloak class="max-h-[24rem] overflow-y-auto space-y-1">
+									<template x-for="(d, i) in (intData.risk_profiles.devices || [])" :key="'d-'+i">
+										<div class="text-xs bg-base-300 rounded p-2 cursor-pointer" x-data="{ exp: false }" @click="exp = !exp">
+											<div class="flex justify-between items-center">
+												<div class="flex items-center gap-2">
+													<div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+														 :class="{
+															'bg-error/20 text-error': d.risk_level === 'critical',
+															'bg-warning/20 text-warning': d.risk_level === 'high',
+															'bg-info/20 text-info': d.risk_level === 'medium',
+															'bg-success/20 text-success': d.risk_level === 'low',
+														 }" x-text="d.score"></div>
+													<div>
+														<span class="font-semibold" x-text="d.name"></span>
+														<span class="badge badge-xs badge-ghost ml-1" x-text="d.type"></span>
+														<div class="opacity-40" x-text="d.os + ' — ' + d.user"></div>
+													</div>
+												</div>
+												<span class="badge badge-xs" :class="{
+													'badge-error': d.risk_level === 'critical',
+													'badge-warning': d.risk_level === 'high',
+													'badge-info': d.risk_level === 'medium',
+													'badge-success': d.risk_level === 'low',
+												}" x-text="d.risk_level"></span>
+											</div>
+											<div x-show="exp" x-collapse x-cloak class="mt-2 pl-10 space-y-1" @click.stop>
+												<template x-for="(f, fi) in d.risk_factors" :key="fi">
+													<div class="text-[10px] opacity-60 flex items-center gap-1">
+														<i class="ti ti-alert-circle text-warning"></i> <span x-text="f"></span>
+													</div>
+												</template>
+												<div class="text-[10px] opacity-40 mt-1" x-show="d.last_sync" x-text="'Last sync: ' + (d.last_sync ? new Date(d.last_sync).toLocaleDateString() : 'Unknown')"></div>
+											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
 					<!-- Risk Register -->
 					<template x-if="intData.risks">
 						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
