@@ -370,7 +370,8 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 ---
 
 ## Things to NEVER Do
-1. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
+1. **NEVER** push to main without running a security review first — use a security review agent in parallel during development, or run a full audit before the final push
+2. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
 2. **NEVER** use `dict | None` type hints (PEP 604) — may crash on older Python
 3. **NEVER** access the database in `before_request` — use session-only data
 4. **NEVER** run synchronous LLM calls in the request thread (120s gunicorn timeout)
