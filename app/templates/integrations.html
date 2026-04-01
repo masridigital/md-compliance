@@ -408,11 +408,13 @@
                     <input type="password" class="input input-bordered input-xs" x-model="llmForm.api_key" placeholder="API key" />
                   </div>
                   <div class="flex gap-1">
-                    <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name">
+                    <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name"
+                            @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()">
                       <option value="">Model...</option>
                       <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
                     </select>
-                    <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name" />
+                    <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name"
+                           @focus="if (llmModels.length === 0 && !llmModelsFetching && llmForm.has_api_key) fetchLlmModels()" />
                     <button class="btn btn-ghost btn-xs btn-square" @click="fetchLlmModels()" :disabled="llmModelsFetching">
                       <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
                       <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
@@ -500,7 +502,8 @@
                       <td class="py-1">
                         <select class="select select-bordered select-xs w-full"
                                 x-model="llmTierConfig[tier.id].model"
-                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
+                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }"
+                                @mousedown="if (getModelsForTier(tier.id).length === 0 && !llmModelsFetching) fetchLlmModels()">
                           <option value="">Default</option>
                           <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
                             <option :value="m" x-text="m"></option>
