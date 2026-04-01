@@ -914,9 +914,11 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
         # Compute risk profiles from Microsoft data
         if integration_data.get("microsoft"):
             try:
-                from app.masri.risk_profiles import compute_risk_profiles
+                from app.masri.risk_profiles import compute_risk_profiles, generate_risk_narratives
                 profiles = compute_risk_profiles(integration_data["microsoft"])
                 if profiles:
+                    # Generate AI narratives for high-risk items (Tier 4)
+                    profiles = generate_risk_narratives(profiles, tenant_id=tenant_id)
                     integration_data["risk_profiles"] = profiles
             except Exception as e:
                 logger.debug("Risk profile computation skipped: %s", e)

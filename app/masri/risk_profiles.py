@@ -98,6 +98,117 @@ def compute_risk_profiles(microsoft_data):
     }
 
 
+def generate_risk_narratives(profiles, tenant_id=None):
+    """Generate LLM narratives for high-risk users and devices (Tier 4).
+
+    Only processes items with score >= 50 (high/critical) to minimize
+    LLM costs. Uses the 'user_risk_profile' and 'device_risk_profile'
+    features which route to Tier 4 (Advanced) models.
+
+    Args:
+        profiles: dict from compute_risk_profiles()
+        tenant_id: for LLM rate limiting
+
+    Returns:
+        Updated profiles dict with 'narrative' field on high-risk items.
+    """
+    try:
+        from app.masri.llm_service import LLMService
+        if not LLMService.is_enabled():
+            return profiles
+    except Exception:
+        return profiles
+
+    import json
+
+    # Collect high-risk items (score >= 50) for batch processing
+    high_risk_users = [u for u in profiles.get("users", []) if u["score"] >= 50]
+    high_risk_devices = [d for d in profiles.get("devices", []) if d["score"] >= 50]
+
+    if not high_risk_users and not high_risk_devices:
+        return profiles
+
+    # Build a single LLM call for all high-risk items (cheaper than per-item)
+    items_text = []
+    for u in high_risk_users[:10]:
+        items_text.append(
+            f"USER: {u['display_name']} ({u['upn']}) — Score: {u['score']}/100, "
+            f"Type: {u['type']}, Factors: {'; '.join(u['risk_factors'])}"
+        )
+    for d in high_risk_devices[:10]:
+        items_text.append(
+            f"DEVICE: {d['name']} ({d['os']}) — Score: {d['score']}/100, "
+            f"User: {d.get('user', 'N/A')}, Factors: {'; '.join(d['risk_factors'])}"
+        )
+
+    if not items_text:
+        return profiles
+
+    try:
+        result = LLMService.chat(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a cybersecurity analyst generating risk narratives for compliance reports. "
+                        "For each high-risk user or device, write a 2-3 sentence narrative explaining:\n"
+                        "1. Why this item is high risk (specific threats)\n"
+                        "2. What could happen if not addressed (impact)\n"
+                        "3. Recommended immediate action\n\n"
+                        "Respond with ONLY valid JSON:\n"
+                        '{"narratives": [{"id": "USER:email@..." or "DEVICE:name", "narrative": "..."}]}'
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": "Generate risk narratives for:\n" + "\n".join(items_text),
+                },
+            ],
+            tenant_id=tenant_id,
+            feature="user_risk_profile",
+            temperature=0.3,
+            max_tokens=2000,
+        )
+
+        content = result["content"].strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+        parsed = None
+        try:
+            parsed = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            bs = content.find("{")
+            be = content.rfind("}")
+            if bs >= 0 and be > bs:
+                try:
+                    parsed = json.loads(content[bs:be + 1])
+                except Exception:
+                    pass
+
+        if parsed and "narratives" in parsed:
+            # Map narratives back to profiles
+            narrative_map = {}
+            for n in parsed["narratives"]:
+                nid = n.get("id", "")
+                narrative_map[nid] = n.get("narrative", "")
+
+            for u in profiles.get("users", []):
+                key = f"USER:{u['upn']}"
+                if key in narrative_map:
+                    u["narrative"] = narrative_map[key]
+
+            for d in profiles.get("devices", []):
+                key = f"DEVICE:{d['name']}"
+                if key in narrative_map:
+                    d["narrative"] = narrative_map[key]
+
+    except Exception as e:
+        logger.warning("Risk narrative generation failed: %s", e)
+
+    return profiles
+
+
 def _compute_user_profiles(data):
     """Score each user based on MFA, risk signals, sign-in activity, devices."""
     profiles = []

@@ -3188,6 +3188,7 @@
 												</div>
 											</div>
 											<div x-show="exp" x-collapse x-cloak class="mt-2 pl-10 space-y-1" @click.stop>
+												<div x-show="u.narrative" class="bg-base-100/50 rounded p-2 mb-1 text-[11px] leading-relaxed" x-text="u.narrative"></div>
 												<template x-for="(f, fi) in u.risk_factors" :key="fi">
 													<div class="text-[10px] opacity-60 flex items-center gap-1">
 														<i class="ti ti-alert-circle text-warning"></i> <span x-text="f"></span>
@@ -3230,6 +3231,7 @@
 												}" x-text="d.risk_level"></span>
 											</div>
 											<div x-show="exp" x-collapse x-cloak class="mt-2 pl-10 space-y-1" @click.stop>
+												<div x-show="d.narrative" class="bg-base-100/50 rounded p-2 mb-1 text-[11px] leading-relaxed" x-text="d.narrative"></div>
 												<template x-for="(f, fi) in d.risk_factors" :key="fi">
 													<div class="text-[10px] opacity-60 flex items-center gap-1">
 														<i class="ti ti-alert-circle text-warning"></i> <span x-text="f"></span>
