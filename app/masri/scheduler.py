@@ -72,6 +72,11 @@ class MasriScheduler:
             interval_seconds=86400,  # 24 hours
             func=self._task_integration_refresh,
         )
+        self._schedule_recurring(
+            name="model_recommendations",
+            interval_seconds=604800,  # 7 days
+            func=self._task_model_recommendations,
+        )
 
         logger.info("Masri scheduler started with %d tasks", len(self._timers))
 
@@ -352,6 +357,16 @@ class MasriScheduler:
             except Exception:
                 logger.exception("Auto-update task failed")
 
+
+    def _task_model_recommendations(self):
+        """Weekly: research and update AI model recommendations for each tier."""
+        if not self._app:
+            return
+        try:
+            from app.masri.model_recommender import refresh_model_recommendations
+            refresh_model_recommendations(self._app)
+        except Exception:
+            logger.exception("Model recommendation task failed")
 
     def _task_integration_refresh(self):
         """Daily refresh: re-pull Telivy + Microsoft data for all mapped tenants."""

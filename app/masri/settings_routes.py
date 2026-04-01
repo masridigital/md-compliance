@@ -1391,6 +1391,41 @@ def reset_integration(integration_type):
 # System Logs (real-time in-app viewer)
 # ===========================================================================
 
+@settings_bp.route("/llm/recommendations", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_model_recommendations():
+    """GET /api/v1/settings/llm/recommendations — current model recommendations."""
+    _require_admin()
+    from app.masri.model_recommender import get_current_recommendations
+    recs = get_current_recommendations()
+    if recs:
+        return jsonify(recs)
+    return jsonify({"message": "No recommendations yet. Click refresh to generate."})
+
+
+@settings_bp.route("/llm/recommendations/refresh", methods=["POST"])
+@limiter.limit("3 per minute")
+@login_required
+def refresh_model_recommendations_endpoint():
+    """POST /api/v1/settings/llm/recommendations/refresh — trigger fresh analysis."""
+    _require_admin()
+    import threading
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def _run():
+        try:
+            from app.masri.model_recommender import refresh_model_recommendations
+            refresh_model_recommendations(app)
+        except Exception as e:
+            logger.exception("Model recommendation refresh failed: %s", e)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return jsonify({"message": "Recommendation refresh started in background."})
+
+
 @settings_bp.route("/system-logs", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required

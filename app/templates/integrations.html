@@ -480,11 +480,35 @@
                   </select>
                 </div>
               </template>
-              <button class="btn btn-xs btn-ghost gap-1 mt-1" @click="
-                llmTierConfig = {};
-                llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
-                toast('Recommended config applied with models. Click Save.', 'info');
-              "><i class="ti ti-wand"></i> Apply Recommended</button>
+              <div class="flex gap-2 items-center mt-2">
+                <button class="btn btn-xs btn-ghost gap-1" @click="
+                  llmTierConfig = {};
+                  llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
+                  toast('Default recommendations applied. Click Save.', 'info');
+                "><i class="ti ti-wand"></i> Apply Defaults</button>
+                <button class="btn btn-xs btn-ghost gap-1" x-data="{ refreshing: false }" @click="
+                  refreshing = true;
+                  fetch('/api/v1/settings/llm/recommendations/refresh', { method: 'POST' })
+                    .then(() => { toast('AI is researching best models — check back in a minute.', 'info'); refreshing = false; })
+                    .catch(() => { refreshing = false; });
+                " :disabled="refreshing">
+                  <span class="loading loading-spinner loading-xs" x-show="refreshing"></span>
+                  <i class="ti ti-brain" x-show="!refreshing"></i> AI Research Models
+                </button>
+                <button class="btn btn-xs btn-ghost gap-1" @click="
+                  fetch('/api/v1/settings/llm/recommendations')
+                    .then(r => r.json())
+                    .then(data => {
+                      if (data.recommendations) {
+                        llmTierConfig = {};
+                        for (const [tid, rec] of Object.entries(data.recommendations)) {
+                          llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
+                        }
+                        toast('AI-recommended config applied (generated ' + (data.generated_at || 'recently').split('T')[0] + '). Click Save.', 'success');
+                      } else { toast(data.message || 'No recommendations yet', 'warning'); }
+                    }).catch(() => toast('Failed to load recommendations', 'error'));
+                "><i class="ti ti-sparkles"></i> Apply AI Picks</button>
+              </div>
             </div>
 
             <!-- ── Actions ── -->
