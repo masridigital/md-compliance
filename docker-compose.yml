@@ -107,6 +107,8 @@ services:
       - ./nginx/ssl/letsencrypt:/etc/letsencrypt:ro
       # Certbot webroot for ACME challenges
       - ./nginx/certbot-webroot:/var/www/certbot:ro
+      # Branded error pages (502/503 during app startup)
+      - ./nginx/error-pages:/usr/share/nginx/error-pages:ro
     profiles:
       # nginx only starts when you explicitly opt in (setup.sh does this).
       # This prevents port conflicts on fresh installs before setup runs.

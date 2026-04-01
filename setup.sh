@@ -335,6 +335,13 @@ server {
 
     client_max_body_size 50M;
 
+    # Branded error page during app startup/restart
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root /usr/share/nginx/error-pages;
+        internal;
+    }
+
     location / {
         proxy_pass         http://app:5000;
         proxy_http_version 1.1;
@@ -358,6 +365,12 @@ server {
     server_name ${DOMAIN};
 
     client_max_body_size 50M;
+
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root /usr/share/nginx/error-pages;
+        internal;
+    }
 
     location / {
         proxy_pass         http://app:5000;
@@ -536,6 +549,12 @@ server {
     add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
 
     client_max_body_size 50M;
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root /usr/share/nginx/error-pages;
+        internal;
+    }
+
 
     location / {
         proxy_pass         http://app:5000;
@@ -581,6 +600,12 @@ server {
     listen [::]:80;
     server_name ${DOMAIN};
     client_max_body_size 50M;
+    error_page 502 503 504 /502.html;
+    location = /502.html {
+        root /usr/share/nginx/error-pages;
+        internal;
+    }
+
     location / {
         proxy_pass         http://app:5000;
         proxy_http_version 1.1;

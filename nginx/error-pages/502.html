@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Compliance — Loading</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1d232a;
+    color: #a6adba;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  .container {
+    text-align: center;
+    max-width: 420px;
+    padding: 2rem;
+  }
+  .logo {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #e0e0e0;
+    margin-bottom: 1rem;
+  }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid #333;
+    border-top: 3px solid #6366f1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 1.5rem auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .message {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: #e0e0e0;
+  }
+  .sub {
+    font-size: 0.85rem;
+    opacity: 0.5;
+  }
+  .retry {
+    margin-top: 1.5rem;
+    padding: 0.5rem 1.5rem;
+    background: #6366f1;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .retry:hover { background: #4f46e5; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">MD Compliance</div>
+  <div class="spinner"></div>
+  <p class="message">The application is starting up...</p>
+  <p class="sub">This usually takes a few seconds after a deployment.</p>
+  <button class="retry" onclick="location.reload()">Refresh</button>
+  <p class="sub" style="margin-top: 2rem; font-size: 0.75rem;">
+    Masri Digital &mdash; masridigital.com
+  </p>
+</div>
+<script>
+  // Auto-refresh every 5 seconds until the app is up
+  setTimeout(() => location.reload(), 5000);
+</script>
+</body>
+</html>

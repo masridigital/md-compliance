@@ -377,20 +377,11 @@
                   <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                  <div class="grid grid-cols-2 gap-1">
-                    <select class="select select-bordered select-xs" x-model="llmForm.provider">
-                      <option value="">Provider...</option>
-                      <option value="openai">OpenAI</option>
-                      <option value="anthropic">Anthropic</option>
-                      <option value="azure_openai">Azure OpenAI</option>
-                      <option value="together_ai">Together AI</option>
-                    </select>
-                    <input type="password" class="input input-bordered input-xs" x-model="llmForm.api_key" placeholder="API key" />
-                  </div>
+                  <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key" />
                   <div class="flex gap-1">
                     <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name"
                             @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()">
-                      <option value="">Model...</option>
+                      <option value="">Select model...</option>
                       <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
                     </select>
                     <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name"
@@ -406,7 +397,7 @@
                       <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" />
                     </div>
                   </template>
-                  <div class="flex items-center gap-2 mt-1" x-data="{ result: '', testing: false }">
+                  <div class="flex items-center gap-2" x-data="{ result: '', testing: false }">
                     <button class="btn btn-xs btn-outline gap-1" :disabled="testing" @click="
                       testing = true; result = '';
                       fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) })
@@ -416,7 +407,7 @@
                       <span class="loading loading-spinner loading-xs" x-show="testing"></span>
                       <i class="ti ti-plug-connected" x-show="!testing"></i> Test
                     </button>
-                    <span class="text-[10px]" :class="result.includes('onnect') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                    <span class="text-[10px]" :class="result && !result.includes('ail') && !result.includes('rror') && !result.includes('heck') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
                   </div>
                 </div>
               </div>
@@ -433,8 +424,25 @@
                     <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                    <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key"
+                    <input type="password" class="input input-bordered input-xs w-full" placeholder="API key"
                            @change="saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: $event.target.value }); $event.target.value = ''; toast('Key updated', 'success');">
+                    <div class="flex gap-1" x-data="{ secModels: [] }" x-init="
+                      if (llmModelsByProvider[p.provider]?.length) { secModels = llmModelsByProvider[p.provider]; }
+                    ">
+                      <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
+                              @mousedown="if (!secModels.length) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }"
+                              @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model updated', 'success');">
+                        <option value="">Select model...</option>
+                        <template x-for="m in secModels" :key="'sec-'+m"><option :value="m" x-text="m"></option></template>
+                      </select>
+                      <input x-show="secModels.length === 0" type="text" class="input input-bordered input-xs flex-1" placeholder="Model name"
+                             @focus="fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{});"
+                             @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model updated', 'success');">
+                      <button class="btn btn-ghost btn-xs btn-square" @click="
+                        fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) })
+                          .then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; toast(secModels.length + ' models loaded', 'success'); }).catch(()=>{});
+                      "><i class="ti ti-refresh"></i></button>
+                    </div>
                     <div class="flex items-center gap-2" x-data="{ result: '', testing: false }">
                       <button class="btn btn-xs btn-outline gap-1" :disabled="testing" @click="
                         testing = true; result = '';
@@ -445,7 +453,7 @@
                         <span class="loading loading-spinner loading-xs" x-show="testing"></span>
                         <i class="ti ti-plug-connected" x-show="!testing"></i> Test
                       </button>
-                      <span class="text-[10px]" :class="result.includes('onnect') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                      <span class="text-[10px]" :class="result && !result.includes('ail') && !result.includes('rror') && !result.includes('heck') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
                     </div>
                   </div>
                 </div>
