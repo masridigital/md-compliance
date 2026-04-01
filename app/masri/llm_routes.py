@@ -1246,6 +1246,66 @@ def auto_process_status(tenant_id):
     return jsonify({"status": "processing"})
 
 
+@llm_bp.route("/refresh-microsoft/<string:tenant_id>", methods=["POST"])
+@limiter.limit("3 per minute")
+@login_required
+def refresh_microsoft_data(tenant_id):
+    """POST /api/v1/llm/refresh-microsoft/<tenant_id> — manually refresh Microsoft data.
+
+    Pulls fresh data from all Microsoft Graph endpoints and stores in cache.
+    Does NOT re-run LLM analysis — use auto-process for that.
+    """
+    try:
+        _validate_tenant_access(tenant_id)
+    except Exception:
+        pass
+
+    import json
+    from app import db
+    from app.models import ConfigStore
+    from app.masri.new_models import SettingsEntra
+
+    entra_cfg = db.session.execute(
+        db.select(SettingsEntra).filter_by(tenant_id=None)
+    ).scalars().first()
+    if not entra_cfg or not entra_cfg.is_fully_configured():
+        return jsonify({"error": "Microsoft Entra ID not configured"}), 400
+
+    from app.masri.entra_integration import EntraIntegration
+    creds = entra_cfg.get_credentials()
+    client = EntraIntegration(
+        tenant_id=creds["entra_tenant_id"],
+        client_id=creds["client_id"],
+        client_secret=creds["client_secret"],
+    )
+
+    ms_data = client.collect_all_security_data()
+    if not ms_data:
+        return jsonify({"error": "No data returned from Microsoft"}), 502
+
+    # Store in cache
+    try:
+        existing = {}
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if record and record.value:
+            try:
+                existing = json.loads(record.value)
+            except Exception:
+                pass
+        existing["microsoft"] = ms_data
+        existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+        ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:100000])
+    except Exception as e:
+        return jsonify({"error": f"Failed to store data: {e}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": "Microsoft data refreshed",
+        "data_points": list(ms_data.keys()),
+        "cached_at": existing.get("_updated"),
+    })
+
+
 def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
     """Sync subcontrol.implemented and backfill evidence for all mapped controls."""
     from app.models import ProjectEvidence, EvidenceAssociation
@@ -1453,131 +1513,100 @@ def _compress_for_llm(data: dict) -> str:
 
 
 def _gather_integration_data(tenant_id: str) -> dict:
-    """Collect all available integration data for a tenant."""
+    """Collect all available integration data for a tenant.
+
+    CACHE-FIRST: Reads from ConfigStore (populated by auto-process and
+    daily scheduler). Never calls external APIs directly — this prevents
+    Microsoft Graph throttling on every page load.
+    """
     import json
     data = {}
 
-    # Entra ID
+    # 1. Read cached integration data (Telivy + Microsoft)
     try:
-        from app.masri.settings_service import SettingsService
-        from app.masri.new_models import SettingsEntra
-        from app import db
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if record and record.value:
+            cached = json.loads(record.value)
 
-        entra = db.session.execute(
-            db.select(SettingsEntra).filter_by(tenant_id=None)
-        ).scalars().first()
-        if entra and entra.is_fully_configured():
-            from app.masri.entra_integration import EntraIntegration
-            creds = entra.get_credentials()
-            client = EntraIntegration(
-                tenant_id=creds["entra_tenant_id"],
-                client_id=creds["client_id"],
-                client_secret=creds["client_secret"],
-            )
-            try:
-                users = client.list_users()
-                data["entra_users"] = {"count": len(users), "sample": users[:5] if users else []}
-            except Exception:
-                pass
-            try:
-                mfa = client.get_mfa_status()
-                data["entra_mfa"] = mfa
-            except Exception:
-                pass
-            try:
-                assessment = client.assess_compliance()
-                data["entra_compliance"] = assessment
-            except Exception:
-                pass
-    except Exception as e:
-        logger.debug("Entra data collection skipped: %s", e)
+            # Microsoft data
+            if cached.get("microsoft"):
+                data["microsoft"] = cached["microsoft"]
 
-    # Telivy scans — get API key from DB or env, filter by tenant mapping
-    try:
-        from flask import current_app
-
-        # Get Telivy API key — use same method as telivy_routes._get_telivy_client()
-        api_key = None
-        try:
-            from app import db as _db
-            result = _db.session.execute(
-                _db.text("SELECT config_enc FROM settings_storage WHERE provider = 'telivy' LIMIT 1")
-            ).scalar()
-            if result:
-                from app.masri.settings_service import decrypt_value
-                config = json.loads(decrypt_value(result))
-                api_key = config.get("api_key")
-        except Exception:
-            pass
-        if not api_key:
-            api_key = current_app.config.get("TELIVY_API_KEY")
-
-        if api_key:
-            from app.masri.telivy_integration import TelivyIntegration
-            client = TelivyIntegration(api_key=api_key)
-
-            # Get scan-to-tenant mappings from DB — includes stored data
-            mapped_items = []
-            mapped_ids = set()
-            try:
-                from app.models import ConfigStore
-                import json as _json
-                mapping_record = ConfigStore.find("telivy_scan_mappings")
-                if mapping_record and mapping_record.value:
-                    all_mappings = _json.loads(mapping_record.value)
-                    for item_id, mapping in all_mappings.items():
-                        # Handle both old format (string) and new format (dict)
-                        if isinstance(mapping, str):
-                            mapped_tid = mapping
-                            item_data = {"id": item_id, "org": item_id, "type": "unknown"}
-                        elif isinstance(mapping, dict):
-                            mapped_tid = mapping.get("tenant_id", "")
-                            item_data = {
-                                "id": item_id,
-                                "org": mapping.get("org", item_id),
-                                "score": mapping.get("score"),
-                                "status": mapping.get("status"),
-                                "type": mapping.get("type", "unknown"),
-                                "domain": mapping.get("domain"),
-                            }
-                        else:
-                            continue
-                        if mapped_tid == tenant_id:
-                            mapped_items.append(item_data)
-                            mapped_ids.add(item_id)
-            except Exception:
-                pass
-
-            # Use stored mapping data directly (no API call needed for basic display)
-            if mapped_items:
-                data["telivy_scans"] = {
-                    "count": len(mapped_items),
-                    "scans": mapped_items,
-                }
-
-            # Also try to fetch live findings from Telivy API for richer data
-            if mapped_ids and api_key:
-                all_findings = []
-                for scan_id in list(mapped_ids)[:3]:
-                    try:
-                        findings = client.get_external_scan_findings(scan_id)
-                        if findings:
-                            all_findings.extend(findings[:10] if isinstance(findings, list) else [])
-                    except Exception:
-                        pass
-                if all_findings:
+            # Telivy cached findings/scan
+            if cached.get("telivy"):
+                telivy_cached = cached["telivy"]
+                if telivy_cached.get("findings"):
                     data["telivy_findings"] = {
-                        "count": len(all_findings),
-                        "findings": all_findings[:20],
+                        "count": len(telivy_cached["findings"]),
+                        "findings": telivy_cached["findings"][:20],
                     }
-    except Exception as e:
-        logger.debug("Telivy data collection skipped: %s", e)
+                if telivy_cached.get("scan"):
+                    scan = telivy_cached["scan"]
+                    details = scan.get("assessmentDetails", {})
+                    data["telivy_scans"] = {
+                        "count": 1,
+                        "scans": [{"id": scan.get("id", ""), "org": details.get("organization_name", "Unknown"),
+                                   "score": scan.get("securityScore"), "status": scan.get("scanStatus"),
+                                   "type": "external_scan", "domain": details.get("domain_prim")}],
+                    }
+                if telivy_cached.get("assessment"):
+                    assessment = telivy_cached["assessment"]
+                    details = assessment.get("assessmentDetails", {})
+                    if "telivy_scans" not in data:
+                        data["telivy_scans"] = {
+                            "count": 1,
+                            "scans": [{"id": assessment.get("id", ""), "org": details.get("organization_name", "Unknown"),
+                                       "score": assessment.get("securityScore"), "status": assessment.get("scanStatus"),
+                                       "type": "risk_assessment", "domain": details.get("domain_prim")}],
+                        }
 
-    # Risk register
+            # Entra cached data (legacy format from old auto-process runs)
+            if cached.get("entra"):
+                entra_cached = cached["entra"]
+                if entra_cached.get("compliance"):
+                    data["entra_compliance"] = entra_cached["compliance"]
+                if entra_cached.get("users"):
+                    data["entra_users"] = entra_cached["users"]
+                if entra_cached.get("mfa"):
+                    data["entra_mfa"] = entra_cached["mfa"]
+
+            data["_cached_at"] = cached.get("_updated")
+    except Exception as e:
+        logger.debug("ConfigStore cached data read failed: %s", e)
+
+    # 2. Supplement with Telivy scan mappings (for display of mapped scan info)
+    try:
+        from app.models import ConfigStore
+        from app import db as _db
+        mapping_record = ConfigStore.find("telivy_scan_mappings")
+        if mapping_record and mapping_record.value:
+            all_mappings = json.loads(mapping_record.value)
+            mapped_items = []
+            for item_id, mapping in all_mappings.items():
+                if isinstance(mapping, str):
+                    mapped_tid = mapping
+                    item_data = {"id": item_id, "org": item_id, "type": "unknown"}
+                elif isinstance(mapping, dict):
+                    mapped_tid = mapping.get("tenant_id", "")
+                    item_data = {
+                        "id": item_id, "org": mapping.get("org", item_id),
+                        "score": mapping.get("score"), "status": mapping.get("status"),
+                        "type": mapping.get("type", "unknown"), "domain": mapping.get("domain"),
+                    }
+                else:
+                    continue
+                if mapped_tid == tenant_id:
+                    mapped_items.append(item_data)
+            if mapped_items and "telivy_scans" not in data:
+                data["telivy_scans"] = {"count": len(mapped_items), "scans": mapped_items}
+    except Exception:
+        pass
+
+    # 3. Risk register (always live from DB — no external API)
     try:
         from app import db
         from app.models import RiskRegister
-
         risks = db.session.execute(
             db.select(RiskRegister).filter_by(tenant_id=tenant_id)
         ).scalars().all()
@@ -1589,50 +1618,7 @@ def _gather_integration_data(tenant_id: str) -> dict:
     except Exception as e:
         logger.debug("Risk data collection skipped: %s", e)
 
-    # Merge in cached tenant-level data from ConfigStore (stored by auto-process)
-    try:
-        from app.models import ConfigStore
-        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
-        if record and record.value:
-            cached = json.loads(record.value)
-            if "telivy_findings" not in data and cached.get("telivy"):
-                telivy_cached = cached["telivy"]
-                if telivy_cached.get("findings"):
-                    data["telivy_findings"] = {
-                        "count": len(telivy_cached["findings"]),
-                        "findings": telivy_cached["findings"][:20],
-                    }
-                if "telivy_scans" not in data and telivy_cached.get("scan"):
-                    scan = telivy_cached["scan"]
-                    details = scan.get("assessmentDetails", {})
-                    data["telivy_scans"] = {
-                        "count": 1,
-                        "scans": [{"id": scan.get("id", ""), "org": details.get("organization_name", "Unknown"),
-                                   "score": scan.get("securityScore"), "status": scan.get("scanStatus"),
-                                   "type": "external_scan", "domain": details.get("domain_prim")}],
-                    }
-                if "telivy_scans" not in data and telivy_cached.get("assessment"):
-                    assessment = telivy_cached["assessment"]
-                    details = assessment.get("assessmentDetails", {})
-                    data["telivy_scans"] = {
-                        "count": 1,
-                        "scans": [{"id": assessment.get("id", ""), "org": details.get("organization_name", "Unknown"),
-                                   "score": assessment.get("securityScore"), "status": assessment.get("scanStatus"),
-                                   "type": "risk_assessment", "domain": details.get("domain_prim")}],
-                    }
-            if "entra_compliance" not in data and cached.get("entra"):
-                entra_cached = cached["entra"]
-                if entra_cached.get("compliance"):
-                    data["entra_compliance"] = entra_cached["compliance"]
-                if "entra_users" not in data and entra_cached.get("users"):
-                    data["entra_users"] = entra_cached["users"]
-                if "entra_mfa" not in data and entra_cached.get("mfa"):
-                    data["entra_mfa"] = entra_cached["mfa"]
-            data["_cached_at"] = cached.get("_updated")
-    except Exception as e:
-        logger.debug("ConfigStore cached data read failed: %s", e)
-
     if not data:
-        data["note"] = "No integration data available. Configure Entra ID or Telivy in Integrations."
+        data["note"] = "No integration data available. Map a scan or configure Microsoft Entra ID in Integrations."
 
     return data

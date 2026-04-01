@@ -64,8 +64,13 @@ class MasriScheduler:
         )
         self._schedule_recurring(
             name="auto_update_check",
-            interval_seconds=3600,  # Check every hour; actual freq controlled by schedule config
+            interval_seconds=3600,
             func=self._task_auto_update,
+        )
+        self._schedule_recurring(
+            name="integration_data_refresh",
+            interval_seconds=86400,  # 24 hours
+            func=self._task_integration_refresh,
         )
 
         logger.info("Masri scheduler started with %d tasks", len(self._timers))
@@ -346,6 +351,129 @@ class MasriScheduler:
 
             except Exception:
                 logger.exception("Auto-update task failed")
+
+
+    def _task_integration_refresh(self):
+        """Daily refresh: re-pull Telivy + Microsoft data for all mapped tenants."""
+        if not self._app:
+            return
+
+        with self._app.app_context():
+            try:
+                import json
+                from app import db
+                from app.models import ConfigStore
+
+                # 1. Refresh Telivy data for all mapped tenants
+                mapping_record = ConfigStore.find("telivy_scan_mappings")
+                tenant_scans = {}
+                if mapping_record and mapping_record.value:
+                    all_mappings = json.loads(mapping_record.value)
+                    for item_id, mapping in all_mappings.items():
+                        tid = mapping if isinstance(mapping, str) else mapping.get("tenant_id", "") if isinstance(mapping, dict) else ""
+                        scan_type = mapping.get("type", "scan") if isinstance(mapping, dict) else "scan"
+                        if tid:
+                            tenant_scans.setdefault(tid, []).append({"id": item_id, "type": scan_type})
+
+                # Get Telivy client
+                api_key = None
+                try:
+                    result = db.session.execute(
+                        db.text("SELECT config_enc FROM settings_storage WHERE provider = 'telivy' LIMIT 1")
+                    ).scalar()
+                    if result:
+                        from app.masri.settings_service import decrypt_value
+                        config = json.loads(decrypt_value(result))
+                        api_key = config.get("api_key")
+                except Exception:
+                    pass
+
+                # Get Microsoft client
+                ms_client = None
+                try:
+                    from app.masri.new_models import SettingsEntra
+                    entra_cfg = db.session.execute(
+                        db.select(SettingsEntra).filter_by(tenant_id=None)
+                    ).scalars().first()
+                    if entra_cfg and entra_cfg.is_fully_configured():
+                        from app.masri.entra_integration import EntraIntegration
+                        creds = entra_cfg.get_credentials()
+                        ms_client = EntraIntegration(
+                            tenant_id=creds["entra_tenant_id"],
+                            client_id=creds["client_id"],
+                            client_secret=creds["client_secret"],
+                        )
+                except Exception:
+                    pass
+
+                # Get all unique tenant_ids (from mappings + any with cached data)
+                all_tenant_ids = set(tenant_scans.keys())
+                # Also refresh Microsoft data for tenants with existing cached data
+                try:
+                    from app.models import Tenant
+                    tenants = db.session.execute(db.select(Tenant)).scalars().all()
+                    for t in tenants:
+                        record = ConfigStore.find(f"tenant_integration_data_{t.id}")
+                        if record and record.value and "microsoft" in record.value:
+                            all_tenant_ids.add(t.id)
+                except Exception:
+                    pass
+
+                refreshed = 0
+                for tenant_id in all_tenant_ids:
+                    try:
+                        existing = {}
+                        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+                        if record and record.value:
+                            existing = json.loads(record.value)
+
+                        # Refresh Telivy
+                        if api_key and tenant_id in tenant_scans:
+                            from app.masri.telivy_integration import TelivyIntegration
+                            client = TelivyIntegration(api_key=api_key)
+                            telivy_data = {}
+                            for scan_info in tenant_scans[tenant_id][:3]:
+                                scan_id = scan_info["id"]
+                                try:
+                                    if scan_info.get("type") == "assessment":
+                                        assessment = client.get_risk_assessment(scan_id)
+                                        if assessment:
+                                            telivy_data["assessment"] = assessment
+                                    else:
+                                        scan_detail = client.get_external_scan(scan_id)
+                                        if scan_detail:
+                                            telivy_data["scan"] = scan_detail
+                                        findings = client.get_external_scan_findings(scan_id)
+                                        if findings:
+                                            telivy_data["findings"] = findings[:30] if isinstance(findings, list) else []
+                                except Exception:
+                                    pass
+                            if telivy_data:
+                                existing["telivy"] = telivy_data
+
+                        # Refresh Microsoft data (cached, no live calls on page load)
+                        if ms_client:
+                            try:
+                                ms_data = ms_client.collect_all_security_data()
+                                if ms_data:
+                                    existing["microsoft"] = ms_data
+                            except Exception:
+                                pass
+
+                        existing["_updated"] = datetime.utcnow().isoformat()
+                        ConfigStore.upsert(
+                            f"tenant_integration_data_{tenant_id}",
+                            json.dumps(existing, default=str)[:100000],
+                        )
+                        refreshed += 1
+                    except Exception:
+                        logger.exception("Integration refresh failed for tenant %s", tenant_id)
+
+                if refreshed:
+                    logger.info("Integration data refreshed for %d tenant(s)", refreshed)
+
+            except Exception:
+                logger.exception("Integration refresh task failed")
 
 
 # Module-level singleton
