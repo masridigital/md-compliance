@@ -42,20 +42,42 @@ def post_login():
 
 @auth.route("/logout")
 def logout():
+    """Logout must NEVER fail — always redirect to login page."""
     try:
         from app.models import Logs
         if current_user and current_user.is_authenticated:
-            Logs.add(
-                message=f"{current_user.email} logged out",
-                action="LOGOUT",
-                namespace="auth",
-                user_id=current_user.id,
-            )
+            try:
+                Logs.add(
+                    message=f"{current_user.email} logged out",
+                    action="LOGOUT",
+                    namespace="auth",
+                    user_id=current_user.id,
+                )
+            except Exception:
+                pass
     except Exception:
         pass
-    logout_user()
-    flash("You are logged out", "success")
-    return redirect(url_for("auth.get_login"))
+
+    try:
+        logout_user()
+    except Exception:
+        pass
+
+    try:
+        from flask import session
+        session.clear()
+    except Exception:
+        pass
+
+    try:
+        flash("You are logged out", "success")
+    except Exception:
+        pass
+
+    try:
+        return redirect(url_for("auth.get_login"))
+    except Exception:
+        return redirect("/login")
 
 
 @auth.route("/verify-2fa", methods=["GET"])
