@@ -362,186 +362,179 @@
         <template x-if="selected.id === 'llm_unified'">
           <div x-data="{ addingProvider: false, newProvider: { key: '', provider: '', api_key: '', model_name: '' } }">
 
-            <!-- ── All Configured Providers ── -->
-            <h4 class="font-semibold text-sm mb-3">Configured Providers</h4>
+            <!-- ── Providers (compact) ── -->
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="font-semibold text-xs">Providers</h4>
+              <button class="btn btn-xs btn-ghost gap-1" @click="addingProvider = !addingProvider"><i class="ti ti-plus"></i></button>
+            </div>
 
-            <!-- Primary provider -->
-            <div class="bg-base-300 rounded-lg p-3 mb-2">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="badge badge-xs badge-primary">Primary</span>
-                  <span class="text-xs font-semibold capitalize" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
+            <!-- Primary — collapsed by default, expand to edit -->
+            <div class="bg-base-300 rounded p-2 mb-1" x-data="{ editing: false }">
+              <div class="flex items-center justify-between cursor-pointer" @click="editing = !editing">
+                <div class="flex items-center gap-1">
+                  <span class="badge badge-xs badge-primary">1</span>
+                  <span class="text-xs font-semibold capitalize" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not set'"></span>
+                  <span class="text-[10px] opacity-40" x-text="llmForm.model_name || ''"></span>
                 </div>
                 <div class="flex items-center gap-1">
-                  <span x-show="llmForm.has_api_key" class="badge badge-xs badge-success">Key saved</span>
-                  <span x-show="llmForm.model_name" class="text-[10px] opacity-40" x-text="llmForm.model_name"></span>
+                  <span x-show="llmForm.has_api_key" class="badge badge-xs badge-success">key</span>
+                  <i class="ti text-xs" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
                 </div>
               </div>
-              <div class="space-y-2">
-                <select class="select select-bordered select-xs w-full" x-model="llmForm.provider">
-                  <option value="">Select provider...</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="azure_openai">Azure OpenAI</option>
-                  <option value="together_ai">Together AI</option>
-                </select>
-                <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key (encrypted at rest)" />
-                <div class="flex gap-1 items-center">
+              <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
+                <div class="grid grid-cols-2 gap-1">
+                  <select class="select select-bordered select-xs" x-model="llmForm.provider">
+                    <option value="">Provider...</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="azure_openai">Azure OpenAI</option>
+                    <option value="together_ai">Together AI</option>
+                  </select>
+                  <input type="password" class="input input-bordered input-xs" x-model="llmForm.api_key" placeholder="API key" />
+                </div>
+                <div class="flex gap-1">
                   <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name">
-                    <option value="">Select model...</option>
+                    <option value="">Model...</option>
                     <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
                   </select>
                   <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name" />
-                  <button class="btn btn-ghost btn-xs btn-square" @click="fetchLlmModels()" :disabled="llmModelsFetching" title="Load models">
+                  <button class="btn btn-ghost btn-xs btn-square" @click="fetchLlmModels()" :disabled="llmModelsFetching">
                     <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
                     <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
                   </button>
                 </div>
                 <template x-if="llmForm.provider === 'azure_openai'">
-                  <div class="grid grid-cols-2 gap-2">
-                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_endpoint" placeholder="Azure endpoint URL" />
-                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment name" />
+                  <div class="grid grid-cols-2 gap-1">
+                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_endpoint" placeholder="Endpoint" />
+                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" />
                   </div>
                 </template>
               </div>
             </div>
 
-            <!-- Additional providers -->
+            <!-- Secondary providers -->
             <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
-              <div class="bg-base-300 rounded-lg p-3 mb-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="badge badge-xs badge-ghost">Secondary</span>
-                    <span class="text-xs font-semibold capitalize" x-text="p.provider.replace('_', ' ')"></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="badge badge-xs badge-success" x-show="p.has_key">Key saved</span>
-                    <span class="text-[10px] opacity-40" x-text="p.model || ''"></span>
-                    <button class="btn btn-xs btn-ghost btn-error" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-trash"></i></button>
-                  </div>
+              <div class="bg-base-300 rounded p-2 mb-1 flex items-center justify-between">
+                <div class="flex items-center gap-1">
+                  <span class="badge badge-xs badge-ghost">2</span>
+                  <span class="text-xs font-semibold capitalize" x-text="p.provider.replace('_', ' ')"></span>
+                  <span class="badge badge-xs badge-success" x-show="p.has_key">key</span>
                 </div>
+                <button class="btn btn-xs btn-ghost btn-error btn-square" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-trash text-xs"></i></button>
               </div>
             </template>
 
-            <!-- Add another provider -->
-            <div x-show="!addingProvider" class="mb-4">
-              <button class="btn btn-xs btn-ghost gap-1" @click="addingProvider = true"><i class="ti ti-plus"></i> Add Another Provider</button>
-            </div>
-            <div x-show="addingProvider" class="bg-base-300 rounded-lg p-3 mb-4 space-y-2">
-              <select class="select select-bordered select-xs w-full" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
-                <option value="">Select provider...</option>
-                <option value="together_ai">Together AI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openai">OpenAI</option>
-                <option value="azure_openai">Azure OpenAI</option>
-              </select>
-              <input type="password" class="input input-bordered input-xs w-full" placeholder="API Key" x-model="newProvider.api_key">
-              <input type="text" class="input input-bordered input-xs w-full" placeholder="Default model (optional)" x-model="newProvider.model_name">
-              <div class="flex gap-2">
-                <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }; loadLlmProviders();">Save</button>
+            <!-- Add provider (inline) -->
+            <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 mb-2 space-y-1">
+              <div class="grid grid-cols-3 gap-1">
+                <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
+                  <option value="">Provider</option>
+                  <option value="together_ai">Together AI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="azure_openai">Azure</option>
+                </select>
+                <input type="password" class="input input-bordered input-xs col-span-2" placeholder="API Key" x-model="newProvider.api_key">
+              </div>
+              <div class="flex gap-1">
+                <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }; loadLlmProviders();">Add</button>
                 <button class="btn btn-xs btn-ghost" @click="addingProvider = false">Cancel</button>
               </div>
             </div>
 
-            <!-- ── Tier Routing ── -->
-            <div class="divider text-xs">Task Routing</div>
-            <div class="flex items-center gap-2 mb-3">
-              <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" x-model="llmSameModelForAll">
-              <span class="text-xs font-medium">Use primary provider for everything</span>
-            </div>
+            <!-- ── Task Routing (compact table) ── -->
+            <div class="divider text-xs my-2">Task Routing</div>
+            <label class="flex items-center gap-2 mb-2">
+              <input type="checkbox" class="checkbox checkbox-xs" x-model="llmSameModelForAll">
+              <span class="text-xs">Use primary for all</span>
+            </label>
 
-            <div x-show="!llmSameModelForAll" class="space-y-2 mb-3">
-              <p class="text-xs opacity-50 mb-2">Route tasks by complexity. Cheaper models for bulk work, smarter for analysis.</p>
-              <template x-for="tier in llmTiers" :key="tier.id">
-                <div class="flex items-center gap-2 bg-base-300 rounded-lg p-2">
-                  <div class="w-28 shrink-0">
-                    <div class="flex items-center gap-1">
-                      <i class="ti text-sm" :class="tier.icon + ' text-primary'"></i>
-                      <span class="text-xs font-bold" x-text="tier.label"></span>
-                    </div>
-                    <div class="text-[9px] opacity-40" x-text="tier.features"></div>
-                  </div>
-                  <select class="select select-bordered select-xs w-32"
-                          @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].provider = $event.target.value"
-                          :value="llmTierConfig[tier.id]?.provider || ''">
-                    <option value="">Primary</option>
-                    <option value="together_ai">Together AI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="azure_openai">Azure</option>
-                  </select>
-                  <select class="select select-bordered select-xs flex-1"
-                          @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].model = $event.target.value"
-                          :value="llmTierConfig[tier.id]?.model || ''">
-                    <option value="">Default</option>
-                    <template x-for="m in llmModels" :key="'t-'+tier.id+'-'+m">
-                      <option :value="m" x-text="m"></option>
-                    </template>
-                  </select>
-                </div>
-              </template>
-              <div class="flex gap-2 items-center mt-2">
+            <div x-show="!llmSameModelForAll" class="mb-2">
+              <table class="table table-xs w-full">
+                <thead><tr class="text-[10px]"><th>Tier</th><th>Provider</th><th>Model</th></tr></thead>
+                <tbody>
+                  <template x-for="tier in llmTiers" :key="tier.id">
+                    <tr>
+                      <td class="py-1">
+                        <span class="text-[10px] font-bold" x-text="tier.label"></span>
+                        <div class="text-[9px] opacity-40" x-text="tier.features"></div>
+                      </td>
+                      <td class="py-1">
+                        <select class="select select-bordered select-xs w-24"
+                                @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].provider = $event.target.value"
+                                :value="llmTierConfig[tier.id]?.provider || ''">
+                          <option value="">Primary</option>
+                          <option value="together_ai">Together</option>
+                          <option value="anthropic">Anthropic</option>
+                          <option value="openai">OpenAI</option>
+                          <option value="azure_openai">Azure</option>
+                        </select>
+                      </td>
+                      <td class="py-1">
+                        <select class="select select-bordered select-xs w-full"
+                                @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].model = $event.target.value"
+                                :value="llmTierConfig[tier.id]?.model || ''">
+                          <option value="">Default</option>
+                          <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
+                            <option :value="m" x-text="m"></option>
+                          </template>
+                        </select>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div class="flex gap-1 mt-1">
                 <button class="btn btn-xs btn-ghost gap-1" @click="
                   llmTierConfig = {};
                   llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
-                  toast('Default recommendations applied. Click Save.', 'info');
-                "><i class="ti ti-wand"></i> Apply Defaults</button>
+                  toast('Defaults applied', 'info');
+                "><i class="ti ti-wand"></i> Defaults</button>
                 <button class="btn btn-xs btn-primary gap-1" x-data="{ researching: false }" @click="
                   researching = true;
-                  toast('Checking for recommendations...', 'info');
+                  toast('Checking...', 'info');
                   fetch('/api/v1/settings/llm/recommendations/refresh', { method: 'POST' })
                     .then(r => r.json())
                     .then(refreshData => {
-                      // If skipped (< 48h old), apply cached results immediately
                       if (refreshData.skipped && refreshData.recommendations) {
                         researching = false;
                         llmTierConfig = {};
                         for (const [tid, rec] of Object.entries(refreshData.recommendations)) {
                           llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
                         }
-                        const picks = Object.entries(refreshData.recommendations).map(([t,r]) => t + ': ' + (r.provider||'?').replace('_',' ') + '/' + (r.model||'default').split('/').pop()).join(', ');
-                        toast('Applied recent AI picks (' + (refreshData.generated_at||'').split('T')[0] + '): ' + picks, 'success');
+                        toast('AI picks applied', 'success');
                         return;
                       }
-                      toast('Researching best models...', 'info');
-                      // Poll for results every 3s (max 60s)
+                      toast('Researching...', 'info');
                       let polls = 0;
                       const pid = setInterval(() => {
                         polls++;
-                        if (polls > 20) { clearInterval(pid); researching = false; toast('Research taking longer than expected. Try again.', 'warning'); return; }
-                        fetch('/api/v1/settings/llm/recommendations')
-                          .then(r => r.json())
-                          .then(data => {
-                            if (data.recommendations) {
-                              // Check if these are fresh (generated within last 2 min)
-                              const genTime = data.generated_at ? new Date(data.generated_at) : new Date(0);
-                              const now = new Date();
-                              if ((now - genTime) < 120000) {
-                                clearInterval(pid);
-                                researching = false;
-                                llmTierConfig = {};
-                                for (const [tid, rec] of Object.entries(data.recommendations)) {
-                                  llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
-                                }
-                                // Show what was picked
-                                const picks = Object.entries(data.recommendations).map(([t,r]) => t + ': ' + (r.provider||'?').replace('_',' ') + ' / ' + (r.model||'default')).join(', ');
-                                toast('AI picks applied: ' + picks + '. Click Save.', 'success');
+                        if (polls > 20) { clearInterval(pid); researching = false; return; }
+                        fetch('/api/v1/settings/llm/recommendations').then(r => r.json()).then(data => {
+                          if (data.recommendations) {
+                            const genTime = data.generated_at ? new Date(data.generated_at) : new Date(0);
+                            if ((new Date() - genTime) < 120000) {
+                              clearInterval(pid); researching = false;
+                              llmTierConfig = {};
+                              for (const [tid, rec] of Object.entries(data.recommendations)) {
+                                llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
                               }
+                              toast('AI picks applied', 'success');
                             }
-                          }).catch(() => {});
+                          }
+                        }).catch(() => {});
                       }, 3000);
-                    })
-                    .catch(() => { researching = false; toast('Failed to start research', 'error'); });
+                    }).catch(() => { researching = false; });
                 " :disabled="researching">
                   <span class="loading loading-spinner loading-xs" x-show="researching"></span>
                   <i class="ti ti-sparkles" x-show="!researching"></i>
-                  <span x-text="researching ? 'Researching...' : 'Research & Apply Best Models'"></span>
+                  <span x-text="researching ? 'Researching...' : 'AI Picks'"></span>
                 </button>
               </div>
             </div>
 
             <!-- ── Actions ── -->
-            <div class="flex gap-2 pt-2">
+            <div class="flex gap-2 pt-1">
               <button class="btn btn-primary btn-sm gap-1" @click="saveLlmSlot()" :disabled="llmSaving">
                 <span class="loading loading-spinner loading-xs" x-show="llmSaving"></span>
                 <i class="ti ti-device-floppy" x-show="!llmSaving"></i> Save
@@ -553,9 +546,9 @@
             </div>
             <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
 
-            <div class="divider text-xs">Reset</div>
+            <div class="divider text-xs my-2">Reset</div>
             <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('llm', 'All LLM Configuration')">
-              <i class="ti ti-trash"></i> Reset LLM Configuration
+              <i class="ti ti-trash"></i> Reset LLM
             </button>
           </div>
         </template>
@@ -1246,6 +1239,7 @@ function integrationsHub() {
     llmMsg: '',
     llmMsgType: '',
     llmModels: [],
+    llmModelsByProvider: {},  // { "together_ai": [...], "anthropic": [...] }
     llmModelsFetching: false,
 
     // Telivy state
@@ -1732,11 +1726,10 @@ function integrationsHub() {
     },
 
     async fetchLlmModels() {
-      if (!this.llmForm.api_key && !this.llmForm.has_api_key) { this.llmMsg = 'Save an API key first'; this.llmMsgType = 'error'; return; }
       this.llmModelsFetching = true;
       this.llmModels = [];
       try {
-        // Uses saved key if no new key entered
+        // Fetch models for primary provider
         const payload = { provider: this.llmForm.provider };
         if (this.llmForm.api_key) payload.api_key = this.llmForm.api_key;
         const resp = await fetch('/api/v1/settings/llm/models', {
@@ -1744,12 +1737,35 @@ function integrationsHub() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
-        const data = await resp.json();
-        this.llmModels = data.models || [];
-        if (this.llmModels.length === 0) { this.llmMsg = 'No models found'; this.llmMsgType = 'error'; }
+        if (resp.ok) {
+          const data = await resp.json();
+          this.llmModels = data.models || [];
+          this.llmModelsByProvider[this.llmForm.provider] = this.llmModels;
+        }
+        // Also fetch models for all configured secondary providers
+        for (const p of this.llmProvidersList.filter(p => !p.is_primary && p.has_key)) {
+          try {
+            const r2 = await fetch('/api/v1/settings/llm/models', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ provider: p.provider }),
+            });
+            if (r2.ok) {
+              const d2 = await r2.json();
+              this.llmModelsByProvider[p.provider] = d2.models || [];
+            }
+          } catch(e) { /* skip this provider */ }
+        }
       } catch (e) { this.llmMsg = 'Fetch failed: ' + e.message; this.llmMsgType = 'error'; }
       finally { this.llmModelsFetching = false; }
+    },
+
+    getModelsForTier(tierId) {
+      const tierProvider = this.llmTierConfig[tierId]?.provider;
+      if (tierProvider && this.llmModelsByProvider[tierProvider]) {
+        return this.llmModelsByProvider[tierProvider];
+      }
+      return this.llmModels; // fallback to primary
     },
 
     // ── Telivy Status ──

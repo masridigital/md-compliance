@@ -902,7 +902,7 @@ def _fetch_models_for_provider(provider: str, api_key: str) -> list:
 
     elif provider == "anthropic":
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key, timeout=15.0)
         resp = client.models.list(limit=100)
         return sorted([m.id for m in resp.data])
 

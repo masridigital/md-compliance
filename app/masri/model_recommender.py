@@ -209,8 +209,20 @@ def refresh_model_recommendations(app):
         except Exception:
             pass
 
-        # 3. Generate recommendations using known model data + available models
+        # 3. Generate recommendations from known model characteristics
         recommendations = _generate_recommendations(configured_providers)
+
+        # Store immediately (knowledge-based) so polling finds results fast
+        result = {
+            "recommendations": recommendations,
+            "configured_providers": list(configured_providers.keys()),
+            "generated_at": datetime.utcnow().isoformat(),
+            "source": "knowledge_base",
+        }
+        try:
+            ConfigStore.upsert("llm_model_recommendations", json.dumps(result, default=str))
+        except Exception:
+            pass
 
         # 4. Try to enhance with LLM analysis (if available)
         try:
@@ -219,21 +231,16 @@ def refresh_model_recommendations(app):
                 recommendations = _llm_enhanced_recommendations(
                     LLMService, configured_providers, recommendations
                 )
+                # Update with LLM-enhanced results
+                result["recommendations"] = recommendations
+                result["generated_at"] = datetime.utcnow().isoformat()
+                result["source"] = "ai_enhanced"
+                try:
+                    ConfigStore.upsert("llm_model_recommendations", json.dumps(result, default=str))
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug("LLM-enhanced recommendations skipped: %s", e)
-
-        # 5. Store in ConfigStore
-        result = {
-            "recommendations": recommendations,
-            "configured_providers": list(configured_providers.keys()),
-            "generated_at": datetime.utcnow().isoformat(),
-            "next_refresh": "7 days",
-        }
-
-        try:
-            ConfigStore.upsert("llm_model_recommendations", json.dumps(result, default=str))
-        except Exception:
-            pass
 
         logger.info("Model recommendations updated: %s",
                      {t: r.get("model", "?") for t, r in recommendations.items()})
