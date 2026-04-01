@@ -501,11 +501,11 @@
                         <select class="select select-bordered select-xs w-24"
                                 x-model="llmTierConfig[tier.id].provider"
                                 x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
-                          <option value="">Primary</option>
-                          <option value="together_ai">Together</option>
+                          <option value="">Select provider...</option>
+                          <option value="together_ai">Together AI</option>
                           <option value="anthropic">Anthropic</option>
                           <option value="openai">OpenAI</option>
-                          <option value="azure_openai">Azure</option>
+                          <option value="azure_openai">Azure OpenAI</option>
                         </select>
                       </td>
                       <td class="py-1">

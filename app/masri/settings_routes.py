@@ -779,20 +779,26 @@ def test_llm_connection():
     provider = data.get("provider")
     api_key = data.get("api_key", "").strip()
 
-    # If no key provided, get it from the saved config
+    # If no key provided, get it from saved config
     if not api_key:
-        try:
-            llm = SettingsService.get_active_llm_config()
-            if llm:
-                api_key = llm.get_api_key() or ""
-                if not provider:
-                    provider = llm.provider
-        except Exception as e:
-            logger.debug("Could not load saved LLM config: %s", e)
-            # Try direct DB query as fallback
+        # First try: if a specific provider is requested, check additional providers
+        if provider:
             try:
-                from app.masri.new_models import SettingsLLM
-                llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
+                from app.models import ConfigStore
+                import json as _json
+                record = ConfigStore.find(f"llm_provider_{provider}")
+                if record and record.value:
+                    cfg = _json.loads(record.value)
+                    if cfg.get("api_key_enc"):
+                        from app.masri.settings_service import decrypt_value
+                        api_key = decrypt_value(cfg["api_key_enc"])
+            except Exception:
+                pass
+
+        # Second try: primary provider config
+        if not api_key:
+            try:
+                llm = SettingsService.get_active_llm_config()
                 if llm:
                     api_key = llm.get_api_key() or ""
                     if not provider:
