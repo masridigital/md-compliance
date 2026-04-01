@@ -816,47 +816,66 @@ def _handle_500(exc):
 
 
 # ---------------------------------------------------------------------------
-# OAuth 2.0 — In-memory access token store
+# OAuth 2.0 — DB-backed access token store (multi-worker safe)
 # ---------------------------------------------------------------------------
-
-# Maps access_token_hash -> { "key_record_id": str, "expires": float }
-_oauth_tokens: dict = {}
 
 
 def _issue_oauth_token(key_record) -> tuple:
-    """Issue a short-lived OAuth access token for an authenticated API key.
+    """Issue a short-lived OAuth access token backed by ConfigStore.
 
+    Survives worker restarts and works across multiple gunicorn workers.
     Returns (access_token, expires_in_seconds).
     """
+    from app.models import ConfigStore
+    import json
+
     access_token = f"mcp_at_{secrets.token_urlsafe(48)}"
     token_hash = hashlib.sha256(access_token.encode()).hexdigest()
     expires_in = 3600  # 1 hour
-    _oauth_tokens[token_hash] = {
+
+    # Store token in DB
+    token_data = {
         "key_record_id": key_record.id,
         "expires": time.time() + expires_in,
     }
-    # Prune expired tokens (keep store small)
-    now = time.time()
-    expired = [h for h, v in _oauth_tokens.items() if v["expires"] < now]
-    for h in expired:
-        _oauth_tokens.pop(h, None)
+    ConfigStore.upsert(f"mcp_token_{token_hash}", json.dumps(token_data))
+
+    # Prune expired tokens (lazy cleanup — only on issue)
+    try:
+        from app import db
+        from sqlalchemy import text
+        db.session.execute(text(
+            "DELETE FROM config_store WHERE key LIKE 'mcp_token_%' "
+            "AND CAST(value::json->>'expires' AS FLOAT) < :now"
+        ), {"now": time.time()})
+        db.session.commit()
+    except Exception:
+        pass
 
     return access_token, expires_in
 
 
 def _validate_oauth_token(token: str):
-    """Validate an OAuth access token. Returns the MCPAPIKey record or None."""
+    """Validate an OAuth access token from DB. Returns MCPAPIKey record or None."""
     from app.masri.new_models import MCPAPIKey
+    from app.models import ConfigStore
     from app import db
+    import json
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    entry = _oauth_tokens.get(token_hash)
-    if not entry:
+    try:
+        record = ConfigStore.find(f"mcp_token_{token_hash}")
+        if not record or not record.value:
+            return None
+        entry = json.loads(record.value)
+        if entry.get("expires", 0) < time.time():
+            # Expired — clean up
+            db.session.delete(record)
+            db.session.commit()
+            return None
+        return db.session.get(MCPAPIKey, entry["key_record_id"])
+    except Exception:
         return None
-    if entry["expires"] < time.time():
-        _oauth_tokens.pop(token_hash, None)
-        return None
-    return db.session.get(MCPAPIKey, entry["key_record_id"])
 
 
 # ---------------------------------------------------------------------------

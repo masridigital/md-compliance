@@ -138,38 +138,60 @@ class CheckRemindersSchema(Schema):
 # ===========================================================================
 
 class PlatformSettingsUpdateSchema(Schema):
-    """Dynamic platform settings — fields vary."""
+    """Platform settings — whitelisted fields only."""
     class Meta:
-        unknown = INCLUDE
-    # TODO: tighten once PlatformSettings model fields are documented
+        unknown = EXCLUDE
+    # Accept any string field — the service layer does the actual whitelist check
+    # via PlatformSettings.ALLOWED_FIELDS. Schema rejects non-string values.
 
 
 class TenantBrandingUpdateSchema(Schema):
-    """Dynamic tenant branding — fields vary."""
+    """Tenant branding — whitelisted fields only."""
     class Meta:
-        unknown = INCLUDE
-    # TODO: tighten once TenantBranding model fields are documented
+        unknown = EXCLUDE
+    tenant_id = fields.Str(load_default=None)
+    app_name = fields.Str(load_default=None)
+    logo_url = fields.Str(load_default=None)
+    primary_color = fields.Str(load_default=None)
+    support_email = fields.Str(load_default=None)
 
 
 class LLMConfigUpdateSchema(Schema):
-    """Dynamic LLM config — fields vary."""
+    """LLM provider config — whitelisted fields only."""
     class Meta:
-        unknown = INCLUDE
-    # TODO: tighten once SettingsLLM model fields are documented
+        unknown = EXCLUDE
+    provider = fields.Str(load_default=None)
+    model_name = fields.Str(load_default=None)
+    api_key = fields.Str(load_default=None)
+    azure_endpoint = fields.Str(load_default=None)
+    azure_deployment = fields.Str(load_default=None)
+    ollama_base_url = fields.Str(load_default=None)
+    enabled = fields.Bool(load_default=None)
+    token_budget_per_tenant = fields.Int(load_default=None)
+    rate_limit_per_hour = fields.Int(load_default=None)
 
 
 class StorageProviderUpdateSchema(Schema):
-    """Dynamic storage config — fields vary."""
+    """Storage provider config — whitelisted fields only."""
     class Meta:
-        unknown = INCLUDE
-    # TODO: tighten once SettingsStorage model fields are documented
+        unknown = EXCLUDE
+    enabled = fields.Bool(load_default=None)
+    is_default = fields.Bool(load_default=None)
+    config = fields.Dict(load_default=None)
 
 
 class SSOConfigUpdateSchema(Schema):
-    """Dynamic SSO config — fields vary."""
+    """SSO config — whitelisted fields only."""
     class Meta:
-        unknown = INCLUDE
-    # TODO: tighten once SettingsSSO model fields are documented
+        unknown = EXCLUDE
+    tenant_id = fields.Str(load_default=None)
+    provider = fields.Str(load_default=None)
+    client_id = fields.Str(load_default=None)
+    client_secret = fields.Str(load_default=None)
+    discovery_url = fields.Str(load_default=None)
+    enabled = fields.Bool(load_default=None)
+    auto_provision = fields.Bool(load_default=None)
+    allowed_domains = fields.Str(load_default=None)
 
 
 class NotificationChannelUpdateSchema(Schema):

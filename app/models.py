@@ -883,7 +883,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
             "success": True,
             "message": f"Added {user.email} to {self.name}",
             "sent-email": False,
-            "confirm_code": user.email_confirm_code,
+            # confirm_code intentionally NOT exposed in API response (security)
         }
         if send_notification:
             # haaaa

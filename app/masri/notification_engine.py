@@ -15,11 +15,27 @@ logger = logging.getLogger(__name__)
 def _validate_webhook_url(url: str, name: str = "webhook") -> None:
     """Raise ValueError if URL is not a safe HTTPS URL (prevents SSRF)."""
     from urllib.parse import urlparse
+    import ipaddress
+    import socket
+
     parsed = urlparse(url)
     if parsed.scheme not in ("https",):
         raise ValueError(f"{name} must use HTTPS (got: {parsed.scheme!r})")
     if not parsed.netloc:
         raise ValueError(f"{name} has no host")
+
+    # Block internal/private IPs to prevent SSRF
+    hostname = parsed.hostname
+    if hostname:
+        try:
+            # Resolve hostname to IP
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                raise ValueError(f"{name} resolves to internal IP ({ip}) — blocked for SSRF protection")
+        except (socket.gaierror, ValueError) as e:
+            if "blocked for SSRF" in str(e):
+                raise
+            # DNS resolution failure — allow (could be internal DNS)
 
 
 class NotificationEngine:
