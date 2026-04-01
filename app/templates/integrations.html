@@ -867,6 +867,27 @@
         <!-- ═══════ Entra ID Config + Actions ═══════ -->
         <template x-if="selected.id === 'entra'">
           <div>
+            <!-- Required Permissions Guide -->
+            <details class="mb-4">
+              <summary class="text-xs font-medium cursor-pointer flex items-center gap-1"><i class="ti ti-info-circle text-info"></i> Required API Permissions (click to expand)</summary>
+              <div class="mt-2 bg-base-300 rounded-lg p-3 text-xs space-y-1">
+                <p class="font-semibold mb-2">Azure AD App Registration → API Permissions → Application:</p>
+                <div class="grid grid-cols-2 gap-1">
+                  <span class="font-mono opacity-70">User.Read.All</span><span class="opacity-50">Users + accounts</span>
+                  <span class="font-mono opacity-70">UserAuthenticationMethod.Read.All</span><span class="opacity-50">MFA status</span>
+                  <span class="font-mono opacity-70">Policy.Read.All</span><span class="opacity-50">Conditional Access</span>
+                  <span class="font-mono opacity-70">SecurityAlert.Read.All</span><span class="opacity-50">Defender alerts</span>
+                  <span class="font-mono opacity-70">SecurityEvents.Read.All</span><span class="opacity-50">Secure Score</span>
+                  <span class="font-mono opacity-70">SecurityIncident.Read.All</span><span class="opacity-50">Security incidents</span>
+                  <span class="font-mono opacity-70">DeviceManagementManagedDevices.Read.All</span><span class="opacity-50">Intune devices</span>
+                  <span class="font-mono opacity-70">IdentityRiskEvent.Read.All</span><span class="opacity-50">Risky users + detections</span>
+                  <span class="font-mono opacity-70">AuditLog.Read.All</span><span class="opacity-50">Sign-in + audit logs</span>
+                  <span class="font-mono opacity-70">Sites.Read.All</span><span class="opacity-50">SharePoint sites</span>
+                  <span class="font-mono opacity-70">Organization.Read.All</span><span class="opacity-50">Org profile</span>
+                </div>
+                <p class="mt-2 opacity-50">After adding permissions, click "Grant admin consent" (requires Global Admin).</p>
+              </div>
+            </details>
             <h4 class="font-semibold text-sm mb-3">Credentials</h4>
             <div class="space-y-3 mb-6">
               <div>

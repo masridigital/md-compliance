@@ -73,10 +73,40 @@ All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortU
 - **Cached data**: Auto-process stores results in `ConfigStore("tenant_integration_data_{tenant_id}")`. The integration data endpoint reads from this cache as fallback when live API calls fail.
 - **Reports**: `?inline=true` param serves PDF inline (for in-app viewer), without it forces download.
 
-### Entra ID Integration
+### Microsoft / Entra ID Integration
 - **Class name**: `EntraIntegration` (NOT `EntraClient`)
 - **Credentials**: `SettingsEntra` model with `entra_tenant_id_enc`, `entra_client_id_enc`, `entra_client_secret_enc`
 - **Platform-level**: `tenant_id=None` means platform-wide config (not per-tenant)
+- **collect_all_security_data()**: Single method that pulls ALL Microsoft data (users, MFA, compliance, Secure Score, alerts, devices, risky users, risk detections, sign-ins, SharePoint)
+- **Cache-first**: Page loads NEVER call Graph API. Data refreshed only during auto-process, manual refresh, or daily scheduler.
+
+### Microsoft Graph API Permissions Required
+Register an Azure AD App with these **Application** permissions (not Delegated):
+
+| Endpoint | Permission | Used For |
+|----------|-----------|----------|
+| `/users` | `User.Read.All` | User inventory, account status |
+| `/reports/authenticationMethods/userRegistrationDetails` | `UserAuthenticationMethod.Read.All` | MFA enrollment status |
+| `/identity/conditionalAccess/policies` | `Policy.Read.All` | Conditional access policy audit |
+| `/security/alerts_v2` | `SecurityAlert.Read.All` | Defender security alerts |
+| `/security/secureScores` | `SecurityEvents.Read.All` | Microsoft Secure Score |
+| `/security/incidents` | `SecurityIncident.Read.All` | Security incidents |
+| `/deviceManagement/managedDevices` | `DeviceManagementManagedDevices.Read.All` | Intune device inventory + compliance |
+| `/identityProtection/riskyUsers` | `IdentityRiskEvent.Read.All` | Risky user detection |
+| `/identityProtection/riskDetections` | `IdentityRiskEvent.Read.All` | Risk events with IPs/locations |
+| `/auditLogs/signIns` | `AuditLog.Read.All` | Sign-in activity, failures, locations |
+| `/auditLogs/directoryAudits` | `AuditLog.Read.All` | Directory change audit trail |
+| `/sites` | `Sites.Read.All` | SharePoint site inventory |
+| `/organization` | `Organization.Read.All` | Org profile, verified domains |
+| `/tenantRelationships/delegatedAdminRelationships` | `DelegatedAdminRelationship.Read.All` | CSP/GDAP relationships |
+
+**Setup steps:**
+1. Azure Portal → Azure Active Directory → App registrations → New registration
+2. API Permissions → Add permission → Microsoft Graph → Application permissions
+3. Add all permissions listed above
+4. Click "Grant admin consent for [tenant]" (requires Global Admin)
+5. Certificates & secrets → New client secret → Copy value
+6. In MD Compliance → Integrations → Entra ID tile → Enter: Tenant ID, Client ID, Client Secret
 
 ### Rate Limiting
 - Default: 2000/day, 500/hour (was 200/50 — caused site lockout during debugging)
