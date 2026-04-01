@@ -197,6 +197,41 @@ docker-compose up -d --build
 | Telivy findings empty | Wrong method `get_scan_findings` (should be `get_external_scan_findings`) | Fixed |
 | LLM JSON parse failures | Regex-based extraction too strict | Fixed: brace-matching parser |
 
+## User & Device Risk Profiles
+
+### Risk Profile Engine (`app/masri/risk_profiles.py`)
+- **`compute_risk_profiles(microsoft_data)`** — Single entry point, returns `{users, devices, summary}`
+- Stored in `ConfigStore("risk_profiles_{tenant_id}")` as cached JSON
+- Computed during auto-process and daily scheduler refresh
+
+### User Risk Scoring (0-100)
+| Factor | Points | Notes |
+|--------|--------|-------|
+| No MFA | +30 | Biggest single factor |
+| Identity Protection high risk | +40 | From `riskyUsers` API |
+| Identity Protection medium/low | +25 | Flagged but not critical |
+| Risk detections | +5 each (max 3) | Specific incidents with IPs |
+| Non-compliant device | +15 per device (max 3) | Cross-linked from device profiles |
+| Disabled account | +5 | Exists but disabled |
+| Admin role | 1.5x multiplier | Admins weighted higher |
+| Shared mailbox | -20 | Non-interactive, reduced risk |
+
+### Device Risk Scoring (0-100)
+| Factor | Points | Notes |
+|--------|--------|-------|
+| Non-compliant | +35 | Fails Intune policy |
+| Unencrypted | +30 | No BitLocker/FileVault |
+| Stale sync (14+ days) | +12 | Not checking in |
+| Stale sync (30+ days) | +17 | Very stale |
+| Server | 1.3x multiplier | Higher value target |
+| Assigned to risky user | +10 | Cross-linked from user profiles |
+
+### Risk Levels
+- **Critical** (70-100): Immediate action required
+- **High** (50-69): Action needed within 1 week
+- **Medium** (25-49): Review within 1 month
+- **Low** (0-24): Acceptable risk
+
 ## Things to NEVER Do
 1. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
 2. **NEVER** use `dict | None` type hints (PEP 604) — may crash on older Python
