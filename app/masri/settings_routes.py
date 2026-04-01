@@ -806,9 +806,8 @@ def test_llm_connection():
         return jsonify({"error": "No provider selected."}), 400
 
     try:
-        # Quick validation — don't fetch full model list (slow for Together AI)
-        _quick_test_provider(provider, api_key)
-        return jsonify({"message": "Connected successfully!", "provider": provider})
+        models = _fetch_models_for_provider(provider, api_key)
+        return jsonify({"message": f"Connected! {len(models)} models available.", "provider": provider, "model_count": len(models)})
     except Exception as e:
         logger.warning("LLM connection test failed for %s: %s", provider, e)
         return jsonify({"error": "Connection failed. Check your API key and try again."}), 502

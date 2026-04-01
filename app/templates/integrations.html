@@ -367,14 +367,14 @@
 
               <!-- Primary provider -->
               <div class="bg-base-300 rounded p-2" x-data="{ editing: false }">
-                <div class="flex items-center h-7 gap-2">
-                  <button class="w-2.5 h-2.5 rounded-full border-0 cursor-pointer shrink-0 transition-colors"
-                          :class="llmProviderStatuses[llmForm.provider] === 'ok' ? 'bg-success' : llmProviderStatuses[llmForm.provider] === 'fail' ? 'bg-error' : llmProviderStatuses[llmForm.provider] === 'testing' ? 'bg-warning animate-pulse' : 'bg-base-content/20'"
-                          @click="testSingleLlmProvider(llmForm.provider)" title="Test connection"></button>
-                  <span class="text-xs font-semibold capitalize flex-1" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
-                  <span class="text-[10px] opacity-40" x-text="llmForm.model_name || ''"></span>
-                  <button class="btn btn-xs btn-ghost btn-square opacity-40" @click="editing = !editing"><i class="ti text-xs" :class="editing ? 'ti-chevron-up' : 'ti-settings'"></i></button>
-                  <button class="btn btn-xs btn-ghost btn-square opacity-40 hover:opacity-100" @click="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
+                <div class="flex items-center h-8 gap-2 cursor-pointer select-none" @click="editing = !editing">
+                  <span class="w-3 h-3 rounded-full shrink-0 inline-block"
+                        :class="llmProviderStatuses[llmForm.provider] === 'ok' ? 'bg-success' : llmProviderStatuses[llmForm.provider] === 'fail' ? 'bg-error' : llmProviderStatuses[llmForm.provider] === 'testing' ? 'bg-warning animate-pulse' : 'bg-base-content/30'"
+                        @click.stop="testSingleLlmProvider(llmForm.provider)" title="Click to test"></span>
+                  <span class="text-sm font-semibold capitalize flex-1" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
+                  <span class="text-xs opacity-40" x-text="llmForm.model_name || ''"></span>
+                  <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                  <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
                   <div class="grid grid-cols-2 gap-1">
@@ -406,31 +406,50 @@
                       <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" />
                     </div>
                   </template>
-                  <button class="btn btn-xs btn-ghost gap-1 mt-1" @click="testSingleLlmProvider(llmForm.provider)"><i class="ti ti-plug-connected"></i> Test Connection</button>
+                  <div class="flex items-center gap-2 mt-1" x-data="{ result: '', testing: false }">
+                    <button class="btn btn-xs btn-outline gap-1" :disabled="testing" @click="
+                      testing = true; result = '';
+                      fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) })
+                        .then(r => r.json().then(d => { testing = false; result = r.ok ? (d.message || 'Connected') : (d.error || 'Failed'); llmProviderStatuses = { ...llmProviderStatuses, [llmForm.provider]: r.ok ? 'ok' : 'fail' }; }))
+                        .catch(() => { testing = false; result = 'Failed'; llmProviderStatuses = { ...llmProviderStatuses, [llmForm.provider]: 'fail' }; });
+                    ">
+                      <span class="loading loading-spinner loading-xs" x-show="testing"></span>
+                      <i class="ti ti-plug-connected" x-show="!testing"></i> Test
+                    </button>
+                    <span class="text-[10px]" :class="result.includes('onnect') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                  </div>
                 </div>
               </div>
 
               <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
                 <div class="bg-base-300 rounded p-2" x-data="{ editing: false }">
-                  <div class="flex items-center h-7 gap-2">
-                    <button class="w-2.5 h-2.5 rounded-full border-0 cursor-pointer shrink-0 transition-colors"
-                            :class="llmProviderStatuses[p.provider] === 'ok' ? 'bg-success' : llmProviderStatuses[p.provider] === 'fail' ? 'bg-error' : llmProviderStatuses[p.provider] === 'testing' ? 'bg-warning animate-pulse' : 'bg-base-content/20'"
-                            @click="testSingleLlmProvider(p.provider)" title="Test connection"></button>
-                    <span class="text-xs font-semibold capitalize flex-1" x-text="p.provider.replace('_', ' ')"></span>
-                    <span class="text-[10px] opacity-40" x-text="p.model || ''"></span>
-                    <button class="btn btn-xs btn-ghost btn-square opacity-40" @click="editing = !editing"><i class="ti text-xs" :class="editing ? 'ti-chevron-up' : 'ti-settings'"></i></button>
-                    <button class="btn btn-xs btn-ghost btn-square opacity-40 hover:opacity-100" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
+                  <div class="flex items-center h-8 gap-2 cursor-pointer select-none" @click="editing = !editing">
+                    <span class="w-3 h-3 rounded-full shrink-0 inline-block"
+                          :class="llmProviderStatuses[p.provider] === 'ok' ? 'bg-success' : llmProviderStatuses[p.provider] === 'fail' ? 'bg-error' : llmProviderStatuses[p.provider] === 'testing' ? 'bg-warning animate-pulse' : 'bg-base-content/30'"
+                          @click.stop="testSingleLlmProvider(p.provider)" title="Click to test"></span>
+                    <span class="text-sm font-semibold capitalize flex-1" x-text="p.provider.replace('_', ' ')"></span>
+                    <span class="text-xs opacity-40" x-text="p.model || ''"></span>
+                    <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                    <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key"
                            @change="saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: $event.target.value }); $event.target.value = ''; toast('Key updated', 'success');">
-                    <button class="btn btn-xs btn-ghost gap-1" @click="testSingleLlmProvider(p.provider)"><i class="ti ti-plug-connected"></i> Test Connection</button>
+                    <div class="flex items-center gap-2" x-data="{ result: '', testing: false }">
+                      <button class="btn btn-xs btn-outline gap-1" :disabled="testing" @click="
+                        testing = true; result = '';
+                        fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) })
+                          .then(r => r.json().then(d => { testing = false; result = r.ok ? (d.message || 'Connected') : (d.error || 'Failed'); llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: r.ok ? 'ok' : 'fail' }; }))
+                          .catch(() => { testing = false; result = 'Failed'; llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: 'fail' }; });
+                      ">
+                        <span class="loading loading-spinner loading-xs" x-show="testing"></span>
+                        <i class="ti ti-plug-connected" x-show="!testing"></i> Test
+                      </button>
+                      <span class="text-[10px]" :class="result.includes('onnect') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                    </div>
                   </div>
                 </div>
               </template>
-
-              <!-- Test output -->
-              <div x-show="llmTestOutput" class="text-[10px] px-2 py-1 rounded" :class="llmTestOutput.includes('ail') || llmTestOutput.includes('rror') ? 'text-error' : 'text-success'" x-text="llmTestOutput"></div>
 
               <!-- Add provider (prevent duplicates) -->
               <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1 w-full justify-start opacity-50" @click="addingProvider = true"><i class="ti ti-plus"></i> Add provider</button>
