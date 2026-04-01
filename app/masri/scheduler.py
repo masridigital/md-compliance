@@ -463,7 +463,7 @@ class MasriScheduler:
                         existing["_updated"] = datetime.utcnow().isoformat()
                         ConfigStore.upsert(
                             f"tenant_integration_data_{tenant_id}",
-                            json.dumps(existing, default=str)[:100000],
+                            json.dumps(existing, default=str)[:35000000],
                         )
                         refreshed += 1
                     except Exception:

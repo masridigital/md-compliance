@@ -950,7 +950,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                 if integration_data.get("risk_profiles"):
                     existing["risk_profiles"] = integration_data["risk_profiles"]
                 existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
-                ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:100000])
+                ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
             except Exception:
                 pass
 
@@ -1356,7 +1356,7 @@ def refresh_microsoft_data(tenant_id):
                 pass
         existing["microsoft"] = ms_data
         existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
-        ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:100000])
+        ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
     except Exception as e:
         return jsonify({"error": f"Failed to store data: {e}"}), 500
 

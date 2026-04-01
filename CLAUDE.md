@@ -71,7 +71,7 @@ All integration data stored in `ConfigStore("tenant_integration_data_{tenant_id}
 ```
 - Each integration owns its own key in the JSON (e.g., `"telivy"`, `"microsoft"`)
 - New integrations add their own key — never overwrite others
-- Cap: 100KB per tenant to prevent storage bloat
+- Cap: 35MB per tenant (allows full device inventories, detailed findings, risk profiles)
 
 ### Stage 3: LLM Analysis Pipeline (Multi-Phase)
 Each integration gets its OWN LLM analysis phase with a strategically crafted prompt. Then a cross-source phase combines overlapping data.
