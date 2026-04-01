@@ -28,20 +28,46 @@ class BufferHandler(logging.Handler):
         global _buffer
         _buffer = deque(maxlen=capacity)
 
+    # Patterns to redact from log messages shown in the UI
+    _REDACT_PATTERNS = None
+
+    @classmethod
+    def _get_redact_patterns(cls):
+        if cls._REDACT_PATTERNS is None:
+            import re
+            cls._REDACT_PATTERNS = [
+                (re.compile(r'(sk-[a-zA-Z0-9]{20,})'), '[REDACTED_API_KEY]'),
+                (re.compile(r'(Bearer\s+[a-zA-Z0-9._\-]+)'), 'Bearer [REDACTED]'),
+                (re.compile(r'(api[_-]?key["\s:=]+)["\']?([a-zA-Z0-9_\-]{16,})', re.I), r'\1[REDACTED]'),
+                (re.compile(r'(secret["\s:=]+)["\']?([a-zA-Z0-9_\-]{16,})', re.I), r'\1[REDACTED]'),
+                (re.compile(r'(password["\s:=]+)["\']?([^\s"\']{8,})', re.I), r'\1[REDACTED]'),
+                (re.compile(r'(eyJ[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+)'), '[REDACTED_JWT]'),
+            ]
+        return cls._REDACT_PATTERNS
+
+    @classmethod
+    def _redact(cls, text):
+        """Remove API keys, tokens, passwords from log text before storing."""
+        if not text:
+            return text
+        for pattern, replacement in cls._get_redact_patterns():
+            text = pattern.sub(replacement, text)
+        return text
+
     def emit(self, record):
         try:
+            msg = self._redact(self.format(record))
             entry = {
                 "ts": datetime.utcfromtimestamp(record.created).isoformat(),
                 "level": record.levelname,
-                "message": self.format(record),
+                "message": msg,
                 "logger": record.name,
                 "module": record.module,
             }
             if record.exc_info and record.exc_info[1]:
                 import traceback
-                entry["traceback"] = "".join(
-                    traceback.format_exception(*record.exc_info)
-                )
+                tb = "".join(traceback.format_exception(*record.exc_info))
+                entry["traceback"] = self._redact(tb)
             with _lock:
                 _buffer.append(entry)
         except Exception:

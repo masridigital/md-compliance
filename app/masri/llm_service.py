@@ -469,7 +469,7 @@ class LLMService:
             result = provider.chat(messages, **kwargs)
         except Exception as e:
             logger.error("LLM call failed (%s/%s): %s", config.get("provider"), feature, e)
-            raise RuntimeError(f"LLM call failed: {e}") from e
+            raise RuntimeError(f"LLM call failed for provider {config.get('provider', 'unknown')}. Check API key and model configuration.") from e
 
         # Track usage
         if tenant_id:

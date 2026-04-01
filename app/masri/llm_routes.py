@@ -678,10 +678,7 @@ def get_integration_data(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     tenant_id = project.tenant_id
-    try:
-        _validate_tenant_access(tenant_id)
-    except Exception:
-        pass
+    _validate_tenant_access(tenant_id)
 
     try:
         raw = _gather_integration_data(tenant_id)
@@ -815,6 +812,7 @@ def debug_integration_mapping(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     tenant_id = project.tenant_id
+    _validate_tenant_access(tenant_id)
     tenant_name = project.tenant.name if project.tenant else "unknown"
 
     # Get all mappings
@@ -1270,10 +1268,7 @@ def auto_process():
     if not tenant_id:
         return jsonify({"success": False, "error": "tenant_id required"}), 400
 
-    try:
-        _validate_tenant_access(tenant_id)
-    except Exception:
-        pass
+    _validate_tenant_access(tenant_id)
 
     import threading
     app = current_app._get_current_object()
@@ -1298,6 +1293,7 @@ def auto_process():
 @login_required
 def auto_process_status(tenant_id):
     """GET /api/v1/llm/auto-process-status/<tenant_id> — poll for results."""
+    _validate_tenant_access(tenant_id)
     from app.models import ConfigStore
     try:
         record = ConfigStore.find(f"auto_process_result_{tenant_id}")
@@ -1317,10 +1313,7 @@ def refresh_microsoft_data(tenant_id):
     Pulls fresh data from all Microsoft Graph endpoints and stores in cache.
     Does NOT re-run LLM analysis — use auto-process for that.
     """
-    try:
-        _validate_tenant_access(tenant_id)
-    except Exception:
-        pass
+    _validate_tenant_access(tenant_id)
 
     import json
     from app import db
@@ -1358,7 +1351,8 @@ def refresh_microsoft_data(tenant_id):
         existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
         ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
     except Exception as e:
-        return jsonify({"error": f"Failed to store data: {e}"}), 500
+        logger.exception("Failed to store Microsoft data for tenant %s", tenant_id)
+        return jsonify({"error": "Failed to store data"}), 500
 
     return jsonify({
         "success": True,

@@ -117,7 +117,7 @@ def list_external_scans():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy list external scans failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/external-scans", methods=["POST"])
@@ -142,7 +142,7 @@ def create_external_scan():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy create external scan failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/external-scans/<string:scan_id>", methods=["GET"])
@@ -157,7 +157,7 @@ def get_external_scan(scan_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get external scan failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/external-scans/<string:scan_id>/findings", methods=["GET"])
@@ -172,7 +172,7 @@ def get_external_scan_findings(scan_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get findings failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/external-scans/<string:scan_id>/breach-data", methods=["GET"])
@@ -187,7 +187,7 @@ def get_breach_data(scan_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get breach data failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/external-scans/<string:scan_id>/report", methods=["GET"])
@@ -210,7 +210,7 @@ def download_external_scan_report(scan_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy download report failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 # ─── Risk Assessments ─────────────────────────────────────────────
@@ -232,7 +232,7 @@ def list_risk_assessments():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy list risk assessments failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/risk-assessments", methods=["POST"])
@@ -259,7 +259,7 @@ def create_risk_assessment():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy create risk assessment failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/risk-assessments/<string:assessment_id>", methods=["GET"])
@@ -274,7 +274,7 @@ def get_risk_assessment(assessment_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get risk assessment failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/risk-assessments/<string:assessment_id>/devices", methods=["GET"])
@@ -289,7 +289,7 @@ def get_risk_assessment_devices(assessment_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get devices failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/risk-assessments/<string:assessment_id>/scan-status", methods=["GET"])
@@ -304,7 +304,7 @@ def get_scan_status(assessment_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy get scan status failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
 
 
 @telivy_bp.route("/risk-assessments/<string:assessment_id>/report", methods=["GET"])
@@ -327,4 +327,4 @@ def download_risk_assessment_report(assessment_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Telivy download report failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500

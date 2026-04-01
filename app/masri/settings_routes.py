@@ -184,7 +184,8 @@ def update_llm_config():
     except Exception as e:
         logger.exception("Error updating LLM config: %s", e)
         db.session.rollback()
-        return jsonify({"error": f"Failed to save LLM configuration: {str(e)}"}), 500
+        logger.exception("Failed to save LLM configuration")
+        return jsonify({"error": "Failed to save LLM configuration"}), 500
 
 
 # ===========================================================================
@@ -295,7 +296,8 @@ def test_storage_provider(provider):
     except ImportError as e:
         return jsonify({"error": f"Missing library: {str(e)}. Install the required package."}), 500
     except Exception as e:
-        return jsonify({"error": f"Connection test failed: {str(e)}"}), 500
+        logger.warning("Storage connection test failed: %s", e)
+        return jsonify({"error": "Connection test failed. Check credentials and try again."}), 500
 
 
 # ===========================================================================
@@ -331,10 +333,8 @@ def update_sso_config():
     if err:
         return err
     tenant_id = data.pop("tenant_id", None)
-    if tenant_id:
-        Authorizer(current_user).can_user_access_tenant(tenant_id)
-    else:
-        _require_admin()
+    # SSO config changes require admin, not just access
+    _require_admin()
     try:
         sso = SettingsService.update_sso_config(data, tenant_id=tenant_id)
         return jsonify(sso.as_dict())
@@ -1356,7 +1356,8 @@ def reset_integration(integration_type):
     except Exception as e:
         logger.exception("Error resetting integration %s", integration_type)
         db.session.rollback()
-        return jsonify({"error": f"Reset failed: {str(e)}"}), 500
+        logger.exception("Reset failed for %s", integration_type)
+        return jsonify({"error": "Reset failed"}), 500
 
 
 # ===========================================================================
