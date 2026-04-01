@@ -5102,6 +5102,7 @@ function project(){
 			this.assistGapsResults = null;
 			this.aiError = '';
 			try {
+				// Fire background job
 				const resp = await fetch('/api/v1/llm/assist-gaps', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -5111,18 +5112,44 @@ function project(){
 					const err = await resp.json().catch(() => ({}));
 					throw new Error(err.error || `HTTP ${resp.status}`);
 				}
-				this.assistGapsResults = await resp.json();
-				const count = this.assistGapsResults.recommendations ? this.assistGapsResults.recommendations.length : 0;
-				toast(`Found ${count} recommendations for ${this.assistGapsResults.total_gaps || 0} gaps`, 'success');
-				// Auto-scroll to recommendations panel (use the top one if visible)
-				this.$nextTick(() => {
-					const el = document.getElementById('assist-gaps-results-top') || document.getElementById('assist-gaps-results');
-					if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-				});
+				toast('AI analysis started — processing in background...', 'info');
+
+				// Poll for results every 5s (max 5 min)
+				let polls = 0;
+				const pollId = setInterval(async () => {
+					polls++;
+					if (polls > 60) {
+						clearInterval(pollId);
+						this.assistGapsRunning = false;
+						toast('Analysis timed out. Check back later.', 'warning');
+						return;
+					}
+					try {
+						const sr = await fetch(`/api/v1/llm/assist-gaps-status/${this.projectId}`);
+						if (!sr.ok) return;
+						const data = await sr.json();
+						if (data.recommendations !== undefined && data.status !== 'processing') {
+							clearInterval(pollId);
+							this.assistGapsResults = data;
+							this.assistGapsRunning = false;
+							const count = data.recommendations ? data.recommendations.length : 0;
+							if (data.error) {
+								toast(data.error, 'error');
+							} else {
+								toast(`Found ${count} recommendations for ${data.total_gaps || 0} gaps`, 'success');
+							}
+							this.$nextTick(() => {
+								const el = document.getElementById('assist-gaps-results-top') || document.getElementById('assist-gaps-results');
+								if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+							});
+						}
+					} catch(e) { /* keep polling */ }
+				}, 5000);
 			} catch (e) {
 				this.aiError = 'Assist failed: ' + e.message;
 				toast(this.aiError, 'error');
-			} finally { this.assistGapsRunning = false; }
+				this.assistGapsRunning = false;
+			}
 		},
 
 		async addRecToRiskRegister(rec) {

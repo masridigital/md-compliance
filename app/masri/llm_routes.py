@@ -493,38 +493,22 @@ def auto_map():
 # Assist Gaps: Identify unmapped controls and suggest actions
 # ===========================================================================
 
-@llm_bp.route("/assist-gaps", methods=["POST"])
-@limiter.limit("5 per minute")
-@login_required
-def assist_gaps():
-    """
-    POST /api/v1/llm/assist-gaps
+def _bg_assist_gaps(app, project_id, tenant_id):
+    """Background worker for assist-gaps. Runs in thread, never blocks gunicorn."""
+    import json
+    with app.app_context():
+        from app import db
+        from app.models import Project, ConfigStore
 
-    Analyzes a project's controls, identifies gaps (unmapped, missing evidence,
-    not started), and provides actionable recommendations for each.
+        try:
+            db.session.remove()
+        except Exception:
+            pass
 
-    Body: { "project_id": "<str>" }
-    """
-    _require_llm()
-    data = request.get_json(silent=True) or {}
-    project_id = data.get("project_id")
-    if not project_id:
-        return jsonify({"error": "project_id is required"}), 400
+        project = db.session.get(Project, project_id)
+        if not project:
+            return
 
-    from app import db
-    from app.models import Project
-
-    project = db.session.get(Project, project_id)
-    if not project:
-        return jsonify({"error": "Project not found"}), 404
-
-    tenant_id = project.tenant_id
-    _validate_tenant_access(tenant_id)
-
-    try:
-        # Get controls with their current status — find gaps
-        # ProjectControl.VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
-        # Default is "infosec action". Gaps = anything NOT complete.
         gap_controls = []
         for pc in project.controls.all():
             ctrl = pc.control
@@ -550,119 +534,180 @@ def assist_gaps():
             })
 
         if not gap_controls:
-            return jsonify({
-                "project_id": project_id,
-                "message": "All controls are complete! No gaps found.",
-                "gaps": [],
-            })
+            try:
+                ConfigStore.upsert(f"assist_gaps_result_{project_id}", json.dumps({
+                    "project_id": project_id,
+                    "message": "All controls are complete! No gaps found.",
+                    "total_gaps": 0,
+                    "recommendations": [],
+                }))
+            except Exception:
+                pass
+            return
 
-        from app.masri.llm_service import LLMService
-        import json
-
-        # Gather integration data for context
-        integration_context = ""
         try:
-            raw = _gather_integration_data(tenant_id)
-            integration_context = _compress_for_llm(raw) if raw else ""
+            from app.masri.llm_service import LLMService
+
+            integration_context = ""
+            try:
+                raw = _gather_integration_data(tenant_id)
+                integration_context = _compress_for_llm(raw) if raw else ""
+            except Exception:
+                pass
+
+            fw_name = project.framework.name if project.framework else "Unknown"
+
+            all_recommendations = []
+            chunk_size = 10
+            for i in range(0, len(gap_controls), chunk_size):
+                chunk = gap_controls[i:i + chunk_size]
+                ctrl_text = "\n".join([
+                    f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                    f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
+                    + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
+                    for c in chunk
+                ])
+
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            f"You are a compliance consultant specializing in {fw_name}. "
+                            "You will receive controls that have gaps, along with security data from "
+                            "Telivy vulnerability scans and/or Microsoft 365.\n\n"
+                            "For EACH control, provide specific, actionable recommendations.\n"
+                            "You MUST respond with ONLY a valid JSON array:\n"
+                            '[{"project_control_id":"ID","priority":"high","recommendation":"specific action",'
+                            '"evidence_suggestion":"specific source","estimated_effort":"quick",'
+                            '"policy_needed":false,"template_suggestion":""}]\n\n'
+                            "Rules: include ALL controls, priority=high|medium|low, "
+                            "estimated_effort=quick|moderate|significant"
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Framework: {fw_name}\n\n"
+                            + (f"SCAN DATA:\n{integration_context}\n\n" if integration_context and integration_context != "No scan data available." else "")
+                            + f"CONTROLS ({len(chunk)}):\n{ctrl_text}"
+                        ),
+                    },
+                ]
+
+                try:
+                    result = LLMService.chat(
+                        messages=messages, tenant_id=tenant_id,
+                        feature="assist_gaps", temperature=0.3, max_tokens=4096,
+                    )
+                    content = result["content"].strip()
+                    if content.startswith("```"):
+                        content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+                    parsed = None
+                    try:
+                        parsed = json.loads(content)
+                    except (json.JSONDecodeError, ValueError):
+                        bs = content.find("[")
+                        be = content.rfind("]")
+                        if bs >= 0 and be > bs:
+                            try:
+                                parsed = json.loads(content[bs:be + 1])
+                            except Exception:
+                                pass
+
+                    if parsed and isinstance(parsed, list):
+                        all_recommendations.extend(parsed)
+                    elif parsed and isinstance(parsed, dict) and "recommendations" in parsed:
+                        all_recommendations.extend(parsed["recommendations"])
+                    else:
+                        for c in chunk:
+                            all_recommendations.append({
+                                "project_control_id": c["project_control_id"],
+                                "priority": "medium",
+                                "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
+                                "evidence_suggestion": "Document current implementation status.",
+                                "estimated_effort": "moderate",
+                                "policy_needed": False, "template_suggestion": "",
+                            })
+                except Exception as e:
+                    logger.warning("Assist-gaps chunk %d failed: %s", i, e)
+
+            ConfigStore.upsert(f"assist_gaps_result_{project_id}", json.dumps({
+                "project_id": project_id,
+                "total_gaps": len(gap_controls),
+                "recommendations": all_recommendations,
+            }, default=str))
+
+        except Exception as e:
+            logger.exception("Assist gaps background failed for project %s", project_id)
+            try:
+                ConfigStore.upsert(f"assist_gaps_result_{project_id}", json.dumps({
+                    "project_id": project_id,
+                    "error": "Analysis failed. Check system logs.",
+                    "total_gaps": len(gap_controls),
+                    "recommendations": [],
+                }))
+            except Exception:
+                pass
+
+        try:
+            db.session.remove()
         except Exception:
             pass
 
-        fw_name = project.framework.name if project.framework else "Unknown"
 
-        all_recommendations = []
-        chunk_size = 10
-        for i in range(0, len(gap_controls), chunk_size):
-            chunk = gap_controls[i:i + chunk_size]
-            ctrl_text = "\n".join([
-                f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
-                + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
-                for c in chunk
-            ])
+@llm_bp.route("/assist-gaps", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def assist_gaps():
+    """POST /api/v1/llm/assist-gaps — kicks off background gap analysis."""
+    _require_llm()
+    data = request.get_json(silent=True) or {}
+    project_id = data.get("project_id")
+    if not project_id:
+        return jsonify({"error": "project_id is required"}), 400
 
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        f"You are a compliance consultant specializing in {fw_name}. "
-                        "You will receive controls that have gaps, along with security data from "
-                        "Telivy vulnerability scans and/or Microsoft 365 (Secure Score, Defender, "
-                        "Intune, MFA, Identity Protection).\n\n"
-                        "For EACH control:\n"
-                        "1. Reference SPECIFIC findings from the scan data that relate to this control\n"
-                        "2. Name specific users, devices, or endpoints affected (if available)\n"
-                        "3. Provide actionable remediation steps (not generic advice)\n"
-                        "4. Suggest what evidence to collect — reference specific sources:\n"
-                        "   - Telivy: scan report section, finding name\n"
-                        "   - Microsoft: Secure Score control, Defender alert, Intune policy, "
-                        "Entra ID setting, Conditional Access policy\n\n"
-                        "You MUST respond with ONLY a valid JSON array:\n"
-                        '[{"project_control_id":"ID","priority":"high","recommendation":"specific action referencing actual findings",'
-                        '"evidence_suggestion":"specific source: e.g. Entra ID > Security > MFA report showing enrollment",'
-                        '"estimated_effort":"quick","policy_needed":false,"template_suggestion":""}]\n\n'
-                        "Rules: include ALL controls, priority=high|medium|low, "
-                        "estimated_effort=quick|moderate|significant"
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Framework: {fw_name}\n\n"
-                        + (f"SCAN DATA:\n{integration_context}\n\n" if integration_context and integration_context != "No scan data available." else "")
-                        + f"CONTROLS ({len(chunk)}):\n{ctrl_text}"
-                    ),
-                },
-            ]
+    from app import db
+    from app.models import Project
 
-            result = LLMService.chat(
-                messages=messages, tenant_id=tenant_id,
-                feature="auto_map", temperature=0.3, max_tokens=4096,
-            )
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
 
-            content = result["content"].strip()
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    _validate_tenant_access(project.tenant_id)
 
-            parsed = None
-            try:
-                parsed = json.loads(content)
-            except (json.JSONDecodeError, ValueError):
-                # Try brace extraction
-                brace_start = content.find("[")
-                brace_end = content.rfind("]")
-                if brace_start >= 0 and brace_end > brace_start:
-                    try:
-                        parsed = json.loads(content[brace_start:brace_end + 1])
-                    except Exception:
-                        pass
+    import threading
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=_bg_assist_gaps,
+        args=(app, project_id, project.tenant_id),
+        daemon=True,
+    )
+    t.start()
 
-            if parsed and isinstance(parsed, list):
-                all_recommendations.extend(parsed)
-            elif parsed and isinstance(parsed, dict) and "recommendations" in parsed:
-                all_recommendations.extend(parsed["recommendations"])
-            else:
-                logger.warning("LLM assist-gaps: parse failed chunk %d: %s", i, content[:200])
-                for c in chunk:
-                    all_recommendations.append({
-                        "project_control_id": c["project_control_id"],
-                        "priority": "medium",
-                        "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
-                        "evidence_suggestion": "Document current implementation status.",
-                        "estimated_effort": "moderate",
-                        "policy_needed": False, "template_suggestion": "",
-                    })
+    return jsonify({"success": True, "message": "Analysis started in background."})
 
-        return jsonify({
-            "project_id": project_id,
-            "total_gaps": len(gap_controls),
-            "recommendations": all_recommendations,
-        })
 
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 502
-    except Exception as e:
-        logger.exception("Assist gaps failed")
-        return jsonify({"error": "Assist gaps failed: " + str(e)}), 500
+@llm_bp.route("/assist-gaps-status/<string:project_id>", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def assist_gaps_status(project_id):
+    """GET /api/v1/llm/assist-gaps-status/<project_id> — poll for results."""
+    from app import db
+    from app.models import Project, ConfigStore
+
+    project = db.session.get(Project, project_id)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+    _validate_tenant_access(project.tenant_id)
+
+    try:
+        record = ConfigStore.find(f"assist_gaps_result_{project_id}")
+        if record and record.value:
+            return jsonify(_json.loads(record.value))
+    except Exception:
+        pass
+    return jsonify({"status": "processing"})
 
 
 @llm_bp.route("/integration-data/<string:project_id>", methods=["GET"])
