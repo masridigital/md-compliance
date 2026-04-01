@@ -377,13 +377,8 @@
                   <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                  <div class="flex gap-1">
-                    <input type="password" class="input input-bordered input-xs flex-1" x-model="llmForm.api_key" placeholder="API key" />
-                    <button class="btn btn-xs btn-primary gap-1" x-show="llmForm.api_key.length > 0" @click="
-                      saveLlmSlot();
-                      setTimeout(() => testSingleLlmProvider(llmForm.provider), 1000);
-                    "><i class="ti ti-device-floppy"></i> Save</button>
-                  </div>
+                  <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key"
+                         @blur="if (llmForm.api_key) { saveLlmSlot(); setTimeout(() => testSingleLlmProvider(llmForm.provider), 1000); }" />
                   <div class="flex gap-1">
                     <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name"
                             @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()"
@@ -432,12 +427,8 @@
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
                        x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }">
-                    <div class="flex gap-1">
-                      <input type="password" class="input input-bordered input-xs flex-1" placeholder="API key" x-model="newKey">
-                      <button class="btn btn-xs btn-primary gap-1" x-show="newKey.length > 0" @click="
-                        saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey }); newKey = ''; toast('Key saved', 'success');
-                      "><i class="ti ti-device-floppy"></i> Save</button>
-                    </div>
+                    <input type="password" class="input input-bordered input-xs w-full" placeholder="API key" x-model="newKey"
+                           @blur="if (newKey) { saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey }); setTimeout(() => { testSingleLlmProvider(p.provider); loadTierModels && loadTierModels(Object.keys(llmTierConfig).find(t => llmTierConfig[t]?.provider === p.provider)); }, 1000); newKey = ''; toast('Key saved', 'success'); }">
                     <div class="flex gap-1">
                       <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
                               @mousedown="if (!secModels.length) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }"
@@ -569,53 +560,12 @@
                   </select>
                 </div>
               </div>
-              <div class="flex gap-1 mt-1">
-                <button class="btn btn-xs btn-ghost gap-1" @click="
-                  llmTierConfig = {};
-                  llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
-                  toast('Defaults applied', 'info');
-                "><i class="ti ti-wand"></i> Defaults</button>
-                <button class="btn btn-xs btn-primary gap-1" x-data="{ researching: false }" @click="
-                  researching = true;
-                  toast('Checking...', 'info');
-                  fetch('/api/v1/settings/llm/recommendations/refresh', { method: 'POST' })
-                    .then(r => r.json())
-                    .then(refreshData => {
-                      if (refreshData.skipped && refreshData.recommendations) {
-                        researching = false;
-                        llmTierConfig = {};
-                        for (const [tid, rec] of Object.entries(refreshData.recommendations)) {
-                          llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
-                        }
-                        toast('AI picks applied', 'success');
-                        return;
-                      }
-                      toast('Researching...', 'info');
-                      let polls = 0;
-                      const pid = setInterval(() => {
-                        polls++;
-                        if (polls > 20) { clearInterval(pid); researching = false; return; }
-                        fetch('/api/v1/settings/llm/recommendations').then(r => r.json()).then(data => {
-                          if (data.recommendations) {
-                            const genTime = data.generated_at ? new Date(data.generated_at) : new Date(0);
-                            if ((new Date() - genTime) < 120000) {
-                              clearInterval(pid); researching = false;
-                              llmTierConfig = {};
-                              for (const [tid, rec] of Object.entries(data.recommendations)) {
-                                llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
-                              }
-                              toast('AI picks applied', 'success');
-                            }
-                          }
-                        }).catch(() => {});
-                      }, 3000);
-                    }).catch(() => { researching = false; });
-                " :disabled="researching">
-                  <span class="loading loading-spinner loading-xs" x-show="researching"></span>
-                  <i class="ti ti-sparkles" x-show="!researching"></i>
-                  <span x-text="researching ? 'Researching...' : 'AI Picks'"></span>
-                </button>
-              </div>
+              <button class="btn btn-xs btn-ghost gap-1 mt-1" @click="
+                llmTierConfig = {};
+                llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
+                saveLlmSlot();
+                toast('Recommended config applied and saved', 'success');
+              "><i class="ti ti-wand"></i> Apply Recommended Defaults</button>
             </div>
 
             <div x-show="llmMsg" class="text-xs mt-1" :class="llmMsgType === 'error' ? 'text-error' : 'text-success'" x-text="llmMsg"></div>
@@ -1299,7 +1249,7 @@ function integrationsHub() {
       { id: 'advanced', label: 'Tier 4: Advanced', icon: 'ti-brain',
         features: 'Policy, Risk Profiles',
         recommended: 'Anthropic — claude-sonnet-4-20250514',
-        recProvider: 'anthropic', recModel: 'claude-sonnet-4-20250514' },
+        recProvider: 'anthropic', recModel: 'claude-opus-4-6' },
     ],
     llmTierConfig: {
       extraction: { provider: '', model: '' },
