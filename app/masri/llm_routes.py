@@ -585,12 +585,21 @@ def assist_gaps():
                     "role": "system",
                     "content": (
                         f"You are a compliance consultant specializing in {fw_name}. "
-                        "You will receive controls that have gaps. "
-                        "For EACH control, provide a specific recommendation.\n\n"
-                        "You MUST respond with ONLY a valid JSON array — no markdown, no text:\n"
-                        '[{"project_control_id":"ID","priority":"high","recommendation":"Do X",'
-                        '"evidence_suggestion":"Collect Y","estimated_effort":"quick",'
-                        '"policy_needed":false,"template_suggestion":""}]\n\n'
+                        "You will receive controls that have gaps, along with security data from "
+                        "Telivy vulnerability scans and/or Microsoft 365 (Secure Score, Defender, "
+                        "Intune, MFA, Identity Protection).\n\n"
+                        "For EACH control:\n"
+                        "1. Reference SPECIFIC findings from the scan data that relate to this control\n"
+                        "2. Name specific users, devices, or endpoints affected (if available)\n"
+                        "3. Provide actionable remediation steps (not generic advice)\n"
+                        "4. Suggest what evidence to collect — reference specific sources:\n"
+                        "   - Telivy: scan report section, finding name\n"
+                        "   - Microsoft: Secure Score control, Defender alert, Intune policy, "
+                        "Entra ID setting, Conditional Access policy\n\n"
+                        "You MUST respond with ONLY a valid JSON array:\n"
+                        '[{"project_control_id":"ID","priority":"high","recommendation":"specific action referencing actual findings",'
+                        '"evidence_suggestion":"specific source: e.g. Entra ID > Security > MFA report showing enrollment",'
+                        '"estimated_effort":"quick","policy_needed":false,"template_suggestion":""}]\n\n'
                         "Rules: include ALL controls, priority=high|medium|low, "
                         "estimated_effort=quick|moderate|significant"
                     ),
@@ -993,78 +1002,100 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
             if llm_available:
                 try:
-                    data_summary = _compress_for_llm(integration_data)
                     fw_name = project.framework.name if project.framework else "Unknown"
+                    has_telivy = bool(integration_data.get("telivy"))
+                    has_microsoft = bool(integration_data.get("microsoft"))
+                    has_profiles = bool(integration_data.get("risk_profiles"))
 
                     CHUNK_SIZE = 10
                     all_mappings = []
                     all_risks = []
-                    prev_summary = ""
 
-                    system_prompt = (
-                        "You are an expert compliance analyst reviewing security scan results against "
-                        f"the {fw_name} framework. You MUST respond with ONLY valid JSON — no markdown, "
-                        "no explanation, no text before or after.\n\n"
-                        "Your tasks:\n"
-                        "1. MAP each scan finding to the most relevant compliance control in this batch\n"
-                        "2. CREATE detailed risk entries for findings that represent security gaps\n\n"
-                        "IMPORTANT:\n"
-                        "- Include specific details: affected hostnames, IPs, users, endpoints\n"
-                        "- Explain WHY each finding is a risk and recommend remediation\n"
-                        "- Only create risks for findings NOT already covered in previous batches\n\n"
-                        "JSON format:\n"
-                        '{"mappings":[{"project_control_id":"ID","notes":"finding details",'
-                        '"status":"compliant|partial|non_compliant"}],'
-                        '"risks":[{"title":"risk","description":"details + remediation",'
-                        '"severity":"critical|high|medium|low"}]}'
-                    )
+                    # ── Phase 1: Telivy-only analysis ─────────────────────
+                    if has_telivy:
+                        telivy_data = _compress_for_llm({"telivy": integration_data["telivy"]})
+                        telivy_prompt = (
+                            f"You are an external vulnerability analyst mapping Telivy scan findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "TELIVY DATA INCLUDES: External vulnerability scan results — network exposure, "
+                            "DNS security, email spoofing risk, SSL/TLS configuration, web application "
+                            "vulnerabilities, typosquatting domains, breach data exposure.\n\n"
+                            "For each control: check if Telivy findings provide evidence of compliance "
+                            "or non-compliance. Reference specific finding names and severity levels.\n\n"
+                            "MAPPING: compliant (scan confirms control met) | partial (some evidence) | "
+                            "non_compliant (clear gap found)\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + affected assets + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, telivy_prompt, telivy_data, controls,
+                            fw_name, "Telivy scan", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
 
-                    for chunk_idx in range(0, len(controls), CHUNK_SIZE):
-                        chunk = controls[chunk_idx:chunk_idx + CHUNK_SIZE]
-                        chunk_label = f"Batch {chunk_idx // CHUNK_SIZE + 1}/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE}"
-                        ctrl_list = "\n".join([
-                            f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
-                            for c in chunk
-                        ])
-                        user_content = f"Framework: {fw_name}\n\n"
-                        if chunk_idx == 0:
-                            user_content += f"SCAN RESULTS:\n{data_summary}\n\n"
-                        else:
-                            user_content += f"(Scan data provided in batch 1. Previous: {len(all_mappings)} mapped, {len(all_risks)} risks.)\n\n"
-                            if prev_summary:
-                                user_content += f"PREVIOUS:\n{prev_summary}\n\n"
-                        user_content += f"CONTROLS ({chunk_label}):\n{ctrl_list}"
+                    # ── Phase 2: Microsoft-only analysis ──────────────────
+                    if has_microsoft:
+                        ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
+                                                      "risk_profiles": integration_data.get("risk_profiles", {})})
+                        ms_prompt = (
+                            f"You are a Microsoft 365 security analyst mapping findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "MICROSOFT DATA INCLUDES: Secure Score (overall posture + gap controls), "
+                            "Defender security alerts, Intune device compliance (encryption, policy status), "
+                            "MFA enrollment rates, Conditional Access policies, Identity Protection "
+                            "(risky users, risk detections with IPs), sign-in activity (failures, anomalies), "
+                            "SharePoint site inventory.\n\n"
+                            "For each control:\n"
+                            "- Check if Microsoft data provides evidence (Secure Score control, device policy, MFA rate)\n"
+                            "- Reference SPECIFIC data: user names lacking MFA, device names non-compliant, "
+                            "alert titles from Defender, Secure Score gap control names\n"
+                            "- For identity controls: cite MFA percentage, risky user names, sign-in failure rates\n"
+                            "- For device controls: cite compliance %, encryption %, specific non-compliant devices\n"
+                            "- For access controls: cite Conditional Access policy count and status\n\n"
+                            "MAPPING: compliant | partial | non_compliant\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific users/devices + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, ms_prompt, ms_data, controls,
+                            fw_name, "Microsoft 365", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
 
-                        try:
-                            result = LLMService.chat(
-                                messages=[
-                                    {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": user_content},
-                                ],
-                                tenant_id=tenant_id, feature="auto_map",
-                                temperature=0.2, max_tokens=3000,
+                    # ── Phase 3: Cross-source analysis (if both available) ─
+                    if has_telivy and has_microsoft:
+                        combined_data = _compress_for_llm(integration_data)
+                        cross_prompt = (
+                            f"You are a compliance analyst performing CROSS-SOURCE analysis for "
+                            f"{fw_name}. You MUST respond with ONLY valid JSON.\n\n"
+                            "You have data from BOTH Telivy (external scan) and Microsoft 365 (internal security). "
+                            "Focus ONLY on controls where both sources provide relevant information:\n"
+                            "- Email security: Telivy (SPF/DKIM/DMARC) + Microsoft (Exchange transport rules)\n"
+                            "- Authentication: Telivy (exposed credentials/breaches) + Microsoft (MFA, risky sign-ins)\n"
+                            "- Encryption: Telivy (SSL/TLS findings) + Microsoft (device encryption)\n"
+                            "- Access control: Telivy (open ports/services) + Microsoft (Conditional Access)\n\n"
+                            "ONLY map controls where cross-source correlation adds value beyond what "
+                            "individual analyses already found. Reference data from BOTH sources in notes.\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "\"notes\":\"Cross-source: Telivy shows [X] + Microsoft shows [Y] = [conclusion]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"Combined finding + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        # Only send controls that weren't already mapped as non_compliant
+                        mapped_ids = {m.get("project_control_id") for m in all_mappings
+                                      if m.get("status") == "non_compliant"}
+                        unmapped = [c for c in controls if c["project_control_id"] not in mapped_ids]
+                        if unmapped:
+                            all_mappings, all_risks = _run_chunked_llm(
+                                LLMService, cross_prompt, combined_data, unmapped,
+                                fw_name, "Cross-source", tenant_id, CHUNK_SIZE,
+                                all_mappings, all_risks, "auto_map",
                             )
-                            content = result["content"].strip()
-                            if content.startswith("```"):
-                                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-                            parsed = None
-                            try:
-                                parsed = json.loads(content)
-                            except (json.JSONDecodeError, ValueError):
-                                bs = content.find("{")
-                                be = content.rfind("}")
-                                if bs >= 0 and be > bs:
-                                    try:
-                                        parsed = json.loads(content[bs:be + 1])
-                                    except Exception:
-                                        pass
-                            if parsed:
-                                all_mappings.extend(parsed.get("mappings", []))
-                                all_risks.extend(parsed.get("risks", []))
-                                rt = [r.get("title", "") for r in parsed.get("risks", [])]
-                                prev_summary = f"Mapped {len(parsed.get('mappings', []))} controls. Risks: {', '.join(rt[:5])}" if rt else ""
-                        except Exception as e:
-                            logger.warning("Auto-process chunk %d failed: %s", chunk_idx, e)
 
                     # Apply mappings
                     _STATUS_MAP = {
@@ -1337,6 +1368,72 @@ def refresh_microsoft_data(tenant_id):
     })
 
 
+def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
+                      fw_name, source_label, tenant_id, chunk_size,
+                      all_mappings, all_risks, feature):
+    """Run chunked LLM analysis for a single data source.
+
+    Sends controls in batches of chunk_size, accumulates mappings and risks.
+    Returns updated (all_mappings, all_risks) lists.
+    """
+    import json
+    prev_summary = ""
+    for chunk_idx in range(0, len(controls), chunk_size):
+        chunk = controls[chunk_idx:chunk_idx + chunk_size]
+        chunk_label = f"{source_label} {chunk_idx // chunk_size + 1}/{(len(controls) + chunk_size - 1) // chunk_size}"
+        ctrl_list = "\n".join([
+            f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+            for c in chunk
+        ])
+        user_content = f"Framework: {fw_name}\nSource: {source_label}\n\n"
+        if chunk_idx == 0:
+            user_content += f"SECURITY DATA:\n{data_summary}\n\n"
+        else:
+            user_content += (
+                f"(Data provided in batch 1. Previous: "
+                f"{len(all_mappings)} mapped, {len(all_risks)} risks.)\n"
+            )
+            if prev_summary:
+                user_content += f"Recent: {prev_summary}\n"
+            user_content += "\n"
+        user_content += f"CONTROLS ({chunk_label}):\n{ctrl_list}"
+
+        try:
+            result = LLMService.chat(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                tenant_id=tenant_id, feature=feature,
+                temperature=0.2, max_tokens=3000,
+            )
+            content = result["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            parsed = None
+            try:
+                parsed = json.loads(content)
+            except (json.JSONDecodeError, ValueError):
+                bs = content.find("{")
+                be = content.rfind("}")
+                if bs >= 0 and be > bs:
+                    try:
+                        parsed = json.loads(content[bs:be + 1])
+                    except Exception:
+                        pass
+            if parsed:
+                new_maps = parsed.get("mappings", [])
+                new_risks = parsed.get("risks", [])
+                all_mappings.extend(new_maps)
+                all_risks.extend(new_risks)
+                rt = [r.get("title", "") for r in new_risks]
+                prev_summary = f"{len(new_maps)} mapped. Risks: {', '.join(rt[:3])}" if rt else ""
+        except Exception as e:
+            logger.warning("LLM chunk %s failed: %s", chunk_label, e)
+
+    return all_mappings, all_risks
+
+
 def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
     """Sync subcontrol.implemented and backfill evidence for all mapped controls."""
     from app.models import ProjectEvidence, EvidenceAssociation
@@ -1528,18 +1625,34 @@ def _compress_for_llm(data: dict) -> str:
         for rec in entra.get("recommendations", [])[:5]:
             lines.append(f"- {rec}")
 
-    # Risk register
+    # Risk profiles summary (if computed)
+    rp = data.get("risk_profiles", {})
+    if rp:
+        summary = rp.get("summary", {})
+        if summary.get("high_risk_users") or summary.get("high_risk_devices"):
+            lines.append(f"\nRISK PROFILE SUMMARY:")
+            lines.append(f"  Users: {summary.get('total_users', 0)} total, {summary.get('high_risk_users', 0)} high-risk (avg score: {summary.get('avg_user_score', 0)})")
+            lines.append(f"  Devices: {summary.get('total_devices', 0)} total, {summary.get('high_risk_devices', 0)} high-risk (avg score: {summary.get('avg_device_score', 0)})")
+            # Top 5 riskiest users
+            for u in rp.get("users", [])[:5]:
+                if u.get("score", 0) >= 50:
+                    lines.append(f"  - HIGH RISK USER: {u.get('display_name', '?')} (score: {u['score']}) — {'; '.join(u.get('risk_factors', [])[:3])}")
+            for d in rp.get("devices", [])[:5]:
+                if d.get("score", 0) >= 50:
+                    lines.append(f"  - HIGH RISK DEVICE: {d.get('name', '?')} (score: {d['score']}) — {'; '.join(d.get('risk_factors', [])[:3])}")
+
+    # Existing risks (from risk register)
     risks = data.get("risk_register", {})
     if risks:
-        lines.append(f"\nExisting Risks ({risks.get('count', 0)}):")
+        lines.append(f"\nEXISTING RISKS ({risks.get('count', 0)}):")
         for r in risks.get("risks", [])[:5]:
             if isinstance(r, dict):
-                lines.append(f"- {r.get('title', 'Unknown')}: {r.get('description', '')[:100]}")
+                lines.append(f"- [{r.get('risk', 'unknown')}] {r.get('title', '?')}: {r.get('description', '')[:80]}")
 
     result = "\n".join(lines)
-    # Hard cap at 4000 chars to stay within token limits
-    if len(result) > 4000:
-        result = result[:4000] + "\n... (data truncated)"
+    # Cap at 8000 chars — chunked calls keep total reasonable
+    if len(result) > 8000:
+        result = result[:8000] + "\n... (data truncated)"
     return result if result.strip() else "No scan data available."
 
 
