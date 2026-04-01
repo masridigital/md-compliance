@@ -769,6 +769,23 @@ def get_integration_data(project_id):
             "items": raw["risk_register"].get("risks", [])[:30],
         }
 
+    # Risk profiles (from cached computation)
+    rp_cached = raw.get("risk_profiles")
+    if not rp_cached:
+        try:
+            from app.models import ConfigStore as _CS2
+            _rec2 = _CS2.find(f"tenant_integration_data_{tenant_id}")
+            if _rec2 and _rec2.value:
+                rp_cached = _json.loads(_rec2.value).get("risk_profiles")
+        except Exception:
+            pass
+    if rp_cached:
+        result["risk_profiles"] = {
+            "summary": rp_cached.get("summary", {}),
+            "users": rp_cached.get("users", [])[:30],
+            "devices": rp_cached.get("devices", [])[:30],
+        }
+
     if raw.get("_cached_at"):
         result["_cached_at"] = raw["_cached_at"]
 
@@ -894,6 +911,16 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
         except Exception as e:
             logger.debug("Microsoft data collection skipped: %s", e)
 
+        # Compute risk profiles from Microsoft data
+        if integration_data.get("microsoft"):
+            try:
+                from app.masri.risk_profiles import compute_risk_profiles
+                profiles = compute_risk_profiles(integration_data["microsoft"])
+                if profiles:
+                    integration_data["risk_profiles"] = profiles
+            except Exception as e:
+                logger.debug("Risk profile computation skipped: %s", e)
+
         # Store raw data at tenant level
         has_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
         if has_data:
@@ -909,6 +936,8 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                     existing["telivy"] = integration_data["telivy"]
                 if integration_data.get("microsoft"):
                     existing["microsoft"] = integration_data["microsoft"]
+                if integration_data.get("risk_profiles"):
+                    existing["risk_profiles"] = integration_data["risk_profiles"]
                 existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
                 ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:100000])
             except Exception:
