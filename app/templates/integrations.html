@@ -488,9 +488,22 @@
                 "><i class="ti ti-wand"></i> Apply Defaults</button>
                 <button class="btn btn-xs btn-primary gap-1" x-data="{ researching: false }" @click="
                   researching = true;
-                  toast('Researching best models across your providers...', 'info');
+                  toast('Checking for recommendations...', 'info');
                   fetch('/api/v1/settings/llm/recommendations/refresh', { method: 'POST' })
-                    .then(() => {
+                    .then(r => r.json())
+                    .then(refreshData => {
+                      // If skipped (< 48h old), apply cached results immediately
+                      if (refreshData.skipped && refreshData.recommendations) {
+                        researching = false;
+                        llmTierConfig = {};
+                        for (const [tid, rec] of Object.entries(refreshData.recommendations)) {
+                          llmTierConfig[tid] = { provider: rec.provider, model: rec.model };
+                        }
+                        const picks = Object.entries(refreshData.recommendations).map(([t,r]) => t + ': ' + (r.provider||'?').replace('_',' ') + '/' + (r.model||'default').split('/').pop()).join(', ');
+                        toast('Applied recent AI picks (' + (refreshData.generated_at||'').split('T')[0] + '): ' + picks, 'success');
+                        return;
+                      }
+                      toast('Researching best models...', 'info');
                       // Poll for results every 3s (max 60s)
                       let polls = 0;
                       const pid = setInterval(() => {

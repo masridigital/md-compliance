@@ -1408,8 +1408,33 @@ def get_model_recommendations():
 @limiter.limit("3 per minute")
 @login_required
 def refresh_model_recommendations_endpoint():
-    """POST /api/v1/settings/llm/recommendations/refresh — trigger fresh analysis."""
+    """POST /api/v1/settings/llm/recommendations/refresh — trigger fresh analysis.
+
+    If recommendations were generated within the last 48 hours, returns the
+    existing ones instead of re-running the research.
+    """
     _require_admin()
+    import json as _json
+    from datetime import datetime, timedelta
+
+    # Check if fresh recommendations already exist (< 48 hours old)
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find("llm_model_recommendations")
+        if record and record.value:
+            existing = _json.loads(record.value)
+            generated_at = existing.get("generated_at")
+            if generated_at:
+                gen_dt = datetime.fromisoformat(generated_at)
+                if datetime.utcnow() - gen_dt < timedelta(hours=48):
+                    return jsonify({
+                        "message": "Recent recommendations available (less than 48h old). Using cached results.",
+                        "skipped": True,
+                        **existing,
+                    })
+    except Exception:
+        pass
+
     import threading
     from flask import current_app
     app = current_app._get_current_object()
