@@ -1451,9 +1451,6 @@ def refresh_model_recommendations_endpoint():
     return jsonify({"message": "Recommendation refresh started in background."})
 
 
-@settings_bp.route("/system-logs", methods=["GET"])
-@limiter.limit("30 per minute")
-@login_required
 @settings_bp.route("/storage-overview", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
