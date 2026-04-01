@@ -214,9 +214,22 @@ def wisp_export_pdf(wisp_id):
     exporter = WISPExporter(wisp, branding)
     result_path = exporter.export_pdf(output_path)
 
-    # Store path on the document
+    # Store in configured storage provider (role: reports)
+    try:
+        from app.masri.storage_router import store_file
+        with open(result_path, "rb") as f:
+            store_result = store_file(
+                file_data=f.read(),
+                file_name=filename,
+                folder=f"reports/wisp/{wisp.tenant_id or 'platform'}",
+                role="reports",
+                tenant_id=wisp.tenant_id,
+            )
+        wisp.pdf_path = store_result.get("path", result_path)
+    except Exception:
+        wisp.pdf_path = result_path
+
     from app import db
-    wisp.pdf_path = result_path
     db.session.commit()
 
     return send_file(

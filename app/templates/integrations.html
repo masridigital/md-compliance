@@ -843,6 +843,34 @@
                 <p class="opacity-50 mt-1">Auto-created per client & project. Per-client overrides in Client → Settings.</p>
               </div>
 
+              <!-- Role Assignment -->
+              <div class="divider text-xs">Storage Routing</div>
+              <p class="text-xs opacity-50 mb-2">Assign which provider handles each file type. If not set, uses the default provider (or local).</p>
+              <div class="space-y-2" x-data="{ roles: { evidence: 'local', reports: 'local', backups: 'local' }, rolesLoaded: false }"
+                   x-init="fetch('/api/v1/settings/storage/roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; rolesLoaded = true; }).catch(() => { rolesLoaded = true; })">
+                <template x-for="role in ['evidence', 'reports', 'backups']" :key="role">
+                  <div class="flex items-center gap-2 bg-base-300 rounded p-2">
+                    <span class="text-xs font-semibold w-20 capitalize" x-text="role"></span>
+                    <select class="select select-bordered select-xs flex-1"
+                            :value="roles[role] || 'local'"
+                            @change="roles[role] = $event.target.value">
+                      <option value="local">Local Filesystem</option>
+                      <option value="s3">Amazon S3</option>
+                      <option value="azure_blob">Azure Blob</option>
+                      <option value="sharepoint">SharePoint</option>
+                      <option value="egnyte">Egnyte</option>
+                    </select>
+                  </div>
+                </template>
+                <button class="btn btn-xs btn-primary gap-1" @click="
+                  fetch('/api/v1/settings/storage/roles', {
+                    method: 'PUT', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(roles)
+                  }).then(r => r.json()).then(d => toast(d.message || 'Saved', 'success'))
+                    .catch(() => toast('Failed to save', 'error'));
+                "><i class="ti ti-device-floppy"></i> Save Routing</button>
+              </div>
+
               <div class="divider text-xs">Reset</div>
               <div class="flex gap-2">
                 <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('storage/' + activeStorageProvider, activeStorageProvider + ' storage')">

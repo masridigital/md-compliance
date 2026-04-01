@@ -1604,12 +1604,6 @@ class ProjectEvidence(db.Model, QueryMixin):
         if self.file_name and not overwrite:
             abort(500, "File already exists for the evidence")
 
-        if not provider:
-            provider = current_app.config["STORAGE_METHOD"]
-
-        if provider not in current_app.config["STORAGE_PROVIDERS"]:
-            abort(500, f"Invalid storage provider: {str(provider)}")
-
         if not file_name:
             file_name = file_object.filename
 
@@ -1626,16 +1620,41 @@ class ProjectEvidence(db.Model, QueryMixin):
         if ext not in allowed_extensions:
             abort(400, f"File type '{ext}' is not allowed. Permitted: {', '.join(sorted(allowed_extensions))}")
 
+        # Try the new storage router first (uses configured provider for "evidence" role)
+        try:
+            from app.masri.storage_router import store_file
+            folder = f"projects/{self.project_id}"
+            tenant_id = self.tenant_id or (self.project.tenant_id if self.project else None)
+            result = store_file(
+                file_data=file_object,
+                file_name=file_name,
+                folder=folder,
+                role="evidence",
+                tenant_id=tenant_id,
+            )
+            self.file_name = file_name
+            self.file_provider = result.get("provider", "local")
+            db.session.commit()
+            return True
+        except Exception as e:
+            # Fall back to legacy FileStorageHandler
+            import logging
+            logging.getLogger(__name__).debug("Storage router failed, using legacy handler: %s", e)
+
+        # Legacy path — direct FileStorageHandler
+        if not provider:
+            provider = current_app.config["STORAGE_METHOD"]
+
+        if provider not in current_app.config["STORAGE_PROVIDERS"]:
+            abort(500, "Invalid storage provider")
+
         self.file_name = file_name
         self.file_provider = provider
 
         if not self.project.tenant.can_save_file_in_folder(provider=provider):
             abort(400, "Tenant has exceeded storage limits")
 
-        file_handler = FileStorageHandler(
-            provider=provider,
-        )
-        # TODO - create does_file_exist method in FileStorageHandler class
+        file_handler = FileStorageHandler(provider=provider)
         try:
             does_file_exist = file_handler.get_file(
                 path=os.path.join(
@@ -1647,13 +1666,9 @@ class ProjectEvidence(db.Model, QueryMixin):
             does_file_exist = False
 
         if does_file_exist:
-            abort(
-                422,
-                f"File already exists with the name:{file_name} in {provider} storage.",
-            )
+            abort(422, f"File already exists with the name: {file_name}")
 
         if provider == "local":
-            # TODO - push logic to FileStorageHandler
             self.project.create_evidence_folder()
 
         upload_params = {
@@ -1663,13 +1678,12 @@ class ProjectEvidence(db.Model, QueryMixin):
                 project_id=self.project_id, provider=provider
             ),
         }
-        # TODO - fix the response, upload_file does not return false
         result = file_handler.upload_file(**upload_params)
         if result is False:
             self.file_name = None
             self.file_provider = None
             db.session.commit()
-            abort(500, f"Unable to upload {file_name} to {provider}")
+            abort(500, "Unable to upload file")
         return True
 
 

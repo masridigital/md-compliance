@@ -77,6 +77,11 @@ class MasriScheduler:
             interval_seconds=604800,  # 7 days
             func=self._task_model_recommendations,
         )
+        self._schedule_recurring(
+            name="integration_data_backup",
+            interval_seconds=86400,  # 24 hours
+            func=self._task_backup_integration_data,
+        )
 
         logger.info("Masri scheduler started with %d tasks", len(self._timers))
 
@@ -357,6 +362,44 @@ class MasriScheduler:
             except Exception:
                 logger.exception("Auto-update task failed")
 
+
+    def _task_backup_integration_data(self):
+        """Daily: backup all tenant integration data to configured storage provider."""
+        if not self._app:
+            return
+        with self._app.app_context():
+            try:
+                import json
+                from app import db
+                from app.models import ConfigStore, Tenant
+
+                tenants = db.session.execute(db.select(Tenant)).scalars().all()
+                backed_up = 0
+                for tenant in tenants:
+                    try:
+                        record = ConfigStore.find(f"tenant_integration_data_{tenant.id}")
+                        if not record or not record.value:
+                            continue
+                        # Store backup via storage router
+                        try:
+                            from app.masri.storage_router import store_file
+                            backup_name = f"integration_backup_{tenant.id}_{datetime.utcnow().strftime('%Y%m%d')}.json"
+                            store_file(
+                                file_data=record.value.encode("utf-8"),
+                                file_name=backup_name,
+                                folder=f"backups/integration/{tenant.id}",
+                                role="backups",
+                                tenant_id=tenant.id,
+                            )
+                            backed_up += 1
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                if backed_up:
+                    logger.info("Integration data backed up for %d tenant(s)", backed_up)
+            except Exception:
+                logger.exception("Integration data backup failed")
 
     def _task_model_recommendations(self):
         """Weekly: research and update AI model recommendations for each tier."""
