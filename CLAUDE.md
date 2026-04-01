@@ -155,17 +155,32 @@ Register an Azure AD App with these **Application** permissions (not Delegated):
 - **Context-specific**: MFA findings add Entra ID exhibit, encryption findings add BitLocker exhibit
 - **Fully editable**: Users modify description, add/remove exhibits, upload supporting documents
 
-### LLM Prompt Pattern for Control Mapping
-```
-System: Expert compliance analyst for {framework_name}
-- MUST respond with ONLY valid JSON
-- MAP findings to controls with project_control_id
-- CREATE risks with affected assets, IPs, users, remediation steps
-- Include specific details from scan data
+### 3-Phase LLM Analysis Pipeline
+The auto-process runs 3 independent LLM phases per project, each with its own strategic prompt:
 
-User: Framework + scan results (compressed) + control list (chunked)
+**Phase 1 — Telivy Analysis** (external vulnerabilities):
+- Prompt: external vulnerability analyst role
+- Data: Telivy-only compressed findings (network, DNS, email, SSL, web, breach)
+- Focus: map external scan findings to compliance controls
 
-Response: {"mappings": [...], "risks": [...]}
+**Phase 2 — Microsoft Analysis** (internal security posture):
+- Prompt: Microsoft 365 security analyst role
+- Data: Microsoft-only compressed data + risk profiles
+- Focus: Secure Score gaps, Defender alerts, device compliance, MFA, risky users
+- Instructs LLM to cite specific user/device names from the data
+
+**Phase 3 — Cross-source Correlation** (only if both sources available):
+- Prompt: cross-source analyst role
+- Only analyzes controls NOT already mapped as non_compliant
+- Correlates: email (Telivy SPF + MS Exchange), auth (breach + MFA), encryption (SSL + BitLocker), access (ports + CA policies)
+- References data from BOTH sources in notes
+
+Each phase uses `_run_chunked_llm()` helper: 10 controls per chunk, context passing between chunks.
+
+**JSON Response Format:**
+```json
+{"mappings": [{"project_control_id": "ID", "notes": "specific finding", "status": "compliant|partial|non_compliant"}],
+ "risks": [{"title": "risk", "description": "What + Who + Why + Fix", "severity": "critical|high|medium|low"}]}
 ```
 
 ## File Structure (Key Files)
