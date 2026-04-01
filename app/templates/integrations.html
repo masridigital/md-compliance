@@ -378,10 +378,9 @@
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
                   <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key"
-                         @blur="if (llmForm.api_key) { saveLlmSlot(); setTimeout(() => testSingleLlmProvider(llmForm.provider), 1000); }" />
+                         @blur="if (llmForm.api_key) { saveLlmSlot(); testSingleLlmProvider(llmForm.provider); fetchLlmModels(); }" />
                   <div class="flex gap-1">
                     <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name"
-                            @mousedown="if (llmModels.length === 0 && !llmModelsFetching) fetchLlmModels()"
                             @change="saveLlmSlot()">
                       <option value="">Select model...</option>
                       <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
@@ -428,7 +427,15 @@
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
                        x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="API key" x-model="newKey"
-                           @blur="if (newKey) { saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey }); setTimeout(() => { testSingleLlmProvider(p.provider); loadTierModels && loadTierModels(Object.keys(llmTierConfig).find(t => llmTierConfig[t]?.provider === p.provider)); }, 1000); newKey = ''; toast('Key saved', 'success'); }">
+                           @blur="if (newKey) {
+                             saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey });
+                             const savedKey = newKey; newKey = ''; toast('Key saved', 'success');
+                             setTimeout(() => {
+                               testSingleLlmProvider(p.provider);
+                               fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) })
+                                 .then(r=>r.json()).then(d=>{ secModels = d.models||[]; }).catch(()=>{});
+                             }, 500);
+                           }">
                     <div class="flex gap-1">
                       <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
                               @mousedown="if (!secModels.length) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }"
