@@ -362,83 +362,86 @@
         <template x-if="selected.id === 'llm_unified'">
           <div x-data="{ addingProvider: false, newProvider: { key: '', provider: '', api_key: '', model_name: '' } }">
 
-            <!-- ── Providers (compact) ── -->
-            <div class="flex items-center justify-between mb-2">
-              <h4 class="font-semibold text-xs">Providers</h4>
-              <button class="btn btn-xs btn-ghost gap-1" @click="addingProvider = !addingProvider"><i class="ti ti-plus"></i></button>
-            </div>
-
-            <!-- Primary — collapsed by default, expand to edit -->
-            <div class="bg-base-300 rounded p-2 mb-1" x-data="{ editing: false }">
-              <div class="flex items-center justify-between cursor-pointer" @click="editing = !editing">
-                <div class="flex items-center gap-1">
-                  <span class="badge badge-xs badge-primary">1</span>
-                  <span class="text-xs font-semibold capitalize" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not set'"></span>
-                  <span class="text-[10px] opacity-40" x-text="llmForm.model_name || ''"></span>
+            <!-- ── Providers ── -->
+            <div class="space-y-1 mb-3">
+              <!-- Primary provider row -->
+              <div class="bg-base-300 rounded p-2" x-data="{ editing: false }">
+                <div class="flex items-center justify-between cursor-pointer" @click="editing = !editing">
+                  <div class="flex items-center gap-2">
+                    <i class="ti ti-brand-openai text-sm opacity-60" x-show="llmForm.provider === 'openai'"></i>
+                    <i class="ti ti-brain text-sm opacity-60" x-show="llmForm.provider === 'anthropic'"></i>
+                    <i class="ti ti-cpu text-sm opacity-60" x-show="llmForm.provider === 'together_ai'"></i>
+                    <i class="ti ti-cloud text-sm opacity-60" x-show="llmForm.provider === 'azure_openai'"></i>
+                    <span class="text-xs font-semibold capitalize" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-[10px] opacity-40" x-text="llmForm.model_name || ''"></span>
+                    <span x-show="llmForm.has_api_key" class="w-2 h-2 rounded-full bg-success inline-block"></span>
+                    <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-settings'"></i>
+                  </div>
                 </div>
-                <div class="flex items-center gap-1">
-                  <span x-show="llmForm.has_api_key" class="badge badge-xs badge-success">key</span>
-                  <i class="ti text-xs" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
+                  <div class="grid grid-cols-2 gap-1">
+                    <select class="select select-bordered select-xs" x-model="llmForm.provider">
+                      <option value="">Provider...</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="azure_openai">Azure OpenAI</option>
+                      <option value="together_ai">Together AI</option>
+                    </select>
+                    <input type="password" class="input input-bordered input-xs" x-model="llmForm.api_key" placeholder="API key" />
+                  </div>
+                  <div class="flex gap-1">
+                    <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name">
+                      <option value="">Model...</option>
+                      <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
+                    </select>
+                    <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name" />
+                    <button class="btn btn-ghost btn-xs btn-square" @click="fetchLlmModels()" :disabled="llmModelsFetching">
+                      <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
+                      <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
+                    </button>
+                  </div>
+                  <template x-if="llmForm.provider === 'azure_openai'">
+                    <div class="grid grid-cols-2 gap-1">
+                      <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_endpoint" placeholder="Endpoint" />
+                      <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" />
+                    </div>
+                  </template>
                 </div>
               </div>
-              <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
-                <div class="grid grid-cols-2 gap-1">
-                  <select class="select select-bordered select-xs" x-model="llmForm.provider">
-                    <option value="">Provider...</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="azure_openai">Azure OpenAI</option>
+
+              <!-- Additional providers -->
+              <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
+                <div class="bg-base-300 rounded p-2 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <i class="ti ti-brain text-sm opacity-60"></i>
+                    <span class="text-xs font-semibold capitalize" x-text="p.provider.replace('_', ' ')"></span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span x-show="p.has_key" class="w-2 h-2 rounded-full bg-success inline-block"></span>
+                    <button class="btn btn-xs btn-ghost btn-square opacity-40 hover:opacity-100" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Add provider -->
+              <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1 w-full justify-start opacity-60" @click="addingProvider = true"><i class="ti ti-plus"></i> Add provider</button>
+              <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 space-y-1">
+                <div class="grid grid-cols-3 gap-1">
+                  <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
+                    <option value="">Provider</option>
                     <option value="together_ai">Together AI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="azure_openai">Azure</option>
                   </select>
-                  <input type="password" class="input input-bordered input-xs" x-model="llmForm.api_key" placeholder="API key" />
+                  <input type="password" class="input input-bordered input-xs col-span-2" placeholder="API Key" x-model="newProvider.api_key">
                 </div>
                 <div class="flex gap-1">
-                  <select x-show="llmModels.length > 0" class="select select-bordered select-xs flex-1" x-model="llmForm.model_name">
-                    <option value="">Model...</option>
-                    <template x-for="m in llmModels" :key="m"><option :value="m" x-text="m" :selected="m === llmForm.model_name"></option></template>
-                  </select>
-                  <input x-show="llmModels.length === 0" type="text" class="input input-bordered input-xs flex-1" x-model="llmForm.model_name" placeholder="Model name" />
-                  <button class="btn btn-ghost btn-xs btn-square" @click="fetchLlmModels()" :disabled="llmModelsFetching">
-                    <span class="loading loading-spinner loading-xs" x-show="llmModelsFetching"></span>
-                    <i class="ti ti-refresh" x-show="!llmModelsFetching"></i>
-                  </button>
+                  <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }; loadLlmProviders();">Add</button>
+                  <button class="btn btn-xs btn-ghost" @click="addingProvider = false">Cancel</button>
                 </div>
-                <template x-if="llmForm.provider === 'azure_openai'">
-                  <div class="grid grid-cols-2 gap-1">
-                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_endpoint" placeholder="Endpoint" />
-                    <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" />
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <!-- Secondary providers -->
-            <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
-              <div class="bg-base-300 rounded p-2 mb-1 flex items-center justify-between">
-                <div class="flex items-center gap-1">
-                  <span class="badge badge-xs badge-ghost">2</span>
-                  <span class="text-xs font-semibold capitalize" x-text="p.provider.replace('_', ' ')"></span>
-                  <span class="badge badge-xs badge-success" x-show="p.has_key">key</span>
-                </div>
-                <button class="btn btn-xs btn-ghost btn-error btn-square" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-trash text-xs"></i></button>
-              </div>
-            </template>
-
-            <!-- Add provider (inline) -->
-            <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 mb-2 space-y-1">
-              <div class="grid grid-cols-3 gap-1">
-                <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
-                  <option value="">Provider</option>
-                  <option value="together_ai">Together AI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="azure_openai">Azure</option>
-                </select>
-                <input type="password" class="input input-bordered input-xs col-span-2" placeholder="API Key" x-model="newProvider.api_key">
-              </div>
-              <div class="flex gap-1">
-                <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }; loadLlmProviders();">Add</button>
-                <button class="btn btn-xs btn-ghost" @click="addingProvider = false">Cancel</button>
               </div>
             </div>
 
