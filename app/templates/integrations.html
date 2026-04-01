@@ -486,7 +486,7 @@
                                 x-model="llmTierConfig[tier.id].model"
                                 x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }"
                                 @mousedown="if (getModelsForTier(tier.id).length === 0 && !llmModelsFetching) fetchLlmModels()">
-                          <option value="">Default</option>
+                          <option value="">Select model...</option>
                           <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
                             <option :value="m" x-text="m"></option>
                           </template>
