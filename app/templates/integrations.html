@@ -362,23 +362,39 @@
         <template x-if="selected.id === 'llm_unified'">
           <div x-data="{ addingProvider: false, newProvider: { key: '', provider: '', api_key: '', model_name: '' } }">
 
-            <!-- ── Providers ── -->
-            <div class="space-y-1 mb-3">
-              <!-- Primary provider row -->
+            <!-- ── Providers (unified rows) ── -->
+            <div class="space-y-1 mb-3" x-data="{ llmStatuses: {}, testOutput: '' }"
+                 x-init="
+                   // Test all providers on load
+                   setTimeout(async () => {
+                     try {
+                       const r = await fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+                       llmStatuses[llmForm.provider] = r.ok ? 'ok' : 'fail';
+                     } catch(e) { llmStatuses[llmForm.provider] = 'fail'; }
+                     for (const p of llmProvidersList.filter(p => !p.is_primary && p.has_key)) {
+                       try {
+                         const r = await fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) });
+                         llmStatuses[p.provider] = r.ok ? 'ok' : 'fail';
+                       } catch(e) { llmStatuses[p.provider] = 'fail'; }
+                     }
+                   }, 500);
+                 ">
+
+              <!-- All providers as identical rows -->
               <div class="bg-base-300 rounded p-2" x-data="{ editing: false }">
-                <div class="flex items-center justify-between cursor-pointer" @click="editing = !editing">
-                  <div class="flex items-center gap-2">
-                    <i class="ti ti-brand-openai text-sm opacity-60" x-show="llmForm.provider === 'openai'"></i>
-                    <i class="ti ti-brain text-sm opacity-60" x-show="llmForm.provider === 'anthropic'"></i>
-                    <i class="ti ti-cpu text-sm opacity-60" x-show="llmForm.provider === 'together_ai'"></i>
-                    <i class="ti ti-cloud text-sm opacity-60" x-show="llmForm.provider === 'azure_openai'"></i>
-                    <span class="text-xs font-semibold capitalize" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-[10px] opacity-40" x-text="llmForm.model_name || ''"></span>
-                    <span x-show="llmForm.has_api_key" class="w-2 h-2 rounded-full bg-success inline-block"></span>
-                    <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-settings'"></i>
-                  </div>
+                <div class="flex items-center h-7">
+                  <span class="text-xs font-semibold capitalize flex-1" x-text="llmForm.provider ? llmForm.provider.replace('_', ' ') : 'Not configured'"></span>
+                  <span class="text-[10px] opacity-40 mr-2" x-text="llmForm.model_name || ''"></span>
+                  <button class="w-3 h-3 rounded-full border-0 mr-1 cursor-pointer shrink-0"
+                          :class="llmStatuses[llmForm.provider] === 'ok' ? 'bg-success' : llmStatuses[llmForm.provider] === 'fail' ? 'bg-error' : 'bg-base-content/20'"
+                          @click="
+                            llmStatuses[llmForm.provider] = 'testing';
+                            testOutput = 'Testing ' + llmForm.provider + '...';
+                            fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) })
+                              .then(r => r.json().then(d => { llmStatuses[llmForm.provider] = r.ok ? 'ok' : 'fail'; testOutput = d.message || d.error || 'Done'; }))
+                              .catch(e => { llmStatuses[llmForm.provider] = 'fail'; testOutput = 'Connection failed'; });
+                          " title="Test connection"></button>
+                  <button class="btn btn-xs btn-ghost btn-square opacity-40" @click="editing = !editing"><i class="ti text-xs" :class="editing ? 'ti-chevron-up' : 'ti-settings'"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
                   <div class="grid grid-cols-2 gap-1">
@@ -411,30 +427,38 @@
                 </div>
               </div>
 
-              <!-- Additional providers -->
               <template x-for="p in llmProvidersList.filter(p => !p.is_primary)" :key="p.key">
-                <div class="bg-base-300 rounded p-2 flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <i class="ti ti-brain text-sm opacity-60"></i>
-                    <span class="text-xs font-semibold capitalize" x-text="p.provider.replace('_', ' ')"></span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span x-show="p.has_key" class="w-2 h-2 rounded-full bg-success inline-block"></span>
+                <div class="bg-base-300 rounded p-2">
+                  <div class="flex items-center h-7">
+                    <span class="text-xs font-semibold capitalize flex-1" x-text="p.provider.replace('_', ' ')"></span>
+                    <button class="w-3 h-3 rounded-full border-0 mr-1 cursor-pointer shrink-0"
+                            :class="llmStatuses[p.provider] === 'ok' ? 'bg-success' : llmStatuses[p.provider] === 'fail' ? 'bg-error' : 'bg-base-content/20'"
+                            @click="
+                              llmStatuses[p.provider] = 'testing';
+                              testOutput = 'Testing ' + p.provider + '...';
+                              fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) })
+                                .then(r => r.json().then(d => { llmStatuses[p.provider] = r.ok ? 'ok' : 'fail'; testOutput = d.message || d.error || 'Done'; }))
+                                .catch(e => { llmStatuses[p.provider] = 'fail'; testOutput = 'Connection failed'; });
+                            " title="Test connection"></button>
                     <button class="btn btn-xs btn-ghost btn-square opacity-40 hover:opacity-100" @click="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
                 </div>
               </template>
 
-              <!-- Add provider -->
-              <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1 w-full justify-start opacity-60" @click="addingProvider = true"><i class="ti ti-plus"></i> Add provider</button>
+              <!-- Test output -->
+              <div x-show="testOutput" class="text-[10px] px-2 py-1 rounded" :class="testOutput.includes('fail') || testOutput.includes('error') ? 'text-error' : 'text-success'" x-text="testOutput"></div>
+
+              <!-- Add provider (prevent duplicates) -->
+              <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1 w-full justify-start opacity-50" @click="addingProvider = true"><i class="ti ti-plus"></i> Add provider</button>
               <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 space-y-1">
                 <div class="grid grid-cols-3 gap-1">
                   <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
                     <option value="">Provider</option>
-                    <option value="together_ai">Together AI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="azure_openai">Azure</option>
+                    <template x-for="prov in ['together_ai','anthropic','openai','azure_openai'].filter(
+                      pr => pr !== llmForm.provider && !llmProvidersList.some(x => !x.is_primary && x.provider === pr)
+                    )" :key="prov">
+                      <option :value="prov" x-text="prov.replace('_',' ').replace(/\b\w/g,l=>l.toUpperCase())"></option>
+                    </template>
                   </select>
                   <input type="password" class="input input-bordered input-xs col-span-2" placeholder="API Key" x-model="newProvider.api_key">
                 </div>
@@ -464,8 +488,8 @@
                       </td>
                       <td class="py-1">
                         <select class="select select-bordered select-xs w-24"
-                                @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].provider = $event.target.value"
-                                :value="llmTierConfig[tier.id]?.provider || ''">
+                                x-model="llmTierConfig[tier.id].provider"
+                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
                           <option value="">Primary</option>
                           <option value="together_ai">Together</option>
                           <option value="anthropic">Anthropic</option>
@@ -475,8 +499,8 @@
                       </td>
                       <td class="py-1">
                         <select class="select select-bordered select-xs w-full"
-                                @change="llmTierConfig[tier.id] = llmTierConfig[tier.id] || {}; llmTierConfig[tier.id].model = $event.target.value"
-                                :value="llmTierConfig[tier.id]?.model || ''">
+                                x-model="llmTierConfig[tier.id].model"
+                                x-init="if(!llmTierConfig[tier.id]) llmTierConfig[tier.id] = { provider: '', model: '' }">
                           <option value="">Default</option>
                           <template x-for="m in getModelsForTier(tier.id)" :key="'t-'+tier.id+'-'+m">
                             <option :value="m" x-text="m"></option>
@@ -1765,10 +1789,17 @@ function integrationsHub() {
 
     getModelsForTier(tierId) {
       const tierProvider = this.llmTierConfig[tierId]?.provider;
-      if (tierProvider && this.llmModelsByProvider[tierProvider]) {
+      // Empty or "Primary" → use primary provider's models
+      if (!tierProvider) return this.llmModels;
+      // Check if we have models for this specific provider
+      if (this.llmModelsByProvider[tierProvider]?.length) {
         return this.llmModelsByProvider[tierProvider];
       }
-      return this.llmModels; // fallback to primary
+      // Also try the primary models (same provider selected)
+      if (tierProvider === this.llmForm.provider) return this.llmModels;
+      // No models loaded for this provider yet — return empty
+      // (user needs to click refresh to load all provider models)
+      return [];
     },
 
     // ── Telivy Status ──
