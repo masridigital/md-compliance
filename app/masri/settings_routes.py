@@ -1464,11 +1464,11 @@ def get_storage_status_endpoint():
     return jsonify(get_storage_status())
 
 
-@settings_bp.route("/storage/roles", methods=["GET"])
+@settings_bp.route("/storage-roles", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
 def get_storage_roles():
-    """GET /api/v1/settings/storage/roles — role-to-provider assignments."""
+    """GET /api/v1/settings/storage-roles — role-to-provider assignments."""
     _require_admin()
     from app.masri.storage_router import _get_role_config
     config = _get_role_config()
@@ -1480,11 +1480,11 @@ def get_storage_roles():
     })
 
 
-@settings_bp.route("/storage/roles", methods=["PUT"])
+@settings_bp.route("/storage-roles", methods=["PUT"])
 @limiter.limit("10 per minute")
 @login_required
 def set_storage_roles():
-    """PUT /api/v1/settings/storage/roles — assign providers to roles.
+    """PUT /api/v1/settings/storage-roles — assign providers to roles.
 
     Body: { "evidence": "s3", "reports": "azure_blob", "backups": "s3", "default": "local" }
     """

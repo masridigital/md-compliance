@@ -355,9 +355,11 @@ Routes file operations to the correct provider based on role assignments.
 **Providers:** Local, S3, Azure Blob, SharePoint, Egnyte (all in `storage_providers.py`)
 
 **API endpoints:**
-- `GET /api/v1/settings/storage/status` — overview of all configured providers + role assignments
-- `GET /api/v1/settings/storage/roles` — current role → provider mapping
-- `PUT /api/v1/settings/storage/roles` — assign providers to roles
+- `GET /api/v1/settings/storage-overview` — overview of all configured providers + role assignments
+- `GET /api/v1/settings/storage-roles` — current role → provider mapping
+- `PUT /api/v1/settings/storage-roles` — assign providers to roles
+
+**IMPORTANT**: Storage sub-routes MUST NOT use `/storage/X` pattern because `/storage/<string:provider>` catches everything. Use `/storage-X` (hyphenated) instead.
 
 **Usage:**
 ```python

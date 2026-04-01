@@ -847,7 +847,7 @@
               <div class="divider text-xs">Storage Routing</div>
               <p class="text-xs opacity-50 mb-2">Assign which provider handles each file type. If not set, uses the default provider (or local).</p>
               <div class="space-y-2" x-data="{ roles: { evidence: 'local', reports: 'local', backups: 'local' }, rolesLoaded: false }"
-                   x-init="fetch('/api/v1/settings/storage/roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; rolesLoaded = true; }).catch(() => { rolesLoaded = true; })">
+                   x-init="fetch('/api/v1/settings/storage-roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; rolesLoaded = true; }).catch(() => { rolesLoaded = true; })">
                 <template x-for="role in ['evidence', 'reports', 'backups']" :key="role">
                   <div class="flex items-center gap-2 bg-base-300 rounded p-2">
                     <span class="text-xs font-semibold w-20 capitalize" x-text="role"></span>
@@ -863,7 +863,7 @@
                   </div>
                 </template>
                 <button class="btn btn-xs btn-primary gap-1" @click="
-                  fetch('/api/v1/settings/storage/roles', {
+                  fetch('/api/v1/settings/storage-roles', {
                     method: 'PUT', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(roles)
                   }).then(r => r.json()).then(d => toast(d.message || 'Saved', 'success'))
