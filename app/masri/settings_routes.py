@@ -785,28 +785,36 @@ def test_llm_connection():
             except Exception as e:
                 logger.debug("Additional provider key lookup failed for %s: %s", provider, e)
 
-        # Second try: primary provider config
+        # Second try: primary provider config (only if same provider or no provider specified)
         if not api_key:
             try:
                 llm = SettingsService.get_active_llm_config()
                 if llm:
-                    api_key = llm.get_api_key() or ""
-                    if not provider:
-                        provider = llm.provider
+                    if not provider or provider == llm.provider:
+                        api_key = llm.get_api_key() or ""
+                        if not provider:
+                            provider = llm.provider
             except Exception:
                 pass
 
-    if not api_key:
-        return jsonify({"error": "No API key saved. Enter an API key and save first."}), 400
     if not provider:
         return jsonify({"error": "No provider selected."}), 400
+    if not api_key:
+        return jsonify({"error": f"No API key found for {provider}. Save a key first."}), 400
 
     try:
         models = _fetch_models_for_provider(provider, api_key)
         return jsonify({"message": f"Connected! {len(models)} models available.", "provider": provider, "model_count": len(models)})
     except Exception as e:
         logger.warning("LLM connection test failed for %s: %s", provider, e)
-        return jsonify({"error": "Connection failed. Check your API key and try again."}), 502
+        # Give a more specific error hint
+        err_str = str(e).lower()
+        if "401" in err_str or "auth" in err_str or "invalid" in err_str:
+            return jsonify({"error": "Authentication failed. Check your API key."}), 502
+        elif "timeout" in err_str:
+            return jsonify({"error": f"Connection timed out for {provider}. Try again."}), 502
+        else:
+            return jsonify({"error": f"Connection failed for {provider}. Check API key and try again."}), 502
 
 
 def _quick_test_provider(provider, api_key):
@@ -876,9 +884,10 @@ def fetch_llm_models():
                 from app.masri.new_models import SettingsLLM
                 llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
                 if llm:
-                    api_key = llm.get_api_key() or ""
-                    if not provider:
-                        provider = llm.provider
+                    if not provider or provider == llm.provider:
+                        api_key = llm.get_api_key() or ""
+                        if not provider:
+                            provider = llm.provider
             except Exception:
                 pass
 
