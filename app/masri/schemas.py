@@ -138,22 +138,18 @@ class CheckRemindersSchema(Schema):
 # ===========================================================================
 
 class PlatformSettingsUpdateSchema(Schema):
-    """Platform settings — whitelisted fields only."""
+    """Platform settings — accepts any fields, service layer whitelists."""
     class Meta:
-        unknown = EXCLUDE
-    # Accept any string field — the service layer does the actual whitelist check
-    # via PlatformSettings.ALLOWED_FIELDS. Schema rejects non-string values.
+        unknown = INCLUDE
+    # Service layer filters via PlatformSettings.ALLOWED_FIELDS
+    # Schema allows all because field names are dynamic per platform
 
 
 class TenantBrandingUpdateSchema(Schema):
-    """Tenant branding — whitelisted fields only."""
+    """Tenant branding — accepts any fields, service layer whitelists."""
     class Meta:
-        unknown = EXCLUDE
-    tenant_id = fields.Str(load_default=None)
-    app_name = fields.Str(load_default=None)
-    logo_url = fields.Str(load_default=None)
-    primary_color = fields.Str(load_default=None)
-    support_email = fields.Str(load_default=None)
+        unknown = INCLUDE
+    # Branding fields are dynamic per tenant
 
 
 class LLMConfigUpdateSchema(Schema):

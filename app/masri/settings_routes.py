@@ -1454,11 +1454,11 @@ def refresh_model_recommendations_endpoint():
 @settings_bp.route("/system-logs", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
-@settings_bp.route("/storage/status", methods=["GET"])
+@settings_bp.route("/storage-overview", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
 def get_storage_status_endpoint():
-    """GET /api/v1/settings/storage/status — storage configuration overview."""
+    """GET /api/v1/settings/storage-overview — storage configuration overview."""
     _require_admin()
     from app.masri.storage_router import get_storage_status
     return jsonify(get_storage_status())
