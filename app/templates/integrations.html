@@ -837,122 +837,130 @@
           </div>
         </template>
 
-        <!-- ═══════ Storage Config (Unified with provider tabs) ═══════ -->
+        <!-- ═══════ Storage Config (LLM-style layout) ═══════ -->
         <template x-if="selected.id === 'storage_unified'">
           <div>
-            <!-- Provider Tabs -->
-            <div role="tablist" class="tabs tabs-bordered mb-4">
-              <template x-for="sp in storageProviders" :key="'stab-'+sp.id">
-                <button role="tab" class="tab tab-sm" :class="{'tab-active': activeStorageProvider === sp.id}" @click="activeStorageProvider = sp.id; loadStorageProvider(sp.id)">
-                  <span x-text="sp.label"></span>
-                  <span class="status-dot ml-1" :class="storageProviderStatus[sp.id] ? 'green' : 'gray'" style="width:6px;height:6px;"></span>
-                </button>
+            <!-- ── Connected Providers ── -->
+            <div class="space-y-1 mb-3">
+              <template x-for="sp in storageProviders" :key="'sp-'+sp.id">
+                <div class="bg-base-300 rounded p-2" x-data="{ editing: false }">
+                  <div class="flex items-center h-8 gap-2 cursor-pointer select-none" @click="editing = !editing">
+                    <span class="w-3 h-3 rounded-full shrink-0 inline-block"
+                          :class="storageProviderStatus[sp.id] ? 'bg-success' : 'bg-base-content/30'"></span>
+                    <span class="text-sm font-semibold flex-1" x-text="sp.label"></span>
+                    <span x-show="storageForm.is_default && activeStorageProvider === sp.id" class="text-[10px] opacity-40">default</span>
+                    <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+                  </div>
+                  <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-2"
+                       x-init="if (editing) { activeStorageProvider = sp.id; loadStorageProvider(sp.id); }"
+                       @click="activeStorageProvider = sp.id; loadStorageProvider(sp.id);">
+
+                    <!-- S3 -->
+                    <template x-if="sp.id === 's3'">
+                      <div class="space-y-1">
+                        <input type="text" class="input input-bordered input-xs w-full" x-model="storageForm.bucket" placeholder="Bucket name" />
+                        <div class="grid grid-cols-2 gap-1">
+                          <input type="text" class="input input-bordered input-xs" x-model="storageForm.region" placeholder="Region" />
+                          <input type="url" class="input input-bordered input-xs" x-model="storageForm.endpoint_url" placeholder="Custom endpoint" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-1">
+                          <input type="text" class="input input-bordered input-xs" x-model="storageForm.access_key" placeholder="Access key" />
+                          <input type="password" class="input input-bordered input-xs" x-model="storageForm.secret_key" placeholder="Secret key" />
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Azure -->
+                    <template x-if="sp.id === 'azure_blob'">
+                      <div class="grid grid-cols-2 gap-1">
+                        <input type="text" class="input input-bordered input-xs" x-model="storageForm.account_name" placeholder="Account name" />
+                        <input type="password" class="input input-bordered input-xs" x-model="storageForm.account_key" placeholder="Account key" />
+                      </div>
+                    </template>
+                    <!-- SharePoint -->
+                    <template x-if="sp.id === 'sharepoint'">
+                      <div class="space-y-1">
+                        <div class="grid grid-cols-2 gap-1">
+                          <input type="text" class="input input-bordered input-xs" x-model="storageForm.tenant_id" placeholder="Tenant ID" />
+                          <input type="text" class="input input-bordered input-xs" x-model="storageForm.client_id" placeholder="Client ID" />
+                        </div>
+                        <input type="password" class="input input-bordered input-xs w-full" x-model="storageForm.client_secret" placeholder="Client secret" />
+                        <input type="url" class="input input-bordered input-xs w-full" x-model="storageForm.site_url" placeholder="Site URL" />
+                      </div>
+                    </template>
+                    <!-- Egnyte -->
+                    <template x-if="sp.id === 'egnyte'">
+                      <div class="space-y-1">
+                        <input type="text" class="input input-bordered input-xs w-full" x-model="storageForm.domain" placeholder="yourcompany.egnyte.com" />
+                        <input type="password" class="input input-bordered input-xs w-full" x-model="storageForm.api_token" placeholder="API token" />
+                      </div>
+                    </template>
+                    <!-- Local -->
+                    <template x-if="sp.id === 'local'">
+                      <input type="text" class="input input-bordered input-xs w-full" x-model="storageForm.base_path" placeholder="/app/uploads" />
+                    </template>
+
+                    <div class="flex items-center gap-2" x-data="{ result: '', testing: false }">
+                      <button class="btn btn-xs btn-outline gap-1" @click="
+                        activeStorageProvider = sp.id;
+                        saveStorageProvider();
+                        if (sp.id !== 'local') {
+                          testing = true; result = '';
+                          setTimeout(() => {
+                            testStorageProvider();
+                            testing = false; result = storageMsg || 'Done';
+                          }, 500);
+                        }
+                      " :disabled="storageSaving"><i class="ti ti-device-floppy"></i> Save</button>
+                      <button class="btn btn-xs btn-outline gap-1" x-show="sp.id !== 'local'" @click="
+                        activeStorageProvider = sp.id;
+                        testing = true; result = '';
+                        testStorageProvider();
+                        setTimeout(() => { testing = false; result = storageMsg || 'Done'; }, 2000);
+                      " :disabled="testing">
+                        <span class="loading loading-spinner loading-xs" x-show="testing"></span>
+                        <i class="ti ti-plug-connected" x-show="!testing"></i> Test
+                      </button>
+                      <span class="text-[10px]" :class="result.startsWith('Connected') || result.startsWith('Success') ? 'text-success' : result ? 'text-error' : ''" x-text="result"></span>
+                    </div>
+                  </div>
+                </div>
               </template>
             </div>
 
-            <div class="space-y-3">
-              <!-- S3 fields -->
-              <template x-if="activeStorageProvider === 's3'">
-                <div class="space-y-3">
-                  <div><label class="text-xs font-medium block mb-1">Bucket</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.bucket" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Region</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.region" placeholder="us-east-1" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Access Key</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.access_key" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Secret Key</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.secret_key" placeholder="Encrypted at rest" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Custom Endpoint</label><input type="url" class="input input-bordered input-sm w-full" x-model="storageForm.endpoint_url" placeholder="For MinIO, R2, etc." /></div>
-                </div>
-              </template>
-              <!-- Azure Blob fields -->
-              <template x-if="activeStorageProvider === 'azure_blob'">
-                <div class="space-y-3">
-                  <div><label class="text-xs font-medium block mb-1">Account Name</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.account_name" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Account Key</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.account_key" placeholder="Encrypted at rest" /></div>
-                </div>
-              </template>
-              <!-- SharePoint fields -->
-              <template x-if="activeStorageProvider === 'sharepoint'">
-                <div class="space-y-3">
-                  <div><label class="text-xs font-medium block mb-1">Tenant ID</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.tenant_id" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Client ID</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.client_id" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Client Secret</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.client_secret" placeholder="Encrypted at rest" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Site URL</label><input type="url" class="input input-bordered input-sm w-full" x-model="storageForm.site_url" placeholder="https://company.sharepoint.com/sites/Compliance" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Document Library</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.document_library" placeholder="Documents" /></div>
-                </div>
-              </template>
-              <!-- Egnyte fields -->
-              <template x-if="activeStorageProvider === 'egnyte'">
-                <div class="space-y-3">
-                  <div><label class="text-xs font-medium block mb-1">Domain</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.domain" placeholder="yourcompany.egnyte.com" /></div>
-                  <div><label class="text-xs font-medium block mb-1">API Token</label><input type="password" class="input input-bordered input-sm w-full" x-model="storageForm.api_token" placeholder="Encrypted at rest" /></div>
-                  <div><label class="text-xs font-medium block mb-1">Root Folder</label><input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.root_folder" placeholder="/Shared/Compliance" /></div>
-                </div>
-              </template>
-              <!-- Local fields -->
-              <template x-if="activeStorageProvider === 'local'">
-                <div>
-                  <label class="text-xs font-medium block mb-1">Base Path</label>
-                  <input type="text" class="input input-bordered input-sm w-full" x-model="storageForm.base_path" placeholder="/app/uploads" />
-                </div>
-              </template>
-
-              <div class="flex items-center gap-4 pt-1">
-                <label class="flex items-center gap-2"><input type="checkbox" class="toggle toggle-sm toggle-success" x-model="storageForm.enabled" /><span class="text-xs" x-text="storageForm.enabled ? 'Enabled' : 'Disabled'"></span></label>
-                <label class="flex items-center gap-2"><input type="checkbox" class="checkbox checkbox-xs" x-model="storageForm.is_default" /><span class="text-xs">Default provider</span></label>
-              </div>
-
-              <div class="flex gap-2 pt-2">
-                <button class="btn btn-primary btn-sm gap-1" @click="saveStorageProvider()" :disabled="storageSaving">
-                  <span class="loading loading-spinner loading-xs" x-show="storageSaving"></span>
-                  <i class="ti ti-device-floppy" x-show="!storageSaving"></i> Save
-                </button>
-                <button class="btn btn-sm btn-outline gap-1" x-show="activeStorageProvider !== 'local'" @click="testStorageProvider()" :disabled="storageTesting">
-                  <span class="loading loading-spinner loading-xs" x-show="storageTesting"></span>
-                  <i class="ti ti-plug-connected" x-show="!storageTesting"></i> Test
-                </button>
-              </div>
-              <div x-show="storageMsg" class="text-xs" :class="storageMsgType === 'error' ? 'text-error' : 'text-success'" x-text="storageMsg"></div>
-
-              <!-- File Structure -->
-              <div class="divider text-xs">File Structure</div>
-              <div class="finding-card text-xs">
-                <pre class="opacity-70 font-mono leading-relaxed">/{client-name}/{project-framework}/evidence|policies|reports|wisp</pre>
-                <p class="opacity-50 mt-1">Auto-created per client & project. Per-client overrides in Client → Settings.</p>
-              </div>
-
-              <!-- Role Assignment -->
-              <div class="divider text-xs">Storage Routing</div>
-              <p class="text-xs opacity-50 mb-2">Assign which provider handles each file type. If not set, uses the default provider (or local).</p>
-              <div class="space-y-2" x-data="{ roles: { evidence: 'local', reports: 'local', backups: 'local' }, rolesLoaded: false }"
-                   x-init="fetch('/api/v1/settings/storage-roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; rolesLoaded = true; }).catch(() => { rolesLoaded = true; })">
-                <template x-for="role in ['evidence', 'reports', 'backups']" :key="role">
-                  <div class="flex items-center gap-2 bg-base-300 rounded p-2">
-                    <span class="text-xs font-semibold w-20 capitalize" x-text="role"></span>
-                    <select class="select select-bordered select-xs flex-1"
-                            :value="roles[role] || 'local'"
-                            @change="roles[role] = $event.target.value">
-                      <option value="local">Local Filesystem</option>
+            <!-- ── Storage Routing (same layout as LLM tier routing) ── -->
+            <div class="divider text-xs my-2">File Routing</div>
+            <p class="text-[10px] opacity-50 mb-2">Assign which provider stores each file type. Defaults to local if not set.</p>
+            <div class="space-y-1" x-data="{ roles: { evidence: 'local', reports: 'local', backups: 'local' } }"
+                 x-init="fetch('/api/v1/settings/storage-roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; }).catch(() => {})">
+              <template x-for="role in [
+                { id: 'evidence', label: 'Evidence', hint: 'Screenshots, docs' },
+                { id: 'reports', label: 'Reports', hint: 'WISP, audit PDFs' },
+                { id: 'backups', label: 'Backups', hint: 'Data snapshots' }
+              ]" :key="role.id">
+                <div class="bg-base-300 rounded p-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-24 shrink-0">
+                      <div class="text-[10px] font-bold" x-text="role.label"></div>
+                      <div class="text-[9px] opacity-40" x-text="role.hint"></div>
+                    </div>
+                    <select class="select select-bordered select-xs w-28"
+                            x-model="roles[role.id]"
+                            @change="fetch('/api/v1/settings/storage-roles', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(roles) }).catch(() => {})">
+                      <option value="local">Local</option>
                       <option value="s3">Amazon S3</option>
                       <option value="azure_blob">Azure Blob</option>
                       <option value="sharepoint">SharePoint</option>
                       <option value="egnyte">Egnyte</option>
                     </select>
                   </div>
-                </template>
-                <button class="btn btn-xs btn-primary gap-1" @click="
-                  fetch('/api/v1/settings/storage-roles', {
-                    method: 'PUT', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(roles)
-                  }).then(r => r.json()).then(d => toast(d.message || 'Saved', 'success'))
-                    .catch(() => toast('Failed to save', 'error'));
-                "><i class="ti ti-device-floppy"></i> Save Routing</button>
-              </div>
-
-              <div class="divider text-xs">Reset</div>
-              <div class="flex gap-2">
-                <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('storage/' + activeStorageProvider, activeStorageProvider + ' storage')">
-                  <i class="ti ti-trash"></i> Reset <span x-text="activeStorageProvider" class="uppercase"></span>
-                </button>
-              </div>
+                </div>
+              </template>
             </div>
+
+            <div class="divider text-xs my-2">Reset</div>
+            <button class="btn btn-xs btn-outline btn-error gap-1" @click="resetIntegration('storage/' + activeStorageProvider, activeStorageProvider + ' storage')">
+              <i class="ti ti-trash"></i> Reset Storage
+            </button>
           </div>
         </template>
 
