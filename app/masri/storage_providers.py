@@ -255,6 +255,15 @@ class AzureBlobStorageProvider(StorageProvider):
 
         self.container_client = self.service_client.get_container_client(self.container)
 
+        # Auto-create container if it doesn't exist
+        try:
+            self.container_client.create_container()
+            logger.info("Created Azure container: %s", self.container)
+        except Exception as e:
+            # ResourceExistsError (or any 409) means it already exists — safe to ignore
+            if "ContainerAlreadyExists" not in str(e) and "409" not in str(e):
+                logger.debug("Azure container check: %s", e)
+
     def upload_file(self, file: BinaryIO, file_name: str, folder: str) -> str:
         blob_name = f"{folder}/{file_name}".lstrip("/")
         blob_client = self.container_client.get_blob_client(blob_name)
@@ -337,8 +346,15 @@ class SharePointStorageProvider(StorageProvider):
         self.ms_tenant_id = tenant_id
         self.client_id = client_id
         self.client_secret = client_secret
-        self.site_url = site_url
         self.document_library = document_library
+
+        # Validate site_url contains /sites/ path (required for Graph API resolution)
+        if "/sites/" not in site_url:
+            raise ValueError(
+                "SharePoint site_url must contain '/sites/' path "
+                "(e.g. https://company.sharepoint.com/sites/compliance)"
+            )
+        self.site_url = site_url
         self._access_token = None
         self._token_expires_at = 0
 
@@ -490,9 +506,18 @@ class EgnyteStorageProvider(StorageProvider):
             raise ImportError("requests is required. pip install requests")
 
         self._requests = _requests
-        self.domain = domain.rstrip("/")
         self.api_token = api_token
         self.root_folder = root_folder.rstrip("/")
+
+        # Normalize domain: accept "myco", "myco.egnyte.com", or "https://myco.egnyte.com"
+        clean = domain.strip().rstrip("/")
+        if clean.startswith("https://"):
+            clean = clean[len("https://"):]
+        if clean.startswith("http://"):
+            clean = clean[len("http://"):]
+        if clean.endswith(".egnyte.com"):
+            clean = clean[: -len(".egnyte.com")]
+        self.domain = clean
         self.base_url = f"https://{self.domain}.egnyte.com/pubapi/v1"
 
     def _headers(self):

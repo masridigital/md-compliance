@@ -2,8 +2,9 @@
 Masri Digital Compliance Platform — Update Manager
 
 Provides update checking, applying, and scheduling for the platform.
-Runs git operations to check for new commits on the remote, and can
-apply updates by pulling, installing dependencies, and restarting.
+Runs git operations to check for new commits on the remote. In Docker
+deployments, apply() only does git pull — container rebuild is required
+to activate changes (no pip install, no migration, no SIGHUP).
 
 Usage:
     from app.masri.update_manager import UpdateManager
@@ -113,10 +114,14 @@ class UpdateManager:
     @staticmethod
     def apply() -> dict:
         """
-        Apply pending updates: git pull + pip install + signal restart.
+        Apply pending updates: git pull only (Docker-safe).
+
+        In Docker deployments, pip install / migrations / SIGHUP are
+        handled by the container rebuild. This method only pulls code
+        and sets a flag so the UI can show a "rebuild required" banner.
 
         Returns:
-            dict with keys: success (bool), message, details
+            dict with keys: success (bool), message, rebuild_required
         """
         try:
             # 1. Git pull (uses pre-approved command only)
@@ -128,67 +133,23 @@ class UpdateManager:
                     "details": pull_result.stderr,
                 }
 
-            # 2. Install any new dependencies
-            pip_result = subprocess.run(
-                ["pip", "install", "-r", "requirements.txt", "--quiet"],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-
-            # 3. Run database migrations
-            migrate_result = subprocess.run(
-                ["python", "-c", """
-import os
-from app import create_app, db
-from flask_migrate import upgrade
-app = create_app(os.getenv('FLASK_CONFIG') or 'default')
-with app.app_context():
-    upgrade()
-"""],
-                cwd=_PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-
-            # 4. Signal Gunicorn to gracefully reload workers
-            # This reloads the code without dropping connections
-            import signal
-            try:
-                # Find gunicorn master PID
-                pid_result = subprocess.run(
-                    ["pgrep", "-f", "gunicorn.*flask_app"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if pid_result.stdout.strip():
-                    master_pid = int(pid_result.stdout.strip().split("\n")[0])
-                    os.kill(master_pid, signal.SIGHUP)
-                    restart_msg = f"Gunicorn reloading (PID {master_pid})"
-                else:
-                    restart_msg = "No Gunicorn process found — restart manually"
-            except Exception as e:
-                restart_msg = f"Could not signal restart: {e}"
-
-            # 5. Invalidate all sessions by writing a new update stamp
+            # 2. Mark update as pending — UI shows "rebuild required" banner
             try:
                 from app.models import ConfigStore
-                ConfigStore.upsert("last_update_stamp", str(int(time.time())))
+                ConfigStore.upsert("update_pending", json.dumps({
+                    "pending": True,
+                    "pulled_at": datetime.utcnow().isoformat(),
+                    "commits": pull_result.stdout[:500],
+                }))
             except Exception:
                 pass
 
-            # Log detailed output server-side only — never expose to API
-            logger.info("Update git: %s", pull_result.stdout[:300])
-            logger.info("Update pip: %s", "OK" if pip_result.returncode == 0 else pip_result.stderr[:300])
-            logger.info("Update migrate: %s", "OK" if migrate_result.returncode == 0 else migrate_result.stderr[:300])
-            logger.info("Update restart: %s", restart_msg)
+            logger.info("Update git pull: %s", pull_result.stdout[:300])
 
             return {
                 "success": True,
-                "message": "Update applied successfully. The app will restart momentarily.",
+                "message": "Code updated. Run `docker-compose up -d --build` to apply.",
+                "rebuild_required": True,
                 "applied_at": datetime.utcnow().isoformat(),
             }
         except subprocess.TimeoutExpired:

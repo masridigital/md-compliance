@@ -327,34 +327,28 @@ class MasriScheduler:
                         is_pre=True,
                     )
 
-                # Auto-apply if configured
+                # Auto-apply: pull code only (Docker-safe — no pip/migrate/restart)
                 if schedule.get("auto_apply") and status.get("available"):
-                    logger.info("Auto-applying %d pending update(s)", status.get("commits_behind"))
-
-                    # Pre-apply notification
-                    self._send_update_notification(
-                        "Platform update starting now",
-                        f"Applying {status.get('commits_behind')} update(s). The app will restart and all users will be logged out.",
-                        is_pre=True,
-                    )
+                    logger.info("Auto-pulling %d pending update(s)", status.get("commits_behind"))
 
                     result = UpdateManager.apply()
                     if result.get("success"):
                         from app.models import Logs
                         Logs.add(
-                            message=f"Auto-update applied: {status.get('commits_behind')} commits",
+                            message=f"Auto-update pulled: {status.get('commits_behind')} commits (rebuild required)",
                             action="PUT",
                             namespace="system",
                         )
                         self._send_update_notification(
-                            "Platform update completed",
-                            f"Successfully applied {status.get('commits_behind')} update(s). All users have been logged out.",
+                            "Platform update pulled — rebuild required",
+                            f"Pulled {status.get('commits_behind')} update(s). "
+                            f"Run `docker-compose up -d --build` to apply.",
                             is_pre=False,
                         )
                     else:
-                        logger.error("Auto-update failed: %s", result.get("message"))
+                        logger.error("Auto-update pull failed: %s", result.get("message"))
                         self._send_update_notification(
-                            "Platform update FAILED",
+                            "Platform update pull FAILED",
                             f"Error: {result.get('message')}. Manual intervention may be required.",
                             is_pre=False,
                         )
