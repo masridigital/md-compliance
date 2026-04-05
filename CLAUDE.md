@@ -26,6 +26,8 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 | `settings_bp` | `/api/v1/settings` | `app/masri/settings_routes.py` |
 | `telivy_bp` | `/api/v1/telivy` | `app/masri/telivy_routes.py` |
 | `entra_bp` | `/api/v1/entra` | `app/masri/entra_routes.py` |
+| `ninjaone_bp` | `/api/v1/ninjaone` | `app/masri/ninjaone_routes.py` |
+| `defensx_bp` | `/api/v1/defensx` | `app/masri/defensx_routes.py` |
 | `mcp_bp` | `/mcp` | `app/masri/mcp_server.py` |
 
 ### Key Models
@@ -191,6 +193,38 @@ Register an Azure AD App with these **Application** permissions:
 | `/sites` | `Sites.Read.All` | SharePoint sites |
 | `/organization` | `Organization.Read.All` | Org profile |
 
+### Integration 3: NinjaOne RMM (Endpoint Management)
+- **Client**: `NinjaOneIntegration` in `ninjaone_integration.py`
+- **Auth**: OAuth2 Client Credentials (client_id + client_secret, scope: `monitoring`)
+- **Token endpoint**: `{instance_url}/oauth/token` (NOT under `/v2/`)
+- **Region-specific base URLs**: US (`app.ninjarmm.com`), EU (`eu.ninjarmm.com`), AP (`app.ninjarmm.com.au`), CA (`ca.ninjarmm.com`)
+- **API prefix**: `/v2/`
+- **Credential storage**: `SettingsStorage` with `provider="ninjaone"`, encrypted config containing `client_id`, `client_secret`, `region`
+- **Credential chain**: DB SettingsStorage → env vars `NINJAONE_CLIENT_ID` / `NINJAONE_CLIENT_SECRET` / `NINJAONE_REGION`
+- **Org mappings**: `ConfigStore("ninjaone_org_mappings")` — JSON: `{org_id: {tenant_id, org_name}}`
+- **Multi-tenant**: Single MSP-level OAuth app sees all client organizations. Devices scoped via `organizationId`.
+- **Data collected**: devices (detailed), OS patches, software patches, AV status, AV threats, alerts, activities, organizations
+- **Key bulk endpoints**: `/v2/queries/os-patches`, `/v2/queries/antivirus-status` (prefer over per-device calls)
+- **Pagination**: Cursor-based (`pageSize` + `after` params), safety cap 5000
+- **LLM prompt focus**: Endpoint compliance — patch status, AV coverage, encryption enforcement, stale devices, OS currency
+
+### Integration 4: DefensX (Browser Security)
+- **Client**: `DefensXIntegration` in `defensx_integration.py`
+- **Auth**: Bearer token (`Authorization: Bearer {api_token}`)
+- **Base URL**: `https://cloud.defensx.com/api/partner/v1`
+- **NOTE**: DefensX does not publish a public API reference. Endpoint paths are per integration spec — may need adjustment once API access is confirmed with DefensX partner support.
+- **Credential storage**: `SettingsStorage` with `provider="defensx"`, encrypted config containing `api_token`
+- **Credential chain**: DB SettingsStorage → env var `DEFENSX_API_TOKEN`
+- **Customer mappings**: `ConfigStore("defensx_customer_mappings")` — JSON: `{customer_id: {tenant_id, customer_name}}`
+- **Multi-tenant**: Single partner token accesses all customer tenants
+- **Data collected**: agent deployment status, web policy compliance, cyber resilience scores, user activity, shadow AI detection, security logs (URL visits, DNS queries, credential events, file transfers)
+- **LLM prompt focus**: Browser-layer controls — web filtering, credential protection, shadow AI, DLP
+
+### Coming Soon Integrations (Tiles Only — No Backend)
+- **Blackpoint Cyber** (`ti-shield-bolt`): MDR/SOC detections, endpoint inventory, vulnerability scanning, dark web monitoring, NIST-aligned security posture rating. CompassOne HTTP Export API.
+- **Keeper Security** (`ti-lock`): Password health audits, 2FA enrollment, BreachWatch dark web monitoring, PAM session logs. Admin REST API + MSP Account Management API.
+- **SentinelOne** (`ti-sword`): EDR agent coverage, threat detection/mitigation, policy enforcement, endpoint compliance. Management Console REST API v2.1 with `ApiToken` auth.
+
 ---
 
 ## LLM Configuration
@@ -288,6 +322,10 @@ app/
     telivy_routes.py       # Telivy API endpoints
     entra_integration.py   # Microsoft Entra ID + Defender + Intune client
     entra_routes.py        # Entra API endpoints
+    ninjaone_integration.py # NinjaOne RMM API client (OAuth2)
+    ninjaone_routes.py     # NinjaOne API endpoints
+    defensx_integration.py # DefensX browser security API client
+    defensx_routes.py      # DefensX API endpoints
     risk_profiles.py       # User & device risk profile engine
     mcp_server.py          # MCP OAuth server for Claude/ChatGPT
     scheduler.py           # Background scheduler (threading.Timer)

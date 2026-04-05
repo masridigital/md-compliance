@@ -81,15 +81,22 @@
   <!-- Flat 4-Column Grid -->
   <div class="int-grid" x-show="loaded">
     <template x-for="item in allFiltered" :key="item.id">
-      <div class="int-card" :class="{ 'is-active': getStatus(item.id).configured && getStatus(item.id).enabled }" @click="openDrawer(item)">
+      <div class="int-card" :class="{ 'is-active': getStatus(item.id).configured && getStatus(item.id).enabled, 'opacity-60': item.comingSoon }" @click="item.comingSoon ? toast('This integration is coming soon!', 'info') : openDrawer(item)">
         <!-- Top: icon + name + status -->
         <div class="flex items-start gap-3 mb-3">
           <div class="int-card-icon"><i :class="'ti ' + item.icon"></i></div>
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-sm leading-tight" x-text="item.name"></div>
             <div class="flex items-center gap-1.5 mt-1">
-              <span class="status-dot" :class="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'green' : 'amber') : 'gray'"></span>
-              <span class="text-xs opacity-50" x-text="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'Active' : 'Disabled') : 'Not configured'"></span>
+              <template x-if="item.comingSoon">
+                <span class="badge badge-sm badge-ghost">Coming Soon</span>
+              </template>
+              <template x-if="!item.comingSoon">
+                <span class="flex items-center gap-1.5">
+                  <span class="status-dot" :class="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'green' : 'amber') : 'gray'"></span>
+                  <span class="text-xs opacity-50" x-text="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'Active' : 'Disabled') : 'Not configured'"></span>
+                </span>
+              </template>
             </div>
           </div>
         </div>
@@ -1075,6 +1082,125 @@
           </div>
         </template>
 
+        <!-- ═══════ NinjaOne RMM Config + Actions ═══════ -->
+        <template x-if="selected.id === 'ninjaone'">
+          <div>
+            <h4 class="font-semibold text-sm mb-3">API Credentials</h4>
+            <div class="space-y-3 mb-6">
+              <div>
+                <label class="text-xs font-medium block mb-1">Region</label>
+                <select class="select select-bordered select-sm w-full" x-model="ninjaoneForm.region">
+                  <option value="us">United States (app.ninjarmm.com)</option>
+                  <option value="eu">Europe (eu.ninjarmm.com)</option>
+                  <option value="ap">Asia-Pacific (app.ninjarmm.com.au)</option>
+                  <option value="ca">Canada (ca.ninjarmm.com)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">Client ID</label>
+                <input type="text" class="input input-bordered input-sm w-full" x-model="ninjaoneForm.client_id" placeholder="OAuth App Client ID" />
+              </div>
+              <div>
+                <label class="text-xs font-medium block mb-1">Client Secret</label>
+                <input type="password" class="input input-bordered input-sm w-full" x-model="ninjaoneForm.client_secret" placeholder="OAuth App Client Secret" />
+                <div x-show="getStatus('ninjaone').configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Credentials stored encrypted. Leave blank to keep current.</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveNinjaOne()" :disabled="ninjaoneSaving">
+                  <span class="loading loading-spinner loading-xs" x-show="ninjaoneSaving"></span>
+                  <i class="ti ti-device-floppy" x-show="!ninjaoneSaving"></i> Save
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="testNinjaOne()">
+                  <i class="ti ti-plug-connected"></i> Test Connection
+                </button>
+                <button x-show="getStatus('ninjaone').configured" class="btn btn-sm btn-outline btn-error gap-1" @click="deleteNinjaOne()">
+                  <i class="ti ti-trash"></i>
+                </button>
+              </div>
+              <div x-show="ninjaoneMsg" class="text-xs" :class="ninjaoneMsgType === 'error' ? 'text-error' : 'text-success'" x-text="ninjaoneMsg"></div>
+              <div x-show="ninjaoneTestResult" class="finding-card text-xs">
+                <div :class="ninjaoneTestResult.connected ? 'text-success' : 'text-error'" x-text="ninjaoneTestResult.message || ninjaoneTestResult.error"></div>
+              </div>
+            </div>
+
+            <!-- Organization Mapping -->
+            <div x-show="ninjaoneOrgs.length > 0">
+              <div class="divider text-xs">Organization → Tenant Mapping</div>
+              <p class="text-xs opacity-50 mb-3">Map each NinjaOne organization to an MD-Compliance tenant.</p>
+              <div class="space-y-2 max-h-64 overflow-y-auto mb-3">
+                <template x-for="org in ninjaoneOrgs" :key="org.id">
+                  <div class="finding-card flex items-center gap-2">
+                    <span class="text-xs font-semibold flex-1 truncate" x-text="org.name || org.id"></span>
+                    <select class="select select-bordered select-xs w-40"
+                            @change="ninjaoneMappings[org.id] = { tenant_id: $event.target.value, org_name: org.name }">
+                      <option value="">Select tenant...</option>
+                      {% for t in tenants %}
+                      <option value="{{ t.id }}" :selected="ninjaoneMappings[{{ org.id }}]?.tenant_id === '{{ t.id }}'">{{ t.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </template>
+              </div>
+              <button class="btn btn-primary btn-sm gap-1" @click="saveNinjaOneMappings()">
+                <i class="ti ti-device-floppy"></i> Save Mappings
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- ═══════ DefensX Config + Actions ═══════ -->
+        <template x-if="selected.id === 'defensx'">
+          <div>
+            <h4 class="font-semibold text-sm mb-3">API Token</h4>
+            <div class="space-y-3 mb-6">
+              <div>
+                <label class="text-xs font-medium block mb-1">DefensX Partner API Token</label>
+                <input type="password" class="input input-bordered input-sm w-full" x-model="defensxForm.api_token" placeholder="From DefensX Partner Dashboard → API Keys" />
+                <div x-show="getStatus('defensx').configured" class="text-xs opacity-50 mt-1"><i class="ti ti-lock"></i> Token stored encrypted. Leave blank to keep current.</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm gap-1" @click="saveDefensX()" :disabled="defensxSaving">
+                  <span class="loading loading-spinner loading-xs" x-show="defensxSaving"></span>
+                  <i class="ti ti-device-floppy" x-show="!defensxSaving"></i> Save
+                </button>
+                <button class="btn btn-sm btn-outline gap-1" @click="testDefensX()">
+                  <i class="ti ti-plug-connected"></i> Test Connection
+                </button>
+                <button x-show="getStatus('defensx').configured" class="btn btn-sm btn-outline btn-error gap-1" @click="deleteDefensX()">
+                  <i class="ti ti-trash"></i>
+                </button>
+              </div>
+              <div x-show="defensxMsg" class="text-xs" :class="defensxMsgType === 'error' ? 'text-error' : 'text-success'" x-text="defensxMsg"></div>
+              <div x-show="defensxTestResult" class="finding-card text-xs">
+                <div :class="defensxTestResult.connected ? 'text-success' : 'text-error'" x-text="defensxTestResult.message || defensxTestResult.error"></div>
+              </div>
+            </div>
+
+            <!-- Customer Mapping -->
+            <div x-show="defensxCustomers.length > 0">
+              <div class="divider text-xs">Customer → Tenant Mapping</div>
+              <p class="text-xs opacity-50 mb-3">Map each DefensX customer to an MD-Compliance tenant.</p>
+              <div class="space-y-2 max-h-64 overflow-y-auto mb-3">
+                <template x-for="cust in defensxCustomers" :key="cust.id">
+                  <div class="finding-card flex items-center gap-2">
+                    <span class="text-xs font-semibold flex-1 truncate" x-text="cust.name || cust.display_name || cust.id"></span>
+                    <select class="select select-bordered select-xs w-40"
+                            @change="defensxMappings[cust.id] = { tenant_id: $event.target.value, customer_name: cust.name || cust.display_name }">
+                      <option value="">Select tenant...</option>
+                      {% for t in tenants %}
+                      <option value="{{ t.id }}" :selected="defensxMappings['{{ cust.id }}']?.tenant_id === '{{ t.id }}'">{{ t.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </template>
+              </div>
+              <button class="btn btn-primary btn-sm gap-1" @click="saveDefensXMappings()">
+                <i class="ti ti-device-floppy"></i> Save Mappings
+              </button>
+            </div>
+          </div>
+        </template>
+
         <!-- ═══════ Entra ID Config + Actions ═══════ -->
         <template x-if="selected.id === 'entra'">
           <div>
@@ -1467,6 +1593,7 @@ function integrationsHub() {
 
     categories: [
       { id: 'identity',      label: 'Identity & Access',     icon: 'ti-shield-check' },
+      { id: 'security',      label: 'Security Tools',        icon: 'ti-shield-lock' },
       { id: 'llm',           label: 'AI / LLM Providers',    icon: 'ti-brain' },
       { id: 'mcp',           label: 'MCP Server',            icon: 'ti-plug-connected' },
       { id: 'storage',       label: 'Storage Providers',     icon: 'ti-database' },
@@ -1480,6 +1607,15 @@ function integrationsHub() {
         setup_guide: 'Standard Entra ID setup:\n1. Azure Portal → Entra ID → App registrations → New registration\n2. Name: "MD Compliance", Redirect URI: leave blank\n3. Copy the Application (client) ID and Directory (tenant) ID\n4. Certificates & secrets → New client secret → copy value\n5. API Permissions → Microsoft Graph → Application:\n   • User.Read.All\n   • Directory.Read.All\n   • UserAuthenticationMethod.Read.All\n   • Reports.Read.All\n6. Click "Grant admin consent"\n\nFor CSP Client Pull (MSPs):\n7. Add additional permissions:\n   • DelegatedAdminRelationship.Read.All\n   • Contract.Read.All\n8. The "Pull CSP Clients" button will import your CSP customers as tenants' },
       { id: 'telivy', category: 'identity', name: 'Telivy Security', icon: 'ti-shield-search', description: 'External vulnerability scanning, risk assessments, breach data detection, and downloadable security reports.',
         setup_guide: '1. Log into portal.telivy.com\n2. Go to Account → Integrations → API Keys\n3. Generate a new API key\n4. Copy the key and paste it below' },
+
+      // Security Tools
+      { id: 'ninjaone', category: 'security', name: 'NinjaOne RMM', icon: 'ti-device-desktop-analytics', description: 'Endpoint management, patch compliance, antivirus status, disk encryption, and device inventory from NinjaOne (formerly NinjaRMM).', settingsSection: 'ninjaone',
+        setup_guide: '1. Log into your NinjaOne dashboard\n2. Go to Administration → Apps → Add\n3. Choose "Client Credentials (machine-to-machine)"\n4. Select scopes: monitoring\n5. Copy the Client ID and Client Secret\n6. Select your NinjaOne region below\n7. Paste credentials and click Test' },
+      { id: 'defensx', category: 'security', name: 'DefensX', icon: 'ti-browser-check', description: 'Browser security, web filtering, credential protection, shadow AI detection, and cyber resilience assessment.', settingsSection: 'defensx',
+        setup_guide: '1. Log into DefensX partner portal (cloud.defensx.com)\n2. Go to Settings → API Keys → Generate New Key\n3. Copy the API token\n4. Paste below and click Test' },
+      { id: 'blackpoint', category: 'security', name: 'Blackpoint Cyber', icon: 'ti-shield-bolt', description: 'MDR/SOC detections, endpoint inventory, vulnerability scanning, dark web monitoring, and NIST-aligned security posture rating.', comingSoon: true },
+      { id: 'keeper', category: 'security', name: 'Keeper Security', icon: 'ti-lock', description: 'Password health audits, 2FA enrollment, BreachWatch dark web monitoring, PAM session logs, and compliance reports.', comingSoon: true },
+      { id: 'sentinelone', category: 'security', name: 'SentinelOne', icon: 'ti-sword', description: 'EDR agent coverage, threat detection and mitigation, policy enforcement, and endpoint compliance.', comingSoon: true },
 
       // LLM — single unified card with 3 slots
       { id: 'llm_unified', category: 'llm', name: 'AI / LLM Providers', icon: 'ti-brain', description: 'Configure your AI provider and assign different models to different features (risk scoring, policy drafting, control assessment, etc.). Uncheck "same model for all" to customize per feature.',
@@ -1516,6 +1652,8 @@ function integrationsHub() {
         this.loadEntraStatus(),
         this.loadMcpKeys(),
         this.loadTelivyStatus(),
+        this.loadNinjaOneStatus(),
+        this.loadDefensXStatus(),
       ]);
       this.loaded = true;
       this.loadReportHistory();
@@ -1987,6 +2125,158 @@ function integrationsHub() {
           }
         }
       } catch (e) { console.debug('Telivy status check skipped:', e); }
+    },
+
+    // ── NinjaOne ──
+    ninjaoneForm: { client_id: '', client_secret: '', region: 'us' },
+    ninjaoneSaving: false, ninjaoneMsg: '', ninjaoneMsgType: 'info',
+    ninjaoneTestResult: null, ninjaoneOrgs: [], ninjaoneMappings: {},
+
+    async loadNinjaOneStatus() {
+      try {
+        const resp = await fetch('/api/v1/settings/ninjaone');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.configured) {
+            this.statuses['ninjaone'] = { configured: true, enabled: data.enabled !== false, detail: 'Credentials configured' };
+            // Load mappings
+            const mapResp = await fetch('/api/v1/settings/ninjaone/mappings');
+            if (mapResp.ok) {
+              this.ninjaoneMappings = await mapResp.json();
+              const cnt = Object.keys(this.ninjaoneMappings).length;
+              if (cnt > 0) this.statuses['ninjaone'].detail = cnt + ' org(s) mapped';
+            }
+          }
+        }
+      } catch (e) { console.debug('NinjaOne status check skipped:', e); }
+    },
+
+    async saveNinjaOne() {
+      this.ninjaoneSaving = true; this.ninjaoneMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/ninjaone', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: this.ninjaoneForm.client_id, client_secret: this.ninjaoneForm.client_secret, region: this.ninjaoneForm.region }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Save failed');
+        this.ninjaoneMsg = 'Credentials saved (encrypted)';
+        this.ninjaoneMsgType = 'success';
+        this.ninjaoneForm.client_id = ''; this.ninjaoneForm.client_secret = '';
+        this.statuses['ninjaone'] = { configured: true, enabled: true, detail: 'Credentials configured' };
+      } catch (e) { this.ninjaoneMsg = e.message; this.ninjaoneMsgType = 'error'; }
+      finally { this.ninjaoneSaving = false; }
+    },
+
+    async testNinjaOne() {
+      this.ninjaoneTestResult = null;
+      try {
+        const resp = await fetch('/api/v1/ninjaone/test', { method: 'POST' });
+        this.ninjaoneTestResult = await resp.json();
+        if (this.ninjaoneTestResult.connected) {
+          toast('NinjaOne connected!', 'success');
+          // Load orgs for mapping
+          const orgResp = await fetch('/api/v1/ninjaone/organizations');
+          if (orgResp.ok) this.ninjaoneOrgs = await orgResp.json();
+        } else {
+          toast('Connection failed: ' + (this.ninjaoneTestResult.error || 'Unknown'), 'error');
+        }
+      } catch (e) { toast('Connection test error: ' + e.message, 'error'); }
+    },
+
+    async saveNinjaOneMappings() {
+      try {
+        await fetch('/api/v1/settings/ninjaone/mappings', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.fromEntries(
+            Object.entries(this.ninjaoneMappings).filter(([k, v]) => v && v.tenant_id)
+          )),
+        });
+        toast('NinjaOne mappings saved', 'success');
+        this.loadNinjaOneStatus();
+      } catch (e) { toast('Failed to save mappings', 'error'); }
+    },
+
+    async deleteNinjaOne() {
+      if (!confirm('Remove NinjaOne configuration?')) return;
+      await fetch('/api/v1/settings/ninjaone', { method: 'DELETE' });
+      this.statuses['ninjaone'] = { configured: false, enabled: false, detail: '' };
+      this.ninjaoneOrgs = []; this.ninjaoneMappings = {};
+      toast('NinjaOne configuration removed', 'success');
+    },
+
+    // ── DefensX ──
+    defensxForm: { api_token: '' },
+    defensxSaving: false, defensxMsg: '', defensxMsgType: 'info',
+    defensxTestResult: null, defensxCustomers: [], defensxMappings: {},
+
+    async loadDefensXStatus() {
+      try {
+        const resp = await fetch('/api/v1/settings/defensx');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.configured) {
+            this.statuses['defensx'] = { configured: true, enabled: data.enabled !== false, detail: 'API token configured' };
+            const mapResp = await fetch('/api/v1/settings/defensx/mappings');
+            if (mapResp.ok) {
+              this.defensxMappings = await mapResp.json();
+              const cnt = Object.keys(this.defensxMappings).length;
+              if (cnt > 0) this.statuses['defensx'].detail = cnt + ' customer(s) mapped';
+            }
+          }
+        }
+      } catch (e) { console.debug('DefensX status check skipped:', e); }
+    },
+
+    async saveDefensX() {
+      this.defensxSaving = true; this.defensxMsg = '';
+      try {
+        const resp = await fetch('/api/v1/settings/defensx', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_token: this.defensxForm.api_token }),
+        });
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Save failed');
+        this.defensxMsg = 'API token saved (encrypted)';
+        this.defensxMsgType = 'success';
+        this.defensxForm.api_token = '';
+        this.statuses['defensx'] = { configured: true, enabled: true, detail: 'API token configured' };
+      } catch (e) { this.defensxMsg = e.message; this.defensxMsgType = 'error'; }
+      finally { this.defensxSaving = false; }
+    },
+
+    async testDefensX() {
+      this.defensxTestResult = null;
+      try {
+        const resp = await fetch('/api/v1/defensx/test', { method: 'POST' });
+        this.defensxTestResult = await resp.json();
+        if (this.defensxTestResult.connected) {
+          toast('DefensX connected!', 'success');
+          const custResp = await fetch('/api/v1/defensx/customers');
+          if (custResp.ok) this.defensxCustomers = await custResp.json();
+        } else {
+          toast('Connection failed: ' + (this.defensxTestResult.error || 'Unknown'), 'error');
+        }
+      } catch (e) { toast('Connection test error: ' + e.message, 'error'); }
+    },
+
+    async saveDefensXMappings() {
+      try {
+        await fetch('/api/v1/settings/defensx/mappings', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.fromEntries(
+            Object.entries(this.defensxMappings).filter(([k, v]) => v && v.tenant_id)
+          )),
+        });
+        toast('DefensX mappings saved', 'success');
+        this.loadDefensXStatus();
+      } catch (e) { toast('Failed to save mappings', 'error'); }
+    },
+
+    async deleteDefensX() {
+      if (!confirm('Remove DefensX configuration?')) return;
+      await fetch('/api/v1/settings/defensx', { method: 'DELETE' });
+      this.statuses['defensx'] = { configured: false, enabled: false, detail: '' };
+      this.defensxCustomers = []; this.defensxMappings = {};
+      toast('DefensX configuration removed', 'success');
     },
 
     // ── Telivy ──

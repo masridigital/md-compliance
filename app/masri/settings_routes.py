@@ -1154,6 +1154,227 @@ def update_profile():
 
 
 # ===========================================================================
+# NinjaOne RMM
+# ===========================================================================
+
+@settings_bp.route("/ninjaone", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_ninjaone_config():
+    """GET /api/v1/settings/ninjaone — return NinjaOne config status."""
+    from flask import current_app
+    _require_admin()
+    try:
+        from app.masri.new_models import SettingsStorage
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="ninjaone")
+        ).scalars().first()
+        if record:
+            safe = record.as_dict()
+            safe["configured"] = True
+            safe["enabled"] = record.enabled
+            return jsonify(safe)
+    except Exception:
+        pass
+
+    has_env = bool(current_app.config.get("NINJAONE_CLIENT_ID"))
+    return jsonify({"configured": has_env, "source": "env_vars" if has_env else "none"})
+
+
+@settings_bp.route("/ninjaone", methods=["POST"])
+@limiter.limit("20 per minute")
+@login_required
+def update_ninjaone_config():
+    """POST /api/v1/settings/ninjaone — save NinjaOne credentials encrypted."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    client_id = data.get("client_id", "").strip()
+    client_secret = data.get("client_secret", "").strip()
+    region = data.get("region", "us").strip().lower()
+
+    if not client_id or not client_secret:
+        return jsonify({"error": "client_id and client_secret are required"}), 400
+    if region not in ("us", "eu", "ap", "ca"):
+        return jsonify({"error": "region must be one of: us, eu, ap, ca"}), 400
+
+    try:
+        from app.masri.new_models import SettingsStorage
+        import json
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="ninjaone")
+        ).scalars().first()
+        if not record:
+            record = SettingsStorage(provider="ninjaone", enabled=True)
+            db.session.add(record)
+        record.enabled = True
+        record.save_config({"client_id": client_id, "client_secret": client_secret, "region": region})
+        db.session.commit()
+        return jsonify(record.as_dict())
+    except Exception:
+        logger.exception("Error saving NinjaOne credentials")
+        db.session.rollback()
+        return jsonify({"error": "Failed to save NinjaOne credentials"}), 500
+
+
+@settings_bp.route("/ninjaone", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def delete_ninjaone_config():
+    """DELETE /api/v1/settings/ninjaone — remove NinjaOne config."""
+    _require_admin()
+    try:
+        from app.masri.new_models import SettingsStorage
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="ninjaone")
+        ).scalars().first()
+        if record:
+            db.session.delete(record)
+            db.session.commit()
+        return jsonify({"message": "NinjaOne configuration removed"})
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Failed to delete NinjaOne configuration"}), 500
+
+
+@settings_bp.route("/ninjaone/mappings", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_ninjaone_mappings():
+    """GET /api/v1/settings/ninjaone/mappings — get org→tenant mappings."""
+    _require_admin()
+    try:
+        from app.models import ConfigStore
+        import json
+        record = ConfigStore.find("ninjaone_org_mappings")
+        if record and record.value:
+            return jsonify(json.loads(record.value))
+        return jsonify({})
+    except Exception:
+        return jsonify({})
+
+
+@settings_bp.route("/ninjaone/mappings", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_ninjaone_mappings():
+    """PUT /api/v1/settings/ninjaone/mappings — save org→tenant mappings."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    data = request.get_json(silent=True) or {}
+    ConfigStore.upsert("ninjaone_org_mappings", json.dumps(data))
+    return jsonify({"message": "Mappings saved"})
+
+
+# ===========================================================================
+# DefensX Browser Security
+# ===========================================================================
+
+@settings_bp.route("/defensx", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_defensx_config():
+    """GET /api/v1/settings/defensx — return DefensX config status."""
+    from flask import current_app
+    _require_admin()
+    try:
+        from app.masri.new_models import SettingsStorage
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="defensx")
+        ).scalars().first()
+        if record:
+            safe = record.as_dict()
+            safe["configured"] = True
+            safe["enabled"] = record.enabled
+            return jsonify(safe)
+    except Exception:
+        pass
+
+    has_env = bool(current_app.config.get("DEFENSX_API_TOKEN"))
+    return jsonify({"configured": has_env, "source": "env_vars" if has_env else "none"})
+
+
+@settings_bp.route("/defensx", methods=["POST"])
+@limiter.limit("20 per minute")
+@login_required
+def update_defensx_config():
+    """POST /api/v1/settings/defensx — save DefensX API token encrypted."""
+    _require_admin()
+    data = request.get_json(silent=True) or {}
+    api_token = data.get("api_token", "").strip()
+
+    if not api_token:
+        return jsonify({"error": "api_token is required"}), 400
+
+    try:
+        from app.masri.new_models import SettingsStorage
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="defensx")
+        ).scalars().first()
+        if not record:
+            record = SettingsStorage(provider="defensx", enabled=True)
+            db.session.add(record)
+        record.enabled = True
+        record.save_config({"api_token": api_token})
+        db.session.commit()
+        return jsonify(record.as_dict())
+    except Exception:
+        logger.exception("Error saving DefensX credentials")
+        db.session.rollback()
+        return jsonify({"error": "Failed to save DefensX credentials"}), 500
+
+
+@settings_bp.route("/defensx", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def delete_defensx_config():
+    """DELETE /api/v1/settings/defensx — remove DefensX config."""
+    _require_admin()
+    try:
+        from app.masri.new_models import SettingsStorage
+        record = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="defensx")
+        ).scalars().first()
+        if record:
+            db.session.delete(record)
+            db.session.commit()
+        return jsonify({"message": "DefensX configuration removed"})
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Failed to delete DefensX configuration"}), 500
+
+
+@settings_bp.route("/defensx/mappings", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_defensx_mappings():
+    """GET /api/v1/settings/defensx/mappings — get customer→tenant mappings."""
+    _require_admin()
+    try:
+        from app.models import ConfigStore
+        import json
+        record = ConfigStore.find("defensx_customer_mappings")
+        if record and record.value:
+            return jsonify(json.loads(record.value))
+        return jsonify({})
+    except Exception:
+        return jsonify({})
+
+
+@settings_bp.route("/defensx/mappings", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_defensx_mappings():
+    """PUT /api/v1/settings/defensx/mappings — save customer→tenant mappings."""
+    _require_admin()
+    import json
+    from app.models import ConfigStore
+    data = request.get_json(silent=True) or {}
+    ConfigStore.upsert("defensx_customer_mappings", json.dumps(data))
+    return jsonify({"message": "Mappings saved"})
+
+
+# ===========================================================================
 # Platform Updates
 # ===========================================================================
 

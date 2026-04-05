@@ -384,6 +384,12 @@ def registering_blueprints(app):
     from app.masri.telivy_routes import telivy_bp
     app.register_blueprint(telivy_bp)
 
+    from app.masri.ninjaone_routes import ninjaone_bp
+    app.register_blueprint(ninjaone_bp)
+
+    from app.masri.defensx_routes import defensx_bp
+    app.register_blueprint(defensx_bp)
+
     return
 
 
