@@ -257,12 +257,18 @@ class AzureBlobStorageProvider(StorageProvider):
 
         # Auto-create container if it doesn't exist
         try:
+            from azure.core.exceptions import ResourceExistsError
+        except ImportError:
+            ResourceExistsError = None
+        try:
             self.container_client.create_container()
             logger.info("Created Azure container: %s", self.container)
         except Exception as e:
-            # ResourceExistsError (or any 409) means it already exists — safe to ignore
-            if "ContainerAlreadyExists" not in str(e) and "409" not in str(e):
-                logger.debug("Azure container check: %s", e)
+            # ResourceExistsError means container already exists — expected
+            if ResourceExistsError and isinstance(e, ResourceExistsError):
+                pass
+            else:
+                logger.warning("Azure container auto-create failed: %s", e)
 
     def upload_file(self, file: BinaryIO, file_name: str, folder: str) -> str:
         blob_name = f"{folder}/{file_name}".lstrip("/")
@@ -348,10 +354,10 @@ class SharePointStorageProvider(StorageProvider):
         self.client_secret = client_secret
         self.document_library = document_library
 
-        # Validate site_url contains /sites/ path (required for Graph API resolution)
-        if "/sites/" not in site_url:
+        # Validate site_url has a recognized SharePoint path
+        if "/sites/" not in site_url and "/teams/" not in site_url:
             raise ValueError(
-                "SharePoint site_url must contain '/sites/' path "
+                "SharePoint site_url must contain '/sites/' or '/teams/' path "
                 "(e.g. https://company.sharepoint.com/sites/compliance)"
             )
         self.site_url = site_url
@@ -406,16 +412,57 @@ class SharePointStorageProvider(StorageProvider):
         site_id = self._get_site_id()
         drive_id = self._get_drive_id(site_id)
         path = f"{folder}/{file_name}".replace("//", "/").strip("/")
+        content = file.read() if hasattr(file, "read") else open(str(file), "rb").read()
+
+        # Graph API simple PUT supports up to 4MB; larger files need upload session
+        if len(content) > 4 * 1024 * 1024:
+            return self._upload_large_file(drive_id, path, content)
+
         url = (
             f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
             f"/root:/{path}:/content"
         )
-        content = file.read() if hasattr(file, "read") else open(str(file), "rb").read()
         headers = self._headers()
         headers["Content-Type"] = "application/octet-stream"
         resp = self._requests.put(url, headers=headers, data=content, timeout=120)
         resp.raise_for_status()
         return resp.json().get("webUrl", path)
+
+    def _upload_large_file(self, drive_id: str, path: str, content: bytes) -> str:
+        """Upload files >4MB using Graph API upload session (chunked)."""
+        # Create upload session
+        session_url = (
+            f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
+            f"/root:/{path}:/createUploadSession"
+        )
+        session_resp = self._requests.post(
+            session_url, headers=self._headers(),
+            json={"item": {"@microsoft.graph.conflictBehavior": "replace"}},
+            timeout=30,
+        )
+        session_resp.raise_for_status()
+        upload_url = session_resp.json()["uploadUrl"]
+
+        # Upload in 3.5MB chunks (under the 4MB per-request limit)
+        chunk_size = 3 * 1024 * 1024 + 512 * 1024  # 3.5MB
+        total = len(content)
+        start = 0
+        resp_json = {}
+        while start < total:
+            end = min(start + chunk_size, total)
+            chunk = content[start:end]
+            headers = {
+                "Content-Length": str(len(chunk)),
+                "Content-Range": f"bytes {start}-{end - 1}/{total}",
+            }
+            resp = self._requests.put(
+                upload_url, headers=headers, data=chunk, timeout=120
+            )
+            resp.raise_for_status()
+            resp_json = resp.json()
+            start = end
+
+        return resp_json.get("webUrl", path)
 
     def get_file(self, path: str) -> bytes:
         site_id = self._get_site_id()
