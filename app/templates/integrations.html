@@ -377,6 +377,12 @@
                   <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="if(confirm('Reset primary provider?')) { llmForm.provider=''; llmForm.api_key=''; llmForm.model_name=''; }"><i class="ti ti-x text-xs"></i></button>
                 </div>
                 <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1">
+                  <select class="select select-bordered select-xs w-full mb-1" x-model="llmForm.provider" @change="llmModels = []; saveLlmSlot(); fetchLlmModels();">
+                    <option value="together_ai">Together AI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="azure_openai">Azure OpenAI</option>
+                  </select>
                   <input type="password" class="input input-bordered input-xs w-full" x-model="llmForm.api_key" placeholder="API key"
                          @blur="if (llmForm.api_key) { saveLlmSlot().then(() => { testSingleLlmProvider(llmForm.provider); fetchLlmModels(); }); }" />
                   <div class="flex gap-1">
