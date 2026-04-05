@@ -373,31 +373,30 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 
 ## Implementation Roadmap
 
-### Execution Order
+### Phase A: Architecture Hardening (Current Sprint)
 
-| Step | What | Files | Size |
-|------|------|-------|------|
-| 1 | Decouple Telivy from Microsoft | `llm_routes.py`, `integrations.html` | Medium |
-| 2 | Add job stages + extend poll | `llm_routes.py`, `integrations.html`, `view_project.html` | Large |
-| 3 | Create prompt adapter layer | New `prompt_adapters.py`, `llm_service.py` | Large |
-| 4 | Wire adapters into all prompts | `llm_routes.py`, `risk_profiles.py` | Medium |
-| 5 | Fix update manager for Docker | `update_manager.py`, `settings_routes.py` | Small |
-| 6 | Redis-backed log viewer | `log_buffer.py`, `__init__.py` | Medium |
-| 7 | Storage provider hardening | `storage_providers.py`, `entra_routes.py` | Small |
-| 8 | Update CLAUDE.md | `CLAUDE.md` | Small |
+| Step | What | Status | Files |
+|------|------|--------|-------|
+| ~~5~~ | ~~Update manager Docker safety~~ | **DONE** | `update_manager.py`, `scheduler.py`, `system_info.html` |
+| ~~7~~ | ~~Storage provider hardening~~ | **DONE** | `storage_providers.py`, `entra_routes.py` |
+| 1 | Decouple Telivy from Microsoft | Pending | `llm_routes.py`, `integrations.html` |
+| 2 | Add job stages + extend poll | Pending | `llm_routes.py`, `integrations.html`, `view_project.html` |
+| 3 | Create prompt adapter layer | Pending | New `prompt_adapters.py`, `llm_service.py` |
+| 4 | Wire adapters into all prompts | Pending | `llm_routes.py`, `risk_profiles.py` |
+| 6 | Redis-backed log viewer | Pending | `log_buffer.py`, `__init__.py` |
 
-### Step 1: Decouple Telivy from Microsoft
+#### Step 1: Decouple Telivy from Microsoft
 - Add `run_mode` parameter to `auto_process`: `telivy_only | microsoft_only | full`
 - `_bg_auto_process` skips Microsoft when `run_mode=telivy_only` and vice versa
 - Frontend: Re-run on Telivy sends `telivy_only`, Microsoft sends `microsoft_only`
 - LLM phases auto-skip: Phase 1 skips if no Telivy, Phase 2 skips if no Microsoft, Phase 3 skips if only one source
 
-### Step 2: Job Stages + Extended Poll Window
+#### Step 2: Job Stages + Extended Poll Window
 - Add `_update_job_status(tenant_id, stage, detail)` helper writing to ConfigStore
 - Stages: `collecting_telivy → collecting_microsoft → computing_risk_profiles → analyzing_phase1 → analyzing_phase2 → analyzing_cross_source → generating_evidence → syncing_progress → done`
 - Frontend: extend poll from 5 min to 15 min, show stage name + chunk progress ("Analyzing Telivy 3/10")
 
-### Step 3: Prompt Adapter Layer
+#### Step 3: Prompt Adapter Layer
 New `app/masri/prompt_adapters.py` with model-family-specific adapters:
 
 | Adapter | Detection | Chunk | Temp | Strategy |
@@ -412,7 +411,7 @@ New `app/masri/prompt_adapters.py` with model-family-specific adapters:
 
 Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `adapt_json_instruction()`, `adapt_max_tokens()`
 
-### Step 4: Wire Adapters Into All 10 Prompts
+#### Step 4: Wire Adapters Into All 10 Prompts
 1. Phase 1: Telivy analysis (`llm_routes.py`)
 2. Phase 2: Microsoft analysis (`llm_routes.py`)
 3. Phase 3: Cross-source (`llm_routes.py`)
@@ -424,22 +423,163 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 9. Gap narrative (`llm_routes.py`)
 10. Risk scoring (`llm_routes.py`)
 
-### Step 5: Update Manager Docker Safety
-- `UpdateManager.apply()` does ONLY `git pull` (no pip, no migrate, no SIGHUP)
-- Returns: "Code updated. Rebuild container to apply."
-- System page banner: "Update pulled — rebuild required"
-
-### Step 6: Redis-Backed Log Viewer
+#### Step 6: Redis-Backed Log Viewer
 - `BufferHandler.emit()` pushes to Redis LIST (LPUSH + LTRIM 500)
 - `get_recent_logs()` reads from Redis (LRANGE)
 - Fallback to in-memory if Redis unavailable
 - Add worker ID to entries
 
-### Step 7: Storage & Integration Hardening
-- Azure: auto-create container in `__init__`
-- SharePoint: validate `site_url` has `/sites/` path
-- Egnyte: strip `https://` and `.egnyte.com` from domain
-- CSP import: wrap in savepoint, return per-item results
+---
+
+### Phase B: Technical Debt (Fix Before New Features)
+
+| Item | What | Files | Priority |
+|------|------|-------|----------|
+| B1 | Complete PDF report generation | `app/utils/reports.py` | High — stub raises `NotImplementedError` |
+| B2 | Migrate scheduler to Celery/Redis | `app/masri/scheduler.py`, `docker-compose.yml` | High — threading.Timer unreliable in multi-worker |
+| B3 | Add CI/CD pipeline | New `.github/workflows/` | High — no automated testing or deployment |
+| B4 | Upgrade PCI DSS v3.1 → v4.0 | `app/files/base_controls/pci_3.1.json` | High — v3.1 deprecated March 2024 |
+
+#### B1: PDF Report Generation
+- **Current state**: `app/utils/reports.py:31` — `generate()` raises `ValueError("Not Implemented")`
+- **Route exists**: `/api/v1/projects/{id}/report` returns the error
+- **Implementation**: Use WeasyPrint (already referenced in imports) to render HTML templates to PDF
+- **Report types**: Compliance summary, gap analysis, risk register, evidence inventory, audit-ready package
+- **Template**: Jinja2 HTML → CSS → WeasyPrint PDF pipeline
+- **Key data**: Project controls, subcontrol progress, evidence list, risk register, framework metadata
+
+#### B2: Migrate Scheduler to Celery/Redis
+- **Current state**: `app/masri/scheduler.py` — 6 tasks on `threading.Timer`
+- **Problem**: Timers lost on worker restart, no persistence, no retry, can double-fire in multi-worker
+- **Target**: Celery with Redis broker (Redis already in docker-compose for sessions)
+- **Tasks to migrate**: due_reminders (1h), drift_detection (24h), auto_update (1h), integration_refresh (24h), model_recommendations (7d), integration_backup (24h)
+- **Keep**: `MASRI_SCHEDULER_ENABLED` env toggle, graceful fallback to threading.Timer if Redis unavailable
+
+#### B3: CI/CD Pipeline
+- **Add**: `.github/workflows/ci.yml` — lint, type-check, unit tests on PR
+- **Add**: `.github/workflows/deploy.yml` — build + push Docker image on merge to main
+- **Tests**: Start with model tests, route smoke tests, integration client mocks
+- **Linting**: flake8 or ruff, basic security scan (bandit)
+
+#### B4: PCI DSS v3.1 → v4.0 Upgrade
+- **Current**: `app/files/base_controls/pci_3.1.json` (v3.1 — deprecated March 2024)
+- **Action**: Create `pci_dss_v4.0.json` with all v4.0 requirements (64 new requirements vs v3.2.1)
+- **Key v4.0 additions**: Targeted risk analysis, MFA everywhere, authenticated vulnerability scanning, encrypted passwords, e-commerce skimming detection, security awareness training
+- **Migration**: Existing PCI projects should offer upgrade path (map v3.1 controls → v4.0 equivalents)
+- **Keep v3.1**: Legacy projects may still reference it; don't delete, mark as deprecated
+
+---
+
+### Phase C: Product Roadmap (by Priority)
+
+#### C1: Automated Evidence Collection (Highest Priority)
+**Problem**: Vanta has 375+ integrations, we have 3 (Telivy, Entra, Intune). Gap is the #1 competitive weakness.
+
+**Immediate (existing data)**:
+- Auto-generate evidence artifacts from Entra ID/Intune data already collected:
+  - MFA enrollment report → evidence for access control controls
+  - Device compliance report → evidence for endpoint protection controls
+  - Conditional Access policy export → evidence for authentication controls
+  - Secure Score snapshot → evidence for security posture controls
+  - Sign-in anomaly report → evidence for monitoring controls
+- Create `app/masri/evidence_generators.py` with per-source generators
+- Each generator: query ConfigStore cache → format evidence document → create `ProjectEvidence` record
+- Run as part of auto-process pipeline (new stage after LLM analysis)
+
+**Next integrations (priority order)**:
+1. **NinjaRMM** — endpoint management, patching status, AV status, remote access logs
+2. **ConnectWise Manage** — ticket system, asset inventory, SLA compliance
+3. **ConnectWise Automate** — patch compliance, script execution, monitoring alerts
+4. **Duo Security** — MFA provider, access device health
+5. **KnowBe4** — security awareness training completion (ties into C3)
+6. **Veeam/Datto** — backup verification evidence
+
+**Each new integration follows the methodology in "Integration Methodology" section above.**
+
+#### C2: Continuous Monitoring
+**Problem**: Current drift detection is passive — checks every 24h for 90-day-stale controls. No real-time configuration change detection.
+
+**Implementation**:
+- **Webhook receivers**: Accept real-time events from Entra ID (via Azure Event Hub), NinjaRMM, ConnectWise
+- **Configuration baseline**: Snapshot known-good state (Conditional Access policies, MFA settings, device compliance policies)
+- **Delta detection**: Compare current state to baseline on each data refresh
+- **Alert on drift**: Policy removed, MFA disabled for user, compliance policy changed, new admin added
+- **Dashboard widget**: "Configuration changes since last audit" with timeline
+- **Scheduler upgrade**: Increase integration_refresh frequency for tenants with continuous monitoring enabled (every 4h instead of 24h)
+
+**Files**: New `app/masri/continuous_monitor.py`, extend `scheduler.py`, new webhook blueprint
+
+#### C3: Employee Training Module
+**Problem**: 7 of 14 competitors include training. FTC Safeguards explicitly requires training documentation. Currently only a `"training"` type in `DueDate.VALID_ENTITY_TYPES` — no actual module.
+
+**Implementation**:
+- **Training model**: `Training` — id, tenant_id, title, description, content_type (video_url, document, quiz), frequency (annual, quarterly, onboarding), framework_requirements (which controls need this)
+- **TrainingAssignment model**: tenant_id, training_id, user_email, assigned_date, completed_date, score, certificate_url
+- **Training blueprint**: `app/masri/training_routes.py` with CRUD + assignment + completion tracking
+- **Built-in content**: FTC Safeguards training template, HIPAA security awareness template, general security awareness template
+- **Evidence integration**: Training completion auto-generates evidence for applicable controls
+- **Reminders**: Extend scheduler with training due reminders
+- **UI**: Training management page, employee completion dashboard, training assignment from control gap view
+
+#### C4: Missing Compliance Frameworks
+**Current**: 18 frameworks. **Missing high-value frameworks**:
+
+| Framework | Why | Target Market |
+|-----------|-----|---------------|
+| **PCI DSS v4.0** | v3.1 deprecated, v4.0 mandatory since March 2025 | Retail, e-commerce, payment processors |
+| **GDPR** | EU data protection, any company with EU customers | All companies with EU presence |
+| **CCPA/CPRA** | California consumer privacy, expanding to other states | Any company with CA customers |
+| **ABA Model Rules** | **Zero competitors cover this** — massive white space | Law firms (Ethics + Client Data rules) |
+| **HITRUST CSF** | Healthcare-specific, maps to HIPAA + NIST | Healthcare, health tech, insurers |
+
+**Implementation per framework**:
+- Create `app/files/base_controls/{framework}.json` with control hierarchy
+- Add framework metadata to framework creation flow
+- Populate `Control.mapping` field with cross-references to existing frameworks
+- Test auto-process LLM phases with new controls
+
+**ABA Model Rules** (unique differentiator):
+- ABA Model Rules 1.1 (Competence — technology competence), 1.4 (Communications — breach notification), 1.6 (Confidentiality — data protection), 5.1/5.3 (Supervision — employee training)
+- Cross-map to NIST 800-53 and SOC 2 where applicable
+- Evidence types: attorney training records, encryption policies, incident response plans, vendor due diligence
+
+#### C5: Cross-Framework Control Mapping
+**Problem**: `Control.mapping` field (`models.py:1921`, `db.Column(db.JSON(), default={})`) exists but is empty and unused.
+
+**Implementation**:
+- **Mapping data**: Populate `Control.mapping` with cross-references during framework seed:
+  ```json
+  {
+    "nist_800_53": ["AC-2", "AC-3"],
+    "soc2": ["CC6.1", "CC6.2"],
+    "iso_27001": ["A.9.2.1"],
+    "pci_dss_v4": ["7.1", "7.2"]
+  }
+  ```
+- **UI**: "Related Controls" panel on control detail view showing equivalent controls in other frameworks
+- **Auto-process**: When a control is mapped as compliant, suggest the same status for mapped controls in other frameworks on the same project
+- **Gap analysis**: "If you comply with NIST AC-2, you also satisfy SOC 2 CC6.1" — reduces duplicate work
+- **Mapping sources**: NIST SP 800-53 Rev 5 Appendix H (official NIST-to-ISO mapping), CSA CCM cross-reference, PCI DSS v4.0 mapping guide
+
+#### C6: Trust Portal (Client-Facing Compliance Status Page)
+**Problem**: No way for clients' customers or auditors to view compliance status externally without logging in.
+
+**Implementation**:
+- **Public route**: `/trust/{tenant_slug}` — unauthenticated, rate-limited
+- **Displays**: Framework compliance percentage, last audit date, active certifications, security contact
+- **Controls**: Tenant configures which frameworks are visible, custom branding, custom domain (CNAME)
+- **Documents**: Downloadable SOC 2 report, penetration test summary (tenant uploads, controls access)
+- **NDA gate**: Optional — require email + NDA acceptance before viewing detailed reports
+- **API**: `/api/v1/trust/{tenant_slug}/status` for programmatic access (vendor questionnaire automation)
+
+---
+
+### Completed Steps
+
+| Step | What | Completed |
+|------|------|-----------|
+| 5 | Update manager Docker safety | 2026-04-05 |
+| 7 | Storage provider hardening (Azure auto-create, SharePoint /teams/ + 4MB guard, Egnyte domain normalization, CSP savepoint) | 2026-04-05 |
 
 ---
 
@@ -473,14 +613,16 @@ Added `--preload` flag to gunicorn in run.sh:
 ## Things to NEVER Do
 1. **NEVER** push to main without running a security review first — use a security review agent in parallel during development, or run a full audit before the final push
 2. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
-2. **NEVER** use `dict | None` type hints (PEP 604) — may crash on older Python
-3. **NEVER** access the database in `before_request` — use session-only data
-4. **NEVER** run synchronous LLM calls in the request thread (120s gunicorn timeout)
-5. **NEVER** set default rate limits below 500/hour (causes lockout during active development)
-6. **NEVER** reference `slot` or `label` columns on `SettingsLLM` — they don't exist in the DB
-7. **NEVER** call Microsoft Graph API on page load — always read from ConfigStore cache (throttling risk). Telivy API calls on page load are OK (no throttling).
-8. **NEVER** send raw JSON dumps to LLM — always use `_compress_for_llm()` for token efficiency
-9. **NEVER** create a single LLM prompt for multiple data sources — each source gets its own phase
-10. **NEVER** store the same data in multiple ConfigStore keys — use ONE key per data type. Duplicate storage causes stale data and DB errors. Example: additional provider keys go in `ConfigStore("llm_additional_providers")` ONLY, not also in `ConfigStore("llm_provider_{key}")`.
-11. **NEVER** send Alpine.js proxy objects directly to `JSON.stringify()` for API calls — extract plain values first. Alpine wraps objects in Proxy which can contain circular references or non-serializable data.
-12. **NEVER** create Flask routes under `/storage/X` — use `/storage-X` (hyphenated) because `/storage/<string:provider>` catches everything.
+3. **NEVER** use `dict | None` type hints (PEP 604) — may crash on older Python
+4. **NEVER** access the database in `before_request` — use session-only data
+5. **NEVER** run synchronous LLM calls in the request thread (120s gunicorn timeout)
+6. **NEVER** set default rate limits below 500/hour (causes lockout during active development)
+7. **NEVER** reference `slot` or `label` columns on `SettingsLLM` — they don't exist in the DB
+8. **NEVER** call Microsoft Graph API on page load — always read from ConfigStore cache (throttling risk). Telivy API calls on page load are OK (no throttling).
+9. **NEVER** send raw JSON dumps to LLM — always use `_compress_for_llm()` for token efficiency
+10. **NEVER** create a single LLM prompt for multiple data sources — each source gets its own phase
+11. **NEVER** store the same data in multiple ConfigStore keys — use ONE key per data type. Duplicate storage causes stale data and DB errors. Example: additional provider keys go in `ConfigStore("llm_additional_providers")` ONLY, not also in `ConfigStore("llm_provider_{key}")`.
+12. **NEVER** send Alpine.js proxy objects directly to `JSON.stringify()` for API calls — extract plain values first. Alpine wraps objects in Proxy which can contain circular references or non-serializable data.
+13. **NEVER** create Flask routes under `/storage/X` — use `/storage-X` (hyphenated) because `/storage/<string:provider>` catches everything.
+14. **NEVER** use the same generic LLM prompt for all model families — always use the prompt adapter layer (`prompt_adapters.py`) to adapt prompts per model.
+15. **NEVER** delete a deprecated framework JSON file — mark it deprecated, keep for legacy projects.
