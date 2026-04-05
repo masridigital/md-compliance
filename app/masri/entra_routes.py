@@ -208,13 +208,16 @@ def entra_import_csp_clients():
                 "message": f"Mapped to existing tenant: {existing.name}"
             })
         else:
-            # Create new tenant
+            # Create new tenant inside a savepoint so one failure
+            # doesn't roll back the entire batch
             try:
+                nested = db.session.begin_nested()
                 tenant = Tenant.create(
                     current_user, name,
                     email=csp.get("domain", ""),
                     init_data=True,
                 )
+                nested.commit()
                 results["created"] += 1
                 results["details"].append({
                     "name": name, "action": "created", "tenant_id": tenant.id,
@@ -226,6 +229,7 @@ def entra_import_csp_clients():
                     user_id=current_user.id,
                 )
             except Exception as e:
+                nested.rollback()
                 results["skipped"] += 1
                 results["details"].append({
                     "name": name, "action": "error",

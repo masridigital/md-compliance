@@ -121,8 +121,12 @@
                         <i class="ti ti-copy"></i> Copy Deploy Command
                     </button>
                 </div>
-                <p x-show="updateStatus.available" class="text-xs text-warning mt-2"><i class="ti ti-alert-triangle"></i> "Update Now" pulls code and restarts within the container. For a full Docker rebuild, use the deploy command via SSH.</p>
+                <p x-show="updateStatus.available" class="text-xs text-warning mt-2"><i class="ti ti-alert-triangle"></i> "Update Now" pulls code only. You must rebuild the Docker container to apply changes.</p>
                 <div x-show="updateResult" class="text-xs mt-2" :class="updateResult && updateResult.success ? 'text-success' : 'text-error'" x-text="updateResult ? updateResult.message : ''"></div>
+                <div x-show="updateResult && updateResult.rebuild_required" class="alert alert-warning mt-3 text-sm">
+                    <i class="ti ti-alert-triangle"></i>
+                    <span>Update pulled — container rebuild required. Run: <code class="font-mono text-xs">docker-compose up -d --build</code></span>
+                </div>
                 <div x-show="updateStatus && !updateStatus.available" class="mt-2"><span class="text-xs text-success"><i class="ti ti-check"></i> Already up to date — no action needed.</span></div>
             </div>
 
@@ -353,14 +357,13 @@ function systemInfo() {
     },
 
     async applyUpdates() {
-      if (!confirm('Apply updates now? This will restart the application and log out all users.')) return;
+      if (!confirm('Pull updates now? You will need to rebuild the Docker container to apply them.')) return;
       this.updateApplying = true;
       try {
         const resp = await fetch('/api/v1/settings/updates/apply', { method: 'POST' });
         this.updateResult = await resp.json();
         if (this.updateResult.success) {
-          toast('Update applied! App is restarting...', 'success');
-          setTimeout(() => { window.location.reload(); }, 5000);
+          toast('Code pulled. Rebuild container to apply.', 'success');
         } else { toast('Update failed: ' + this.updateResult.message, 'error'); }
       } catch(e) { toast('Error applying update', 'error'); }
       this.updateApplying = false;
