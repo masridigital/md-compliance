@@ -353,6 +353,12 @@ class LLMService:
             if record and record.value:
                 data = json.loads(record.value)
                 if data.get("sameForAll", True):
+                    # Check if a specific "same for all" provider+model is set
+                    tiers = data.get("tiers", {})
+                    same_provider = tiers.get("_sameProvider")
+                    same_model = tiers.get("_sameModel")
+                    if same_provider:
+                        return {"provider": same_provider, "model": same_model or ""}
                     return None
 
                 # Check tier-based routing first

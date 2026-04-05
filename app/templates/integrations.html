@@ -499,11 +499,51 @@
               <input type="checkbox" class="checkbox checkbox-xs" x-model="llmSameModelForAll" @change="saveLlmSlot()">
               <span class="text-xs">Use same model for all tasks</span>
             </label>
-            <!-- When same-for-all, just show what's being used -->
-            <div x-show="llmSameModelForAll" class="bg-base-300 rounded p-2 mb-2 text-xs opacity-60">
-              All tasks will use <strong x-text="(llmForm.provider || 'primary').replace('_', ' ')"></strong>
-              <span x-show="llmForm.model_name"> / <span x-text="llmForm.model_name.split('/').pop()"></span></span>.
-              Edit the provider above to change.
+            <!-- When same-for-all, pick provider+model (same layout as fallback) -->
+            <div x-show="llmSameModelForAll" class="bg-base-300 rounded p-2 mb-2"
+                 x-data="{ sameModels: [], loaded: false }"
+                 x-init="
+                   if(!llmTierConfig._sameProvider) llmTierConfig._sameProvider = llmForm.provider || '';
+                   if(!llmTierConfig._sameModel) llmTierConfig._sameModel = llmForm.model_name || '';
+                   const p = llmTierConfig._sameProvider;
+                   if (p) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: p }) })
+                     .then(r=>r.json()).then(d=>{ sameModels = d.models||[]; loaded = true; }).catch(()=>{ loaded = true; }); }
+                 ">
+              <div class="flex items-center gap-2">
+                <div class="w-24 shrink-0">
+                  <div class="text-[10px] font-bold">All Tasks</div>
+                  <div class="text-[9px] opacity-40">Same model</div>
+                </div>
+                <select class="select select-bordered select-xs w-28"
+                        x-model="llmTierConfig._sameProvider"
+                        @change="sameModels = []; loaded = false; llmTierConfig._sameModel = '';
+                          const prov = llmTierConfig._sameProvider;
+                          if (prov) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                            .then(r=>r.json()).then(d=>{ sameModels = d.models||[]; loaded = true; }).catch(()=>{ loaded = true; }); }
+                          saveLlmSlot();">
+                  <option value="">Select...</option>
+                  <option value="together_ai">Together AI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="azure_openai">Azure OpenAI</option>
+                </select>
+                <select class="select select-bordered select-xs w-40 min-w-0"
+                        x-model="llmTierConfig._sameModel"
+                        @mousedown="if (!sameModels.length && !loaded) {
+                          const prov = llmTierConfig._sameProvider || llmForm.provider;
+                          if (prov) fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                            .then(r=>r.json()).then(d=>{ sameModels = d.models||[]; loaded = true; }).catch(()=>{});
+                        }"
+                        @change="saveLlmSlot()">
+                  <option value="">Select model...</option>
+                  <template x-if="llmTierConfig._sameModel && !sameModels.includes(llmTierConfig._sameModel)">
+                    <option :value="llmTierConfig._sameModel" x-text="llmTierConfig._sameModel.split('/').pop()" selected></option>
+                  </template>
+                  <template x-for="m in sameModels" :key="'same-'+m">
+                    <option :value="m" x-text="m.split('/').pop()"></option>
+                  </template>
+                </select>
+              </div>
             </div>
 
             <div x-show="!llmSameModelForAll" class="mb-2 space-y-1" x-data="{
