@@ -927,24 +927,77 @@
               </template>
             </div>
 
-            <!-- ── Storage Routing (same layout as LLM tier routing) ── -->
+            <!-- ── File Routing (mirrors LLM Task Routing) ── -->
             <div class="divider text-xs my-2">File Routing</div>
-            <p class="text-[10px] opacity-50 mb-2">Assign which provider stores each file type. Defaults to local if not set.</p>
-            <div class="space-y-1" x-data="{ roles: { evidence: 'local', reports: 'local', backups: 'local' } }"
-                 x-init="fetch('/api/v1/settings/storage-roles').then(r => r.json()).then(d => { if (d.evidence) roles = d; }).catch(() => {})">
-              <template x-for="role in [
-                { id: 'evidence', label: 'Evidence', hint: 'Screenshots, docs' },
-                { id: 'reports', label: 'Reports', hint: 'WISP, audit PDFs' },
-                { id: 'backups', label: 'Backups', hint: 'Data snapshots' }
-              ]" :key="role.id">
+            <div x-data="{ sameForAll: false, roles: { evidence: 'local', reports: 'local', backups: 'local', fallback: 'local', _sameProvider: 'local' } }"
+                 x-init="fetch('/api/v1/settings/storage-roles').then(r => r.json()).then(d => {
+                   if (d.evidence) { Object.assign(roles, d); }
+                   if (d._sameProvider) sameForAll = true;
+                 }).catch(() => {})">
+
+              <label class="flex items-center gap-2 mb-2">
+                <input type="checkbox" class="checkbox checkbox-xs" x-model="sameForAll"
+                       @change="if (sameForAll) { roles._sameProvider = roles._sameProvider || 'local'; }
+                         fetch('/api/v1/settings/storage-roles', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...roles, _sameForAll: sameForAll}) }).catch(() => {});">
+                <span class="text-xs">Use same provider for all files</span>
+              </label>
+
+              <!-- Same for all: single provider picker -->
+              <div x-show="sameForAll" class="bg-base-300 rounded p-2 mb-2">
+                <div class="flex items-center gap-2">
+                  <div class="w-24 shrink-0">
+                    <div class="text-[10px] font-bold">All Files</div>
+                    <div class="text-[9px] opacity-40">Same provider</div>
+                  </div>
+                  <select class="select select-bordered select-xs w-28"
+                          x-model="roles._sameProvider"
+                          @change="fetch('/api/v1/settings/storage-roles', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...roles, _sameForAll: true}) }).catch(() => {})">
+                    <option value="local">Local</option>
+                    <option value="s3">Amazon S3</option>
+                    <option value="azure_blob">Azure Blob</option>
+                    <option value="sharepoint">SharePoint</option>
+                    <option value="egnyte">Egnyte</option>
+                  </select>
+                  <div class="w-40 min-w-0"></div>
+                </div>
+              </div>
+
+              <!-- Per-role routing -->
+              <div x-show="!sameForAll" class="space-y-1 mb-2">
+                <template x-for="role in [
+                  { id: 'evidence', label: 'Evidence', hint: 'Screenshots, docs' },
+                  { id: 'reports', label: 'Reports', hint: 'WISP, audit PDFs' },
+                  { id: 'backups', label: 'Backups', hint: 'Data snapshots' }
+                ]" :key="role.id">
+                  <div class="bg-base-300 rounded p-2">
+                    <div class="flex items-center gap-2">
+                      <div class="w-24 shrink-0">
+                        <div class="text-[10px] font-bold" x-text="role.label"></div>
+                        <div class="text-[9px] opacity-40" x-text="role.hint"></div>
+                      </div>
+                      <select class="select select-bordered select-xs w-28"
+                              x-model="roles[role.id]"
+                              @change="fetch('/api/v1/settings/storage-roles', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(roles) }).catch(() => {})">
+                        <option value="local">Local</option>
+                        <option value="s3">Amazon S3</option>
+                        <option value="azure_blob">Azure Blob</option>
+                        <option value="sharepoint">SharePoint</option>
+                        <option value="egnyte">Egnyte</option>
+                      </select>
+                      <div class="w-40 min-w-0"></div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Fallback (same layout as LLM fallback) -->
                 <div class="bg-base-300 rounded p-2">
                   <div class="flex items-center gap-2">
                     <div class="w-24 shrink-0">
-                      <div class="text-[10px] font-bold" x-text="role.label"></div>
-                      <div class="text-[9px] opacity-40" x-text="role.hint"></div>
+                      <div class="text-[10px] font-bold">Fallback</div>
+                      <div class="text-[9px] opacity-40">If provider fails</div>
                     </div>
                     <select class="select select-bordered select-xs w-28"
-                            x-model="roles[role.id]"
+                            x-model="roles.fallback"
                             @change="fetch('/api/v1/settings/storage-roles', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(roles) }).catch(() => {})">
                       <option value="local">Local</option>
                       <option value="s3">Amazon S3</option>
@@ -952,9 +1005,10 @@
                       <option value="sharepoint">SharePoint</option>
                       <option value="egnyte">Egnyte</option>
                     </select>
+                    <div class="w-40 min-w-0"></div>
                   </div>
                 </div>
-              </template>
+              </div>
             </div>
 
             <div class="divider text-xs my-2">Reset</div>

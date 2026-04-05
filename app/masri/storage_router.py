@@ -61,12 +61,18 @@ def _get_provider_for_role(role):
     """Determine which storage provider to use for a given role.
 
     Priority:
-    1. Explicit role assignment in storage_role_config
-    2. Default provider (marked is_default in SettingsStorage)
-    3. Local filesystem
+    1. "Same for all" setting (_sameProvider)
+    2. Explicit role assignment in storage_role_config
+    3. Default provider (marked is_default in SettingsStorage)
+    4. Local filesystem
     """
-    # Check role-specific assignment
     role_config = _get_role_config()
+
+    # Check "same for all" first
+    if role_config.get("_sameForAll") and role_config.get("_sameProvider"):
+        return role_config["_sameProvider"]
+
+    # Check role-specific assignment
     provider_name = role_config.get(role)
 
     # Fall back to default provider
@@ -166,15 +172,16 @@ def store_file(file_data, file_name, folder, role="evidence", tenant_id=None):
     except Exception as e:
         logger.error("Storage failed for %s via %s: %s", role, actual_provider, e)
 
-        # Fallback to local if not already local
-        if actual_provider != "local":
-            logger.warning("Retrying with local storage...")
+        # Try configured fallback provider first, then local
+        role_config = _get_role_config()
+        fallback_name = role_config.get("fallback", "local")
+        if fallback_name == actual_provider:
+            fallback_name = "local"
+
+        if actual_provider != fallback_name:
+            logger.warning("Retrying with fallback storage: %s", fallback_name)
             try:
-                from flask import current_app
-                from app.masri.storage_providers import LocalStorageProvider
-                base = current_app.config.get("EVIDENCE_PATH",
-                       os.path.join(current_app.root_path, "files", "evidence"))
-                local = LocalStorageProvider(base_path=base)
+                fb_provider, fb_name = _get_provider_instance(fallback_name, tenant_id)
 
                 if isinstance(file_data, bytes):
                     import io
@@ -182,10 +189,10 @@ def store_file(file_data, file_name, folder, role="evidence", tenant_id=None):
                 elif hasattr(file_data, 'seek'):
                     file_data.seek(0)
 
-                path = local.upload_file(file_data, file_name, folder)
+                path = fb_provider.upload_file(file_data, safe_name, safe_folder)
                 return {
                     "path": path,
-                    "provider": "local",
+                    "provider": fb_name,
                     "file_name": file_name,
                     "folder": folder,
                     "role": role,
