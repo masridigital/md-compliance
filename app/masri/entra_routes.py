@@ -211,13 +211,13 @@ def entra_import_csp_clients():
             # Create new tenant inside a savepoint so one failure
             # doesn't roll back the entire batch
             try:
-                nested = db.session.begin_nested()
-                tenant = Tenant.create(
-                    current_user, name,
-                    email=csp.get("domain", ""),
-                    init_data=True,
-                )
-                nested.commit()
+                with db.session.begin_nested():
+                    tenant = Tenant.create(
+                        current_user, name,
+                        email=csp.get("domain", ""),
+                        init_data=True,
+                    )
+                # Savepoint committed — safe to record success
                 results["created"] += 1
                 results["details"].append({
                     "name": name, "action": "created", "tenant_id": tenant.id,
@@ -229,7 +229,7 @@ def entra_import_csp_clients():
                     user_id=current_user.id,
                 )
             except Exception as e:
-                nested.rollback()
+                # Savepoint auto-rolled-back by context manager
                 results["skipped"] += 1
                 results["details"].append({
                     "name": name, "action": "error",
