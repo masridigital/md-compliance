@@ -371,6 +371,78 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 
 ---
 
+## Implementation Roadmap
+
+### Execution Order
+
+| Step | What | Files | Size |
+|------|------|-------|------|
+| 1 | Decouple Telivy from Microsoft | `llm_routes.py`, `integrations.html` | Medium |
+| 2 | Add job stages + extend poll | `llm_routes.py`, `integrations.html`, `view_project.html` | Large |
+| 3 | Create prompt adapter layer | New `prompt_adapters.py`, `llm_service.py` | Large |
+| 4 | Wire adapters into all prompts | `llm_routes.py`, `risk_profiles.py` | Medium |
+| 5 | Fix update manager for Docker | `update_manager.py`, `settings_routes.py` | Small |
+| 6 | Redis-backed log viewer | `log_buffer.py`, `__init__.py` | Medium |
+| 7 | Storage provider hardening | `storage_providers.py`, `entra_routes.py` | Small |
+| 8 | Update CLAUDE.md | `CLAUDE.md` | Small |
+
+### Step 1: Decouple Telivy from Microsoft
+- Add `run_mode` parameter to `auto_process`: `telivy_only | microsoft_only | full`
+- `_bg_auto_process` skips Microsoft when `run_mode=telivy_only` and vice versa
+- Frontend: Re-run on Telivy sends `telivy_only`, Microsoft sends `microsoft_only`
+- LLM phases auto-skip: Phase 1 skips if no Telivy, Phase 2 skips if no Microsoft, Phase 3 skips if only one source
+
+### Step 2: Job Stages + Extended Poll Window
+- Add `_update_job_status(tenant_id, stage, detail)` helper writing to ConfigStore
+- Stages: `collecting_telivy → collecting_microsoft → computing_risk_profiles → analyzing_phase1 → analyzing_phase2 → analyzing_cross_source → generating_evidence → syncing_progress → done`
+- Frontend: extend poll from 5 min to 15 min, show stage name + chunk progress ("Analyzing Telivy 3/10")
+
+### Step 3: Prompt Adapter Layer
+New `app/masri/prompt_adapters.py` with model-family-specific adapters:
+
+| Adapter | Detection | Chunk | Temp | Strategy |
+|---------|-----------|-------|------|----------|
+| `ClaudeAdapter` | "claude" | 15 | Keep | XML tags, evidence citations, conservative conclusions |
+| `DeepSeekAdapter` | "deepseek" | 8 | 0.1 max | Single objective, explicit JSON schema |
+| `LlamaAdapter` | "llama" | 10 | Keep | Emphasize JSON-only, no explanation |
+| `KimiAdapter` | "kimi"/"moonshot" | 12 | Keep | Broad context, rigid output |
+| `GemmaAdapter` | "gemma" | 5 | 0.1 max | Extractive only, no cross-source |
+| `QwenAdapter` | "qwen" | 10 | Keep | Structured examples, good JSON |
+| `DefaultAdapter` | fallback | 10 | Keep | Current behavior |
+
+Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `adapt_json_instruction()`, `adapt_max_tokens()`
+
+### Step 4: Wire Adapters Into All 10 Prompts
+1. Phase 1: Telivy analysis (`llm_routes.py`)
+2. Phase 2: Microsoft analysis (`llm_routes.py`)
+3. Phase 3: Cross-source (`llm_routes.py`)
+4. Assist-gaps recommendations (`llm_routes.py`)
+5. Risk narratives (`risk_profiles.py`)
+6. Model recommender (`model_recommender.py`)
+7. Control assessment (`llm_service.py`)
+8. Policy drafting (`llm_service.py`)
+9. Gap narrative (`llm_routes.py`)
+10. Risk scoring (`llm_routes.py`)
+
+### Step 5: Update Manager Docker Safety
+- `UpdateManager.apply()` does ONLY `git pull` (no pip, no migrate, no SIGHUP)
+- Returns: "Code updated. Rebuild container to apply."
+- System page banner: "Update pulled — rebuild required"
+
+### Step 6: Redis-Backed Log Viewer
+- `BufferHandler.emit()` pushes to Redis LIST (LPUSH + LTRIM 500)
+- `get_recent_logs()` reads from Redis (LRANGE)
+- Fallback to in-memory if Redis unavailable
+- Add worker ID to entries
+
+### Step 7: Storage & Integration Hardening
+- Azure: auto-create container in `__init__`
+- SharePoint: validate `site_url` has `/sites/` path
+- Egnyte: strip `https://` and `.egnyte.com` from domain
+- CSP import: wrap in savepoint, return per-item results
+
+---
+
 ## Pending / Future Features
 
 ### Global Risk Dashboard (Home Page)
