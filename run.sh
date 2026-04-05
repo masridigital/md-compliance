@@ -36,8 +36,7 @@ start_server() {
         --workers="$GUNICORN_WORKERS" \
         --threads="$GUNICORN_THREADS" \
         --timeout="$GUNICORN_TIMEOUT" \
-        --keep-alive="$GUNICORN_KEEP_ALIVE" \
-        --preload
+        --keep-alive="$GUNICORN_KEEP_ALIVE"
 }
 
 wait_for_db() {
