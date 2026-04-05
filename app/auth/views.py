@@ -41,6 +41,7 @@ def post_login():
 
 
 @auth.route("/logout")
+@auth.route("/auth/logout")
 def logout():
     """Logout must NEVER fail — always redirect to login page."""
     try:
