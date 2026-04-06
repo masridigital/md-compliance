@@ -898,8 +898,27 @@ def debug_integration_mapping(project_id):
     })
 
 
-def _bg_auto_process(app, tenant_id, scan_id, scan_type):
-    """Background worker for auto-process. Runs in a thread, never blocks gunicorn."""
+def _update_job_status(db, ConfigStore, tenant_id, stage, detail="", json_mod=None):
+    """Update auto-process job stage for frontend polling."""
+    import json as _j
+    if json_mod:
+        _j = json_mod
+    try:
+        ConfigStore.upsert(f"auto_process_result_{tenant_id}", _j.dumps({
+            "status": "processing",
+            "stage": stage,
+            "detail": detail,
+        }, default=str))
+        db.session.commit()
+    except Exception:
+        pass
+
+
+def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
+    """Background worker for auto-process. Runs in a thread, never blocks gunicorn.
+
+    run_mode: 'full' (default) | 'telivy_only' | 'microsoft_only'
+    """
     import json
     with app.app_context():
         from app import db
@@ -913,8 +932,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
         integration_data = {}
         telivy_raw = {}
 
-        # Step 1: Pull data from Telivy
-        if scan_id:
+        # Step 1: Pull data from Telivy (skip if microsoft_only)
+        if scan_id and run_mode != "microsoft_only":
+            _update_job_status(db, ConfigStore, tenant_id, "collecting_telivy", "Pulling Telivy scan data...", json)
             try:
                 from app.masri.telivy_routes import _get_telivy_client
                 client = _get_telivy_client()
@@ -943,28 +963,31 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
             except Exception as e:
                 integration_data["telivy_error"] = str(e)
 
-        # Pull Microsoft Security data (Entra + Defender + Devices + Secure Score)
-        try:
-            from app.masri.new_models import SettingsEntra
-            entra_cfg = db.session.execute(
-                db.select(SettingsEntra).filter_by(tenant_id=None)
-            ).scalars().first()
-            if entra_cfg and entra_cfg.is_fully_configured():
-                from app.masri.entra_integration import EntraIntegration
-                creds = entra_cfg.get_credentials()
-                ms_client = EntraIntegration(
-                    tenant_id=creds["entra_tenant_id"],
-                    client_id=creds["client_id"],
-                    client_secret=creds["client_secret"],
-                )
-                ms_data = ms_client.collect_all_security_data()
-                if ms_data:
-                    integration_data["microsoft"] = ms_data
-        except Exception as e:
-            logger.debug("Microsoft data collection skipped: %s", e)
+        # Pull Microsoft Security data (skip if telivy_only)
+        if run_mode != "telivy_only":
+            _update_job_status(db, ConfigStore, tenant_id, "collecting_microsoft", "Pulling Microsoft 365 data...", json)
+            try:
+                from app.masri.new_models import SettingsEntra
+                entra_cfg = db.session.execute(
+                    db.select(SettingsEntra).filter_by(tenant_id=None)
+                ).scalars().first()
+                if entra_cfg and entra_cfg.is_fully_configured():
+                    from app.masri.entra_integration import EntraIntegration
+                    creds = entra_cfg.get_credentials()
+                    ms_client = EntraIntegration(
+                        tenant_id=creds["entra_tenant_id"],
+                        client_id=creds["client_id"],
+                        client_secret=creds["client_secret"],
+                    )
+                    ms_data = ms_client.collect_all_security_data()
+                    if ms_data:
+                        integration_data["microsoft"] = ms_data
+            except Exception as e:
+                logger.debug("Microsoft data collection skipped: %s", e)
 
         # Compute risk profiles from Microsoft data
         if integration_data.get("microsoft"):
+            _update_job_status(db, ConfigStore, tenant_id, "computing_risk_profiles", "Computing user & device risk profiles...", json)
             try:
                 from app.masri.risk_profiles import compute_risk_profiles, generate_risk_narratives
                 profiles = compute_risk_profiles(integration_data["microsoft"])
@@ -1001,14 +1024,15 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
             db.select(Project).filter_by(tenant_id=tenant_id)
         ).scalars().all()
 
-        if not projects or not integration_data.get("telivy"):
+        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        if not projects or not has_any_data:
             # Store result for polling
             try:
                 ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
-                    "success": bool(integration_data.get("telivy")),
+                    "success": has_any_data,
                     "controls_mapped": 0, "risks_added": 0,
-                    "data_stored": bool(integration_data.get("telivy")),
-                    "message": "Data saved (no projects)." if integration_data.get("telivy") else "No data pulled.",
+                    "data_stored": has_any_data,
+                    "message": "Data saved (no projects)." if has_any_data else "No data pulled.",
                 }, default=str))
             except Exception:
                 pass
@@ -1056,6 +1080,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 1: Telivy-only analysis ─────────────────────
                     if has_telivy:
+                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase1", f"Analyzing Telivy data for {fw_name}...", json)
                         telivy_data = _compress_for_llm({"telivy": integration_data["telivy"]})
                         telivy_prompt = (
                             f"You are an external vulnerability analyst mapping Telivy scan findings to "
@@ -1080,6 +1105,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
                     if has_microsoft:
+                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase2", f"Analyzing Microsoft 365 data for {fw_name}...", json)
                         ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
                                                       "risk_profiles": integration_data.get("risk_profiles", {})})
                         ms_prompt = (
@@ -1111,6 +1137,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 3: Cross-source analysis (if both available) ─
                     if has_telivy and has_microsoft:
+                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_cross_source", "Cross-source correlation analysis...", json)
                         combined_data = _compress_for_llm(integration_data)
                         cross_prompt = (
                             f"You are a compliance analyst performing CROSS-SOURCE analysis for "
@@ -1140,6 +1167,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                 all_mappings, all_risks, "auto_map",
                             )
 
+                    _update_job_status(db, ConfigStore, tenant_id, "generating_evidence", f"Applying mappings + generating evidence...", json)
                     # Apply mappings
                     _STATUS_MAP = {
                         "compliant": "complete", "partial": "ready for auditor",
@@ -1261,6 +1289,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                 total_risks += 1
                         except Exception:
                             pass
+                    _update_job_status(db, ConfigStore, tenant_id, "syncing_progress", "Syncing project progress...", json)
                     # Sync ALL subcontrol progress for this project
                     # (catches controls mapped in previous runs with stale progress)
                     _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
@@ -1286,6 +1315,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                 "risks_added": total_risks,
                 "projects_processed": len(projects),
                 "llm_available": llm_available,
+                "stage": "done",
             }, default=str))
         except Exception:
             pass
@@ -1310,6 +1340,9 @@ def auto_process():
     tenant_id = data.get("tenant_id")
     scan_id = data.get("scan_id")
     scan_type = data.get("scan_type", "scan")
+    run_mode = data.get("run_mode", "full")  # full | telivy_only | microsoft_only
+    if run_mode not in ("full", "telivy_only", "microsoft_only"):
+        run_mode = "full"
     if not tenant_id:
         return jsonify({"success": False, "error": "tenant_id required"}), 400
 
@@ -1319,7 +1352,7 @@ def auto_process():
     app = current_app._get_current_object()
     t = threading.Thread(
         target=_bg_auto_process,
-        args=(app, tenant_id, scan_id, scan_type),
+        args=(app, tenant_id, scan_id, scan_type, run_mode),
         daemon=True,
     )
     t.start()
