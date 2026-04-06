@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 try:
     from weasyprint import HTML, CSS
     _PDF_ENGINE = "weasyprint"
-except ImportError:
+except (ImportError, OSError):
     HTML = None
     CSS = None
     _PDF_ENGINE = "none"

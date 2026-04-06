@@ -1,10 +1,14 @@
 FROM python:3.12-slim AS builder
 
-# Install build dependencies
+# Install build dependencies (includes WeasyPrint build libs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     gcc \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libgdk-pixbuf-2.0-dev \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,11 +22,16 @@ RUN pip install --upgrade pip && \
 FROM python:3.12-slim AS app
 WORKDIR /app
 
-# Runtime system dependencies only
+# Runtime system dependencies (libpq for postgres, WeasyPrint libs for PDF)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
     git \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libcairo2 \
+    libffi8 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy pre-installed Python packages from builder
