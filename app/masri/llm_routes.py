@@ -1012,8 +1012,74 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
             except Exception as e:
                 logger.debug("Risk profile computation skipped: %s", e)
 
+        # Pull NinjaOne data (if configured and mapped to this tenant)
+        skip_ninjaone = run_mode in ("telivy_only", "microsoft_only")
+        if not skip_ninjaone:
+            _update_job_status(tenant_id, "collecting_ninjaone", "Pulling NinjaOne RMM data")
+            try:
+                from app.masri.new_models import SettingsStorage
+                ninja_cfg = db.session.execute(
+                    db.select(SettingsStorage).filter_by(provider="ninjaone")
+                ).scalars().first()
+                if ninja_cfg:
+                    # Find the org_id mapped to this tenant
+                    mapping_record = ConfigStore.find("ninjaone_org_mappings")
+                    org_id = None
+                    if mapping_record and mapping_record.value:
+                        mappings = json.loads(mapping_record.value)
+                        for oid, info in mappings.items():
+                            if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                org_id = oid
+                                break
+                    if org_id:
+                        from app.masri.ninjaone_integration import NinjaOneIntegration
+                        from app.masri.settings_service import decrypt_value
+                        config = json.loads(decrypt_value(ninja_cfg.config_enc)) if ninja_cfg.config_enc else {}
+                        if config.get("client_id") and config.get("client_secret"):
+                            ninja_client = NinjaOneIntegration(
+                                client_id=config["client_id"],
+                                client_secret=config["client_secret"],
+                                region=config.get("region", "us"),
+                            )
+                            ninja_data = ninja_client.collect_all_data(org_id=org_id)
+                            if ninja_data:
+                                integration_data["ninjaone"] = ninja_data
+            except Exception as e:
+                logger.debug("NinjaOne data collection skipped: %s", e)
+
+        # Pull DefensX data (if configured and mapped to this tenant)
+        skip_defensx = run_mode in ("telivy_only", "microsoft_only")
+        if not skip_defensx:
+            _update_job_status(tenant_id, "collecting_defensx", "Pulling DefensX browser security data")
+            try:
+                from app.masri.new_models import SettingsStorage
+                dx_cfg = db.session.execute(
+                    db.select(SettingsStorage).filter_by(provider="defensx")
+                ).scalars().first()
+                if dx_cfg:
+                    mapping_record = ConfigStore.find("defensx_customer_mappings")
+                    customer_id = None
+                    if mapping_record and mapping_record.value:
+                        mappings = json.loads(mapping_record.value)
+                        for cid, info in mappings.items():
+                            if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                customer_id = cid
+                                break
+                    if customer_id:
+                        from app.masri.defensx_integration import DefensXIntegration
+                        from app.masri.settings_service import decrypt_value
+                        config = json.loads(decrypt_value(dx_cfg.config_enc)) if dx_cfg.config_enc else {}
+                        if config.get("api_token"):
+                            dx_client = DefensXIntegration(api_token=config["api_token"])
+                            dx_data = dx_client.collect_all_data(customer_id=customer_id)
+                            if dx_data:
+                                integration_data["defensx"] = dx_data
+            except Exception as e:
+                logger.debug("DefensX data collection skipped: %s", e)
+
         # Store raw data at tenant level
-        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft")
+                           or integration_data.get("ninjaone") or integration_data.get("defensx"))
         has_data = has_any_data
         if has_data:
             try:
@@ -1030,6 +1096,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     existing["microsoft"] = integration_data["microsoft"]
                 if integration_data.get("risk_profiles"):
                     existing["risk_profiles"] = integration_data["risk_profiles"]
+                if integration_data.get("ninjaone"):
+                    existing["ninjaone"] = integration_data["ninjaone"]
+                if integration_data.get("defensx"):
+                    existing["defensx"] = integration_data["defensx"]
                 existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
                 ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
             except Exception:
@@ -1149,23 +1219,97 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             all_mappings, all_risks, "auto_map",
                         )
 
-                    # ── Phase 3: Cross-source analysis (if both available) ─
-                    if has_telivy and has_microsoft:
+                    # ── Phase 3: NinjaOne RMM analysis ────────────────────
+                    has_ninjaone = bool(integration_data.get("ninjaone"))
+                    if has_ninjaone:
+                        _update_job_status(tenant_id, "analyzing_phase3", "Analyzing NinjaOne RMM data", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
+                        ninja_data = _compress_for_llm({"ninjaone": integration_data["ninjaone"]})
+                        ninja_prompt = (
+                            f"You are an endpoint security analyst mapping NinjaOne RMM findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "NINJAONE DATA INCLUDES: Device inventory (OS, model, last sync), "
+                            "OS patch compliance (missing patches, severity), antivirus status "
+                            "(engine, definitions date, threats detected), disk encryption status, "
+                            "device alerts and activities.\n\n"
+                            "For each control:\n"
+                            "- Check if NinjaOne data provides evidence of compliance or gaps\n"
+                            "- Reference SPECIFIC devices by name: unpatched systems, missing AV, unencrypted drives\n"
+                            "- For patch management: cite specific missing patches and their severity\n"
+                            "- For endpoint protection: cite AV coverage %, devices without protection\n"
+                            "- For asset management: cite stale/inactive devices (30+ days no sync)\n\n"
+                            "MAPPING: compliant | partial | non_compliant\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific devices + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, ninja_prompt, ninja_data, controls,
+                            fw_name, "NinjaOne RMM", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
+
+                    # ── Phase 4: DefensX browser security analysis ────────
+                    has_defensx = bool(integration_data.get("defensx"))
+                    if has_defensx:
+                        _update_job_status(tenant_id, "analyzing_phase4", "Analyzing DefensX browser security data", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
+                        dx_data = _compress_for_llm({"defensx": integration_data["defensx"]})
+                        dx_prompt = (
+                            f"You are a browser security analyst mapping DefensX findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "DEFENSX DATA INCLUDES: Browser agent deployment coverage, web policy "
+                            "compliance (URL filtering, content categories), cyber resilience scores, "
+                            "user browsing activity, shadow AI detection (unauthorized AI tool usage), "
+                            "credential protection events, file transfer monitoring.\n\n"
+                            "For each control:\n"
+                            "- Check if DefensX data provides evidence of compliance or gaps\n"
+                            "- For web filtering: cite policy compliance %, blocked categories\n"
+                            "- For data protection: cite credential events, file transfer violations\n"
+                            "- For shadow IT/AI: cite detected unauthorized tools and users\n"
+                            "- For endpoint coverage: cite agent deployment % and unprotected users\n\n"
+                            "MAPPING: compliant | partial | non_compliant\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific findings + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, dx_prompt, dx_data, controls,
+                            fw_name, "DefensX", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
+
+                    # ── Phase 5: Cross-source analysis (if 2+ sources) ───
+                    source_count = sum([has_telivy, has_microsoft, has_ninjaone, has_defensx])
+                    if source_count >= 2:
                         _update_job_status(tenant_id, "analyzing_cross_source", "Cross-source correlation analysis")
                         combined_data = _compress_for_llm(integration_data)
+                        # Build dynamic source list for cross-source prompt
+                        sources = []
+                        if has_telivy:
+                            sources.append("Telivy (external vulnerability scan)")
+                        if has_microsoft:
+                            sources.append("Microsoft 365 (internal security posture)")
+                        if has_ninjaone:
+                            sources.append("NinjaOne RMM (endpoint management)")
+                        if has_defensx:
+                            sources.append("DefensX (browser security)")
+                        source_list = ", ".join(sources)
+
                         cross_prompt = (
                             f"You are a compliance analyst performing CROSS-SOURCE analysis for "
                             f"{fw_name}. You MUST respond with ONLY valid JSON.\n\n"
-                            "You have data from BOTH Telivy (external scan) and Microsoft 365 (internal security). "
-                            "Focus ONLY on controls where both sources provide relevant information:\n"
-                            "- Email security: Telivy (SPF/DKIM/DMARC) + Microsoft (Exchange transport rules)\n"
-                            "- Authentication: Telivy (exposed credentials/breaches) + Microsoft (MFA, risky sign-ins)\n"
-                            "- Encryption: Telivy (SSL/TLS findings) + Microsoft (device encryption)\n"
-                            "- Access control: Telivy (open ports/services) + Microsoft (Conditional Access)\n\n"
+                            f"You have data from MULTIPLE sources: {source_list}. "
+                            "Focus ONLY on controls where correlating data across sources adds value:\n"
+                            "- Email security: Telivy (SPF/DKIM) + Microsoft (Exchange rules)\n"
+                            "- Authentication: breach data + MFA enrollment + browser credential events\n"
+                            "- Encryption: SSL/TLS + device encryption + browser HTTPS enforcement\n"
+                            "- Endpoint compliance: device compliance + patch status + AV coverage + browser agents\n"
+                            "- Access control: open ports + Conditional Access + web filtering policies\n\n"
                             "ONLY map controls where cross-source correlation adds value beyond what "
-                            "individual analyses already found. Reference data from BOTH sources in notes.\n\n"
+                            "individual analyses already found. Reference data from MULTIPLE sources in notes.\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
-                            "\"notes\":\"Cross-source: Telivy shows [X] + Microsoft shows [Y] = [conclusion]\","
+                            "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"Combined finding + remediation\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
@@ -1762,6 +1906,81 @@ def _compress_for_llm(data: dict) -> str:
             for d in rp.get("devices", [])[:5]:
                 if d.get("score", 0) >= 50:
                     lines.append(f"  - HIGH RISK DEVICE: {d.get('name', '?')} (score: {d['score']}) — {'; '.join(d.get('risk_factors', [])[:3])}")
+
+    # NinjaOne RMM data
+    ninja = data.get("ninjaone", {})
+    if ninja:
+        devices = ninja.get("devices", [])
+        if isinstance(devices, list) and devices:
+            lines.append(f"\nNINJAONE DEVICES ({len(devices)}):")
+            for d in devices[:15]:
+                if isinstance(d, dict):
+                    name = d.get("systemName", d.get("dnsName", "Unknown"))
+                    os_name = d.get("os", {}).get("name", "Unknown") if isinstance(d.get("os"), dict) else d.get("os", "Unknown")
+                    last_contact = d.get("lastContact", "Unknown")
+                    lines.append(f"  - {name}: OS={os_name}, last_contact={last_contact}")
+
+        patches = ninja.get("os_patches", [])
+        if isinstance(patches, list) and patches:
+            missing = [p for p in patches if isinstance(p, dict) and p.get("status") != "INSTALLED"]
+            if missing:
+                lines.append(f"\nMISSING OS PATCHES ({len(missing)}):")
+                for p in missing[:10]:
+                    lines.append(f"  - {p.get('name', '?')} severity={p.get('severity', '?')} device={p.get('deviceName', '?')}")
+
+        av = ninja.get("antivirus_status", [])
+        if isinstance(av, list) and av:
+            lines.append(f"\nANTIVIRUS STATUS ({len(av)}):")
+            no_av = [a for a in av if isinstance(a, dict) and not a.get("productState")]
+            if no_av:
+                lines.append(f"  Devices without AV: {len(no_av)}")
+                for a in no_av[:5]:
+                    lines.append(f"  - {a.get('deviceName', '?')}: no active antivirus")
+
+        threats = ninja.get("antivirus_threats", [])
+        if isinstance(threats, list) and threats:
+            lines.append(f"\nAV THREATS DETECTED ({len(threats)}):")
+            for t in threats[:10]:
+                if isinstance(t, dict):
+                    lines.append(f"  - {t.get('name', '?')} on {t.get('deviceName', '?')}: {t.get('status', '?')}")
+
+        alerts = ninja.get("alerts", [])
+        if isinstance(alerts, list) and alerts:
+            lines.append(f"\nNINJAONE ALERTS ({len(alerts)}):")
+            for a in alerts[:10]:
+                if isinstance(a, dict):
+                    lines.append(f"  - [{a.get('severity', '?')}] {a.get('message', a.get('subject', '?'))[:120]}")
+
+    # DefensX browser security data
+    dx = data.get("defensx", {})
+    if dx:
+        agent = dx.get("agent_status", {})
+        if isinstance(agent, dict) and not agent.get("error"):
+            total = agent.get("total_users", 0)
+            protected = agent.get("protected_users", 0)
+            rate = int(protected / total * 100) if total else 0
+            lines.append(f"\nDEFENSX AGENT COVERAGE: {protected}/{total} users ({rate}%)")
+
+        policy = dx.get("policy_compliance", {})
+        if isinstance(policy, dict) and not policy.get("error"):
+            lines.append(f"WEB POLICY COMPLIANCE: {policy.get('compliant_users', 0)}/{policy.get('total_users', 0)} compliant")
+            violations = policy.get("violations", [])
+            for v in violations[:5] if isinstance(violations, list) else []:
+                if isinstance(v, dict):
+                    lines.append(f"  - {v.get('user', '?')}: {v.get('category', '?')} ({v.get('count', 0)} events)")
+
+        resilience = dx.get("resilience_score", {})
+        if isinstance(resilience, dict) and not resilience.get("error"):
+            lines.append(f"CYBER RESILIENCE SCORE: {resilience.get('score', 'N/A')}/100")
+
+        shadow_ai = dx.get("shadow_ai", {})
+        if isinstance(shadow_ai, dict) and not shadow_ai.get("error"):
+            tools = shadow_ai.get("detected_tools", [])
+            if isinstance(tools, list) and tools:
+                lines.append(f"\nSHADOW AI DETECTED ({len(tools)}):")
+                for t in tools[:5]:
+                    if isinstance(t, dict):
+                        lines.append(f"  - {t.get('tool_name', '?')}: {t.get('user_count', 0)} users, {t.get('usage_count', 0)} uses")
 
     # Existing risks (from risk register)
     risks = data.get("risk_register", {})

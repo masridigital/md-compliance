@@ -406,7 +406,7 @@ class MasriScheduler:
             logger.exception("Model recommendation task failed")
 
     def _task_integration_refresh(self):
-        """Daily refresh: re-pull Telivy + Microsoft data for all mapped tenants."""
+        """Daily refresh: re-pull Telivy + Microsoft + NinjaOne + DefensX data for all mapped tenants."""
         if not self._app:
             return
 
@@ -511,6 +511,61 @@ class MasriScheduler:
                                     existing["microsoft"] = ms_data
                             except Exception:
                                 pass
+
+                        # Refresh NinjaOne data
+                        try:
+                            from app.masri.new_models import SettingsStorage
+                            ninja_cfg = db.session.execute(
+                                db.select(SettingsStorage).filter_by(provider="ninjaone")
+                            ).scalars().first()
+                            if ninja_cfg:
+                                ninja_mappings = ConfigStore.find("ninjaone_org_mappings")
+                                org_id = None
+                                if ninja_mappings and ninja_mappings.value:
+                                    for oid, info in json.loads(ninja_mappings.value).items():
+                                        if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                            org_id = oid
+                                            break
+                                if org_id:
+                                    from app.masri.ninjaone_integration import NinjaOneIntegration
+                                    from app.masri.settings_service import decrypt_value
+                                    n_config = json.loads(decrypt_value(ninja_cfg.config_enc)) if ninja_cfg.config_enc else {}
+                                    if n_config.get("client_id") and n_config.get("client_secret"):
+                                        ninja = NinjaOneIntegration(
+                                            client_id=n_config["client_id"],
+                                            client_secret=n_config["client_secret"],
+                                            region=n_config.get("region", "us"),
+                                        )
+                                        ninja_data = ninja.collect_all_data(org_id=org_id)
+                                        if ninja_data:
+                                            existing["ninjaone"] = ninja_data
+                        except Exception:
+                            pass
+
+                        # Refresh DefensX data
+                        try:
+                            dx_cfg = db.session.execute(
+                                db.select(SettingsStorage).filter_by(provider="defensx")
+                            ).scalars().first()
+                            if dx_cfg:
+                                dx_mappings = ConfigStore.find("defensx_customer_mappings")
+                                customer_id = None
+                                if dx_mappings and dx_mappings.value:
+                                    for cid, info in json.loads(dx_mappings.value).items():
+                                        if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                            customer_id = cid
+                                            break
+                                if customer_id:
+                                    from app.masri.defensx_integration import DefensXIntegration
+                                    from app.masri.settings_service import decrypt_value
+                                    d_config = json.loads(decrypt_value(dx_cfg.config_enc)) if dx_cfg.config_enc else {}
+                                    if d_config.get("api_token"):
+                                        dx = DefensXIntegration(api_token=d_config["api_token"])
+                                        dx_data = dx.collect_all_data(customer_id=customer_id)
+                                        if dx_data:
+                                            existing["defensx"] = dx_data
+                        except Exception:
+                            pass
 
                         existing["_updated"] = datetime.utcnow().isoformat()
                         ConfigStore.upsert(

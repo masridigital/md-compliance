@@ -89,10 +89,11 @@ Each integration gets its OWN LLM analysis phase with a strategically crafted pr
 
 **Multi-phase execution order in `_bg_auto_process`:**
 ```
-Phase 1: Integration A only (e.g., Telivy — external vulns)
-Phase 2: Integration B only (e.g., Microsoft — internal security)
-Phase N: Integration N only (each future integration gets its own phase)
-Cross:   Combined analysis (only for controls where multiple sources have relevant data)
+Phase 1: Telivy (external vulnerability scan)
+Phase 2: Microsoft 365 (internal security posture)
+Phase 3: NinjaOne RMM (endpoint management, patches, AV)
+Phase 4: DefensX (browser security, web filtering, shadow AI)
+Phase 5: Cross-source analysis (only for controls where 2+ sources have relevant data)
 ```
 
 **Cross-source analysis rules:**
@@ -423,7 +424,7 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 | ~~2~~ | ~~Add job stages + extend poll~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
 | ~~3~~ | ~~Create prompt adapter layer~~ | **DONE** | `prompt_adapters.py`, `llm_service.py` |
 | ~~4~~ | ~~Wire adapters into all prompts~~ | **DONE** | `llm_service.py` (auto-adapts in `LLMService.chat()`), `llm_routes.py` (chunk size) |
-| 6 | Redis-backed log viewer | Pending | `log_buffer.py`, `__init__.py` |
+| ~~6~~ | ~~Redis-backed log viewer~~ | **DONE** | `log_buffer.py` (Redis LPUSH/LTRIM + in-memory fallback) |
 
 #### Step 1: Decouple Telivy from Microsoft
 - Add `run_mode` parameter to `auto_process`: `telivy_only | microsoft_only | full`
@@ -475,10 +476,10 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 
 | Item | What | Files | Priority |
 |------|------|-------|----------|
-| B1 | Complete PDF report generation | `app/utils/reports.py` | High — stub raises `NotImplementedError` |
+| ~~B1~~ | ~~Complete PDF report generation~~ | `app/utils/reports.py` | **DONE** — WeasyPrint pipeline |
 | B2 | Migrate scheduler to Celery/Redis | `app/masri/scheduler.py`, `docker-compose.yml` | High — threading.Timer unreliable in multi-worker |
-| B3 | Add CI/CD pipeline | New `.github/workflows/` | High — no automated testing or deployment |
-| B4 | Upgrade PCI DSS v3.1 → v4.0 | `app/files/base_controls/pci_3.1.json` | High — v3.1 deprecated March 2024 |
+| ~~B3~~ | ~~Add CI/CD pipeline~~ | `.github/workflows/ci.yml`, `deploy.yml` | **DONE** — lint, syntax, security scan, tests |
+| ~~B4~~ | ~~Upgrade PCI DSS v3.1 → v4.0~~ | `app/files/base_controls/pci_dss_v4.0.json` | **DONE** — v3.1 kept for legacy |
 
 #### B1: PDF Report Generation
 - **Current state**: `app/utils/reports.py:31` — `generate()` raises `ValueError("Not Implemented")`
@@ -624,7 +625,10 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | 2 | Job stages + extended poll (15 min timeout, stage/chunk progress in UI) | 2026-04-06 |
 | 3 | Prompt adapter layer (7 model-family adapters: Claude, DeepSeek, Llama, Kimi, Gemma, Qwen, Default) | 2026-04-06 |
 | 4 | Wire adapters into all prompts (auto-adapts in LLMService.chat(), chunk size in _run_chunked_llm) | 2026-04-06 |
+| 6 | Redis-backed log viewer (LPUSH/LTRIM + in-memory fallback, worker ID in entries) | 2026-04-06 |
 | B1 | PDF report generation with WeasyPrint | 2026-04-05 |
+| B3 | CI/CD pipeline (lint + syntax + security scan + test jobs) | 2026-04-06 |
+| B4 | PCI DSS v4.0 framework (kept v3.1 for legacy projects) | 2026-04-06 |
 
 ---
 
