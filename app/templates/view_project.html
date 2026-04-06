@@ -2880,14 +2880,14 @@
 				<div x-show="intLoading" class="text-center py-12"><span class="loading loading-dots loading-lg"></span></div>
 
 				<!-- No data at all — completely empty -->
-				<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks" class="text-center py-16 opacity-40">
+				<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks && !intData.ninjaone && !intData.defensx" class="text-center py-16 opacity-40">
 					<i class="ti ti-plug-connected-x text-4xl block mb-3"></i>
 					<p class="text-sm font-medium">No integration data available for this project</p>
 					<p class="text-xs mt-1">Map scans and configure integrations in the <a href="/integrations" class="underline">Integrations</a> page to see data here.</p>
 				</div>
 
 				<!-- Data cards — only shown when data exists -->
-				<div x-show="!intLoading && (intData.entra || intData.telivy || intData.risks)" class="space-y-4">
+				<div x-show="!intLoading && (intData.entra || intData.telivy || intData.risks || intData.ninjaone || intData.defensx)" class="space-y-4">
 
 					<div class="flex justify-between items-center mb-2">
 						<h3 class="text-lg font-semibold">Integration Data</h3>
@@ -3239,6 +3239,89 @@
 												</template>
 												<div class="text-[10px] opacity-40 mt-1" x-show="d.last_sync" x-text="'Last sync: ' + (d.last_sync ? new Date(d.last_sync).toLocaleDateString() : 'Unknown')"></div>
 											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
+					<!-- NinjaOne RMM -->
+					<template x-if="intData.ninjaone">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-info" :class="showPreview ? 'ti-chevron-down' : 'ti-device-desktop-analytics'"></i>
+									<h3 class="font-bold text-sm flex-1">NinjaOne RMM</h3>
+									<span class="text-xs opacity-40" x-show="!showPreview" x-text="(intData.ninjaone.device_count || 0) + ' devices'"></span>
+								</div>
+								<div class="flex gap-3 text-center">
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.ninjaone.device_count || 0"></div>
+										<div class="text-[10px] opacity-60">Devices</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.missing_patches || 0) > 0 ? 'text-warning' : 'text-success'" x-text="intData.ninjaone.missing_patches || 0"></div>
+										<div class="text-[10px] opacity-60">Missing Patches</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.unprotected_devices || 0) > 0 ? 'text-error' : 'text-success'" x-text="intData.ninjaone.unprotected_devices || 0"></div>
+										<div class="text-[10px] opacity-60">No AV</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.threat_count || 0) > 0 ? 'text-error' : 'text-success'" x-text="intData.ninjaone.threat_count || 0"></div>
+										<div class="text-[10px] opacity-60">Threats</div>
+									</div>
+								</div>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-3 space-y-1 max-h-[24rem] overflow-y-auto">
+									<template x-for="d in (intData.ninjaone.devices || []).slice(0, 15)" :key="d.id || d.systemName">
+										<div class="text-xs bg-base-300 rounded p-2 flex justify-between">
+											<span x-text="d.systemName || d.dnsName || 'Unknown'"></span>
+											<span class="opacity-50" x-text="typeof d.os === 'object' ? (d.os?.name || 'Unknown') : (d.os || 'Unknown')"></span>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
+					<!-- DefensX Browser Security -->
+					<template x-if="intData.defensx">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-accent" :class="showPreview ? 'ti-chevron-down' : 'ti-browser-check'"></i>
+									<h3 class="font-bold text-sm flex-1">DefensX Browser Security</h3>
+									<span class="text-xs opacity-40" x-show="!showPreview && intData.defensx.resilience_score" x-text="'Score: ' + (intData.defensx.resilience_score?.score || 'N/A') + '/100'"></span>
+								</div>
+								<div class="flex gap-3 text-center">
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.agent_status?.protected_users || intData.defensx.agent_status?.total_users || 0"></div>
+										<div class="text-[10px] opacity-60">Protected Users</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.resilience_score?.score || 'N/A'"></div>
+										<div class="text-[10px] opacity-60">Resilience Score</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.policy_compliance?.compliant_users || 0"></div>
+										<div class="text-[10px] opacity-60">Policy Compliant</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.defensx.shadow_ai?.detected_tools || []).length > 0 ? 'text-warning' : 'text-success'" x-text="(intData.defensx.shadow_ai?.detected_tools || []).length"></div>
+										<div class="text-[10px] opacity-60">Shadow AI Tools</div>
+									</div>
+								</div>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-3 space-y-1 max-h-[24rem] overflow-y-auto">
+									<template x-if="intData.defensx.shadow_ai?.detected_tools?.length > 0">
+										<div>
+											<div class="text-xs font-semibold mb-1 opacity-60">Shadow AI Detected:</div>
+											<template x-for="t in intData.defensx.shadow_ai.detected_tools.slice(0, 5)" :key="t.tool_name">
+												<div class="text-xs bg-base-300 rounded p-2 flex justify-between">
+													<span x-text="t.tool_name || 'Unknown'"></span>
+													<span class="opacity-50" x-text="(t.user_count || 0) + ' users, ' + (t.usage_count || 0) + ' uses'"></span>
+												</div>
+											</template>
 										</div>
 									</template>
 								</div>

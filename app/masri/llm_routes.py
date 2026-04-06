@@ -839,6 +839,68 @@ def get_integration_data(project_id):
             "devices": rp_cached.get("devices", [])[:30],
         }
 
+    # NinjaOne data (from ConfigStore cache)
+    ninja_cached = {}
+    try:
+        from app.models import ConfigStore as _CS3
+        _rec3 = _CS3.find(f"tenant_integration_data_{tenant_id}")
+        if _rec3 and _rec3.value:
+            ninja_cached = _json_local.loads(_rec3.value).get("ninjaone", {})
+    except Exception:
+        pass
+    if ninja_cached:
+        ninjaone = {}
+        devices = ninja_cached.get("devices", [])
+        if isinstance(devices, list):
+            ninjaone["device_count"] = len(devices)
+            ninjaone["devices"] = devices[:20]
+        patches = ninja_cached.get("os_patches", [])
+        if isinstance(patches, list):
+            missing = [p for p in patches if isinstance(p, dict) and p.get("status") != "INSTALLED"]
+            ninjaone["missing_patches"] = len(missing)
+            ninjaone["patch_details"] = missing[:15]
+        av = ninja_cached.get("antivirus_status", [])
+        if isinstance(av, list):
+            ninjaone["av_count"] = len(av)
+            no_av = [a for a in av if isinstance(a, dict) and not a.get("productState")]
+            ninjaone["unprotected_devices"] = len(no_av)
+        threats = ninja_cached.get("antivirus_threats", [])
+        if isinstance(threats, list):
+            ninjaone["threat_count"] = len(threats)
+            ninjaone["threats"] = threats[:10]
+        alerts = ninja_cached.get("alerts", [])
+        if isinstance(alerts, list):
+            ninjaone["alert_count"] = len(alerts)
+            ninjaone["alerts"] = alerts[:15]
+        if ninjaone:
+            result["ninjaone"] = ninjaone
+
+    # DefensX data (from ConfigStore cache)
+    dx_cached = {}
+    try:
+        if not _rec3:
+            _rec3 = _CS3.find(f"tenant_integration_data_{tenant_id}")
+        if _rec3 and _rec3.value:
+            dx_cached = _json_local.loads(_rec3.value).get("defensx", {})
+    except Exception:
+        pass
+    if dx_cached:
+        defensx = {}
+        agent = dx_cached.get("agent_status", {})
+        if isinstance(agent, dict) and not agent.get("error"):
+            defensx["agent_status"] = agent
+        policy = dx_cached.get("policy_compliance", {})
+        if isinstance(policy, dict) and not policy.get("error"):
+            defensx["policy_compliance"] = policy
+        resilience = dx_cached.get("resilience_score", {})
+        if isinstance(resilience, dict) and not resilience.get("error"):
+            defensx["resilience_score"] = resilience
+        shadow_ai = dx_cached.get("shadow_ai", {})
+        if isinstance(shadow_ai, dict) and not shadow_ai.get("error"):
+            defensx["shadow_ai"] = shadow_ai
+        if defensx:
+            result["defensx"] = defensx
+
     if raw.get("_cached_at"):
         result["_cached_at"] = raw["_cached_at"]
 
