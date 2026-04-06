@@ -1169,8 +1169,20 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         for file in os.listdir(folder):
             if file.endswith(".json"):
                 name = file.split(".json")[0]
-                if not Framework.find_by_name(name, self.id):
-                    Framework.create(name, self)
+                existing = Framework.find_by_name(name, self.id)
+                if not existing:
+                    # Check JSON for deprecation metadata
+                    is_deprecated = False
+                    dep_msg = None
+                    try:
+                        with open(os.path.join(folder, file)) as f:
+                            controls = json.load(f)
+                            if controls and isinstance(controls, list) and controls[0].get("_deprecated"):
+                                is_deprecated = True
+                                dep_msg = controls[0].get("_deprecated_message")
+                    except Exception:
+                        pass
+                    Framework.create(name, self, deprecated=is_deprecated, deprecated_message=dep_msg)
                     if init_controls:
                         self.create_base_controls_for_framework(name)
         return True
@@ -1772,6 +1784,8 @@ class Framework(db.Model):
     guidance = db.Column(db.String)
     """framework specific features"""
     feature_evidence = db.Column(db.Boolean(), default=False)
+    deprecated = db.Column(db.Boolean(), default=False)
+    deprecated_message = db.Column(db.String(), nullable=True)
 
     controls = db.relationship("Control", backref="framework", lazy="dynamic")
     projects = db.relationship("Project", backref="framework", lazy="dynamic")
@@ -1785,12 +1799,14 @@ class Framework(db.Model):
         return data
 
     @staticmethod
-    def create(name, tenant):
+    def create(name, tenant, deprecated=False, deprecated_message=None):
         data = {
             "name": name.lower(),
             "description": f"Framework for {name.capitalize()}",
             "feature_evidence": True,
             "tenant_id": tenant.id,
+            "deprecated": deprecated,
+            "deprecated_message": deprecated_message,
         }
         f = Framework(**data)
         db.session.add(f)

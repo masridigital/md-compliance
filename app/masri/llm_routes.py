@@ -1516,6 +1516,16 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     # Sync ALL subcontrol progress for this project
                     _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
                     db.session.commit()
+
+                    # Generate automated evidence from integration data
+                    _update_job_status(tenant_id, "generating_evidence", f"Generating evidence for {project.name if hasattr(project, 'name') else project.id}")
+                    try:
+                        from app.masri.evidence_generators import generate_all_evidence
+                        ev_count = generate_all_evidence(db, project, tenant_id)
+                        if ev_count:
+                            logger.info("Generated %d evidence records for project %s", ev_count, project.id)
+                    except Exception as ev_err:
+                        logger.warning("Evidence generation failed for project %s: %s", project.id, ev_err)
                 except Exception as e:
                     logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
             else:

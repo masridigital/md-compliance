@@ -192,16 +192,17 @@
                                 </template>
                             </template>
 <!--                            haaa-->
-                            <template x-for="framework in frameworks" :key="framework.id">
+                            <template x-for="framework in [...frameworks].filter(f=>f.name.toLowerCase()!=='custom').sort((a,b)=>(a.deprecated?1:0)-(b.deprecated?1:0))" :key="framework.id">
                                 <template x-if="framework.name.toLowerCase() !== 'custom'">
                                     <div class="col-span-3">
-                                        <div @click="selectedFramework=framework" :class="{'border border-primary': selectedFramework===framework}" class="card hover:opacity-75 bg-base-300">
+                                        <div @click="selectedFramework=framework" :class="{'border border-primary': selectedFramework===framework, 'opacity-50': framework.deprecated}" class="card hover:opacity-75 bg-base-300">
                                             <div class="card-body hover:cursor-pointer">
-                                                <div class="flex flex-row">
+                                                <div class="flex flex-row items-center gap-2">
                                                     <i x-show="selectedFramework===framework" class="ti text-success ti-check mr-2 my-auto"></i>
                                                     <div class="card-title" x-text="framework.name"></div>
+                                                    <span x-show="framework.deprecated" class="badge badge-warning badge-xs">Deprecated</span>
                                                 </div>
-                                                <p x-text="framework.description"></p>
+                                                <p x-text="framework.deprecated_message || framework.description"></p>
                                                 <template x-if="framework._subtypes && framework._subtypes.length > 1">
                                                     <div class="mt-2" @click.stop>
                                                         <select class="select select-xs select-bordered w-full" x-model="framework._selectedSubtype">
