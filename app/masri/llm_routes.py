@@ -693,6 +693,7 @@ def assist_gaps():
 @login_required
 def assist_gaps_status(project_id):
     """GET /api/v1/llm/assist-gaps-status/<project_id> — poll for results."""
+    import json
     from app import db
     from app.models import Project, ConfigStore
 
@@ -704,7 +705,7 @@ def assist_gaps_status(project_id):
     try:
         record = ConfigStore.find(f"assist_gaps_result_{project_id}")
         if record and record.value:
-            return jsonify(_json.loads(record.value))
+            return jsonify(json.loads(record.value))
     except Exception:
         pass
     return jsonify({"status": "processing"})
@@ -768,6 +769,7 @@ def get_integration_data(project_id):
         result["telivy"] = telivy
 
     # Microsoft Security data (from cached collect_all_security_data)
+    import json as _json_local
     ms_cached = raw.get("microsoft") or {}
     if not ms_cached:
         # Try reading from ConfigStore cache
@@ -775,7 +777,7 @@ def get_integration_data(project_id):
             from app.models import ConfigStore as _CS
             _rec = _CS.find(f"tenant_integration_data_{tenant_id}")
             if _rec and _rec.value:
-                _cached = _json.loads(_rec.value)
+                _cached = _json_local.loads(_rec.value)
                 ms_cached = _cached.get("microsoft", {})
         except Exception:
             pass
@@ -827,7 +829,7 @@ def get_integration_data(project_id):
             from app.models import ConfigStore as _CS2
             _rec2 = _CS2.find(f"tenant_integration_data_{tenant_id}")
             if _rec2 and _rec2.value:
-                rp_cached = _json.loads(_rec2.value).get("risk_profiles")
+                rp_cached = _json_local.loads(_rec2.value).get("risk_profiles")
         except Exception:
             pass
     if rp_cached:
@@ -1530,16 +1532,17 @@ def auto_process():
 def auto_process_status(tenant_id):
     """GET /api/v1/llm/auto-process-status/<tenant_id> — poll for results."""
     _validate_tenant_access(tenant_id)
+    import json
     from app.models import ConfigStore
     try:
         # Check for final result first
         record = ConfigStore.find(f"auto_process_result_{tenant_id}")
         if record and record.value:
-            result = _json.loads(record.value)
+            result = json.loads(record.value)
             # Merge in stage info if available
             stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
             if stage_record and stage_record.value:
-                stage_data = _json.loads(stage_record.value)
+                stage_data = json.loads(stage_record.value)
                 result["stage"] = stage_data.get("stage", "done")
                 result["stage_detail"] = stage_data.get("detail", "")
                 result["chunk_info"] = stage_data.get("chunk_info", "")
@@ -1550,7 +1553,7 @@ def auto_process_status(tenant_id):
     try:
         stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
         if stage_record and stage_record.value:
-            return jsonify(_json.loads(stage_record.value))
+            return jsonify(json.loads(stage_record.value))
     except Exception:
         pass
     return jsonify({"status": "processing"})
