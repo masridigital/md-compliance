@@ -822,17 +822,8 @@ def test_llm_connection():
         return jsonify({"error": f"No API key found for {provider}. Save a key first."}), 400
 
     try:
-        # Quick validation first (fast, validates auth)
-        _quick_test_provider(provider, api_key)
-        # Auth works — try to get model count (non-blocking, best effort)
-        model_count = 0
-        try:
-            models = _fetch_models_for_provider(provider, api_key)
-            model_count = len(models)
-        except Exception:
-            pass  # Auth is valid, just can't list models right now
-        msg = f"Connected! {model_count} models available." if model_count else "Connected!"
-        return jsonify({"message": msg, "provider": provider, "model_count": model_count})
+        models = _fetch_models_for_provider(provider, api_key)
+        return jsonify({"message": f"Connected! {len(models)} models available.", "provider": provider, "model_count": len(models)})
     except Exception as e:
         logger.warning("LLM connection test failed for %s: %s", provider, e)
         # Give a more specific error hint
@@ -857,16 +848,12 @@ def _quick_test_provider(provider, api_key):
         client.models.list(limit=1)
     elif provider in ("together", "together_ai"):
         import requests as _requests
-        # Use a lightweight chat completion with max_tokens=1 to validate auth
-        resp = _requests.post(
-            "https://api.together.xyz/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "meta-llama/Llama-3.3-70B-Instruct-Turbo", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
-            timeout=30,
+        resp = _requests.get(
+            "https://api.together.xyz/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15,
         )
-        # 401/403 = bad key, anything else (including model errors) = key works
-        if resp.status_code in (401, 403):
-            resp.raise_for_status()
+        resp.raise_for_status()
     elif provider == "azure_openai":
         pass  # Azure doesn't have a simple test — key validation happens on first use
     else:
@@ -957,33 +944,27 @@ def _fetch_models_for_provider(provider: str, api_key: str) -> list:
 
     elif provider in ("together", "together_ai"):
         import requests as _requests
-        # Together AI model list can be slow — use longer timeout with retry
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 resp = _requests.get(
                     "https://api.together.xyz/v1/models",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=60,
+                    timeout=30,
                 )
                 resp.raise_for_status()
                 break
             except (_requests.exceptions.ReadTimeout, _requests.exceptions.ConnectionError):
-                if attempt < 2:
+                if attempt == 0:
                     continue
                 raise
         data = resp.json()
         model_list = data if isinstance(data, list) else data.get("data", data.get("models", []))
-        # Include all models that have an id — Together AI types vary
-        all_models = [
-            m["id"] for m in model_list
-            if isinstance(m, dict) and m.get("id")
-        ]
-        # Prefer chat/language models if type field exists
-        chat_models = [
-            m["id"] for m in model_list
-            if isinstance(m, dict) and m.get("id") and
-            m.get("type", "") in ("chat", "language")
-        ]
+        all_models, chat_models = [], []
+        for m in model_list:
+            if isinstance(m, dict) and m.get("id"):
+                all_models.append(m["id"])
+                if m.get("type", "") in ("chat", "language"):
+                    chat_models.append(m["id"])
         return sorted(chat_models) if chat_models else sorted(all_models)
 
     elif provider == "azure_openai":

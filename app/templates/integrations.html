@@ -386,7 +386,7 @@
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
                        x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }"
-                       x-init="if (!secModels.length && p.has_key) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }">
+                       x-effect="if (editing && !secModels.length && p.has_key) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key" x-model="newKey"
                            @blur="if (newKey) {
                              if (p.is_primary) { llmForm.api_key = newKey; saveLlmSlot().then(() => { testSingleLlmProvider(p.provider); fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }); }
@@ -1930,12 +1930,20 @@ function integrationsHub() {
     },
 
     async testAllLlmProviders() {
-      for (const p of this.llmProvidersList.filter(p => p.has_key)) {
-        try {
-          const r = await fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) });
-          this.llmProviderStatuses = { ...this.llmProviderStatuses, [p.provider]: r.ok ? 'ok' : 'fail' };
-        } catch(e) { this.llmProviderStatuses = { ...this.llmProviderStatuses, [p.provider]: 'fail' }; }
+      const providers = this.llmProvidersList.filter(p => p.has_key);
+      const results = await Promise.allSettled(
+        providers.map(p =>
+          fetch('/api/v1/settings/llm/test', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider: p.provider }) })
+            .then(r => ({ provider: p.provider, ok: r.ok }))
+            .catch(() => ({ provider: p.provider, ok: false }))
+        )
+      );
+      const statuses = { ...this.llmProviderStatuses };
+      for (const r of results) {
+        const val = r.status === 'fulfilled' ? r.value : { provider: null, ok: false };
+        if (val.provider) statuses[val.provider] = val.ok ? 'ok' : 'fail';
       }
+      this.llmProviderStatuses = statuses;
     },
 
     async testSingleLlmProvider(provider) {
