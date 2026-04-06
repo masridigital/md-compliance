@@ -45,6 +45,10 @@ class Report:
     def project_data(self, project):
         return project.as_dict(with_controls=True)
 
+    # Allowed template filenames (prevent path traversal)
+    _ALLOWED_HTML = {"report.html"}
+    _ALLOWED_CSS = {"report.css"}
+
     def generate(
         self, project, data=[], html_template="report.html", css_template="report.css"
     ):
@@ -53,6 +57,11 @@ class Report:
 
         Returns the filename of the generated PDF (relative to reports dir).
         """
+        if html_template not in self._ALLOWED_HTML:
+            raise ValueError(f"Invalid template: {html_template}")
+        if css_template not in self._ALLOWED_CSS:
+            raise ValueError(f"Invalid CSS template: {css_template}")
+
         if _PDF_ENGINE == "none":
             raise RuntimeError(
                 "PDF generation requires WeasyPrint. "
