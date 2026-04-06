@@ -73,7 +73,62 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── Redis (rate-limit backend) ──────────────────────────────────────────────
+  # ── Celery Worker (background tasks) ─────────────────────────────────────────
+  # Processes scheduled tasks (due reminders, drift detection, integration refresh).
+  # Optional: if not running, scheduler falls back to threading.Timer in the app.
+  celery-worker:
+    container_name: celery-worker
+    image: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.masri.celery_app:celery worker --loglevel=info --concurrency=2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - db_nw
+    restart: unless-stopped
+    environment:
+      - SQLALCHEMY_DATABASE_URI=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}/${POSTGRES_DB}
+      - SECRET_KEY=${SECRET_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - MASRI_SCHEDULER_ENABLED=false
+    env_file:
+      - .env
+    profiles:
+      - celery
+
+  # ── Celery Beat (task scheduler) ───────────────────────────────────────────
+  # Triggers tasks on schedule (1h, 24h, 7d intervals).
+  # Optional: if not running, scheduler falls back to threading.Timer in the app.
+  celery-beat:
+    container_name: celery-beat
+    image: app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.masri.celery_app:celery beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - db_nw
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY}
+      - MASRI_SCHEDULER_ENABLED=false
+    env_file:
+      - .env
+    profiles:
+      - celery
+
+  # ── Redis (rate-limit backend + Celery broker) ─────────────────────────────
   redis:
     container_name: redis
     image: redis:7-alpine

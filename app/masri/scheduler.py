@@ -37,6 +37,9 @@ class MasriScheduler:
         """
         Start the scheduler with the given Flask app context.
 
+        Tries Celery Beat first (persistent, cluster-safe).
+        Falls back to threading.Timer if Celery is not available.
+
         Args:
             app: Flask application instance (needed for app context in tasks)
         """
@@ -51,7 +54,19 @@ class MasriScheduler:
         self._app = app
         self._running = True
 
-        # Schedule tasks
+        # Try Celery first — if workers are running, Celery Beat handles scheduling
+        try:
+            from app.masri.celery_app import init_celery, is_celery_available
+            init_celery(app)
+            if is_celery_available():
+                logger.info("Celery workers detected — using Celery Beat for scheduling")
+                return  # Celery Beat handles all recurring tasks
+        except Exception:
+            pass  # Celery not installed or not reachable
+
+        logger.info("Celery not available — using threading.Timer fallback")
+
+        # Fallback: schedule tasks via threading.Timer
         self._schedule_recurring(
             name="due_reminders",
             interval_seconds=3600,  # 1 hour
