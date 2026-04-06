@@ -1384,7 +1384,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                             # Build exhibit references based on what evidence is needed
                                             ctrl_name = ctrl.name if ctrl else ref_code
                                             exhibits = []
-                                            exhibits.append(f"Exhibit A: Telivy scan report showing {ref_code} compliance status (Source: Telivy Portal → Scan Report → {ref_code})")
+                                            exhibits.append(f"Exhibit A: Integration scan report showing {ref_code} compliance status")
                                             if not is_compliant:
                                                 exhibits.append(f"Exhibit B: Screenshot of current configuration or policy addressing this control")
                                                 exhibits.append(f"Exhibit C: Remediation plan or change ticket documenting the fix")
@@ -1399,7 +1399,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                                     f"Evidence Status: {ev_status}\n\n"
                                                     f"Control: {ref_code} — {ctrl_name}\n"
                                                     f"Compliance Status: {llm_status}\n"
-                                                    f"Source: Telivy Security Scan\n\n"
+                                                    f"Source: Integration Security Scan\n\n"
                                                     f"What the scan found:\n{notes}\n\n"
                                                     f"--- REQUIRED EXHIBITS ---\n" +
                                                     "\n".join(exhibits) +
@@ -1744,7 +1744,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                         ctrl_obj = pc.control
                         ctrl_name = ctrl_obj.name if ctrl_obj else ref_code
                         exhibits = []
-                        exhibits.append(f"Exhibit A: Telivy scan report for {ref_code} (Source: Telivy Portal)")
+                        exhibits.append(f"Exhibit A: Integration scan report for {ref_code}")
                         if not is_compliant:
                             exhibits.append(f"Exhibit B: Screenshot of current configuration or policy")
                             exhibits.append(f"Exhibit C: Remediation plan or change ticket")
@@ -1755,7 +1755,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                                 f"Evidence Status: {ev_status}\n\n"
                                 f"Control: {ref_code} — {ctrl_name}\n"
                                 f"Compliance Status: {status_label}\n"
-                                f"Source: Telivy Security Scan\n\n"
+                                f"Source: Integration Security Scan\n\n"
                                 f"What the scan found:\n{finding_text[:500]}\n\n"
                                 f"--- REQUIRED EXHIBITS ---\n" +
                                 "\n".join(exhibits) +
