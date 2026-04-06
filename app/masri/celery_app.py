@@ -119,8 +119,8 @@ def is_celery_available():
         return False
 
 
-# Task definitions — only created when celery is available
-if _CELERY_INSTALLED and celery is not None:
+# Task definitions — only created when celery is installed
+if _CELERY_INSTALLED:
 
     @celery.task(name="app.masri.celery_app.task_due_reminders", bind=True, max_retries=2)
     def task_due_reminders(self):

@@ -105,8 +105,10 @@ class BufferHandler(logging.Handler):
             r = _get_redis()
             if r:
                 try:
-                    r.lpush(_REDIS_KEY, json.dumps(entry))
-                    r.ltrim(_REDIS_KEY, 0, _CAPACITY - 1)
+                    pipe = r.pipeline()
+                    pipe.lpush(_REDIS_KEY, json.dumps(entry))
+                    pipe.ltrim(_REDIS_KEY, 0, _CAPACITY - 1)
+                    pipe.execute()
                     return
                 except Exception:
                     pass

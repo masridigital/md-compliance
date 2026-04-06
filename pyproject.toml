@@ -5,7 +5,6 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 ignore = [
-    "E501",   # Line too long — handled by line-length setting above
     "E402",   # Module-level import not at top — needed for Flask patterns
     "F401",   # Imported but unused — many re-exports in __init__.py
     "W605",   # Invalid escape sequence — some regex in strings
