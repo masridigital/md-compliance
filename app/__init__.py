@@ -529,7 +529,8 @@ def configure_logging(app):
 
     # Also add a ring buffer handler to capture logs for the in-app viewer
     from app.masri.log_buffer import BufferHandler
-    buf_handler = BufferHandler(capacity=500)
+    redis_url = app.config.get("RATELIMIT_STORAGE_URI")
+    buf_handler = BufferHandler(capacity=500, redis_url=redis_url)
     buf_handler.setFormatter(formatter)
     buf_handler.setLevel(logging.DEBUG)
     app.logger.addHandler(buf_handler)
