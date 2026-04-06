@@ -101,5 +101,88 @@
 
       </section>
     </article>
+
+    {% if review_summary %}
+    <article>
+      <h2>Review Status Summary</h2>
+      <section>
+        <table class="styled-table">
+          <thead>
+            <tr>
+              <th style="border-top-left-radius:10px;">Review Status</th>
+              <th style="border-top-right-radius:10px;">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for status, count in review_summary.items() %}
+            {% if status != 'total' %}
+            <tr>
+              <td style="text-transform: capitalize;">{{status | replace("_", " ")}}</td>
+              <td>{{count}}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </article>
+    {% endif %}
+
+    {% if risks %}
+    <article>
+      <h2>Risk Register</h2>
+      <section>
+        <h5>The table below summarizes all identified risks for this project.</h5>
+        <table class="styled-table">
+          <thead>
+            <tr>
+              <th style="border-top-left-radius:10px;">Title</th>
+              <th>Risk Level</th>
+              <th>Status</th>
+              <th style="border-top-right-radius:10px;">Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for risk in risks %}
+            <tr>
+              <td>{{risk.title or "Untitled"}}</td>
+              <td style="text-transform: capitalize;">{{risk.risk or "unknown"}}</td>
+              <td style="text-transform: capitalize;">{{risk.status or "new"}}</td>
+              <td style="text-transform: capitalize;">{{risk.priority or "unknown"}}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </article>
+    {% endif %}
+
+    {% if evidence_items %}
+    <article>
+      <h2>Evidence Inventory</h2>
+      <section>
+        <h5>The following evidence has been collected for this project.</h5>
+        <table class="styled-table">
+          <thead>
+            <tr>
+              <th style="border-top-left-radius:10px;">Name</th>
+              <th>Group</th>
+              <th style="border-top-right-radius:10px;">Collected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ev in evidence_items %}
+            <tr>
+              <td>{{ev.name}}</td>
+              <td>{{ev.group}}</td>
+              <td>{{ev.collected_on}}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </article>
+    {% endif %}
+
   </body>
 </html>
