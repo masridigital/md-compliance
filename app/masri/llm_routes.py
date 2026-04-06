@@ -128,11 +128,13 @@ def gap_narrative():
 
     try:
         from app.masri.llm_service import LLMService
+        from app.masri.prompt_adapters import get_adapter_for_feature
 
+        _adapter = get_adapter_for_feature("gap_narrative")
         messages = [
             {
                 "role": "system",
-                "content": (
+                "content": _adapter.adapt_system(
                     "You are a compliance gap analyst. Write a clear, professional "
                     "gap analysis narrative that identifies the gap between the "
                     "current state and the control requirement. Include: "
@@ -153,8 +155,8 @@ def gap_narrative():
             messages=messages,
             tenant_id=tenant_id,
             feature="gap_narrative",
-            temperature=0.3,
-            max_tokens=1500,
+            temperature=_adapter.adapt_temperature(0.3),
+            max_tokens=_adapter.adapt_max_tokens(1500),
         )
 
         return jsonify({
@@ -199,12 +201,14 @@ def risk_score():
 
     try:
         from app.masri.llm_service import LLMService
+        from app.masri.prompt_adapters import get_adapter_for_feature
         import json
 
+        _adapter = get_adapter_for_feature("risk_score")
         messages = [
             {
                 "role": "system",
-                "content": (
+                "content": _adapter.adapt_system(
                     "You are a risk assessment specialist. Evaluate the described "
                     "risk and respond with valid JSON: "
                     '{"likelihood": <1-5>, "impact": <1-5>, "overall_score": <1-25>, '
@@ -300,11 +304,13 @@ def interpret_evidence():
 
     try:
         from app.masri.llm_service import LLMService
+        from app.masri.prompt_adapters import get_adapter_for_feature
 
+        _adapter = get_adapter_for_feature("evidence_interpret")
         messages = [
             {
                 "role": "system",
-                "content": (
+                "content": _adapter.adapt_system(
                     "You are a compliance evidence analyst. Analyze the provided "
                     "evidence and extract key findings relevant to compliance. "
                     "Summarise what the evidence demonstrates, any gaps, and "
@@ -324,8 +330,8 @@ def interpret_evidence():
             messages=messages,
             tenant_id=tenant_id,
             feature="evidence_interpret",
-            temperature=0.2,
-            max_tokens=1200,
+            temperature=_adapter.adapt_temperature(0.2),
+            max_tokens=_adapter.adapt_max_tokens(1200),
         )
 
         return jsonify({
@@ -557,8 +563,10 @@ def _bg_assist_gaps(app, project_id, tenant_id):
 
             fw_name = project.framework.name if project.framework else "Unknown"
 
+            from app.masri.prompt_adapters import get_adapter_for_feature
+            _ag_adapter = get_adapter_for_feature("assist_gaps")
             all_recommendations = []
-            chunk_size = 10
+            chunk_size = _ag_adapter.adapt_chunk_size(10)
             for i in range(0, len(gap_controls), chunk_size):
                 chunk = gap_controls[i:i + chunk_size]
                 ctrl_text = "\n".join([
@@ -571,12 +579,13 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                 messages = [
                     {
                         "role": "system",
-                        "content": (
+                        "content": _ag_adapter.adapt_system(
                             f"You are a compliance consultant specializing in {fw_name}. "
                             "You will receive controls that have gaps, along with security data from "
                             "Telivy vulnerability scans and/or Microsoft 365.\n\n"
                             "For EACH control, provide specific, actionable recommendations.\n"
-                            "You MUST respond with ONLY a valid JSON array:\n"
+                            f"{_ag_adapter.adapt_json_instruction()}\n"
+                            "Respond with ONLY a valid JSON array:\n"
                             '[{"project_control_id":"ID","priority":"high","recommendation":"specific action",'
                             '"evidence_suggestion":"specific source","estimated_effort":"quick",'
                             '"policy_needed":false,"template_suggestion":""}]\n\n'
@@ -597,7 +606,9 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                 try:
                     result = LLMService.chat(
                         messages=messages, tenant_id=tenant_id,
-                        feature="assist_gaps", temperature=0.3, max_tokens=4096,
+                        feature="assist_gaps",
+                        temperature=_ag_adapter.adapt_temperature(0.3),
+                        max_tokens=_ag_adapter.adapt_max_tokens(4096),
                     )
                     content = result["content"].strip()
                     if content.startswith("```"):
@@ -1074,7 +1085,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     has_microsoft = bool(integration_data.get("microsoft"))
                     has_profiles = bool(integration_data.get("risk_profiles"))
 
-                    CHUNK_SIZE = 10
+                    from app.masri.prompt_adapters import get_adapter_for_feature
+                    adapter = get_adapter_for_feature("auto_map")
+                    CHUNK_SIZE = adapter.adapt_chunk_size(10)
                     all_mappings = []
                     all_risks = []
 
@@ -1082,9 +1095,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     if has_telivy:
                         _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase1", f"Analyzing Telivy data for {fw_name}...", json)
                         telivy_data = _compress_for_llm({"telivy": integration_data["telivy"]})
-                        telivy_prompt = (
+                        telivy_prompt = adapter.adapt_system(
                             f"You are an external vulnerability analyst mapping Telivy scan findings to "
-                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            f"{fw_name} controls.\n\n"
                             "TELIVY DATA INCLUDES: External vulnerability scan results — network exposure, "
                             "DNS security, email spoofing risk, SSL/TLS configuration, web application "
                             "vulnerabilities, typosquatting domains, breach data exposure.\n\n"
@@ -1092,6 +1105,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "or non-compliance. Reference specific finding names and severity levels.\n\n"
                             "MAPPING: compliant (scan confirms control met) | partial (some evidence) | "
                             "non_compliant (clear gap found)\n\n"
+                            f"{adapter.adapt_json_instruction()}\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"What + affected assets + remediation\","
@@ -1100,7 +1114,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         all_mappings, all_risks = _run_chunked_llm(
                             LLMService, telivy_prompt, telivy_data, controls,
                             fw_name, "Telivy scan", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_mappings, all_risks, "auto_map", adapter,
                         )
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
@@ -1108,9 +1122,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase2", f"Analyzing Microsoft 365 data for {fw_name}...", json)
                         ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
                                                       "risk_profiles": integration_data.get("risk_profiles", {})})
-                        ms_prompt = (
+                        ms_prompt = adapter.adapt_system(
                             f"You are a Microsoft 365 security analyst mapping findings to "
-                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            f"{fw_name} controls.\n\n"
                             "MICROSOFT DATA INCLUDES: Secure Score (overall posture + gap controls), "
                             "Defender security alerts, Intune device compliance (encryption, policy status), "
                             "MFA enrollment rates, Conditional Access policies, Identity Protection "
@@ -1124,6 +1138,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- For device controls: cite compliance %, encryption %, specific non-compliant devices\n"
                             "- For access controls: cite Conditional Access policy count and status\n\n"
                             "MAPPING: compliant | partial | non_compliant\n\n"
+                            f"{adapter.adapt_json_instruction()}\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific users/devices + remediation\","
@@ -1132,16 +1147,16 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         all_mappings, all_risks = _run_chunked_llm(
                             LLMService, ms_prompt, ms_data, controls,
                             fw_name, "Microsoft 365", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_mappings, all_risks, "auto_map", adapter,
                         )
 
                     # ── Phase 3: Cross-source analysis (if both available) ─
                     if has_telivy and has_microsoft:
                         _update_job_status(db, ConfigStore, tenant_id, "analyzing_cross_source", "Cross-source correlation analysis...", json)
                         combined_data = _compress_for_llm(integration_data)
-                        cross_prompt = (
+                        cross_prompt = adapter.adapt_system(
                             f"You are a compliance analyst performing CROSS-SOURCE analysis for "
-                            f"{fw_name}. You MUST respond with ONLY valid JSON.\n\n"
+                            f"{fw_name}.\n\n"
                             "You have data from BOTH Telivy (external scan) and Microsoft 365 (internal security). "
                             "Focus ONLY on controls where both sources provide relevant information:\n"
                             "- Email security: Telivy (SPF/DKIM/DMARC) + Microsoft (Exchange transport rules)\n"
@@ -1150,6 +1165,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- Access control: Telivy (open ports/services) + Microsoft (Conditional Access)\n\n"
                             "ONLY map controls where cross-source correlation adds value beyond what "
                             "individual analyses already found. Reference data from BOTH sources in notes.\n\n"
+                            f"{adapter.adapt_json_instruction()}\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
                             "\"notes\":\"Cross-source: Telivy shows [X] + Microsoft shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
@@ -1164,7 +1180,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             all_mappings, all_risks = _run_chunked_llm(
                                 LLMService, cross_prompt, combined_data, unmapped,
                                 fw_name, "Cross-source", tenant_id, CHUNK_SIZE,
-                                all_mappings, all_risks, "auto_map",
+                                all_mappings, all_risks, "auto_map", adapter,
                             )
 
                     _update_job_status(db, ConfigStore, tenant_id, "generating_evidence", f"Applying mappings + generating evidence...", json)
@@ -1442,13 +1458,16 @@ def refresh_microsoft_data(tenant_id):
 
 def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                       fw_name, source_label, tenant_id, chunk_size,
-                      all_mappings, all_risks, feature):
+                      all_mappings, all_risks, feature, adapter=None):
     """Run chunked LLM analysis for a single data source.
 
     Sends controls in batches of chunk_size, accumulates mappings and risks.
     Returns updated (all_mappings, all_risks) lists.
     """
     import json
+    from app.masri.prompt_adapters import BaseAdapter
+    if adapter is None:
+        adapter = BaseAdapter()
     prev_summary = ""
     for chunk_idx in range(0, len(controls), chunk_size):
         chunk = controls[chunk_idx:chunk_idx + chunk_size]
@@ -1477,7 +1496,8 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                     {"role": "user", "content": user_content},
                 ],
                 tenant_id=tenant_id, feature=feature,
-                temperature=0.2, max_tokens=3000,
+                temperature=adapter.adapt_temperature(0.2),
+                max_tokens=adapter.adapt_max_tokens(3000),
             )
             content = result["content"].strip()
             if content.startswith("```"):

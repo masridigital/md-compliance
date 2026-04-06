@@ -145,17 +145,20 @@ def generate_risk_narratives(profiles, tenant_id=None):
         return profiles
 
     try:
+        from app.masri.prompt_adapters import get_adapter_for_feature
+        _adapter = get_adapter_for_feature("user_risk_profile")
         result = LLMService.chat(
             messages=[
                 {
                     "role": "system",
-                    "content": (
+                    "content": _adapter.adapt_system(
                         "You are a cybersecurity analyst generating risk narratives for compliance reports. "
                         "For each high-risk user or device, write a 2-3 sentence narrative explaining:\n"
                         "1. Why this item is high risk (specific threats)\n"
                         "2. What could happen if not addressed (impact)\n"
                         "3. Recommended immediate action\n\n"
-                        "Respond with ONLY valid JSON:\n"
+                        f"{_adapter.adapt_json_instruction()}\n"
+                        "Respond with valid JSON:\n"
                         '{"narratives": [{"id": "USER:email@..." or "DEVICE:name", "narrative": "..."}]}'
                     ),
                 },
@@ -166,8 +169,8 @@ def generate_risk_narratives(profiles, tenant_id=None):
             ],
             tenant_id=tenant_id,
             feature="user_risk_profile",
-            temperature=0.3,
-            max_tokens=2000,
+            temperature=_adapter.adapt_temperature(0.3),
+            max_tokens=_adapter.adapt_max_tokens(2000),
         )
 
         content = result["content"].strip()

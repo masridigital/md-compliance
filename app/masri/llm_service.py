@@ -531,12 +531,16 @@ class LLMService:
         Returns:
             Summary string.
         """
+        from app.masri.prompt_adapters import get_adapter_for_feature
+        _adapter = get_adapter_for_feature("summarize")
         messages = [
-            {"role": "system", "content": "You are a concise summariser. "
-                                          f"Summarise the following in under {max_length} words."},
+            {"role": "system", "content": _adapter.adapt_system(
+                f"You are a concise summariser. Summarise the following in under {max_length} words."
+            )},
             {"role": "user", "content": text},
         ]
-        result = LLMService.chat(messages, tenant_id=tenant_id, feature="summarize", temperature=0.2)
+        result = LLMService.chat(messages, tenant_id=tenant_id, feature="summarize",
+                                 temperature=_adapter.adapt_temperature(0.2))
         return result["content"]
 
     @staticmethod
@@ -550,12 +554,15 @@ class LLMService:
                             confidence (0-100), explanation (str),
                             recommendations (list[str])
         """
+        from app.masri.prompt_adapters import get_adapter_for_feature
+        _adapter = get_adapter_for_feature("control_assess")
         messages = [
             {
                 "role": "system",
-                "content": (
+                "content": _adapter.adapt_system(
                     "You are a compliance assessment assistant. Evaluate whether "
                     "the provided evidence satisfies the control requirement. "
+                    f"{_adapter.adapt_json_instruction()} "
                     "Respond with valid JSON containing: "
                     '{"status": "compliant|partial|non_compliant|unknown", '
                     '"confidence": <0-100>, '
@@ -572,7 +579,8 @@ class LLMService:
             },
         ]
 
-        result = LLMService.chat(messages, tenant_id=tenant_id, feature="control_assess", temperature=0.1)
+        result = LLMService.chat(messages, tenant_id=tenant_id, feature="control_assess",
+                                 temperature=_adapter.adapt_temperature(0.1))
         content = result["content"].strip()
 
         # Try to parse JSON from the response
@@ -601,10 +609,12 @@ class LLMService:
         Returns:
             Markdown-formatted policy text.
         """
+        from app.masri.prompt_adapters import get_adapter_for_feature
+        _adapter = get_adapter_for_feature("policy_draft")
         messages = [
             {
                 "role": "system",
-                "content": (
+                "content": _adapter.adapt_system(
                     "You are a compliance policy writer. Generate a clear, "
                     "professional policy document in Markdown format for the "
                     "given compliance control. Include sections: Purpose, Scope, "
@@ -622,7 +632,9 @@ class LLMService:
         ]
 
         result = LLMService.chat(
-            messages, tenant_id=tenant_id, feature="policy_draft", temperature=0.4, max_tokens=2048
+            messages, tenant_id=tenant_id, feature="policy_draft",
+            temperature=_adapter.adapt_temperature(0.4),
+            max_tokens=_adapter.adapt_max_tokens(2048),
         )
         return result["content"]
 
