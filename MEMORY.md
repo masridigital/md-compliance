@@ -13,10 +13,10 @@
 |------|------|--------|-------|
 | ~~5~~ | ~~Update manager Docker safety~~ | **DONE** | `update_manager.py`, `scheduler.py`, `system_info.html` |
 | ~~7~~ | ~~Storage provider hardening~~ | **DONE** | `storage_providers.py`, `entra_routes.py` |
-| 1 | Decouple Telivy from Microsoft | Pending | `llm_routes.py`, `integrations.html` |
-| 2 | Add job stages + extend poll | Pending | `llm_routes.py`, `integrations.html`, `view_project.html` |
-| 3 | Create prompt adapter layer | Pending | New `prompt_adapters.py`, `llm_service.py` |
-| 4 | Wire adapters into all prompts | Pending | `llm_routes.py`, `risk_profiles.py` |
+| ~~1~~ | ~~Decouple Telivy from Microsoft~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
+| ~~2~~ | ~~Add job stages + extend poll~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
+| ~~3~~ | ~~Create prompt adapter layer~~ | **DONE** | `prompt_adapters.py`, `llm_service.py` |
+| ~~4~~ | ~~Wire adapters into all prompts~~ | **DONE** | `llm_routes.py`, `llm_service.py`, `risk_profiles.py` |
 | 6 | Redis-backed log viewer | Pending | `log_buffer.py`, `__init__.py` |
 
 #### Step 1: Decouple Telivy from Microsoft
@@ -187,6 +187,10 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | 5 | Update manager Docker safety | 2026-04-05 |
 | 7 | Storage provider hardening (Azure auto-create, SharePoint /teams/ + 4MB guard, Egnyte domain normalization, CSP savepoint) | 2026-04-05 |
 | B1 | PDF report generation (WeasyPrint, risk register + evidence sections) | 2026-04-06 |
+| A1 | Decouple Telivy from Microsoft (run_mode: telivy_only/microsoft_only/full) | 2026-04-06 |
+| A2 | Job stage tracking + extended 15-min poll window | 2026-04-06 |
+| A3 | Prompt adapter layer (7 model-family adapters) | 2026-04-06 |
+| A4 | Wire adapters into all 10 LLM prompts + _run_chunked_llm | 2026-04-06 |
 | — | NinjaOne RMM integration (full: class, routes, settings, UI tile, org mapping) | 2026-04-06 |
 | — | DefensX integration (full: class, routes, settings, UI tile, customer mapping) | 2026-04-06 |
 | — | Coming-soon tiles: Blackpoint Cyber, Keeper Security, SentinelOne | 2026-04-06 |

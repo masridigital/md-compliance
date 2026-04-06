@@ -136,6 +136,7 @@ app/
   masri/
     llm_routes.py          # LLM endpoints + auto-process + 3-phase analysis
     llm_service.py         # Multi-provider LLM abstraction + 4-tier routing
+    prompt_adapters.py     # Per-model-family prompt adaptation layer
     settings_routes.py     # All settings API endpoints
     settings_service.py    # Settings business logic + encryption
     telivy_integration.py  # Telivy API client

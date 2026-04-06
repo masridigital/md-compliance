@@ -10,15 +10,16 @@ Automatically pulls security data from integrations (Telivy, Microsoft 365), map
 
 | Feature | Description |
 |---------|-------------|
-| **AI-Powered Compliance** | 3-phase LLM analysis: per-integration analysis + cross-source correlation. Auto-maps findings to controls, creates risks, generates evidence. |
-| **Multi-Provider LLM** | 4-tier routing (extraction → mapping → analysis → advanced). Together AI, Anthropic, OpenAI, Azure. Weekly AI model recommendation engine. |
-| **Telivy Integration** | External vulnerability scans, risk assessments, breach data. In-app PDF report viewer with history. Re-run analysis on demand. |
-| **Microsoft 365 Integration** | Secure Score, Defender alerts, Intune device compliance, MFA enrollment, Identity Protection, sign-in activity, SharePoint. Cache-first (no throttling). |
+| **AI-Powered Compliance** | 3-phase LLM analysis: per-integration analysis + cross-source correlation. Auto-maps findings to controls, creates risks, generates evidence. Decoupled run modes (Telivy-only, Microsoft-only, or full). |
+| **Multi-Provider LLM** | 4-tier routing (extraction → mapping → analysis → advanced). Together AI, Anthropic, OpenAI, Azure. Prompt adapter layer auto-tunes prompts per model family (Claude, Llama, DeepSeek, Qwen, Gemma, Kimi). Weekly AI model recommendation engine. |
+| **Telivy Integration** | External vulnerability scans, risk assessments, breach data. In-app PDF report viewer with history. Independent re-run analysis on demand. |
+| **Microsoft 365 Integration** | Secure Score, Defender alerts, Intune device compliance, MFA enrollment, Identity Protection, sign-in activity, SharePoint. Cache-first (no throttling). Independent re-pull & analyze button. |
 | **User & Device Risk Profiles** | Per-user scoring (MFA, risk detections, admin status) + per-device scoring (compliance, encryption, sync). AI-generated risk narratives for high-risk items. |
 | **Auto-Evidence Generation** | Creates evidence entries with exhibit references (Complete/Partial/Draft tiers). Never fabricates — only records what scans found. |
 | **18 Compliance Frameworks** | FTC Safeguards (Core/Mortgage/Tax), SOC 2, NIST CSF, NIST 800-53, HIPAA, PCI DSS, CMMC, ISO 27001, NY DFS, MA 201 CMR, and more. |
 | **WISP Wizard** | Guided wizard for Written Information Security Programs with AI assistance and PDF/DOCX export. |
-| **Background Processing** | All heavy LLM work runs in daemon threads. Processing continues when user navigates away or logs out. |
+| **Background Processing** | All heavy LLM work runs in daemon threads with real-time stage tracking (collecting → analyzing → generating evidence → done). 15-minute poll window. Processing continues when user navigates away or logs out. |
+| **PDF Reports** | Generate compliance reports as PDF via WeasyPrint. Includes cover page, project metrics, control status, review summary, risk register, and evidence inventory. |
 | **Storage Routing** | Role-based storage (evidence/reports/backups) across Local, S3, Azure Blob, SharePoint, Egnyte. Automatic fallback to local. |
 | **MCP Server** | OAuth 2.0 Model Context Protocol at `/mcp` for Claude/ChatGPT integration with 11 compliance tools. |
 | **Real-time Log Viewer** | System page with live application logs, level filtering, auto-refresh, sensitive data redaction. |
@@ -68,8 +69,11 @@ md-compliance/
 │   ├── masri/
 │   │   ├── llm_routes.py           # LLM endpoints + 3-phase auto-process
 │   │   ├── llm_service.py          # Multi-provider LLM + 4-tier routing
+│   │   ├── prompt_adapters.py      # Per-model-family prompt adaptation layer
 │   │   ├── entra_integration.py    # Microsoft 365 (Defender, Intune, Entra)
 │   │   ├── telivy_integration.py   # Telivy external vulnerability scanning
+│   │   ├── ninjaone_integration.py # NinjaOne RMM (endpoint management)
+│   │   ├── defensx_integration.py  # DefensX (browser security)
 │   │   ├── risk_profiles.py        # User & device risk scoring engine
 │   │   ├── model_recommender.py    # Weekly AI model recommendation engine
 │   │   ├── storage_router.py       # Role-based storage routing + fallback
@@ -100,8 +104,10 @@ md-compliance/
 
 ```
 1. Map scan to client (Telivy) or configure Entra ID (Microsoft)
-2. Auto-process pulls data from all configured integrations
-3. 3-phase LLM analysis:
+2. Auto-process pulls data from configured integrations
+   - run_mode: telivy_only | microsoft_only | full
+   - Real-time stage tracking via polling API
+3. 3-phase LLM analysis (prompts auto-tuned per model family):
    Phase 1: Telivy-only (external vulnerabilities)
    Phase 2: Microsoft-only (internal security posture)
    Phase 3: Cross-source correlation (both sources)
@@ -111,6 +117,17 @@ md-compliance/
 7. Progress bar updates automatically
 8. Daily scheduler refreshes all data every 24 hours
 ```
+
+### Supported Integrations
+| Integration | Type | Status |
+|-------------|------|--------|
+| **Telivy** | External vulnerability scanning | Active |
+| **Microsoft 365** | Entra ID + Defender + Intune | Active |
+| **NinjaOne RMM** | Endpoint management | Active |
+| **DefensX** | Browser security | Active |
+| **Blackpoint Cyber** | MDR/SOC | Coming Soon |
+| **Keeper Security** | Password management | Coming Soon |
+| **SentinelOne** | EDR | Coming Soon |
 
 ---
 
@@ -153,6 +170,22 @@ GET  /api/v1/entra/users                    Directory users
 GET  /api/v1/entra/mfa-status               MFA enrollment report
 POST /api/v1/entra/assess                   Compliance posture assessment
 GET  /api/v1/entra/csp-clients              CSP/partner managed tenants
+```
+
+### NinjaOne RMM
+```
+POST /api/v1/ninjaone/test                   Test connection
+GET  /api/v1/ninjaone/organizations          List organizations
+GET  /api/v1/ninjaone/devices                Devices by organization
+GET  /api/v1/ninjaone/alerts                 Active alerts
+```
+
+### DefensX
+```
+POST /api/v1/defensx/test                    Test connection
+GET  /api/v1/defensx/customers               List customers
+GET  /api/v1/defensx/agents/:id              Agent status by customer
+GET  /api/v1/defensx/policies/:id            Web policies by customer
 ```
 
 ### Settings
