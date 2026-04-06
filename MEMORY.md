@@ -17,7 +17,7 @@
 | ~~2~~ | ~~Add job stages + extend poll~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
 | ~~3~~ | ~~Create prompt adapter layer~~ | **DONE** | `prompt_adapters.py`, `llm_service.py` |
 | ~~4~~ | ~~Wire adapters into all prompts~~ | **DONE** | `llm_routes.py`, `llm_service.py`, `risk_profiles.py` |
-| 6 | Redis-backed log viewer | Pending | `log_buffer.py`, `__init__.py` |
+| ~~6~~ | ~~Redis-backed log viewer~~ | **DONE** | `log_buffer.py`, `__init__.py` |
 
 #### Step 1: Decouple Telivy from Microsoft
 - Add `run_mode` parameter to `auto_process`: `telivy_only | microsoft_only | full`
@@ -70,9 +70,9 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | Item | What | Files | Priority |
 |------|------|-------|----------|
 | ~~B1~~ | ~~Complete PDF report generation~~ | `app/utils/reports.py` | **DONE** |
-| B2 | Migrate scheduler to Celery/Redis | `app/masri/scheduler.py`, `docker-compose.yml` | High — threading.Timer unreliable in multi-worker |
-| B3 | Add CI/CD pipeline | New `.github/workflows/` | High — no automated testing or deployment |
-| B4 | Upgrade PCI DSS v3.1 → v4.0 | `app/files/base_controls/pci_3.1.json` | High — v3.1 deprecated March 2024 |
+| ~~B2~~ | ~~Migrate scheduler to Celery/Redis~~ | `celery_app.py`, `scheduler.py`, `docker-compose.yml` | **DONE** |
+| ~~B3~~ | ~~Add CI/CD pipeline~~ | `.github/workflows/ci.yml`, `pyproject.toml` | **DONE** |
+| ~~B4~~ | ~~Upgrade PCI DSS v3.1 → v4.0~~ | `pci_dss_v4.0.json`, `pci_3.1.json` | **DONE** |
 | B5 | Flask version cap | `requirements.txt` | High — `Flask>=2.3.3` allows 3.x accidentally, cap at `<3.0` |
 | B6 | Add test coverage | `tests/` | High — only 5 test files, no API/LLM/WISP tests |
 | B7 | Add DB connection pooling | `config.py` | High — no pool_size/max_overflow configured |
@@ -194,6 +194,10 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | — | NinjaOne RMM integration (full: class, routes, settings, UI tile, org mapping) | 2026-04-06 |
 | — | DefensX integration (full: class, routes, settings, UI tile, customer mapping) | 2026-04-06 |
 | — | Coming-soon tiles: Blackpoint Cyber, Keeper Security, SentinelOne | 2026-04-06 |
+| A6 | Redis-backed log viewer (LPUSH/LRANGE + in-memory fallback, worker_id) | 2026-04-06 |
+| B2 | Celery/Redis scheduler (dual-mode: Celery Beat + threading.Timer fallback) | 2026-04-06 |
+| B3 | CI/CD pipeline (GitHub Actions: ruff lint, syntax check, pytest) | 2026-04-06 |
+| B4 | PCI DSS v4.0 framework (250+ controls, v3.1 marked deprecated) | 2026-04-06 |
 
 ---
 

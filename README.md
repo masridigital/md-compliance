@@ -16,13 +16,13 @@ Automatically pulls security data from integrations (Telivy, Microsoft 365), map
 | **Microsoft 365 Integration** | Secure Score, Defender alerts, Intune device compliance, MFA enrollment, Identity Protection, sign-in activity, SharePoint. Cache-first (no throttling). Independent re-pull & analyze button. |
 | **User & Device Risk Profiles** | Per-user scoring (MFA, risk detections, admin status) + per-device scoring (compliance, encryption, sync). AI-generated risk narratives for high-risk items. |
 | **Auto-Evidence Generation** | Creates evidence entries with exhibit references (Complete/Partial/Draft tiers). Never fabricates — only records what scans found. |
-| **18 Compliance Frameworks** | FTC Safeguards (Core/Mortgage/Tax), SOC 2, NIST CSF, NIST 800-53, HIPAA, PCI DSS, CMMC, ISO 27001, NY DFS, MA 201 CMR, and more. |
+| **19 Compliance Frameworks** | FTC Safeguards (Core/Mortgage/Tax), SOC 2, NIST CSF, NIST 800-53, HIPAA, PCI DSS v4.0, CMMC, ISO 27001, NY DFS, MA 201 CMR, and more. |
 | **WISP Wizard** | Guided wizard for Written Information Security Programs with AI assistance and PDF/DOCX export. |
 | **Background Processing** | All heavy LLM work runs in daemon threads with real-time stage tracking (collecting → analyzing → generating evidence → done). 15-minute poll window. Processing continues when user navigates away or logs out. |
 | **PDF Reports** | Generate compliance reports as PDF via WeasyPrint. Includes cover page, project metrics, control status, review summary, risk register, and evidence inventory. |
 | **Storage Routing** | Role-based storage (evidence/reports/backups) across Local, S3, Azure Blob, SharePoint, Egnyte. Automatic fallback to local. |
 | **MCP Server** | OAuth 2.0 Model Context Protocol at `/mcp` for Claude/ChatGPT integration with 11 compliance tools. |
-| **Real-time Log Viewer** | System page with live application logs, level filtering, auto-refresh, sensitive data redaction. |
+| **Real-time Log Viewer** | Redis-backed log aggregation across all Gunicorn workers. Level filtering, auto-refresh, sensitive data redaction. Persists across restarts. |
 | **Multi-tenancy** | Full tenant isolation with per-tenant data, projects, controls, evidence, and risk registers. |
 | **SSO / 2FA** | Google + Microsoft OAuth, local auth with TOTP 2FA. |
 
@@ -94,7 +94,10 @@ md-compliance/
 ├── docker-compose.yml              # App + Postgres + Redis + Nginx + Certbot
 ├── Dockerfile                      # Multi-stage Python 3.12 build
 ├── CLAUDE.md                       # AI development reference
+├── MEMORY.md                       # Roadmap, technical debt, completed work
+├── INTEGRATIONS.md                 # Integration methodology + specs
 ├── SETUP.md                        # Full deployment guide
+├── pyproject.toml                  # Ruff linter configuration
 └── run.sh                          # Gunicorn entrypoint with DB migrations
 ```
 
@@ -213,6 +216,9 @@ POST /mcp/tools/:name                    Execute compliance tool
 ```bash
 # Build and start
 docker-compose up -d --build
+
+# With Celery (persistent task scheduling)
+docker-compose --profile celery up -d --build
 
 # Restart (resets rate limits)
 docker-compose restart app

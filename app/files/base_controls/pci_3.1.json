@@ -1,5 +1,7 @@
 [
   {
+    "_deprecated": true,
+    "_deprecated_message": "PCI DSS v3.1 was retired March 2024. Use PCI DSS v4.0 for new projects. This file is kept for legacy projects.",
     "name": "Establish and implement firewall and router configuration standards that include the following:",
     "description": "Firewalls and routers are key components of the architecture that controls entry to and exit from the network. These devices are software or hardware devices that block unwanted access and manage authorized access into and out of the network. Configuration standards and procedures will help to ensure that the organization's first line of defense in the protection of its data remains strong.",
     "ref_code": "1.1",
