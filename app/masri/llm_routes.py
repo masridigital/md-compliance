@@ -898,9 +898,38 @@ def debug_integration_mapping(project_id):
     })
 
 
-def _bg_auto_process(app, tenant_id, scan_id, scan_type):
-    """Background worker for auto-process. Runs in a thread, never blocks gunicorn."""
+def _update_job_status(tenant_id, stage, detail="", chunk_info=""):
+    """Write current job stage to ConfigStore for frontend polling.
+
+    Stages: collecting_telivy → collecting_microsoft → computing_risk_profiles
+            → analyzing_phase1 → analyzing_phase2 → analyzing_cross_source
+            → generating_evidence → syncing_progress → done
+    """
     import json
+    from app.models import ConfigStore
+    try:
+        status = {
+            "status": "processing",
+            "stage": stage,
+            "detail": detail,
+            "chunk_info": chunk_info,
+        }
+        ConfigStore.upsert(f"auto_process_status_{tenant_id}", json.dumps(status))
+    except Exception:
+        pass
+
+
+def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
+    """Background worker for auto-process. Runs in a thread, never blocks gunicorn.
+
+    Args:
+        run_mode: "telivy_only" | "microsoft_only" | "full" (default)
+    """
+    import json
+    _VALID_MODES = {"telivy_only", "microsoft_only", "full"}
+    if run_mode not in _VALID_MODES:
+        run_mode = "full"
+
     with app.app_context():
         from app import db
         from app.models import Project, RiskRegister, ConfigStore, ProjectControl
@@ -913,8 +942,13 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
         integration_data = {}
         telivy_raw = {}
 
+        skip_telivy = run_mode == "microsoft_only"
+        skip_microsoft = run_mode == "telivy_only"
+
         # Step 1: Pull data from Telivy
-        if scan_id:
+        if not skip_telivy:
+            _update_job_status(tenant_id, "collecting_telivy", "Pulling Telivy scan data")
+        if scan_id and not skip_telivy:
             try:
                 from app.masri.telivy_routes import _get_telivy_client
                 client = _get_telivy_client()
@@ -941,42 +975,46 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                 if telivy_raw:
                     integration_data["telivy"] = telivy_raw
             except Exception as e:
-                integration_data["telivy_error"] = str(e)
+                logger.warning("Telivy data collection failed: %s", e)
+                integration_data["telivy_error"] = "Data collection failed"
 
         # Pull Microsoft Security data (Entra + Defender + Devices + Secure Score)
-        try:
-            from app.masri.new_models import SettingsEntra
-            entra_cfg = db.session.execute(
-                db.select(SettingsEntra).filter_by(tenant_id=None)
-            ).scalars().first()
-            if entra_cfg and entra_cfg.is_fully_configured():
-                from app.masri.entra_integration import EntraIntegration
-                creds = entra_cfg.get_credentials()
-                ms_client = EntraIntegration(
-                    tenant_id=creds["entra_tenant_id"],
-                    client_id=creds["client_id"],
-                    client_secret=creds["client_secret"],
-                )
-                ms_data = ms_client.collect_all_security_data()
-                if ms_data:
-                    integration_data["microsoft"] = ms_data
-        except Exception as e:
-            logger.debug("Microsoft data collection skipped: %s", e)
+        if not skip_microsoft:
+            _update_job_status(tenant_id, "collecting_microsoft", "Pulling Microsoft 365 security data")
+            try:
+                from app.masri.new_models import SettingsEntra
+                entra_cfg = db.session.execute(
+                    db.select(SettingsEntra).filter_by(tenant_id=None)
+                ).scalars().first()
+                if entra_cfg and entra_cfg.is_fully_configured():
+                    from app.masri.entra_integration import EntraIntegration
+                    creds = entra_cfg.get_credentials()
+                    ms_client = EntraIntegration(
+                        tenant_id=creds["entra_tenant_id"],
+                        client_id=creds["client_id"],
+                        client_secret=creds["client_secret"],
+                    )
+                    ms_data = ms_client.collect_all_security_data()
+                    if ms_data:
+                        integration_data["microsoft"] = ms_data
+            except Exception as e:
+                logger.debug("Microsoft data collection skipped: %s", e)
 
         # Compute risk profiles from Microsoft data
-        if integration_data.get("microsoft"):
+        if integration_data.get("microsoft") and not skip_microsoft:
+            _update_job_status(tenant_id, "computing_risk_profiles", "Computing user & device risk profiles")
             try:
                 from app.masri.risk_profiles import compute_risk_profiles, generate_risk_narratives
                 profiles = compute_risk_profiles(integration_data["microsoft"])
                 if profiles:
-                    # Generate AI narratives for high-risk items (Tier 4)
                     profiles = generate_risk_narratives(profiles, tenant_id=tenant_id)
                     integration_data["risk_profiles"] = profiles
             except Exception as e:
                 logger.debug("Risk profile computation skipped: %s", e)
 
         # Store raw data at tenant level
-        has_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        has_data = has_any_data
         if has_data:
             try:
                 existing = {}
@@ -1001,14 +1039,14 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
             db.select(Project).filter_by(tenant_id=tenant_id)
         ).scalars().all()
 
-        if not projects or not integration_data.get("telivy"):
+        if not projects or not has_any_data:
             # Store result for polling
             try:
                 ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
-                    "success": bool(integration_data.get("telivy")),
+                    "success": has_any_data,
                     "controls_mapped": 0, "risks_added": 0,
-                    "data_stored": bool(integration_data.get("telivy")),
-                    "message": "Data saved (no projects)." if integration_data.get("telivy") else "No data pulled.",
+                    "data_stored": has_any_data,
+                    "message": "Data saved (no projects)." if has_any_data else "No data pulled.",
                 }, default=str))
             except Exception:
                 pass
@@ -1056,6 +1094,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 1: Telivy-only analysis ─────────────────────
                     if has_telivy:
+                        _update_job_status(tenant_id, "analyzing_phase1", "Analyzing Telivy findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
                         telivy_data = _compress_for_llm({"telivy": integration_data["telivy"]})
                         telivy_prompt = (
                             f"You are an external vulnerability analyst mapping Telivy scan findings to "
@@ -1080,6 +1119,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
                     if has_microsoft:
+                        _update_job_status(tenant_id, "analyzing_phase2", "Analyzing Microsoft 365 findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
                         ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
                                                       "risk_profiles": integration_data.get("risk_profiles", {})})
                         ms_prompt = (
@@ -1111,6 +1151,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
 
                     # ── Phase 3: Cross-source analysis (if both available) ─
                     if has_telivy and has_microsoft:
+                        _update_job_status(tenant_id, "analyzing_cross_source", "Cross-source correlation analysis")
                         combined_data = _compress_for_llm(integration_data)
                         cross_prompt = (
                             f"You are a compliance analyst performing CROSS-SOURCE analysis for "
@@ -1140,6 +1181,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                 all_mappings, all_risks, "auto_map",
                             )
 
+                    _update_job_status(tenant_id, "generating_evidence", f"Applying {len(all_mappings)} mappings + generating evidence")
                     # Apply mappings
                     _STATUS_MAP = {
                         "compliant": "complete", "partial": "ready for auditor",
@@ -1261,8 +1303,8 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                                 total_risks += 1
                         except Exception:
                             pass
+                    _update_job_status(tenant_id, "syncing_progress", f"Syncing progress for {project.name if hasattr(project, 'name') else project.id}")
                     # Sync ALL subcontrol progress for this project
-                    # (catches controls mapped in previous runs with stale progress)
                     _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
                     db.session.commit()
                 except Exception as e:
@@ -1279,6 +1321,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type):
                     pass
 
         # Store result for polling
+        _update_job_status(tenant_id, "done", f"{total_mapped} controls, {total_risks} risks")
         try:
             ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
                 "success": total_mapped > 0 or total_risks > 0,
@@ -1310,6 +1353,9 @@ def auto_process():
     tenant_id = data.get("tenant_id")
     scan_id = data.get("scan_id")
     scan_type = data.get("scan_type", "scan")
+    run_mode = data.get("run_mode", "full")
+    if scan_type not in ("scan", "assessment"):
+        scan_type = "scan"
     if not tenant_id:
         return jsonify({"success": False, "error": "tenant_id required"}), 400
 
@@ -1319,7 +1365,7 @@ def auto_process():
     app = current_app._get_current_object()
     t = threading.Thread(
         target=_bg_auto_process,
-        args=(app, tenant_id, scan_id, scan_type),
+        args=(app, tenant_id, scan_id, scan_type, run_mode),
         daemon=True,
     )
     t.start()
@@ -1341,9 +1387,25 @@ def auto_process_status(tenant_id):
     _validate_tenant_access(tenant_id)
     from app.models import ConfigStore
     try:
+        # Check for final result first
         record = ConfigStore.find(f"auto_process_result_{tenant_id}")
         if record and record.value:
-            return jsonify(_json.loads(record.value))
+            result = _json.loads(record.value)
+            # Merge in stage info if available
+            stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
+            if stage_record and stage_record.value:
+                stage_data = _json.loads(stage_record.value)
+                result["stage"] = stage_data.get("stage", "done")
+                result["stage_detail"] = stage_data.get("detail", "")
+                result["chunk_info"] = stage_data.get("chunk_info", "")
+            return jsonify(result)
+    except Exception:
+        pass
+    # No final result yet — check for in-progress stage
+    try:
+        stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
+        if stage_record and stage_record.value:
+            return jsonify(_json.loads(stage_record.value))
     except Exception:
         pass
     return jsonify({"status": "processing"})
@@ -1413,13 +1475,33 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
     """Run chunked LLM analysis for a single data source.
 
     Sends controls in batches of chunk_size, accumulates mappings and risks.
+    Uses prompt adapter layer to optimize prompts per model family.
     Returns updated (all_mappings, all_risks) lists.
     """
     import json
+    from app.masri.prompt_adapters import get_adapter
+
+    # Resolve the model being used for this feature and get the right adapter
+    # (system prompt + temperature adapted automatically in LLMService.chat(),
+    #  but chunk_size is adapted here since it controls batching logic)
+    model_name = LLMService.get_feature_model(feature) or ""
+    if not model_name:
+        try:
+            config = LLMService._get_config()
+            model_name = config.get("model_name", "") if config else ""
+        except Exception:
+            model_name = ""
+    adapter = get_adapter(model_name)
+    adapted_chunk_size = adapter.adapt_chunk_size(chunk_size)
+    adapted_max_tokens = adapter.adapt_max_tokens(3000)
+
     prev_summary = ""
-    for chunk_idx in range(0, len(controls), chunk_size):
-        chunk = controls[chunk_idx:chunk_idx + chunk_size]
-        chunk_label = f"{source_label} {chunk_idx // chunk_size + 1}/{(len(controls) + chunk_size - 1) // chunk_size}"
+    total_chunks = (len(controls) + adapted_chunk_size - 1) // adapted_chunk_size
+    for chunk_idx in range(0, len(controls), adapted_chunk_size):
+        chunk = controls[chunk_idx:chunk_idx + adapted_chunk_size]
+        chunk_num = chunk_idx // adapted_chunk_size + 1
+        chunk_label = f"{source_label} {chunk_num}/{total_chunks}"
+        _update_job_status(tenant_id, f"analyzing_{source_label.lower().replace(' ', '_')}", f"Analyzing {source_label}", f"{chunk_num}/{total_chunks} chunks")
         ctrl_list = "\n".join([
             f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
             for c in chunk
@@ -1436,6 +1518,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                 user_content += f"Recent: {prev_summary}\n"
             user_content += "\n"
         user_content += f"CONTROLS ({chunk_label}):\n{ctrl_list}"
+        user_content += f"\n\n{adapter.adapt_json_instruction()}"
 
         try:
             result = LLMService.chat(
@@ -1444,7 +1527,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                     {"role": "user", "content": user_content},
                 ],
                 tenant_id=tenant_id, feature=feature,
-                temperature=0.2, max_tokens=3000,
+                temperature=0.2, max_tokens=adapted_max_tokens,
             )
             content = result["content"].strip()
             if content.startswith("```"):

@@ -2512,7 +2512,7 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/llm/auto-process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type }),
+          body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: type, run_mode: 'telivy_only' }),
         });
         const data = await resp.json();
         if (!data.success && data.error) {
@@ -2526,7 +2526,7 @@ function integrationsHub() {
 
         // Poll for results every 5 seconds
         let pollCount = 0;
-        const maxPolls = 60; // 5 min max
+        const maxPolls = 180; // 15 min max
         this._activePollers[scanId] = setInterval(async () => {
           pollCount++;
           if (pollCount > maxPolls) {
@@ -2550,6 +2550,12 @@ function integrationsHub() {
               this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
               toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
               this._saveMapping();
+            } else if (status.stage) {
+              // Show stage progress
+              const stageNames = { collecting_telivy: 'Pulling Telivy data', collecting_microsoft: 'Pulling Microsoft data', computing_risk_profiles: 'Computing risk profiles', analyzing_phase1: 'Analyzing Telivy', analyzing_phase2: 'Analyzing Microsoft', analyzing_cross_source: 'Cross-source analysis', generating_evidence: 'Generating evidence', syncing_progress: 'Syncing progress' };
+              const label = stageNames[status.stage] || status.stage;
+              const chunk = status.chunk_info ? ` (${status.chunk_info})` : '';
+              this.telivyScanMappings[scanId].process_result = `${label}${chunk}`;
             }
           } catch(e) { /* keep polling */ }
         }, 5000);

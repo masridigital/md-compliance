@@ -293,7 +293,8 @@ Users configure 4 tiers (not 11+ individual features). Features are hardcoded to
 - **Inactivity timeout**: 30 min, session-only `_last_activity`. NO database in `before_request`.
 
 ### Background Processing
-- **`_bg_auto_process`**: Daemon thread, returns immediately, polls via `/auto-process-status/`
+- **`_bg_auto_process`**: Daemon thread, returns immediately, polls via `/auto-process-status/`, supports `run_mode` (telivy_only | microsoft_only | full)
+- **Job stages**: `_update_job_status()` writes to ConfigStore, frontend polls for stage + chunk progress
 - **`db.session.remove()`** at start/end of background threads
 - **NEVER** use `session_factory` — caused full site crash
 
@@ -326,6 +327,7 @@ app/
     ninjaone_routes.py     # NinjaOne API endpoints
     defensx_integration.py # DefensX browser security API client
     defensx_routes.py      # DefensX API endpoints
+    prompt_adapters.py     # Model-family-specific prompt adapter layer
     risk_profiles.py       # User & device risk profile engine
     mcp_server.py          # MCP OAuth server for Claude/ChatGPT
     scheduler.py           # Background scheduler (threading.Timer)
@@ -417,10 +419,10 @@ url = get_file_url(path, role="evidence", expires_hours=24)  # Auditor access
 |------|------|--------|-------|
 | ~~5~~ | ~~Update manager Docker safety~~ | **DONE** | `update_manager.py`, `scheduler.py`, `system_info.html` |
 | ~~7~~ | ~~Storage provider hardening~~ | **DONE** | `storage_providers.py`, `entra_routes.py` |
-| 1 | Decouple Telivy from Microsoft | Pending | `llm_routes.py`, `integrations.html` |
-| 2 | Add job stages + extend poll | Pending | `llm_routes.py`, `integrations.html`, `view_project.html` |
-| 3 | Create prompt adapter layer | Pending | New `prompt_adapters.py`, `llm_service.py` |
-| 4 | Wire adapters into all prompts | Pending | `llm_routes.py`, `risk_profiles.py` |
+| ~~1~~ | ~~Decouple Telivy from Microsoft~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
+| ~~2~~ | ~~Add job stages + extend poll~~ | **DONE** | `llm_routes.py`, `integrations.html`, `view_project.html` |
+| ~~3~~ | ~~Create prompt adapter layer~~ | **DONE** | `prompt_adapters.py`, `llm_service.py` |
+| ~~4~~ | ~~Wire adapters into all prompts~~ | **DONE** | `llm_service.py` (auto-adapts in `LLMService.chat()`), `llm_routes.py` (chunk size) |
 | 6 | Redis-backed log viewer | Pending | `log_buffer.py`, `__init__.py` |
 
 #### Step 1: Decouple Telivy from Microsoft
@@ -618,6 +620,11 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 |------|------|-----------|
 | 5 | Update manager Docker safety | 2026-04-05 |
 | 7 | Storage provider hardening (Azure auto-create, SharePoint /teams/ + 4MB guard, Egnyte domain normalization, CSP savepoint) | 2026-04-05 |
+| 1 | Decouple Telivy from Microsoft (`run_mode` parameter: telivy_only / microsoft_only / full) | 2026-04-06 |
+| 2 | Job stages + extended poll (15 min timeout, stage/chunk progress in UI) | 2026-04-06 |
+| 3 | Prompt adapter layer (7 model-family adapters: Claude, DeepSeek, Llama, Kimi, Gemma, Qwen, Default) | 2026-04-06 |
+| 4 | Wire adapters into all prompts (auto-adapts in LLMService.chat(), chunk size in _run_chunked_llm) | 2026-04-06 |
+| B1 | PDF report generation with WeasyPrint | 2026-04-05 |
 
 ---
 

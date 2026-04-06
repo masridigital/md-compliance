@@ -2984,14 +2984,14 @@
 									const scanId = (intData.telivy.scan_details || [])[0]?.id;
 									const tenantId = '{{ project.tenant_id }}';
 									const scanType = (intData.telivy.scan_details || [])[0]?.type || 'scan';
-									fetch('/api/v1/llm/auto-process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: scanType }) })
+									fetch('/api/v1/llm/auto-process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tenant_id: tenantId, scan_id: scanId, scan_type: scanType, run_mode: 'telivy_only' }) })
 										.then(r => r.json())
 										.then(d => {
 											toast('Re-pulling Telivy data + AI analysis started...', 'info');
 											let polls = 0;
 											pollId = setInterval(async () => {
 												polls++;
-												if (polls > 60) { clearInterval(pollId); running = false; toast('Check project for results', 'warning'); return; }
+												if (polls > 180) { clearInterval(pollId); running = false; toast('Check project for results', 'warning'); return; }
 												try {
 													const sr = await fetch('/api/v1/llm/auto-process-status/' + tenantId);
 													const st = await sr.json();
