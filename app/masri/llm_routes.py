@@ -923,10 +923,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
     """Background worker for auto-process. Runs in a thread, never blocks gunicorn.
 
     Args:
-        run_mode: "telivy_only" | "microsoft_only" | "full" (default)
+        run_mode: "telivy_only" | "microsoft_only" | "ninjaone_only" | "defensx_only" | "full" (default)
     """
     import json
-    _VALID_MODES = {"telivy_only", "microsoft_only", "full"}
+    _VALID_MODES = {"telivy_only", "microsoft_only", "ninjaone_only", "defensx_only", "full"}
     if run_mode not in _VALID_MODES:
         run_mode = "full"
 
@@ -942,8 +942,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
         integration_data = {}
         telivy_raw = {}
 
-        skip_telivy = run_mode == "microsoft_only"
-        skip_microsoft = run_mode == "telivy_only"
+        _only_mode = run_mode.endswith("_only")
+        skip_telivy = _only_mode and run_mode != "telivy_only"
+        skip_microsoft = _only_mode and run_mode != "microsoft_only"
 
         # Step 1: Pull data from Telivy
         if not skip_telivy:
@@ -1013,7 +1014,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 logger.debug("Risk profile computation skipped: %s", e)
 
         # Pull NinjaOne data (if configured and mapped to this tenant)
-        skip_ninjaone = run_mode in ("telivy_only", "microsoft_only")
+        skip_ninjaone = _only_mode and run_mode != "ninjaone_only"
         if not skip_ninjaone:
             _update_job_status(tenant_id, "collecting_ninjaone", "Pulling NinjaOne RMM data")
             try:
@@ -1048,7 +1049,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 logger.debug("NinjaOne data collection skipped: %s", e)
 
         # Pull DefensX data (if configured and mapped to this tenant)
-        skip_defensx = run_mode in ("telivy_only", "microsoft_only")
+        skip_defensx = _only_mode and run_mode != "defensx_only"
         if not skip_defensx:
             _update_job_status(tenant_id, "collecting_defensx", "Pulling DefensX browser security data")
             try:
