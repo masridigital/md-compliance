@@ -5,7 +5,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
   .login-panel { font-family: 'DM Sans', system-ui, sans-serif; }
-  .login-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .login-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
   .login-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
   .login-panel .input:focus { border-color: #10b981 !important; }
   .login-panel .input::placeholder { color: rgba(255,255,255,0.3); }
@@ -61,7 +61,7 @@
             <div class="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center">
               <i class="ti ti-shield-check text-white text-lg"></i>
             </div>
-            <span class="font-bold text-lg">MD Compliance</span>
+            <span class="font-bold text-lg text-white">MD Compliance</span>
           </div>
           <h2 class="text-2xl font-bold tracking-tight text-white">Welcome back</h2>
           <p class="text-sm text-gray-400 mt-1">Sign in to your account</p>
@@ -72,7 +72,7 @@
 
         <div class="space-y-4">
           <div class="anim-up anim-d1">
-            <label class="login-mono text-base-content/40 block mb-1.5">Email</label>
+            <label class="login-mono text-gray-400 block mb-1.5">Email</label>
             <input name="email" x-model="payload.email" type="email"
                    class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
                    placeholder="you@company.com" />
@@ -80,8 +80,8 @@
 
           <div class="anim-up anim-d2">
             <div class="flex justify-between items-center mb-1.5">
-              <label class="login-mono text-base-content/40">Password</label>
-              <a href="/reset-password" class="text-emerald-400 text-xs hover:underline">Forgot?</a>
+              <label class="login-mono text-gray-400">Password</label>
+              <a href="/reset-password" class="text-emerald-400 text-xs font-medium hover:underline hover:text-emerald-300">Forgot?</a>
             </div>
             <input name="password" x-model="payload.password" type="password"
                    class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
@@ -98,9 +98,9 @@
 
         <div class="anim-up anim-d4">
           <div class="flex items-center gap-3 my-5">
-            <div class="flex-1 h-px bg-base-content/10"></div>
-            <span class="login-mono text-base-content/30">or continue with</span>
-            <div class="flex-1 h-px bg-base-content/10"></div>
+            <div class="flex-1 h-px bg-gray-700"></div>
+            <span class="login-mono text-gray-500">or continue with</span>
+            <div class="flex-1 h-px bg-gray-700"></div>
           </div>
 
           <div class="flex gap-3">
@@ -115,7 +115,7 @@
           </div>
         </div>
 
-        <div x-show="adminEmail.length>2" class="mt-5 text-center text-xs opacity-30" x-text="'Need help? Contact '+adminEmail"></div>
+        <div x-show="adminEmail.length>2" class="mt-5 text-center text-xs text-gray-400" x-text="'Need help? Contact '+adminEmail"></div>
       </form>
     </div>
   </div>

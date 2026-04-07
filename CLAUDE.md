@@ -645,30 +645,113 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 
 ---
 
-## Pending / Future Features
+## Phase D: UI/UX Redesign — Apple-Inspired Design System
 
-### Global Risk Dashboard (Home Page)
-The Risk Register on the home screen should show ALL risks across ALL clients:
-- Cross-client, cross-project view of all registered risks
-- Labels per client showing which tenant the risk belongs to
-- Project name shown per risk
-- If a risk applies to multiple projects on same client, mark it
-- Filterable by client, severity, status
-- Links to the specific project's Risk Register page
+**Design Philosophy**: Jony Ive-inspired — purposeful minimalism, precise spatial relationships, clear visual hierarchy, obsessive alignment, generous whitespace, every pixel intentional. Dark theme with emerald accent.
 
-### Nginx Branded Error Page
-Custom 502/503/504 page at `nginx/error-pages/502.html`:
-- Shows "MD Compliance — Application is starting up..." with spinner
-- Auto-refreshes every 5 seconds until app responds
-- Masri Digital branding
-- Requires `error_page 502 503 504 /502.html` in nginx config
-- Volume mounted in docker-compose.yml: `./nginx/error-pages:/usr/share/nginx/error-pages:ro`
-- All nginx templates in setup.sh include the error_page directive
+**Tech**: DaisyUI/Tailwind + custom `theme.css` + per-template structural changes. No framework migration.
 
-### Gunicorn Preload
-Added `--preload` flag to gunicorn in run.sh:
-- App loaded once by master process, then forked to workers
-- Reduces per-worker startup time (no duplicate Flask app init)
+### Design Tokens (theme.css — already deployed)
+- **Font**: DM Sans (all text), JetBrains Mono (labels/code)
+- **Colors**: Emerald primary (#10b981), charcoal surfaces (#16181d → #0e0f12), warm white text
+- **Radius**: 12px cards, 8px buttons, 6px inputs
+- **Shadows**: Layered (subtle border + soft shadow), emerald glow on hover
+- **Spacing**: 8px grid system, generous padding
+
+### D1: Sidebar + Top Bar (affects every page)
+**File**: `app/templates/layouts/sidebar-nav.html`
+
+| Element | Current | Target |
+|---------|---------|--------|
+| Sidebar width | 56px collapsed / 224px expanded | 64px collapsed / 240px expanded |
+| Nav items | Icon + text crammed, no active indicator | Icon-only collapsed with tooltip, emerald left-border active state |
+| Logo | Image file, different sizes | Shield icon + "MC" monogram, consistent |
+| Top bar | Plain text "MD Compliance" + theme toggle | Clean breadcrumb trail, search, user avatar dropdown |
+| Footer icons | Tiny profile/logout | Clean avatar circle + dropdown |
+| Scroll progress | 1px secondary colored bar | 2px emerald gradient bar |
+| Spacing | Tight, inconsistent padding | 16px padding, 12px gaps, aligned grid |
+
+### D2: Home Dashboard (first impression)
+**File**: `app/templates/home.html`
+
+| Element | Current | Target |
+|---------|---------|--------|
+| Welcome | Emoji + "Good Afternoon" + Google background SVG | Clean greeting with user name, no emoji, no background image |
+| Get Started cards | 3 plain cards in a row | 3 feature cards with icons, subtle gradient borders, hover lift |
+| Risk Overview | Stat boxes + raw table | Compact stat row with colored indicators, polished sortable table |
+| Layout | Everything stacked vertically | Two-column: left = welcome + quick actions, right = risk summary |
+| Empty state | "No risks found" plain text | Illustrated empty state with CTA |
+
+### D3: Clients/Workspace
+**File**: `app/templates/workspace.html`
+
+- Client cards with status indicators and quick-action buttons
+- Search/filter bar with clean pill-style filters
+- Grid/list view toggle
+
+### D4: Projects List
+**File**: `app/templates/projects.html`
+
+- Framework badge on each project card
+- Progress ring (not bar) showing completion %
+- Sortable table with inline status badges
+- Clean "New Project" modal with framework picker
+
+### D5: Project Detail (most complex)
+**File**: `app/templates/view_project.html`
+
+- Redesigned tab bar (horizontal pills, not underline)
+- Controls tab: collapsible sections with progress indicators
+- Evidence tab: card grid with file type icons, upload drop zone
+- Risk tab: severity-colored cards with inline edit
+- Integrations tab: clean data cards with drift alerts
+
+### D6: Integrations/Settings
+**File**: `app/templates/integrations.html`
+
+- Settings organized in sections with clear hierarchy
+- Provider cards with connection status indicators
+- Clean drawer panels for configuration
+- Responsive tile grid
+
+### D7: Users + Activity Logs
+**Files**: `app/templates/management/users.html`, `app/templates/logs.html`
+
+- User cards with avatar, role badges, last-active timestamp
+- Clean AG Grid tables with proper dark theme
+- Export/filter bar with consistent styling
+
+### D8: Auth Pages (login, setup, register, reset)
+**Files**: `app/templates/auth/*.html`
+
+- Already partially done (login, setup)
+- Need: register, reset password, verify TOTP, confirm email
+- Consistent hero + floating card pattern
+
+### Implementation Order
+| Step | What | Priority | Depends On |
+|------|------|----------|------------|
+| D1 | Sidebar + Top Bar | **NOW** | — |
+| D2 | Home Dashboard | **NOW** | D1 |
+| D3 | Clients/Workspace | High | D1 |
+| D4 | Projects List | High | D1 |
+| D5 | Project Detail | High | D1 |
+| D6 | Integrations/Settings | Medium | D1 |
+| D7 | Users + Logs | Medium | D1 |
+| D8 | Auth Pages | Low | Already partially done |
+
+---
+
+## Completed Features
+
+### Global Risk Dashboard (Home Page) — DONE
+Cross-client risk register on home page with severity filters, search, sortable columns.
+
+### Nginx Branded Error Page — DONE
+Custom 502/503/504 at `nginx/error-pages/502.html` with auto-refresh.
+
+### First-Run Web Setup — DONE
+Admin account created via web UI at `/setup` instead of setup.sh prompts.
 
 ---
 
