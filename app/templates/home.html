@@ -172,7 +172,7 @@
         </thead>
         <tbody>
           <template x-for="risk in filteredRisks()" :key="risk.id">
-            <tr class="risk-row border-b border-base-300/50" @click="if(risk.project_id) window.location.href='/projects/'+risk.project_id+'?tab=risk%20register'; else window.location.href='/tenants/'+risk.tenant_id+'/risk'">
+            <tr class="risk-row border-b border-base-300/50" @click="if(risk.project_id) window.location.href='/projects/'+risk.project_id+'?tab=risk%20register&risk_id='+risk.id; else window.location.href='/tenants/'+risk.tenant_id+'/risk'">
               <td class="max-w-sm"><span class="text-sm text-white truncate block" x-text="risk.title"></span></td>
               <td>
                 <span class="flex items-center gap-2 text-xs">

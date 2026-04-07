@@ -2627,7 +2627,7 @@
 						<div class="overflow-x-auto">
 					  <div class="flex justify-between my-2">
 						<div class="flex flex-row gap-x-2 py-2 my-auto">
-							<span class="card-title">Risk Reports</span>
+							<span class="card-title">Risk Register</span>
 							<span class="pill text-ss bg-base-300" x-text="'Showing: '+filteredRisks.length"></span>
 						  <span x-show="false" x-text="JSON.stringify(filter)"></span>
 						</div>
@@ -7265,7 +7265,10 @@ function project(){
 			  this.filteredRisks = data;
 			  this.tabLoading = false;
 			  this.tableLoading = false;
-			  this.loadingReports = false
+			  this.loadingReports = false;
+			  // Auto-open specific risk if risk_id in URL
+			  var _rid = new URLSearchParams(window.location.search).get("risk_id");
+			  if (_rid) { var _m = data.find(function(r){return r.id===_rid}); if (_m) this.openReportDrawer(_m); }
 
 			},
 			error => {
