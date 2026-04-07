@@ -439,11 +439,11 @@
                 </div>
               </template>
 
-              <!-- Add provider (prevent duplicates) -->
+              <!-- Add provider -->
               <button x-show="!addingProvider" class="btn btn-xs btn-ghost gap-1 w-full justify-start opacity-50" @click="addingProvider = true"><i class="ti ti-plus"></i> Add provider</button>
-              <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 space-y-1">
+              <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 space-y-1" x-data="{ saving: false, testResult: '' }">
                 <div class="grid grid-cols-3 gap-1">
-                  <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
+                  <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider; testResult = '';">
                     <option value="" disabled selected>Select provider...</option>
                     <template x-for="prov in ['together_ai','anthropic','openai','azure_openai'].filter(
                       pr => !llmProvidersList.some(x => x.provider === pr)
@@ -453,9 +453,26 @@
                   </select>
                   <input type="password" class="input input-bordered input-xs col-span-2" placeholder="API Key" x-model="newProvider.api_key">
                 </div>
-                <div class="flex gap-1">
-                  <button class="btn btn-xs btn-primary" @click="saveAdditionalProvider(newProvider); addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' }; loadLlmProviders();">Add</button>
-                  <button class="btn btn-xs btn-ghost" @click="addingProvider = false">Cancel</button>
+                <div class="flex items-center gap-2">
+                  <button class="btn btn-xs btn-primary gap-1" :disabled="!newProvider.provider || !newProvider.api_key || saving" @click="
+                    saving = true; testResult = '';
+                    saveAdditionalProvider({key: newProvider.provider, provider: newProvider.provider, api_key: newProvider.api_key}).then(() => {
+                      return fetch('/api/v1/settings/llm/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: newProvider.provider})});
+                    }).then(r => r.json()).then(d => {
+                      saving = false;
+                      if (d.message) { testResult = d.message; toast('Provider saved and connected!', 'success'); }
+                      else { testResult = d.error || 'Saved (test failed)'; toast('Provider saved but test failed', 'warning'); }
+                      addingProvider = false;
+                      newProvider = { key: '', provider: '', api_key: '', model_name: '' };
+                      loadLlmProviders();
+                    }).catch(e => { saving = false; testResult = 'Error'; toast('Failed to save: ' + e.message, 'error'); });
+                  ">
+                    <span class="loading loading-spinner loading-xs" x-show="saving"></span>
+                    <i class="ti ti-plug-connected" x-show="!saving"></i>
+                    Save & Test
+                  </button>
+                  <button class="btn btn-xs btn-ghost" @click="addingProvider = false; newProvider = { key: '', provider: '', api_key: '', model_name: '' };">Cancel</button>
+                  <span class="text-[10px]" :class="testResult.includes('Connected') ? 'text-success' : testResult ? 'text-error' : ''" x-text="testResult"></span>
                 </div>
               </div>
             </div>

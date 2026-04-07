@@ -55,18 +55,18 @@
 
   <!-- Quick nav cards -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-    <a href="/projects" class="dash-card group block">
+    <a href="/clients" class="dash-card group block">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-          <i class="ti ti-folder text-emerald-400 text-xl"></i>
+          <i class="ti ti-building-skyscraper text-emerald-400 text-xl"></i>
         </div>
         <div>
-          <div class="font-semibold text-sm text-white">Projects</div>
-          <div class="dash-label mt-0.5" x-text="(tenantInfo.projects || 0) + ' active'"></div>
+          <div class="font-semibold text-sm text-white">Clients</div>
+          <div class="dash-label mt-0.5" x-text="(riskDashboard.tenants?.length || tenantInfo.projects || '-') + ' managed'"></div>
         </div>
       </div>
-      <p class="text-xs text-gray-400 leading-relaxed">Track compliance controls, manage policies, and monitor audit readiness across frameworks.</p>
-      <div class="flex items-center gap-1 mt-4 text-emerald-400 text-xs font-medium">Open Projects <i class="ti ti-arrow-right text-sm"></i></div>
+      <p class="text-xs text-gray-400 leading-relaxed">Manage your client organizations, compliance projects, and track audit readiness across frameworks.</p>
+      <div class="flex items-center gap-1 mt-4 text-emerald-400 text-xs font-medium">Open Clients <i class="ti ti-arrow-right text-sm"></i></div>
     </a>
 
     <a :href="'/tenants/'+selectedTenantId+'/risk'" class="dash-card group block">
@@ -76,7 +76,7 @@
         </div>
         <div>
           <div class="font-semibold text-sm text-white">Risk Register</div>
-          <div class="dash-label mt-0.5" x-text="(tenantInfo.risks || 0) + ' tracked'"></div>
+          <div class="dash-label mt-0.5" x-text="(riskDashboard.total || tenantInfo.risks || '-') + ' tracked'"></div>
         </div>
       </div>
       <p class="text-xs text-gray-400 leading-relaxed">Assess threats, assign ownership, implement controls, and track mitigation progress.</p>
@@ -194,7 +194,14 @@
               </td>
             </tr>
           </template>
-          <template x-if="!filteredRisks().length && !riskSearch">
+          <template x-if="!filteredRisks().length && !riskSearch && riskLoading">
+            <tr>
+              <td colspan="5" class="text-center py-8">
+                <span class="loading loading-dots loading-md text-gray-500"></span>
+              </td>
+            </tr>
+          </template>
+          <template x-if="!filteredRisks().length && !riskSearch && !riskLoading">
             <tr>
               <td colspan="5" class="text-center py-12">
                 <i class="ti ti-shield-check text-3xl text-emerald-500/30 block mb-2"></i>
@@ -228,6 +235,7 @@ function welcome(){
         userName: "",
         tenantInfo: {},
         riskDashboard: {},
+        riskLoading: true,
         riskFilter: { severity: "", tenant_id: "" },
         riskSort: { key: "risk", asc: false },
         riskSearch: "",
@@ -249,9 +257,10 @@ function welcome(){
           let url = '/api/v1/settings/global-risks?limit=100';
           if (this.riskFilter.severity) url += '&severity=' + this.riskFilter.severity;
           if (this.riskFilter.tenant_id) url += '&tenant_id=' + this.riskFilter.tenant_id;
+          this.riskLoading = true;
           request("GET", url,
-            data => { this.riskDashboard = data; },
-            error => {}
+            data => { this.riskDashboard = data; this.riskLoading = false; },
+            error => { this.riskLoading = false; }
           );
         },
         sortRisks(key) {
