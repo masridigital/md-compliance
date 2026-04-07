@@ -46,7 +46,7 @@
   </div>
 
   <!-- Login card floating on the right -->
-  <div class="relative z-20 min-h-screen flex items-center justify-end p-4 lg:p-10">
+  <div class="relative z-20 min-h-screen flex items-center justify-center p-4 lg:p-10">
     <div class="w-full max-w-md bg-base-100/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-black/40 p-8 lg:p-10 border border-white/5">
       <form action="{{url_for('auth.get_login', next=request.args.get('next'))}}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
