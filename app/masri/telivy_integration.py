@@ -65,12 +65,20 @@ class TelivyIntegration:
     # ─── Connection Test ──────────────────────────────────────────────
 
     def test_connection(self) -> dict:
-        """Test the API connection by listing external scans (limit=1)."""
-        data = self._request("GET", "/api/v1/security/external-scans", params={"limit": 1})
+        """Test the API connection and count external scans + risk assessments."""
+        ext_data = self._request("GET", "/api/v1/security/external-scans", params={"limit": 1})
+        ext_count = ext_data.get("total", 0)
+        assess_count = 0
+        try:
+            assess_data = self._request("GET", "/api/v1/security/risk-assessments", params={"limit": 1})
+            assess_count = assess_data.get("total", 0)
+        except Exception:
+            pass
         return {
             "connected": True,
-            "message": data.get("message", "OK"),
-            "total_scans": data.get("total", 0),
+            "external_scans": ext_count,
+            "risk_assessments": assess_count,
+            "total_scans": ext_count + assess_count,
         }
 
     # ─── External Scans ──────────────────────────────────────────────

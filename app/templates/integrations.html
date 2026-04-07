@@ -236,7 +236,7 @@
                       <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
                       <div class="ml-auto flex items-center gap-1">
-                        <select class="select select-bordered select-xs capitalize w-32"
+                        <select class="select select-bordered select-xs capitalize w-44"
                                 @change="mapScanToTenant(s.id, $event.target.value, 'scan')">
                           <option value="" :selected="!getScanTenantMapping(s.id)">Map to client...</option>
                           <template x-for="t in telivyTenants" :key="'st-'+t.id">
@@ -315,7 +315,7 @@
                       <button class="btn btn-ghost btn-xs" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i></button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
                       <div class="ml-auto flex items-center gap-1">
-                        <select class="select select-bordered select-xs capitalize w-32"
+                        <select class="select select-bordered select-xs capitalize w-44"
                                 @change="mapScanToTenant(a.id, $event.target.value, 'assessment')">
                           <option value="" :selected="!getScanTenantMapping(a.id)">Map to client...</option>
                           <template x-for="t in telivyTenants" :key="'at-'+t.id">
@@ -2344,7 +2344,9 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/telivy/test', { method: 'POST' });
         const data = await resp.json();
         if (data.connected) {
-          this.telivyMsg = 'Connected! ' + (data.total_scans || 0) + ' existing scans found.';
+          const ext = data.external_scans || data.total_scans || 0;
+          const assess = data.risk_assessments || 0;
+          this.telivyMsg = 'Connected! ' + ext + ' external scan' + (ext !== 1 ? 's' : '') + ', ' + assess + ' risk assessment' + (assess !== 1 ? 's' : '') + '.';
           this.telivyMsgType = 'success';
         } else {
           this.telivyMsg = data.error || 'Connection failed';
