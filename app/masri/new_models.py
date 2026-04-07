@@ -793,7 +793,7 @@ class Training(db.Model):
     __tablename__ = "training"
 
     id = db.Column(db.String(8), primary_key=True, default=_short_id)
-    tenant_id = db.Column(db.String(8), db.ForeignKey("tenant.id"), nullable=False, index=True)
+    tenant_id = db.Column(db.String(8), db.ForeignKey("tenants.id"), nullable=False, index=True)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text())
     content_type = db.Column(db.String(50), default="document")
@@ -844,7 +844,7 @@ class TrainingAssignment(db.Model):
     __tablename__ = "training_assignment"
 
     id = db.Column(db.String(8), primary_key=True, default=_short_id)
-    tenant_id = db.Column(db.String(8), db.ForeignKey("tenant.id"), nullable=False, index=True)
+    tenant_id = db.Column(db.String(8), db.ForeignKey("tenants.id"), nullable=False, index=True)
     training_id = db.Column(db.String(8), db.ForeignKey("training.id"), nullable=False, index=True)
     user_email = db.Column(db.String(255), nullable=False)
     user_name = db.Column(db.String(255))
