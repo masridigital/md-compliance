@@ -1956,12 +1956,18 @@ def _compress_for_llm(data: dict) -> str:
             lines.append(f"Organization: {details.get('organization_name', 'Unknown')}")
             lines.append(f"Domain: {details.get('domain_prim', 'Unknown')}")
             lines.append(f"Assessment Status: {assessment.get('scanStatus', 'Unknown')}")
-            # Extract executive summary scores
             exec_sum = assessment.get("executiveSummary", {})
             if exec_sum:
+                lines.append("\nRISK ASSESSMENT FINDINGS:")
                 for category, scores in exec_sum.items():
-                    if isinstance(scores, dict) and scores.get("securityScore"):
-                        lines.append(f"  {category}: Score {scores['securityScore']}")
+                    if isinstance(scores, dict):
+                        grade = scores.get("securityScore", "N/A")
+                        summary = scores.get("summary", "")
+                        cat_name = category.replace("Security", " Security").replace("Presence", " Presence").strip()
+                        if grade:
+                            lines.append(f"\n  [{grade}] {cat_name}:")
+                        if summary:
+                            lines.append(f"    {summary[:500]}")
 
         if findings:
             lines.append(f"\nFindings ({len(findings)}):")

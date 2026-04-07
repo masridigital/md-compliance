@@ -524,8 +524,12 @@ function workspaceHub() {
       this.drawerProjects = [];
       try {
         const resp = await fetch(`/api/v1/tenants/${tid}/projects?exclude-timely=true`);
-        if (resp.ok) this.drawerProjects = await resp.json();
-      } catch(e) {}
+        if (resp.ok) {
+          this.drawerProjects = await resp.json();
+        } else {
+          console.warn('Projects load failed:', resp.status);
+        }
+      } catch(e) { console.warn('Projects load error:', e); }
       this.drawerProjectsLoading = false;
     },
 
