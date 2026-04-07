@@ -479,7 +479,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | ~~B1~~ | ~~Complete PDF report generation~~ | `app/utils/reports.py` | **DONE** — WeasyPrint pipeline |
 | B2 | Migrate scheduler to Celery/Redis | `app/masri/scheduler.py`, `docker-compose.yml` | High — threading.Timer unreliable in multi-worker |
 | ~~B3~~ | ~~Add CI/CD pipeline~~ | `.github/workflows/ci.yml`, `deploy.yml` | **DONE** — lint, syntax, security scan, tests |
-| B4 | Upgrade PCI DSS v3.1 → v4.0 | `app/files/base_controls/pci_dss_v4.0.json` | Pending — create v4.0 JSON, keep v3.1 for legacy |
+| ~~B4~~ | ~~Upgrade PCI DSS v3.1 → v4.0~~ | `pci_dss_v4.0.json`, `models.py`, migration 0006 | **DONE** — 43 controls, 223 subcontrols, deprecation support |
 
 #### B1: PDF Report Generation
 - **Current state**: `app/utils/reports.py:31` — `generate()` raises `ValueError("Not Implemented")`
@@ -628,6 +628,9 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | 6 | Redis-backed log viewer (LPUSH/LTRIM + in-memory fallback, worker ID in entries) | 2026-04-06 |
 | B1 | PDF report generation with WeasyPrint | 2026-04-05 |
 | B3 | CI/CD pipeline (lint + syntax + security scan + test jobs) | 2026-04-06 |
+| B4 | PCI DSS v4.0 framework (43 controls, 223 subcontrols) + v3.1 deprecation support | 2026-04-07 |
+| C1 | Automated evidence generators (13 generators: 6 Microsoft, 3 Telivy, 3 NinjaOne, 2 DefensX) | 2026-04-07 |
+| C4 | GDPR, CCPA/CPRA, ABA Model Rules, HITRUST CSF frameworks | 2026-04-07 |
 
 ---
 
