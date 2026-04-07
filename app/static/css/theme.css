@@ -1,6 +1,6 @@
 /*
- * MD Compliance — Refined Dark Theme
- * Emerald accent, better contrast, works WITH DaisyUI not against it
+ * MD Compliance — Emerald Dark Theme
+ * Works WITH DaisyUI by customizing the dark theme properly
  */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
@@ -12,6 +12,21 @@ body, html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ═══ DaisyUI dark theme — emerald accent ═══ */
+[data-theme="dark"] {
+  --p: 160.12 84.08% 39.41%;   /* emerald-500 */
+  --pf: 161.38 93.55% 30.39%;  /* emerald-600 */
+  --pc: 0 0% 100%;             /* white on primary */
+  --s: 160 60% 28%;
+  --sf: 160 60% 22%;
+  --sc: 0 0% 95%;
+  --a: 160.12 84.08% 39.41%;   /* accent = emerald */
+  --af: 161.38 93.55% 30.39%;
+  --ac: 0 0% 100%;
+  --su: 160.12 84.08% 39.41%;  /* success = emerald */
+  --suf: 161.38 93.55% 30.39%;
+}
+
 /* ═══ Buttons ═══ */
 .btn-primary {
   font-weight: 500;
@@ -19,10 +34,10 @@ body, html {
 }
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16,185,129,0.2);
+  box-shadow: 0 4px 12px oklch(var(--p) / 0.25);
 }
 
-/* ═══ Tables ═══ */
+/* ═══ Table headers ═══ */
 .table th {
   font-size: 0.7rem;
   font-weight: 600;
@@ -30,7 +45,7 @@ body, html {
   letter-spacing: 0.05em;
 }
 
-/* ═══ AG Grid Dark Theme ═══ */
+/* ═══ AG Grid ═══ */
 .ag-theme-quartz {
   --ag-font-family: 'DM Sans', system-ui, sans-serif;
   --ag-font-size: 13px;
@@ -46,12 +61,12 @@ body, html {
 
 /* ═══ Selection ═══ */
 ::selection {
-  background: rgba(16,185,129,0.3);
+  background: oklch(var(--p) / 0.3);
   color: white;
 }
 
 /* ═══ Scroll progress bar ═══ */
 .h-1.bg-secondary {
-  background: #10b981 !important;
+  background: oklch(var(--p)) !important;
   height: 2px !important;
 }
