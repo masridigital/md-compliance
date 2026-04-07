@@ -16,14 +16,13 @@
   @media (max-width: 900px)  { .int-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 600px)  { .int-grid { grid-template-columns: 1fr; } }
 
-  /* Cards — square tiles */
+  /* Cards */
   .int-card {
     border: 1px solid oklch(var(--bc) / .10); border-radius: .75rem;
     padding: 1.25rem; cursor: pointer;
     transition: border-color .15s, box-shadow .15s, transform .1s;
     display: flex; flex-direction: column;
     background: oklch(var(--b2));
-    aspect-ratio: 1 / 1;
     overflow: hidden;
   }
   .int-card:hover { border-color: oklch(var(--p)); box-shadow: 0 2px 12px oklch(var(--p) / .08); transform: translateY(-2px); }
@@ -445,7 +444,7 @@
               <div x-show="addingProvider" x-collapse class="bg-base-300 rounded p-2 space-y-1">
                 <div class="grid grid-cols-3 gap-1">
                   <select class="select select-bordered select-xs" x-model="newProvider.provider" @change="newProvider.key = newProvider.provider">
-                    <option value="">Provider</option>
+                    <option value="" disabled selected>Select provider...</option>
                     <template x-for="prov in ['together_ai','anthropic','openai','azure_openai'].filter(
                       pr => !llmProvidersList.some(x => x.provider === pr)
                     )" :key="prov">
