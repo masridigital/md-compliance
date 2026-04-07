@@ -585,6 +585,13 @@ class MasriScheduler:
                             json.dumps(existing, default=str)[:35000000],
                         )
                         refreshed += 1
+
+                        # Run drift check against baseline (non-fatal)
+                        try:
+                            from app.masri.continuous_monitor import check_drift
+                            check_drift(tenant_id, existing)
+                        except Exception:
+                            pass
                     except Exception:
                         logger.exception("Integration refresh failed for tenant %s", tenant_id)
 

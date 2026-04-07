@@ -1802,3 +1802,84 @@ def get_control_mapping(ref_code):
     except Exception:
         logger.exception("Failed to get control mapping")
         return jsonify({"error": "Failed to retrieve mapping."}), 500
+
+
+# ===========================================================================
+# Continuous Monitoring
+# ===========================================================================
+
+@settings_bp.route("/monitoring/baseline", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def create_monitoring_baseline():
+    """POST /api/v1/settings/monitoring/baseline — Create compliance baseline from current data."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if not record or not record.value:
+            return jsonify({"error": "No integration data available. Run integrations first."}), 400
+
+        import json as _json
+        data = _json.loads(record.value)
+
+        from app.masri.continuous_monitor import create_baseline
+        baseline = create_baseline(tenant_id, data)
+        return jsonify({
+            "created": baseline.get("created"),
+            "has_microsoft": "microsoft" in baseline,
+            "has_ninjaone": "ninjaone" in baseline,
+        })
+    except Exception:
+        logger.exception("Failed to create monitoring baseline")
+        return jsonify({"error": "Failed to create baseline. Check system logs."}), 500
+
+
+@settings_bp.route("/monitoring/baseline", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_monitoring_baseline():
+    """GET /api/v1/settings/monitoring/baseline — Get baseline info."""
+    tenant_id = Authorizer.get_tenant_id()
+    from app.masri.continuous_monitor import get_baseline_info
+    info = get_baseline_info(tenant_id)
+    if not info:
+        return jsonify({"exists": False})
+    return jsonify({"exists": True, **info})
+
+
+@settings_bp.route("/monitoring/drift", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_drift_alerts():
+    """GET /api/v1/settings/monitoring/drift — Get drift alerts."""
+    tenant_id = Authorizer.get_tenant_id()
+    limit = request.args.get("limit", 50, type=int)
+    from app.masri.continuous_monitor import get_drift_alerts as _get_alerts
+    alerts = _get_alerts(tenant_id, limit=min(limit, 100))
+    return jsonify({"alerts": alerts, "count": len(alerts)})
+
+
+@settings_bp.route("/monitoring/check", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def check_drift_now():
+    """POST /api/v1/settings/monitoring/check — Run drift check against baseline."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if not record or not record.value:
+            return jsonify({"error": "No integration data available."}), 400
+
+        import json as _json
+        data = _json.loads(record.value)
+
+        from app.masri.continuous_monitor import check_drift
+        alerts = check_drift(tenant_id, data)
+        return jsonify({"alerts": alerts, "count": len(alerts)})
+    except Exception:
+        logger.exception("Drift check failed")
+        return jsonify({"error": "Drift check failed. Check system logs."}), 500

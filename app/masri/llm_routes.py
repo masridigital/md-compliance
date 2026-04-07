@@ -1539,6 +1539,15 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 except Exception:
                     pass
 
+        # Run drift check against baseline (non-fatal)
+        try:
+            from app.masri.continuous_monitor import check_drift
+            record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+            if record and record.value:
+                check_drift(tenant_id, json.loads(record.value))
+        except Exception:
+            pass
+
         # Store result for polling
         _update_job_status(tenant_id, "done", f"{total_mapped} controls, {total_risks} risks")
         try:
