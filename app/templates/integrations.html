@@ -316,6 +316,7 @@
                     <div class="flex items-center gap-1 mt-2 flex-wrap">
                       <button class="btn btn-ghost btn-xs" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i></button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(a.id, getScanTenantMapping(a.id))" title="View raw data + LLM output"><i class="ti ti-code"></i> Debug</button>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-44"
                                 @change="mapScanToTenant(a.id, $event.target.value, 'assessment')">

@@ -1812,6 +1812,17 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                 prev_summary = f"{len(new_maps)} mapped. Risks: {', '.join(rt[:3])}" if rt else ""
         except Exception as e:
             logger.warning("LLM chunk %s failed: %s", chunk_label, e)
+            # Store the error so debug endpoint can show it
+            try:
+                from app.models import ConfigStore
+                ConfigStore.upsert(f"llm_last_error_{tenant_id}", json.dumps({
+                    "chunk": chunk_label,
+                    "error": str(e)[:500],
+                    "model": model_name,
+                    "feature": feature,
+                }, default=str))
+            except Exception:
+                pass
 
     return all_mappings, all_risks
 

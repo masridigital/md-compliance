@@ -2018,6 +2018,14 @@ def get_debug_data(tenant_id):
     except Exception:
         result["llm_status"] = None
 
+    # LLM last error (if any chunk failed)
+    try:
+        record = ConfigStore.find(f"llm_last_error_{tenant_id}")
+        if record and record.value:
+            result["llm_last_error"] = _dj.loads(record.value)
+    except Exception:
+        result["llm_last_error"] = None
+
     return jsonify(result)
 
 
