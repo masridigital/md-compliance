@@ -209,6 +209,7 @@ _PROVIDERS = {
     "anthropic": AnthropicProvider,
     "azure_openai": AzureOpenAIProvider,
     "together": TogetherAIProvider,
+    "together_ai": TogetherAIProvider,  # alias — UI stores as together_ai
 }
 
 

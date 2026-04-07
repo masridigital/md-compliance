@@ -234,9 +234,9 @@
                       </div>
                     </div>
                     <div class="flex items-center gap-1 mt-2">
-                      <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
-                      <button class="btn btn-ghost btn-xs" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i></button>
-                      <button class="btn btn-ghost btn-xs" @click="showRawDebugData(s.id, getScanTenantMapping(s.id))" title="Debug data"><i class="ti ti-code"></i></button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i> Findings</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> Report</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(s.id, getScanTenantMapping(s.id))" title="Debug data"><i class="ti ti-code"></i> Debug</button>
                     </div>
                     <div class="flex items-center gap-1 mt-1">
                       <select class="select select-bordered select-xs capitalize flex-1 min-w-0"
@@ -314,9 +314,9 @@
                       </template>
                     </div>
                     <div class="flex items-center gap-1 mt-2">
-                      <button class="btn btn-ghost btn-xs" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i></button>
-                      <button class="btn btn-ghost btn-xs" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i></button>
-                      <button class="btn btn-ghost btn-xs" @click="showRawDebugData(a.id, getScanTenantMapping(a.id))" title="Debug data"><i class="ti ti-code"></i></button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i> Details</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> Report</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(a.id, getScanTenantMapping(a.id))" title="Debug data"><i class="ti ti-code"></i> Debug</button>
                     </div>
                     <div class="flex items-center gap-1 mt-1">
                       <select class="select select-bordered select-xs capitalize flex-1 min-w-0"
