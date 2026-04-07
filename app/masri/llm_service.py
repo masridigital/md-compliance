@@ -259,40 +259,71 @@ class LLMService:
     @staticmethod
     def _get_config() -> dict:
         """
-        Load the active LLM configuration from the database.
+        Load the active LLM configuration.
+
+        Checks ConfigStore providers first (the unified provider store),
+        then falls back to SettingsLLM for backwards compatibility.
 
         Returns:
-            dict with provider, model_name, api_key (decrypted),
-            azure_endpoint, azure_deployment, ollama_base_url,
-            token_budget_per_tenant, rate_limit_per_hour.
+            dict with provider, model_name, api_key (decrypted), etc.
+            None if no LLM is configured.
         """
-        from app.masri.settings_service import SettingsService
+        import json as _json
 
-        llm = SettingsService.get_active_llm_config()
-        if llm is None:
-            return None
+        # Primary source: ConfigStore llm_additional_providers
+        try:
+            from app.models import ConfigStore
+            from app.masri.settings_service import decrypt_value
+            record = ConfigStore.find("llm_additional_providers")
+            if record and record.value:
+                providers = _json.loads(record.value)
+                # Use first provider with an API key
+                for key, cfg in providers.items():
+                    if cfg.get("api_key_enc"):
+                        api_key = ""
+                        try:
+                            api_key = decrypt_value(cfg["api_key_enc"])
+                        except Exception:
+                            pass
+                        if api_key:
+                            return {
+                                "provider": cfg.get("provider", key),
+                                "model_name": cfg.get("model_name", ""),
+                                "api_key": api_key,
+                                "azure_endpoint": cfg.get("azure_endpoint", ""),
+                                "azure_deployment": cfg.get("azure_deployment", ""),
+                                "ollama_base_url": "",
+                                "token_budget_per_tenant": 0,
+                                "rate_limit_per_hour": 0,
+                            }
+        except Exception:
+            pass
 
-        config = {
-            "provider": llm.provider,
-            "model_name": llm.model_name,
-            "azure_endpoint": llm.azure_endpoint,
-            "azure_deployment": llm.azure_deployment,
-            "ollama_base_url": llm.ollama_base_url,
-            "token_budget_per_tenant": llm.token_budget_per_tenant,
-            "rate_limit_per_hour": llm.rate_limit_per_hour,
-        }
-
-        # Decrypt API key
-        if llm.api_key_enc:
-            try:
-                config["api_key"] = llm.get_api_key()
-            except Exception:
-                logger.warning("Failed to decrypt LLM API key")
+        # Fallback: SettingsLLM (legacy)
+        try:
+            from app.masri.settings_service import SettingsService
+            llm = SettingsService.get_active_llm_config()
+            if llm is None:
+                return None
+            config = {
+                "provider": llm.provider,
+                "model_name": llm.model_name,
+                "azure_endpoint": getattr(llm, "azure_endpoint", ""),
+                "azure_deployment": getattr(llm, "azure_deployment", ""),
+                "ollama_base_url": getattr(llm, "ollama_base_url", ""),
+                "token_budget_per_tenant": getattr(llm, "token_budget_per_tenant", 0),
+                "rate_limit_per_hour": getattr(llm, "rate_limit_per_hour", 0),
+            }
+            if llm.api_key_enc:
+                try:
+                    config["api_key"] = llm.get_api_key()
+                except Exception:
+                    config["api_key"] = ""
+            else:
                 config["api_key"] = ""
-        else:
-            config["api_key"] = ""
-
-        return config
+            return config
+        except Exception:
+            return None
 
     @staticmethod
     def _get_provider(config: dict) -> _BaseProvider:
