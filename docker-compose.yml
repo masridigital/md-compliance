@@ -31,7 +31,8 @@ services:
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - GUNICORN_WORKERS=2
+      - GUNICORN_WORKERS=1
+      - GUNICORN_THREADS=4
       # --- Masri Compliance Platform ---
       - SECRET_KEY=${SECRET_KEY}
       - LLM_ENABLED=${LLM_ENABLED:-false}
@@ -47,6 +48,8 @@ services:
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
       - RATELIMIT_STORAGE_URI=redis://redis:6379/0
+      # IMPORTANT: Do NOT set PLAYGROUND_CSS in production — it loads a 2MB
+      # Tailwind JIT compiler in the browser. Use the compiled main.css instead.
     env_file:
       - .env
 
@@ -59,6 +62,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /data/postgres
+      # Limit PostgreSQL memory usage
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=512MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=50
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     volumes:
       - postgres_data:/data/postgres
     # Expose postgres port for external DB tools (optional — remove in production)
@@ -128,6 +144,11 @@ services:
   redis:
     container_name: redis
     image: redis:7-alpine
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 192M
     networks:
       - db_nw
     restart: unless-stopped

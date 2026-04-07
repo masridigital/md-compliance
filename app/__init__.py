@@ -565,6 +565,9 @@ def configure_security_headers(app):
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
             )
+        # Cache static files in the browser
+        if request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "public, max-age=604800"  # 7 days
         return response
 
 
