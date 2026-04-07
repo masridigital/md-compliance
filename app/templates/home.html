@@ -147,7 +147,7 @@
             </thead>
             <tbody>
               <template x-for="risk in filteredRisks()" :key="risk.id">
-                <tr class="hover cursor-pointer" @click="window.location.href='/tenants/'+risk.tenant_id+'/projects/'+risk.project_id+'?tab=risk'">
+                <tr class="hover cursor-pointer" @click="if(risk.project_id) window.location.href='/projects/'+risk.project_id+'?tab=risk'; else window.location.href='/tenants/'+risk.tenant_id+'/risk'">
                   <td class="max-w-xs truncate" x-text="risk.title"></td>
                   <td>
                     <span class="badge badge-xs"

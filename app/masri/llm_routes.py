@@ -1785,6 +1785,42 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
     return all_mappings, all_risks
 
 
+def _build_evidence_description(ref_code, ctrl_name, status, is_compliant, has_data, finding_text):
+    """Generate a natural-language evidence description instead of a rigid template."""
+    import random
+
+    finding_summary = finding_text[:400].strip() if finding_text else ""
+
+    if is_compliant and has_data:
+        openers = [
+            f"An automated security scan assessed control {ref_code} ({ctrl_name}) and confirmed that the required security measures are in place.",
+            f"Integration scan results for {ref_code} indicate that this control is being met. The scan verified that {ctrl_name.lower()[:80]}.",
+            f"Based on the latest integration scan data, control {ref_code} appears to be fully addressed.",
+        ]
+        body = f"\n\nScan findings:\n{finding_summary}" if finding_summary else ""
+        closer = "\n\nThis evidence was collected automatically and should be reviewed by the compliance team to confirm completeness."
+
+    elif has_data:
+        openers = [
+            f"An integration scan identified findings relevant to control {ref_code} ({ctrl_name}). Review is needed to determine if remediation is required.",
+            f"The automated scan flagged items related to {ref_code} that may require attention. Current status: {status}.",
+            f"Scan data was collected for control {ref_code}. The findings below suggest this area needs further review.",
+        ]
+        body = f"\n\nKey findings from the scan:\n{finding_summary}"
+        closer = "\n\nPlease review the findings above, attach supporting documentation (configuration screenshots, remediation tickets), and update the compliance status."
+
+    else:
+        openers = [
+            f"Control {ref_code} ({ctrl_name}) was evaluated during the integration scan but no specific findings were recorded.",
+            f"The automated scan did not produce detailed findings for control {ref_code}. Manual evidence collection may be needed.",
+            f"Limited scan data is available for {ref_code}. This evidence record serves as a placeholder until more detailed documentation is gathered.",
+        ]
+        body = ""
+        closer = "\n\nTo complete this evidence, upload relevant documentation such as policy documents, configuration exports, or audit screenshots."
+
+    return random.choice(openers) + body + closer
+
+
 def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
     """Sync subcontrol.implemented and backfill evidence for all mapped controls."""
     from app.models import ProjectEvidence, EvidenceAssociation
@@ -1808,40 +1844,24 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                 ).scalars().first()
                 if not existing_ev:
                     try:
-                        # Extract the auto-mapped notes
                         notes_parts = (pc.notes or "").split("[Auto-Mapped]")
                         finding_text = notes_parts[-1].strip() if len(notes_parts) > 1 else pc.notes or ""
                         status_label = pc.review_status or "infosec action"
                         has_data = bool(finding_text and len(finding_text) > 50)
                         is_compliant = status_label == "complete"
 
-                        if is_compliant and has_data:
-                            ev_status = "Complete — scan confirms compliance"
-                        elif has_data:
-                            ev_status = "Partial — needs review"
-                        else:
-                            ev_status = "Draft — insufficient data"
-
                         ctrl_obj = pc.control
                         ctrl_name = ctrl_obj.name if ctrl_obj else ref_code
-                        exhibits = []
-                        exhibits.append(f"Exhibit A: Integration scan report for {ref_code}")
-                        if not is_compliant:
-                            exhibits.append(f"Exhibit B: Screenshot of current configuration or policy")
-                            exhibits.append(f"Exhibit C: Remediation plan or change ticket")
+
+                        # Build a natural-language description
+                        desc = _build_evidence_description(
+                            ref_code, ctrl_name, status_label,
+                            is_compliant, has_data, finding_text
+                        )
 
                         ev = ProjectEvidence(
                             name=ev_name,
-                            description=(
-                                f"Evidence Status: {ev_status}\n\n"
-                                f"Control: {ref_code} — {ctrl_name}\n"
-                                f"Compliance Status: {status_label}\n"
-                                f"Source: Integration Security Scan\n\n"
-                                f"What the scan found:\n{finding_text[:500]}\n\n"
-                                f"--- REQUIRED EXHIBITS ---\n" +
-                                "\n".join(exhibits) +
-                                f"\n\nUpload each exhibit as a supporting document."
-                            ),
+                            description=desc,
                             content=finding_text[:1000],
                             group="integration_scan",
                             project_id=project.id,

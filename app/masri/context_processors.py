@@ -62,15 +62,17 @@ def register_context_processors(app):
         except Exception:
             logger.debug("Could not load tenant branding, using defaults", exc_info=True)
 
-        # Platform-level support_email from PlatformSettings (configurable in Settings UI)
-        try:
-            from app.masri.new_models import PlatformSettings
-            from app import db
-            ps = db.session.execute(db.select(PlatformSettings)).scalars().first()
-            if ps and ps.support_email:
-                branding["support_email"] = ps.support_email
-        except Exception:
-            pass
+        # Platform-level support_email (cached to avoid per-request DB query)
+        if not hasattr(app, "_cached_support_email"):
+            try:
+                from app.masri.new_models import PlatformSettings
+                from app import db
+                ps = db.session.execute(db.select(PlatformSettings)).scalars().first()
+                app._cached_support_email = ps.support_email if ps and ps.support_email else ""
+            except Exception:
+                app._cached_support_email = ""
+        if app._cached_support_email:
+            branding["support_email"] = app._cached_support_email
 
         return {"branding": branding}
 

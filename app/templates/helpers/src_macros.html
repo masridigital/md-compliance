@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/loadingio/ldLoader@v1.0.0/dist/ldld.min.css">
   {%endif%}
   {% if grid %}
-<!--    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>-->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ag-grid/31.3.2/ag-grid-community.min.js" integrity="sha512-e+7R705ihsDLzL0wd0VcqCH6K008RSA55CFpcaGtcpHBFSu1SK/sdkNoI9ZjqcBBau8mvq4TT9r2PudMXydKJQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
     <script src="{{ url_for('static', filename='js/field-transformers.js') }}"></script>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/custom-grid.css') }}"/>
   {% endif %}
