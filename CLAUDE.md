@@ -477,7 +477,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | Item | What | Files | Priority |
 |------|------|-------|----------|
 | ~~B1~~ | ~~Complete PDF report generation~~ | `app/utils/reports.py` | **DONE** — WeasyPrint pipeline |
-| B2 | Migrate scheduler to Celery/Redis | `app/masri/scheduler.py`, `docker-compose.yml` | High — threading.Timer unreliable in multi-worker |
+| ~~B2~~ | ~~Migrate scheduler to Celery/Redis~~ | `app/masri/scheduler.py`, `celery_app.py`, `docker-compose.yml` | **DONE** — Celery worker/beat in docker-compose (celery profile), threading.Timer fallback |
 | ~~B3~~ | ~~Add CI/CD pipeline~~ | `.github/workflows/ci.yml`, `deploy.yml` | **DONE** — lint, syntax, security scan, tests |
 | ~~B4~~ | ~~Upgrade PCI DSS v3.1 → v4.0~~ | `pci_dss_v4.0.json`, `models.py`, migration 0006 | **DONE** — 43 controls, 223 subcontrols, deprecation support |
 
@@ -631,6 +631,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | B4 | PCI DSS v4.0 framework (43 controls, 223 subcontrols) + v3.1 deprecation support | 2026-04-07 |
 | C1 | Automated evidence generators (13 generators: 6 Microsoft, 3 Telivy, 3 NinjaOne, 2 DefensX) | 2026-04-07 |
 | C4 | GDPR, CCPA/CPRA, ABA Model Rules, HITRUST CSF frameworks | 2026-04-07 |
+| B2 | Celery/Redis scheduler (worker + beat in docker-compose, threading.Timer fallback) | 2026-04-07 |
 
 ---
 

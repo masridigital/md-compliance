@@ -17,29 +17,29 @@
 | Item | Description | Status |
 |------|-------------|--------|
 | B1 | PDF report generation (WeasyPrint) | **DONE** 2026-04-05 |
-| B2 | Migrate scheduler to Celery/Redis | Pending |
+| B2 | Migrate scheduler to Celery/Redis | **DONE** 2026-04-07 |
 | B3 | CI/CD pipeline (.github/workflows) | **DONE** 2026-04-06 |
-| B4 | PCI DSS v3.1 → v4.0 upgrade | **DONE** 2026-04-06 |
+| B4 | PCI DSS v3.1 → v4.0 upgrade (43 controls, 223 subcontrols) | **DONE** 2026-04-07 |
 
 ## Phase C: Product Roadmap
 
 | Item | Description | Status |
 |------|-------------|--------|
-| C1 | Automated evidence collection | Pending |
+| C1 | Automated evidence collection (13 generators) | **DONE** 2026-04-07 |
 | C2 | Continuous monitoring | Pending |
 | C3 | Employee training module | Pending |
-| C4 | Missing compliance frameworks (GDPR, CCPA, ABA, HITRUST) | Pending |
+| C4 | Missing compliance frameworks (GDPR, CCPA, ABA, HITRUST) | **DONE** 2026-04-07 |
 | C5 | Cross-framework control mapping | Pending |
 | C6 | Trust portal (client-facing) | Pending |
 
 ## Integration Status
 
-| Integration | Client | Routes | LLM Phase | UI Card | Status |
-|-------------|--------|--------|-----------|---------|--------|
-| Telivy | TelivyIntegration | telivy_routes.py | Phase 1 | Yes | **Active** |
-| Microsoft Entra | EntraIntegration | entra_routes.py | Phase 2 | Yes | **Active** |
-| NinjaOne RMM | NinjaOneIntegration | ninjaone_routes.py | - | Yes | **Active** (needs LLM phase) |
-| DefensX | DefensXIntegration | defensx_routes.py | - | Yes | **Active** (needs LLM phase) |
-| Blackpoint Cyber | - | - | - | Tile only | Coming Soon |
-| Keeper Security | - | - | - | Tile only | Coming Soon |
-| SentinelOne | - | - | - | Tile only | Coming Soon |
+| Integration | Client | Routes | LLM Phase | Evidence Generators | UI Card | Status |
+|-------------|--------|--------|-----------|-------------------|---------|--------|
+| Telivy | TelivyIntegration | telivy_routes.py | Phase 1 | 3 | Yes | **Active** |
+| Microsoft Entra | EntraIntegration | entra_routes.py | Phase 2 | 6 | Yes | **Active** |
+| NinjaOne RMM | NinjaOneIntegration | ninjaone_routes.py | Phase 3 | 3 | Yes | **Active** |
+| DefensX | DefensXIntegration | defensx_routes.py | Phase 4 | 2 | Yes | **Active** |
+| Blackpoint Cyber | - | - | - | - | Tile only | Coming Soon |
+| Keeper Security | - | - | - | - | Tile only | Coming Soon |
+| SentinelOne | - | - | - | - | Tile only | Coming Soon |
