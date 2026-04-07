@@ -1236,24 +1236,26 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
                             "TELIVY DATA INCLUDES: External vulnerability scan results — network exposure, "
                             "DNS security, email spoofing risk, SSL/TLS configuration, web application "
-                            "vulnerabilities, typosquatting domains, breach data exposure.\n\n"
-                            "For each control: check if Telivy findings provide evidence of compliance "
-                            "or non-compliance. Reference specific finding names and severity levels.\n\n"
-                            "MAPPING: compliant (scan confirms control met) | partial (some evidence) | "
-                            "non_compliant (clear gap found)\n\n"
-                            "RISK RULES:\n"
-                            "- ONLY create risks for findings that ACTUALLY EXIST in the scan data above\n"
-                            "- NEVER fabricate, invent, or assume findings not in the data\n"
-                            "- NEVER paraphrase executive summaries as risk descriptions\n"
-                            "- Each risk MUST reference specific items BY NAME from the data (IPs, domains, CVEs, finding names)\n"
-                            "- If a finding has severity 'info' or 'low', do NOT create a risk for it\n"
-                            "- If there are no real findings, return empty risks array []\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
+                            "vulnerabilities, typosquatting domains, breach data exposure, security grades.\n\n"
+                            "MAP EVERY CONTROL to one of these statuses:\n"
+                            "- compliant: scan CONFIRMS this control is met (e.g. 'DNS Health: A', 'No critical CVEs', "
+                            "'Dark Web: Clean'). Include the positive evidence in notes.\n"
+                            "- partial: some evidence but not fully met\n"
+                            "- non_compliant: clear gap found (e.g. 'HTTPS not enforced on 26 services')\n\n"
+                            "IMPORTANT: Map POSITIVE findings too! If the scan shows grade A for a category, "
+                            "or count=0 for a vulnerability type, that is EVIDENCE OF COMPLIANCE — map those "
+                            "controls as 'compliant' with notes explaining the positive result.\n\n"
+                            "RISKS: Only create risks for findings with severity medium/high/critical AND count > 0.\n"
+                            "- Include finding name, count, domain, and severity from the data\n"
+                            "- Group related findings (e.g. all cert issues = 1 risk)\n"
+                            "- Aim for 5-15 risks. NEVER invent data not in the scan.\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "\"notes\":\"Telivy: [finding name] - [grade/count/severity]. [What this means]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
-                            "\"summary\":\"One sentence referencing specific finding names from the data\","
-                            "\"description\":\"MUST include: 1) exact finding name from scan data, 2) affected IP/domain/port, 3) why this matters, 4) specific remediation steps\","
-                            "\"evidence_data\":[{\"type\":\"finding|breach|vulnerability|config\",\"name\":\"exact item name from data\",\"detail\":\"exact details from data\"}],"
+                            "\"risks\":[{\"title\":\"Short risk name\","
+                            "\"summary\":\"Finding name + count + domain affected\","
+                            "\"description\":\"1) What the scan found (name, count, severity). 2) Business impact. 3) Remediation steps.\","
+                            "\"evidence_data\":[{\"type\":\"finding\",\"name\":\"finding name from scan\",\"detail\":\"severity, count, description\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1275,27 +1277,23 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MFA enrollment rates, Conditional Access policies, Identity Protection "
                             "(risky users, risk detections with IPs), sign-in activity (failures, anomalies), "
                             "SharePoint site inventory.\n\n"
-                            "For each control:\n"
-                            "- Check if Microsoft data provides evidence (Secure Score control, device policy, MFA rate)\n"
-                            "- Reference SPECIFIC data: user names lacking MFA, device names non-compliant, "
-                            "alert titles from Defender, Secure Score gap control names\n"
-                            "- For identity controls: cite MFA percentage, risky user names, sign-in failure rates\n"
-                            "- For device controls: cite compliance %, encryption %, specific non-compliant devices\n"
-                            "- For access controls: cite Conditional Access policy count and status\n\n"
-                            "MAPPING: compliant | partial | non_compliant\n\n"
-                            "RISK RULES:\n"
-                            "- ONLY create risks for issues that ACTUALLY EXIST in the data above\n"
-                            "- NEVER fabricate users, devices, or findings not in the data\n"
-                            "- Each risk MUST reference specific entities BY NAME from the data\n"
-                            "- If MFA is 100%, do NOT create an MFA risk\n"
-                            "- If all devices are compliant, do NOT create a device risk\n"
-                            "- If there are no real issues, return empty risks array []\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
+                            "MAP EVERY CONTROL:\n"
+                            "- compliant: data CONFIRMS control is met (e.g. 'MFA: 100% enrolled', '5 Conditional "
+                            "Access policies active', 'All devices compliant', 'No security alerts'). "
+                            "Include the positive evidence with numbers in notes.\n"
+                            "- partial: some evidence but gaps exist\n"
+                            "- non_compliant: clear security gap\n\n"
+                            "IMPORTANT: Map POSITIVE findings too! If MFA is 100%, that's evidence of compliance. "
+                            "If Secure Score is high, that proves security controls work. If zero alerts, that's good.\n\n"
+                            "RISKS: Only for actual gaps. Include user emails, device names, policy names.\n"
+                            "- Aim for 3-10 risks. NEVER invent entities.\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "\"notes\":\"Microsoft: [data point with numbers]. [What this means for compliance]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
-                            "\"summary\":\"One sentence referencing exact user/device/policy names from data\","
-                            "\"description\":\"MUST include: 1) exact entity names from data, 2) what's wrong, 3) business impact, 4) remediation steps\","
-                            "\"evidence_data\":[{\"type\":\"user|device|policy|alert\",\"name\":\"exact name from data\",\"detail\":\"exact finding from data\"}],"
+                            "\"risks\":[{\"title\":\"Short risk name\","
+                            "\"summary\":\"One sentence with numbers from data\","
+                            "\"description\":\"1) What the data shows. 2) Business impact. 3) Remediation.\","
+                            "\"evidence_data\":[{\"type\":\"user|device|policy|alert\",\"name\":\"entity name\",\"detail\":\"finding\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1589,6 +1587,16 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 "llm_available": llm_available,
                 "message": msg,
             }, default=str))
+            # Clear stale error on success
+            if total_mapped > 0 or total_risks > 0:
+                try:
+                    rec = ConfigStore.find(f"llm_last_error_{tenant_id}")
+                    if rec:
+                        from app import db as _db2
+                        _db2.session.delete(rec)
+                        _db2.session.commit()
+                except Exception:
+                    pass
         except Exception:
             pass
 
