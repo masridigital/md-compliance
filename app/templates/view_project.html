@@ -2891,10 +2891,40 @@
 
 					<div class="flex justify-between items-center mb-2">
 						<h3 class="text-lg font-semibold">Integration Data</h3>
-						<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="loadIntegrationData()" :disabled="intLoading">
-							<i class="ti ti-refresh"></i> Refresh
-						</button>
+						<div class="flex gap-1">
+							<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="checkDrift()" :disabled="driftChecking" title="Check for configuration drift">
+								<span class="loading loading-spinner loading-xs" x-show="driftChecking"></span>
+								<i class="ti ti-shield-check" x-show="!driftChecking"></i> Drift Check
+							</button>
+							<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="loadIntegrationData()" :disabled="intLoading">
+								<i class="ti ti-refresh"></i> Refresh
+							</button>
+						</div>
 					</div>
+
+					<!-- Drift Alerts -->
+					<template x-if="driftAlerts.length > 0">
+						<div class="bg-warning/10 border border-warning/30 rounded-lg p-3 mb-3">
+							<div class="flex items-center gap-2 mb-2 cursor-pointer" @click="showDriftAlerts = !showDriftAlerts">
+								<i class="ti ti-alert-triangle text-warning"></i>
+								<span class="text-sm font-semibold">Configuration Changes Detected</span>
+								<span class="badge badge-warning badge-sm" x-text="driftAlerts.length"></span>
+								<i class="ti text-xs opacity-40 ml-auto" :class="showDriftAlerts ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+							</div>
+							<div x-show="showDriftAlerts" x-collapse class="space-y-1">
+								<template x-for="(alert, i) in driftAlerts" :key="i">
+									<div class="flex items-start gap-2 text-xs bg-base-100 rounded p-2">
+										<span class="badge badge-xs mt-0.5 shrink-0" :class="{'badge-error': alert.severity === 'critical', 'badge-warning': alert.severity === 'high', 'badge-info': alert.severity === 'medium' || alert.severity === 'info'}" x-text="alert.severity"></span>
+										<div>
+											<div class="font-semibold" x-text="alert.title"></div>
+											<div class="opacity-60" x-text="alert.detail"></div>
+											<div class="opacity-40 text-[10px]" x-text="alert.timestamp ? new Date(alert.timestamp).toLocaleString() : ''"></div>
+										</div>
+									</div>
+								</template>
+							</div>
+						</div>
+					</template>
 
 					<!-- Entra ID -->
 					<template x-if="intData.entra">
@@ -4789,6 +4819,9 @@ function integrationDataTab() {
 	return {
 		intLoading: false,
 		intData: {},
+		driftAlerts: [],
+		driftChecking: false,
+		showDriftAlerts: true,
 		async loadIntegrationData() {
 			this.intLoading = true;
 			this.intData = {};
@@ -4804,6 +4837,39 @@ function integrationDataTab() {
 				}
 			} catch(e) { console.warn('Integration data fetch failed:', e.message); }
 			this.intLoading = false;
+			this.loadDriftAlerts();
+		},
+		async loadDriftAlerts() {
+			try {
+				const tenantId = '{{ project.tenant_id }}';
+				if (!tenantId) return;
+				const resp = await fetch(`/api/v1/settings/monitoring/drift?tenant_id=${tenantId}&limit=20`);
+				if (resp.ok) this.driftAlerts = await resp.json();
+			} catch(e) {}
+		},
+		async checkDrift() {
+			this.driftChecking = true;
+			try {
+				const tenantId = '{{ project.tenant_id }}';
+				const resp = await fetch('/api/v1/settings/monitoring/check', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json'},
+					body: JSON.stringify({ tenant_id: tenantId })
+				});
+				const data = await resp.json();
+				if (resp.ok) {
+					const count = (data.alerts || []).length;
+					if (count > 0) {
+						toast(count + ' drift alert(s) detected', 'warning');
+					} else {
+						toast('No configuration drift detected', 'success');
+					}
+					this.loadDriftAlerts();
+				} else {
+					toast(data.error || 'Drift check failed', 'error');
+				}
+			} catch(e) { toast('Drift check failed', 'error'); }
+			this.driftChecking = false;
 		},
 	};
 }
