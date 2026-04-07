@@ -1960,24 +1960,7 @@ function integrationsHub() {
       this.llmSaving = true;
       this.llmMsg = '';
       try {
-        const payload = {
-          provider: this.llmForm.provider,
-          model_name: this.llmForm.model_name,
-          enabled: this.llmForm.enabled,
-        };
-        if (this.llmForm.api_key) payload.api_key = this.llmForm.api_key;
-        if (this.llmForm.provider === 'azure_openai') {
-          payload.azure_endpoint = this.llmForm.azure_endpoint;
-          payload.azure_deployment = this.llmForm.azure_deployment;
-        }
-        const resp = await fetch('/api/v1/settings/llm', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
-          body: JSON.stringify(payload),
-        });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
-
-        // Save tier-based routing to backend ConfigStore
+        // Save tier-based routing FIRST (this is the important part)
         const tierData = {};
         for (const [k, v] of Object.entries(this.llmTierConfig || {})) {
           if (k === 'fallback_provider') {
@@ -1990,14 +1973,11 @@ function integrationsHub() {
           sameForAll: this.llmSameModelForAll,
           tiers: tierData,
         };
-        fetch('/api/v1/settings/llm/features', {
+        await fetch('/api/v1/settings/llm/features', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
           body: JSON.stringify(featureConfig),
-        }).catch(() => {});
-
-        this.llmForm.api_key = '';
-        this.llmForm.has_api_key = true;
+        });
       } catch (e) { this.llmMsg = e.message; this.llmMsgType = 'error'; }
       finally { this.llmSaving = false; }
     },
