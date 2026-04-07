@@ -1581,7 +1581,7 @@ function integrationsHub() {
 
       // Security Tools
       { id: 'ninjaone', category: 'security', name: 'NinjaOne RMM', icon: 'ti-device-desktop-analytics', description: 'Endpoint management, patch compliance, antivirus status, disk encryption, and device inventory from NinjaOne (formerly NinjaRMM).', settingsSection: 'ninjaone',
-        setup_guide: '1. Log into your NinjaOne dashboard\n2. Go to Administration → Apps → Add\n3. Choose "Client Credentials (machine-to-machine)"\n4. Select scopes: monitoring\n5. Copy the Client ID and Client Secret\n6. Select your NinjaOne region below\n7. Paste credentials and click Test' },
+        setup_guide: '1. Log into your NinjaOne dashboard\n2. Go to Administration → Apps → Add\n3. Application platform: "API Services (machine-to-machine)"\n4. Enter a name (e.g. "MD Compliance")\n5. Scopes: check "Monitoring"\n6. Allowed grant types: check "Client credentials" (REQUIRED)\n7. Click Add, then copy the Client ID and Client Secret\n8. Select your NinjaOne region below\n9. Paste credentials and click Test' },
       { id: 'defensx', category: 'security', name: 'DefensX', icon: 'ti-browser-check', description: 'Browser security, web filtering, credential protection, shadow AI detection, and cyber resilience assessment.', settingsSection: 'defensx',
         setup_guide: '1. Log into DefensX partner portal (cloud.defensx.com)\n2. Go to Settings → API Keys → Generate New Key\n3. Copy the API token\n4. Paste below and click Test' },
       { id: 'blackpoint', category: 'security', name: 'Blackpoint Cyber', icon: 'ti-shield-bolt', description: 'MDR/SOC detections, endpoint inventory, vulnerability scanning, dark web monitoring, and NIST-aligned security posture rating.', comingSoon: true },
