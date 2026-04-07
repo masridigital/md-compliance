@@ -776,3 +776,89 @@ class MCPAPIKey(db.Model):
         data["scopes"] = self.get_scopes()
         data.pop("scopes_json", None)
         return data
+
+
+# ---------------------------------------------------------------------------
+# Training Module (C3)
+# ---------------------------------------------------------------------------
+
+class Training(db.Model):
+    """
+    Training content definition.
+
+    Each training record describes a reusable training module that can be
+    assigned to employees.  Linked to specific framework controls via
+    ``framework_requirements`` so completion auto-generates evidence.
+    """
+    __tablename__ = "training"
+
+    id = db.Column(db.String(8), primary_key=True, default=_short_id)
+    tenant_id = db.Column(db.String(8), db.ForeignKey("tenant.id"), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text())
+    content_type = db.Column(db.String(50), default="document")
+    content_url = db.Column(db.Text())
+    frequency = db.Column(db.String(50), default="annual")
+    framework_requirements = db.Column(db.JSON(), default=list)
+    is_active = db.Column(db.Boolean(), default=True)
+    date_added = db.Column(db.DateTime(), default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime(), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assignments = db.relationship(
+        "TrainingAssignment", backref="training", cascade="all, delete-orphan", lazy="dynamic"
+    )
+
+    VALID_CONTENT_TYPES = ["video_url", "document", "quiz", "external_link"]
+    VALID_FREQUENCIES = ["onboarding", "quarterly", "semi_annual", "annual"]
+
+    @validates("content_type")
+    def validate_content_type(self, key, value):
+        if value and value not in self.VALID_CONTENT_TYPES:
+            value = "document"
+        return value
+
+    @validates("frequency")
+    def validate_frequency(self, key, value):
+        if value and value not in self.VALID_FREQUENCIES:
+            value = "annual"
+        return value
+
+    def as_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data["assignment_count"] = self.assignments.count() if self.assignments else 0
+        completed = self.assignments.filter(
+            TrainingAssignment.completed_date.isnot(None)
+        ).count() if self.assignments else 0
+        data["completed_count"] = completed
+        return data
+
+
+class TrainingAssignment(db.Model):
+    """
+    Individual training assignment for an employee.
+
+    Tracks assignment → completion lifecycle.  ``score`` is optional
+    (only for quiz-type training).  ``certificate_url`` points to a
+    generated or uploaded completion certificate.
+    """
+    __tablename__ = "training_assignment"
+
+    id = db.Column(db.String(8), primary_key=True, default=_short_id)
+    tenant_id = db.Column(db.String(8), db.ForeignKey("tenant.id"), nullable=False, index=True)
+    training_id = db.Column(db.String(8), db.ForeignKey("training.id"), nullable=False, index=True)
+    user_email = db.Column(db.String(255), nullable=False)
+    user_name = db.Column(db.String(255))
+    assigned_date = db.Column(db.DateTime(), default=datetime.utcnow)
+    due_date = db.Column(db.DateTime())
+    completed_date = db.Column(db.DateTime())
+    score = db.Column(db.Integer())
+    certificate_url = db.Column(db.Text())
+    reminder_sent = db.Column(db.Boolean(), default=False)
+    date_added = db.Column(db.DateTime(), default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime(), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def as_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        if self.training:
+            data["training_title"] = self.training.title
+        return data

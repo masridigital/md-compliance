@@ -408,6 +408,9 @@ def registering_blueprints(app):
     from app.masri.defensx_routes import defensx_bp
     app.register_blueprint(defensx_bp)
 
+    from app.masri.training_routes import training_bp
+    app.register_blueprint(training_bp)
+
     return
 
 
