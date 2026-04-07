@@ -1765,3 +1765,40 @@ def get_system_logs():
 
     logs = get_recent_logs(limit=min(limit, 500), level=level, since=since)
     return jsonify(logs)
+
+
+# ===========================================================================
+# Cross-Framework Control Mappings
+# ===========================================================================
+
+@settings_bp.route("/control-mappings/populate", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def populate_control_mappings():
+    """POST /api/v1/settings/control-mappings/populate — Backfill cross-framework mappings."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.masri.control_mappings import populate_mappings
+        updated = populate_mappings(tenant_id)
+        return jsonify({"updated": updated, "message": f"Populated mappings for {updated} controls"})
+    except Exception:
+        logger.exception("Failed to populate control mappings")
+        return jsonify({"error": "Failed to populate mappings. Check system logs."}), 500
+
+
+@settings_bp.route("/control-mappings/<string:ref_code>", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_control_mapping(ref_code):
+    """GET /api/v1/settings/control-mappings/<ref_code> — Get cross-references for a control."""
+    framework = request.args.get("framework", "")
+    if not framework:
+        return jsonify({"error": "framework query parameter is required"}), 400
+    try:
+        from app.masri.control_mappings import get_mapping_for_control
+        mapping = get_mapping_for_control(framework, ref_code)
+        return jsonify({"ref_code": ref_code, "framework": framework, "mappings": mapping})
+    except Exception:
+        logger.exception("Failed to get control mapping")
+        return jsonify({"error": "Failed to retrieve mapping."}), 500

@@ -1158,8 +1158,15 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
             os.path.join(current_app.config["FRAMEWORK_FOLDER"], f"{name}.json")
         ) as f:
             controls = json.load(f)
-            # TODO - reformat, takes forever b/c of commit
             Control.create({"controls": controls, "framework": name}, self.id)
+
+        # Populate cross-framework mappings for newly created controls
+        try:
+            from app.masri.control_mappings import populate_mappings
+            populate_mappings(self.id)
+        except Exception:
+            pass  # Non-fatal — mappings can be populated later via API
+
         return True
 
     def create_base_frameworks(self, init_controls=False):
