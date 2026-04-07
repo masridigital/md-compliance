@@ -61,14 +61,31 @@ def create_training():
         return jsonify({"error": "Title is required"}), 400
 
     from app.masri.new_models import Training
+
+    # Validate content_url: only allow http/https URLs
+    content_url = (data.get("content_url") or "").strip()
+    if content_url and not content_url.startswith(("https://", "http://")):
+        return jsonify({"error": "Content URL must be an http:// or https:// URL"}), 400
+
+    # Sanitize framework_requirements: only allow simple alphanumeric strings
+    raw_reqs = data.get("framework_requirements", [])
+    framework_reqs = []
+    if isinstance(raw_reqs, list):
+        for req in raw_reqs:
+            if isinstance(req, str) and len(req) <= 100:
+                # Strip LIKE wildcards to prevent wildcard injection
+                clean = req.replace("%", "").replace("_", " ").strip()
+                if clean:
+                    framework_reqs.append(clean)
+
     training = Training(
         tenant_id=tenant_id,
         title=title,
         description=(data.get("description") or "").strip(),
         content_type=data.get("content_type", "document"),
-        content_url=(data.get("content_url") or "").strip(),
+        content_url=content_url,
         frequency=data.get("frequency", "annual"),
-        framework_requirements=data.get("framework_requirements", []),
+        framework_requirements=framework_reqs,
         is_active=data.get("is_active", True),
     )
     db.session.add(training)
@@ -231,7 +248,11 @@ def complete_assignment(assignment_id):
     data = request.get_json(silent=True) or {}
     assignment.completed_date = datetime.utcnow()
     if data.get("score") is not None:
-        assignment.score = int(data["score"])
+        try:
+            score = int(data["score"])
+            assignment.score = max(0, min(score, 100))
+        except (ValueError, TypeError):
+            pass
 
     db.session.commit()
 
