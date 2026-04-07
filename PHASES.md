@@ -30,7 +30,7 @@
 | C3 | Employee training module (models, CRUD, assignments, 4 templates) | **DONE** 2026-04-07 |
 | C4 | Missing compliance frameworks (GDPR, CCPA, ABA, HITRUST) | **DONE** 2026-04-07 |
 | C5 | Cross-framework control mapping (50+ NIST controls, bidirectional) | **DONE** 2026-04-07 |
-| C6 | Trust portal (client-facing) | Pending |
+| C6 | Trust portal (public compliance status page) | **DONE** 2026-04-07 |
 
 ## Integration Status
 

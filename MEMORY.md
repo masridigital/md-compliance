@@ -26,6 +26,7 @@ Last updated: 2026-04-07
 - C3: Employee training module (models, CRUD, assignments, templates) — DONE 2026-04-07
 - C4: GDPR, CCPA/CPRA, ABA Model Rules, HITRUST CSF frameworks — DONE 2026-04-07
 - C5: Cross-framework control mapping (50+ NIST 800-53 controls) — DONE 2026-04-07
+- C6: Trust portal (public compliance status page) — DONE 2026-04-07
 
 **Integration Pipeline — ALL 4 INTEGRATIONS FULLY WIRED:**
 - Telivy: Phase 1 LLM analysis + 3 evidence generators
@@ -50,10 +51,15 @@ Last updated: 2026-04-07
 - C5 cross-framework control mapping (50+ NIST 800-53 → 6 frameworks, bidirectional reverse index)
 - C2 continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices, AV)
 - C3 employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation)
+- C6 trust portal (public /trust/<slug>, compliance bars, certifications, JSON API)
 - Security hardening: CSRF, error sanitization, bare except fixes, input validation
 
+### Phase C — ALL ITEMS COMPLETE
+
 ### Remaining Work (Priority Order)
-1. **C6**: Trust portal (client-facing compliance status page)
+1. Global Risk Dashboard (cross-client risk register on home page)
+2. Nginx branded error page (502/503/504)
+3. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
 3. **C3**: Employee training module
 4. **C5**: Cross-framework control mapping (populate `Control.mapping` field)
 5. **C6**: Trust portal (client-facing compliance status page)

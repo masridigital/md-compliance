@@ -340,6 +340,7 @@ app/
     continuous_monitor.py  # Baseline + drift detection engine
     training_routes.py     # Employee training module CRUD + assignments
     evidence_generators.py # Automated evidence from integration data
+    trust_portal.py        # Public trust portal (compliance status page)
   templates/
     integrations.html      # Unified integrations page
     view_project.html      # Project detail (controls, risks, integrations, risk profiles)
@@ -640,6 +641,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | C5 | Cross-framework control mapping (50+ NIST 800-53 controls → SOC 2, ISO, PCI, HIPAA, CMMC, CSF) | 2026-04-07 |
 | C2 | Continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices) | 2026-04-07 |
 | C3 | Employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation) | 2026-04-07 |
+| C6 | Trust portal (public /trust/<slug>, compliance bars, certifications, JSON API, config) | 2026-04-07 |
 
 ---
 
