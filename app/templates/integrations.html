@@ -389,9 +389,17 @@
                        x-effect="if (editing && !modelsLoaded && p.has_key) { modelsLoaded = true; fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{ modelsLoaded = false; }); }">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key" x-model="newKey"
                            @blur="if (newKey) {
-                             saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey });
-                             newKey = '';
-                             setTimeout(() => { testSingleLlmProvider(p.provider); fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }, 500);
+                             let _k = newKey; newKey = ''; result = 'Validating...'; testing = true;
+                             fetch('/api/v1/settings/llm/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider, api_key: _k})})
+                             .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+                             .then(({ok, data}) => {
+                               testing = false;
+                               if (!ok) { result = 'Invalid key — not saved'; toast('API key invalid. Existing key preserved.', 'error'); return; }
+                               result = data.message || 'Connected';
+                               saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: _k });
+                               toast('Key verified and saved', 'success');
+                               setTimeout(() => { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r2=>r2.json()).then(d2=>{ let m=d2.models||[]; secModels=[...m]; llmModelsByProvider[p.provider]=m; }).catch(()=>{}); }, 300);
+                             }).catch(() => { testing = false; result = 'Test failed'; toast('Could not validate key', 'error'); });
                            }">
                     <div class="flex gap-1">
                       <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
@@ -453,16 +461,26 @@
                 <div class="flex items-center gap-2">
                   <button class="btn btn-xs btn-primary gap-1" :disabled="!newProvider.provider || !newProvider.api_key || saving" @click="
                     saving = true; testResult = '';
-                    saveAdditionalProvider({key: newProvider.provider, provider: newProvider.provider, api_key: newProvider.api_key}).then(() => {
-                      return fetch('/api/v1/settings/llm/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: newProvider.provider})});
-                    }).then(r => r.json()).then(d => {
-                      saving = false;
-                      if (d.message) { testResult = d.message; toast('Provider saved and connected!', 'success'); }
-                      else { testResult = d.error || 'Saved (test failed)'; toast('Provider saved but test failed', 'warning'); }
-                      addingProvider = false;
-                      newProvider = { key: '', provider: '', api_key: '', model_name: '' };
-                      loadLlmProviders();
-                    }).catch(e => { saving = false; testResult = 'Error'; toast('Failed to save: ' + e.message, 'error'); });
+                    // Test FIRST — only save if valid
+                    fetch('/api/v1/settings/llm/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: newProvider.provider, api_key: newProvider.api_key})})
+                    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+                    .then(({ok, data}) => {
+                      if (!ok) {
+                        saving = false;
+                        testResult = data.error || 'Invalid API key';
+                        toast('API key is not valid. Not saved.', 'error');
+                        return;
+                      }
+                      testResult = data.message || 'Connected';
+                      // Key is valid — now save it
+                      return saveAdditionalProvider({key: newProvider.provider, provider: newProvider.provider, api_key: newProvider.api_key}).then(() => {
+                        saving = false;
+                        toast('Provider verified and saved!', 'success');
+                        addingProvider = false;
+                        newProvider = { key: '', provider: '', api_key: '', model_name: '' };
+                        loadLlmProviders();
+                      });
+                    }).catch(e => { saving = false; testResult = 'Error'; toast('Connection failed: ' + e.message, 'error'); });
                   ">
                     <span class="loading loading-spinner loading-xs" x-show="saving"></span>
                     <i class="ti ti-plug-connected" x-show="!saving"></i>
