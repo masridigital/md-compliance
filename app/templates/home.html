@@ -118,21 +118,36 @@
           </template>
         </div>
 
+        <!-- Search -->
+        <div class="flex gap-2 mb-2">
+          <input type="text" class="input input-xs input-bordered flex-1" placeholder="Search risks..." x-model="riskSearch" />
+        </div>
+
         <!-- Risk List -->
         <div class="overflow-x-auto">
           <table class="table table-xs table-zebra bg-base-100 rounded-lg">
             <thead>
               <tr>
-                <th>Risk</th>
-                <th>Severity</th>
-                <th>Client</th>
-                <th>Project</th>
-                <th>Status</th>
+                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('title')">
+                  Risk <i class="ti text-[10px]" :class="riskSort.key==='title' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+                </th>
+                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('risk')">
+                  Severity <i class="ti text-[10px]" :class="riskSort.key==='risk' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+                </th>
+                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('tenant_name')">
+                  Client <i class="ti text-[10px]" :class="riskSort.key==='tenant_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+                </th>
+                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('project_name')">
+                  Project <i class="ti text-[10px]" :class="riskSort.key==='project_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+                </th>
+                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('status')">
+                  Status <i class="ti text-[10px]" :class="riskSort.key==='status' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+                </th>
               </tr>
             </thead>
             <tbody>
-              <template x-for="risk in (riskDashboard.risks || []).slice(0, 20)" :key="risk.id">
-                <tr class="hover cursor-pointer" @click="window.location.href='/tenants/'+risk.tenant_id+'/risk'">
+              <template x-for="risk in filteredRisks()" :key="risk.id">
+                <tr class="hover cursor-pointer" @click="window.location.href='/tenants/'+risk.tenant_id+'/projects/'+risk.project_id+'?tab=risk'">
                   <td class="max-w-xs truncate" x-text="risk.title"></td>
                   <td>
                     <span class="badge badge-xs"
@@ -149,7 +164,7 @@
                   <td class="text-xs" x-text="risk.status"></td>
                 </tr>
               </template>
-              <template x-if="!riskDashboard.risks?.length">
+              <template x-if="!filteredRisks().length">
                 <tr><td colspan="5" class="text-center text-xs opacity-50">No risks found</td></tr>
               </template>
             </tbody>
@@ -176,6 +191,8 @@ function welcome(){
         tenantInfo: {},
         riskDashboard: {},
         riskFilter: { severity: "", tenant_id: "" },
+        riskSort: { key: "risk", asc: false },
+        riskSearch: "",
         setWelcomeMessage: function() {
             const currentHour = new Date().getHours(); // Get local browser time (hour)
             if (currentHour < 12) {
@@ -198,13 +215,38 @@ function welcome(){
           );
         },
         loadRiskDashboard: function() {
-          let url = '/api/v1/settings/global-risks?limit=50';
+          let url = '/api/v1/settings/global-risks?limit=100';
           if (this.riskFilter.severity) url += '&severity=' + this.riskFilter.severity;
           if (this.riskFilter.tenant_id) url += '&tenant_id=' + this.riskFilter.tenant_id;
           request("GET", url,
             data => { this.riskDashboard = data; },
             error => { console.log('Risk dashboard:', error.message); }
           );
+        },
+        sortRisks(key) {
+          if (this.riskSort.key === key) { this.riskSort.asc = !this.riskSort.asc; }
+          else { this.riskSort.key = key; this.riskSort.asc = true; }
+        },
+        filteredRisks() {
+          let risks = this.riskDashboard.risks || [];
+          const q = this.riskSearch.toLowerCase().trim();
+          if (q) {
+            risks = risks.filter(r =>
+              (r.title || '').toLowerCase().includes(q) ||
+              (r.tenant_name || '').toLowerCase().includes(q) ||
+              (r.project_name || '').toLowerCase().includes(q)
+            );
+          }
+          const sevOrder = { critical: 0, high: 1, moderate: 2, low: 3, unknown: 4 };
+          const key = this.riskSort.key;
+          const asc = this.riskSort.asc;
+          risks = [...risks].sort((a, b) => {
+            let va = a[key] || '', vb = b[key] || '';
+            if (key === 'risk') { va = sevOrder[va] ?? 5; vb = sevOrder[vb] ?? 5; }
+            else { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+            return asc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
+          });
+          return risks;
         }
     }
 }
