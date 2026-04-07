@@ -1243,7 +1243,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "non_compliant (clear gap found)\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: what was found (e.g. '5 users lack MFA: user1@, user2@'), which systems/users are affected, concrete remediation steps\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
+                            "\"description\":\"EVIDENCE-BASED: Start with the exact data found (e.g. 'Telivy scan found: SPF record missing for domain.com, DMARC not enforced, 3 expired SSL certificates on 192.168.1.x'). "
+                            "Then explain the business impact. Then list remediation steps. Include ALL relevant IPs, domains, ports, CVEs, breach sources from the scan data.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1275,7 +1277,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: what exactly was found (e.g. 'MFA not enrolled for: john@, sarah@', 'Device LAPTOP-X non-compliant: no BitLocker', 'Conditional Access: only 2 policies, no MFA enforcement for remote access'). Include affected user names, device names, IP addresses, or policy names. Then describe the business impact and concrete remediation steps.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
+                            "\"description\":\"EVIDENCE-BASED: Start with exact data (e.g. 'MFA not enrolled for: john@company.com, sarah@company.com (2 of 15 users). Device LAPTOP-X non-compliant: no BitLocker. Only 2 Conditional Access policies found, none enforce MFA for remote access.'). "
+                            "List EVERY affected user email, device name, policy name from the data. Then business impact. Then step-by-step remediation.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1305,7 +1309,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding with device names, patch counts, AV gaps. Example: '12 devices missing critical patches (KB5034441), 3 endpoints without active AV: DESKTOP-A, LAPTOP-B'. Include remediation steps.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED: List exact device names, patch KB numbers, AV product states from the data. Example: 'Missing critical patches: DESKTOP-A (KB5034441, KB5035849), LAPTOP-B (KB5034441). AV inactive on: SERVER-C (Windows Defender disabled). 3 devices not synced in 30+ days.' Then business impact and remediation.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1335,7 +1339,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: which users, which shadow AI services detected, which web policies violated. Include concrete remediation steps.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED: List exact shadow AI services found (e.g. 'ChatGPT used by 5 users, Gemini by 2'), web policy violations with URLs, credential exposure events. Name every user and service. Then business impact and remediation.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1376,7 +1380,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
                             "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC cross-source finding correlating data from multiple integrations. Name affected users, devices, IPs. Concrete remediation steps.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED cross-source: Correlate findings across integrations. Example: 'User john@ has no MFA (Entra) AND their credentials appear in breach data (Telivy) AND their device LAPTOP-X has no encryption (Intune).' Name every entity. Business impact + remediation.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         # Only send controls that weren't already mapped as non_compliant
@@ -1495,6 +1499,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     for r in all_risks:
                         try:
                             title = r.get("title", "")
+                            # Strip severity prefixes the LLM sometimes adds
+                            import re as _re
+                            title = _re.sub(r'^(Critical|High|Medium|Moderate|Low):\s*', '', title, flags=_re.IGNORECASE).strip()
                             if title:
                                 th = RiskRegister._compute_title_hash(title, tenant_id)
                                 dup = db.session.execute(

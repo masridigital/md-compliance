@@ -871,35 +871,6 @@
 							</div>
 						</div>
 					</div>
-						<div class="grid grid-cols-12 my-6 gap-x-6">
-						<div class="col-span-6">
-							<div class="flex flex-col mb-2">
-								<span class="subtitle text-sm">Risk Description</span>
-								<div
-								  x-data="{ expanded: false }"
-								  class="overflow-y-auto"
-								  :class="expanded ? 'h-40' : ''"
-								>
-								  <span class="text-xs">
-									<template x-if="selectedReport.description.length > 500">
-									  <p class="font-normal text-xs" x-text="expanded ? selectedReport.description : selectedReport.description.slice(0, 500) + '...'"></p>
-									</template>
-									<template x-if="selectedReport.description.length <= 500">
-									  <p class="font-normal text-xs" x-text="selectedReport.description"></p>
-									</template>
-								  </span>
-
-								  <button
-									x-show="selectedReport.description.length > 500"
-									@click="expanded = !expanded"
-									class="underline text-ss"
-								  >
-									<p class="font-normal text-xs" x-text="expanded ? 'See less' : 'See more'"></p>
-								  </button>
-								</div>
-							</div>
-						</div>
-					</div>
 						<div role="tablist" class="tabs gap-x-2">
 					  <button @click="changeTabInDrawer('overview')" :class="{'btn-active': activeReportTab==='overview'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100 text-sm hover:opacity-50">Overview</button>
 					  <button @click="changeTabInDrawer('comments'); scrollToRecentMessagesInDrawer()" :class="{'btn-active': activeReportTab==='comments'}" role="tab" class="tab btn btn-sm btn-ghost bg-base-100 text-sm hover:opacity-50" x-text="'Comments ('+riskMessages.length+')'"></button>
