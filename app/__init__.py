@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 from authlib.integrations.flask_client import OAuth
 from sqlalchemy import exc
 import logging
@@ -16,6 +17,7 @@ migrate = Migrate()
 mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
+csrf = CSRFProtect()
 import os as _os
 
 limiter = Limiter(
@@ -355,6 +357,7 @@ def configure_extensions(app):
     migrate.init_app(app, db)
     login.init_app(app)
     limiter.init_app(app)
+    csrf.init_app(app)
     return
 
 
@@ -383,6 +386,7 @@ def registering_blueprints(app):
     from app.masri.mcp_server import mcp_bp
 
     app.register_blueprint(mcp_bp)
+    csrf.exempt(mcp_bp)  # MCP uses OAuth bearer tokens, not sessions
 
     from app.masri.llm_routes import llm_bp
 

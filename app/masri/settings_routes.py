@@ -919,7 +919,7 @@ def fetch_llm_models():
         return jsonify({"models": models})
     except Exception as e:
         logger.warning("Failed to fetch models for %s: %s", provider, e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "Failed to fetch models from provider. Check API key and try again."}), 502
 
 
 def _fetch_models_for_provider(provider: str, api_key: str) -> list:

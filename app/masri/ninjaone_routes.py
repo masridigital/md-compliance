@@ -104,7 +104,8 @@ def ninjaone_organizations():
         orgs = client.list_organizations()
         return jsonify(orgs)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne organization list failed")
         return jsonify({"error": "An internal error occurred"}), 500
@@ -124,7 +125,8 @@ def ninjaone_devices():
         devices = client.get_devices_detailed(org_id=org_id)
         return jsonify(devices)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne device list failed")
         return jsonify({"error": "An internal error occurred"}), 500
@@ -174,7 +176,8 @@ def ninjaone_compliance_summary():
             "devices_by_os": _group_by(devices, "nodeClass"),
         })
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne compliance summary failed")
         return jsonify({"error": "An internal error occurred"}), 500

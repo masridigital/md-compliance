@@ -114,7 +114,8 @@ def list_external_scans():
         )
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy list external scans failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -139,7 +140,8 @@ def create_external_scan():
         )
         return jsonify(result), 201
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy create external scan failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -154,7 +156,8 @@ def get_external_scan(scan_id):
         client = _get_telivy_client()
         return jsonify(client.get_external_scan(scan_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get external scan failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -169,7 +172,8 @@ def get_external_scan_findings(scan_id):
         client = _get_telivy_client()
         return jsonify(client.get_external_scan_findings(scan_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get findings failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -184,7 +188,8 @@ def get_breach_data(scan_id):
         client = _get_telivy_client()
         return jsonify(client.get_breach_data(scan_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get breach data failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -207,7 +212,8 @@ def download_external_scan_report(scan_id):
                          as_attachment=not inline,
                          download_name=f"telivy-scan-{scan_id}.{fmt}")
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy download report failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -229,7 +235,8 @@ def list_risk_assessments():
         )
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy list risk assessments failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -256,7 +263,8 @@ def create_risk_assessment():
         )
         return jsonify(result), 201
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy create risk assessment failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -271,7 +279,8 @@ def get_risk_assessment(assessment_id):
         client = _get_telivy_client()
         return jsonify(client.get_risk_assessment(assessment_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get risk assessment failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -286,7 +295,8 @@ def get_risk_assessment_devices(assessment_id):
         client = _get_telivy_client()
         return jsonify(client.get_risk_assessment_devices(assessment_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get devices failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -301,7 +311,8 @@ def get_scan_status(assessment_id):
         client = _get_telivy_client()
         return jsonify(client.get_scan_status(assessment_id))
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy get scan status failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500
@@ -324,7 +335,8 @@ def download_risk_assessment_report(assessment_id):
                          as_attachment=not inline,
                          download_name=f"telivy-assessment-{assessment_id}.{ext}")
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("Telivy API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Telivy download report failed")
         return jsonify({"error": "An internal error occurred. Check system logs for details."}), 500

@@ -90,7 +90,7 @@ def control_assist():
         return jsonify({"assessment": result})
     except RuntimeError as e:
         logger.warning("Control assist failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Control assist unexpected error")
         return jsonify({"error": "Internal error during assessment"}), 500
@@ -163,7 +163,7 @@ def gap_narrative():
         })
     except RuntimeError as e:
         logger.warning("Gap narrative failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Gap narrative unexpected error")
         return jsonify({"error": "Internal error during generation"}), 500
@@ -264,7 +264,7 @@ def risk_score():
         })
     except RuntimeError as e:
         logger.warning("Risk score failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Risk score unexpected error")
         return jsonify({"error": "Internal error during scoring"}), 500
@@ -334,7 +334,7 @@ def interpret_evidence():
         })
     except RuntimeError as e:
         logger.warning("Interpret evidence failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Interpret evidence unexpected error")
         return jsonify({"error": "Internal error during interpretation"}), 500
@@ -483,7 +483,7 @@ def auto_map():
         })
 
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Auto-map failed")
         return jsonify({"error": "Auto-map failed: " + str(e)}), 500

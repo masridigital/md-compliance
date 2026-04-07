@@ -9,6 +9,7 @@
       <p class="text-xs font-medium text-gray-500 text-center">{{config.APP_SUBTITLE}}</p>
       {%endif%}
       <form action="{{url_for("auth.login_with_magic_link", tid=tid)}}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-control">
           <label class="label">
             <span class="label-text font-semibold">Email</span>

@@ -1,3 +1,9 @@
+// CSRF token from meta tag (set by Flask-WTF)
+function _csrfToken() {
+  const el = document.querySelector('meta[name="csrf-token"]');
+  return el ? el.getAttribute("content") : "";
+}
+
 // Network requests
 function request(method, url, onSuccess, onError, jsonData = null) {
 
@@ -5,6 +11,7 @@ function request(method, url, onSuccess, onError, jsonData = null) {
     method: method,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "X-CSRFToken": _csrfToken(),
     }
   };
 
@@ -48,6 +55,9 @@ function requestWithForm(method, url, onSuccess, onError, formData) {
 
   const fetchOptions = {
     method: method,
+    headers: {
+      "X-CSRFToken": _csrfToken(),
+    },
     body: formData,
     cache: "no-cache"
   };

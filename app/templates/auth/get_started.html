@@ -11,6 +11,7 @@
       </div>
       <div>
         <form action="{{url_for('auth.post_get_started')}}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-4">
             <label class="text-sm block mb-1">Tenant Name</label>
             <label class="input input-sm input-bordered flex items-center gap-2">

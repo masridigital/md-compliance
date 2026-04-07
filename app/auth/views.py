@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlparse
 
 from flask import (
@@ -6,7 +7,6 @@ from flask import (
     redirect,
     url_for,
 )
-from urllib.parse import urlparse
 from flask_login import current_user, logout_user
 from app.utils.decorators import custom_login, login_required, is_logged_in
 from app import db, limiter
@@ -441,5 +441,6 @@ def post_setup():
         return redirect(url_for("main.home"))
     except Exception as e:
         db.session.rollback()
-        flash(f"Setup failed: {e}", "error")
+        logging.getLogger(__name__).exception("First-run setup failed")
+        flash("Setup failed. Please check the logs and try again.", "error")
         return render_template("auth/setup.html")

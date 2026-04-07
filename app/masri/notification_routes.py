@@ -67,7 +67,7 @@ def test_teams():
         return jsonify({"success": True, "result": result})
     except Exception as e:
         logger.exception("Test Teams notification failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/test-email", methods=["POST"])
@@ -100,7 +100,7 @@ def test_email():
         return jsonify({"success": True, "result": result})
     except Exception as e:
         logger.exception("Test email notification failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/send", methods=["POST"])
@@ -156,7 +156,7 @@ def send_notification():
         return jsonify({"success": True, "channel": channel, "result": result})
     except Exception as e:
         logger.exception("Send notification failed for channel %s", channel)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/logs", methods=["GET"])
@@ -228,4 +228,4 @@ def check_reminders():
         })
     except Exception as e:
         logger.exception("Reminder check failed for tenant %s", tenant_id)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500

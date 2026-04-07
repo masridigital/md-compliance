@@ -97,7 +97,8 @@ def defensx_customers():
         customers = client.list_customers()
         return jsonify(customers)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("DefensX API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("DefensX customer list failed")
         return jsonify({"error": "An internal error occurred"}), 500

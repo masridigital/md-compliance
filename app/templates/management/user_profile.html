@@ -8,6 +8,7 @@
       <div class="card-body">
         <h2 class="card-title">User Information</h2>
         <form action="{{url_for("main.user_profile", uid=user.id)}}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="overflow-hidden sm:rounded-md">
             <div class="px-4 py-5">
               <div class="grid grid-cols-6 gap-6">
@@ -49,6 +50,7 @@
       <div class="card-body">
         <h2 class="card-title">Change Password</h2>
         <form action="{{url_for("main.change_password", uid=user.id)}}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="overflow-hidden sm:rounded-md">
             <div class="px-4 py-5">
               <div class="grid grid-cols-6 gap-6">
