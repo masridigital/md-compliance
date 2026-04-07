@@ -1244,8 +1244,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
-                            "\"description\":\"EVIDENCE-BASED: Start with the exact data found (e.g. 'Telivy scan found: SPF record missing for domain.com, DMARC not enforced, 3 expired SSL certificates on 192.168.1.x'). "
-                            "Then explain the business impact. Then list remediation steps. Include ALL relevant IPs, domains, ports, CVEs, breach sources from the scan data.\","
+                            "\"summary\":\"One sentence summary of the risk\","
+                            "\"description\":\"Detailed explanation: what was found, why it matters, business impact, and step-by-step remediation plan.\","
+                            "\"evidence_data\":[{\"type\":\"finding|breach|vulnerability|config\",\"detail\":\"Exact raw data: IP, domain, port, CVE, breach source, etc.\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1278,8 +1279,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\","
-                            "\"description\":\"EVIDENCE-BASED: Start with exact data (e.g. 'MFA not enrolled for: john@company.com, sarah@company.com (2 of 15 users). Device LAPTOP-X non-compliant: no BitLocker. Only 2 Conditional Access policies found, none enforce MFA for remote access.'). "
-                            "List EVERY affected user email, device name, policy name from the data. Then business impact. Then step-by-step remediation.\","
+                            "\"summary\":\"One sentence: what is at risk and how many entities affected\","
+                            "\"description\":\"Detailed explanation: what was found, why it matters, business impact, remediation plan.\","
+                            "\"evidence_data\":[{\"type\":\"user|device|policy|alert\",\"name\":\"entity name\",\"detail\":\"e.g. john@co.com - no MFA enrolled\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1309,7 +1311,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED: List exact device names, patch KB numbers, AV product states from the data. Example: 'Missing critical patches: DESKTOP-A (KB5034441, KB5035849), LAPTOP-B (KB5034441). AV inactive on: SERVER-C (Windows Defender disabled). 3 devices not synced in 30+ days.' Then business impact and remediation.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence summary\",\"description\":\"Detailed explanation + remediation plan.\",\"evidence_data\":[{\"type\":\"device|patch|av\",\"name\":\"device or patch name\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1339,7 +1341,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED: List exact shadow AI services found (e.g. 'ChatGPT used by 5 users, Gemini by 2'), web policy violations with URLs, credential exposure events. Name every user and service. Then business impact and remediation.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence summary\",\"description\":\"Detailed explanation + remediation.\",\"evidence_data\":[{\"type\":\"shadow_ai|policy|credential\",\"name\":\"service or user\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1380,7 +1382,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
                             "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"description\":\"EVIDENCE-BASED cross-source: Correlate findings across integrations. Example: 'User john@ has no MFA (Entra) AND their credentials appear in breach data (Telivy) AND their device LAPTOP-X has no encryption (Intune).' Name every entity. Business impact + remediation.\","
+                            "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence cross-source summary\",\"description\":\"Correlated explanation + remediation.\",\"evidence_data\":[{\"type\":\"cross_source\",\"source\":\"integration name\",\"name\":\"entity\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         # Only send controls that weren't already mapped as non_compliant
@@ -1511,7 +1513,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                     continue
                                 risk = RiskRegister(
                                     title=title, title_hash=th,
+                                    summary=r.get("summary", ""),
                                     description=r.get("description", ""),
+                                    evidence_data=r.get("evidence_data", []),
                                     risk=_SEV.get(r.get("severity", "").lower(), "unknown"),
                                     tenant_id=tenant_id, project_id=project.id,
                                 )
