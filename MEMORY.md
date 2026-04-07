@@ -22,7 +22,10 @@ Last updated: 2026-04-07
 
 **Phase C (Product Roadmap):**
 - C1: Automated evidence generators (13 generators: 6 Microsoft, 3 Telivy, 3 NinjaOne, 2 DefensX) — DONE 2026-04-07
+- C2: Continuous monitoring (baseline + drift detection engine) — DONE 2026-04-07
+- C3: Employee training module (models, CRUD, assignments, templates) — DONE 2026-04-07
 - C4: GDPR, CCPA/CPRA, ABA Model Rules, HITRUST CSF frameworks — DONE 2026-04-07
+- C5: Cross-framework control mapping (50+ NIST 800-53 controls) — DONE 2026-04-07
 
 **Integration Pipeline — ALL 4 INTEGRATIONS FULLY WIRED:**
 - Telivy: Phase 1 LLM analysis + 3 evidence generators
@@ -40,8 +43,17 @@ Last updated: 2026-04-07
 - Framework deprecation migration (0006)
 - `tests/test_prompt_adapters.py` (21 tests)
 
+### Completed This Session (2026-04-07)
+- CSRF protection added globally (Flask-WTF, all 11 forms, all AJAX headers)
+- Error message sanitization (33+ endpoints, bare except fixes, connection test endpoints)
+- B2 confirmed complete (Celery worker/beat in docker-compose)
+- C5 cross-framework control mapping (50+ NIST 800-53 → 6 frameworks, bidirectional reverse index)
+- C2 continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices, AV)
+- C3 employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation)
+- Security hardening: CSRF, error sanitization, bare except fixes, input validation
+
 ### Remaining Work (Priority Order)
-1. **C2**: Continuous monitoring (webhook receivers, config baselines, drift detection)
+1. **C6**: Trust portal (client-facing compliance status page)
 3. **C3**: Employee training module
 4. **C5**: Cross-framework control mapping (populate `Control.mapping` field)
 5. **C6**: Trust portal (client-facing compliance status page)

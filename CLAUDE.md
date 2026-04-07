@@ -331,10 +331,15 @@ app/
     prompt_adapters.py     # Model-family-specific prompt adapter layer
     risk_profiles.py       # User & device risk profile engine
     mcp_server.py          # MCP OAuth server for Claude/ChatGPT
-    scheduler.py           # Background scheduler (threading.Timer)
-    new_models.py          # Masri-specific models (LLM, Entra, MCP, SSO)
+    scheduler.py           # Background scheduler (threading.Timer + Celery fallback)
+    celery_app.py          # Celery task definitions + Flask context binding
+    new_models.py          # Masri-specific models (LLM, Entra, MCP, SSO, Training)
     log_buffer.py          # Ring buffer for in-app log viewer
     schemas.py             # Marshmallow validation schemas
+    control_mappings.py    # Cross-framework control mapping utility
+    continuous_monitor.py  # Baseline + drift detection engine
+    training_routes.py     # Employee training module CRUD + assignments
+    evidence_generators.py # Automated evidence from integration data
   templates/
     integrations.html      # Unified integrations page
     view_project.html      # Project detail (controls, risks, integrations, risk profiles)
@@ -632,6 +637,9 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | C1 | Automated evidence generators (13 generators: 6 Microsoft, 3 Telivy, 3 NinjaOne, 2 DefensX) | 2026-04-07 |
 | C4 | GDPR, CCPA/CPRA, ABA Model Rules, HITRUST CSF frameworks | 2026-04-07 |
 | B2 | Celery/Redis scheduler (worker + beat in docker-compose, threading.Timer fallback) | 2026-04-07 |
+| C5 | Cross-framework control mapping (50+ NIST 800-53 controls → SOC 2, ISO, PCI, HIPAA, CMMC, CSF) | 2026-04-07 |
+| C2 | Continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices) | 2026-04-07 |
+| C3 | Employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation) | 2026-04-07 |
 
 ---
 

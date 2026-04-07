@@ -26,10 +26,10 @@
 | Item | Description | Status |
 |------|-------------|--------|
 | C1 | Automated evidence collection (13 generators) | **DONE** 2026-04-07 |
-| C2 | Continuous monitoring | Pending |
-| C3 | Employee training module | Pending |
+| C2 | Continuous monitoring (baseline + drift detection) | **DONE** 2026-04-07 |
+| C3 | Employee training module (models, CRUD, assignments, 4 templates) | **DONE** 2026-04-07 |
 | C4 | Missing compliance frameworks (GDPR, CCPA, ABA, HITRUST) | **DONE** 2026-04-07 |
-| C5 | Cross-framework control mapping | Pending |
+| C5 | Cross-framework control mapping (50+ NIST controls, bidirectional) | **DONE** 2026-04-07 |
 | C6 | Trust portal (client-facing) | Pending |
 
 ## Integration Status
