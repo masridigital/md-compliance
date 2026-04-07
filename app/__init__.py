@@ -411,6 +411,9 @@ def registering_blueprints(app):
     from app.masri.training_routes import training_bp
     app.register_blueprint(training_bp)
 
+    from app.masri.trust_portal import trust_bp
+    app.register_blueprint(trust_bp)
+
     return
 
 

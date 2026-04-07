@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ trust_data.organization }} — Trust Portal</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-base-200 min-h-screen" data-theme="light">
+
+  <!-- Header -->
+  <div class="navbar bg-primary text-primary-content shadow-lg">
+    <div class="container mx-auto">
+      <div class="flex-1">
+        <i class="ti ti-shield-check text-2xl mr-2"></i>
+        <span class="text-xl font-bold">{{ trust_data.organization }}</span>
+      </div>
+      <div class="flex-none">
+        <span class="text-sm opacity-70">Trust Portal</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+
+    {% if config.custom_message %}
+    <div class="alert alert-info mb-6">
+      <i class="ti ti-info-circle"></i>
+      <span>{{ config.custom_message }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Compliance Status -->
+    <div class="card bg-base-100 shadow-md mb-6">
+      <div class="card-body">
+        <h2 class="card-title">
+          <i class="ti ti-clipboard-check mr-1"></i>
+          Compliance Status
+        </h2>
+
+        {% if trust_data.frameworks %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          {% for fw in trust_data.frameworks %}
+          <div class="border rounded-lg p-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-semibold text-sm uppercase">{{ fw.name }}</h3>
+              <span class="badge {% if fw.compliance_percentage >= 80 %}badge-success{% elif fw.compliance_percentage >= 50 %}badge-warning{% else %}badge-error{% endif %}">
+                {{ fw.compliance_percentage }}%
+              </span>
+            </div>
+            <progress class="progress {% if fw.compliance_percentage >= 80 %}progress-success{% elif fw.compliance_percentage >= 50 %}progress-warning{% else %}progress-error{% endif %} w-full"
+                      value="{{ fw.compliance_percentage }}" max="100"></progress>
+            <div class="flex justify-between text-xs opacity-60 mt-1">
+              <span>{{ fw.complete }} complete</span>
+              <span>{{ fw.in_review }} in review</span>
+              <span>{{ fw.total_controls }} total</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm opacity-60 mt-2">No frameworks are currently shared.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Certifications -->
+    {% if trust_data.certifications %}
+    <div class="card bg-base-100 shadow-md mb-6">
+      <div class="card-body">
+        <h2 class="card-title">
+          <i class="ti ti-certificate mr-1"></i>
+          Certifications
+        </h2>
+        <div class="flex flex-wrap gap-2 mt-2">
+          {% for cert in trust_data.certifications %}
+          <div class="badge badge-lg badge-outline">
+            <i class="ti ti-rosette mr-1"></i>
+            {{ cert }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Contact -->
+    {% if trust_data.contact_email or trust_data.security_contact %}
+    <div class="card bg-base-100 shadow-md mb-6">
+      <div class="card-body">
+        <h2 class="card-title">
+          <i class="ti ti-mail mr-1"></i>
+          Security Contact
+        </h2>
+        {% if trust_data.security_contact %}
+        <p class="text-sm"><strong>Security Team:</strong> {{ trust_data.security_contact }}</p>
+        {% endif %}
+        {% if trust_data.contact_email %}
+        <p class="text-sm"><strong>General:</strong> {{ trust_data.contact_email }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="text-center text-xs opacity-40 mt-8">
+      <p>Powered by MD Compliance</p>
+      <p>Last updated: {{ trust_data.last_updated[:10] }}</p>
+    </div>
+
+  </div>
+</body>
+</html>
