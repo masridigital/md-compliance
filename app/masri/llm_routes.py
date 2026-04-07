@@ -1243,7 +1243,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "non_compliant (clear gap found)\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + affected assets + remediation\","
+                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: what was found (e.g. '5 users lack MFA: user1@, user2@'), which systems/users are affected, concrete remediation steps\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1275,7 +1275,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific users/devices + remediation\","
+                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: what exactly was found (e.g. 'MFA not enrolled for: john@, sarah@', 'Device LAPTOP-X non-compliant: no BitLocker', 'Conditional Access: only 2 policies, no MFA enforcement for remote access'). Include affected user names, device names, IP addresses, or policy names. Then describe the business impact and concrete remediation steps.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1305,7 +1305,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific devices + remediation\","
+                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding with device names, patch counts, AV gaps. Example: '12 devices missing critical patches (KB5034441), 3 endpoints without active AV: DESKTOP-A, LAPTOP-B'. Include remediation steps.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1335,7 +1335,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "MAPPING: compliant | partial | non_compliant\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific findings + remediation\","
+                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC finding: which users, which shadow AI services detected, which web policies violated. Include concrete remediation steps.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_mappings, all_risks = _run_chunked_llm(
@@ -1376,7 +1376,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
                             "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
-                            "\"risks\":[{\"title\":\"risk\",\"description\":\"Combined finding + remediation\","
+                            "\"risks\":[{\"title\":\"Short risk name\",\"description\":\"SPECIFIC cross-source finding correlating data from multiple integrations. Name affected users, devices, IPs. Concrete remediation steps.\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         # Only send controls that weren't already mapped as non_compliant
