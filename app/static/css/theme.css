@@ -1,133 +1,25 @@
 /*
- * MD Compliance — Apple-inspired Dark Theme
- * Emerald accent (#10b981), deep charcoal surfaces, refined typography
- * Overrides DaisyUI dark theme for a premium, cohesive look
+ * MD Compliance — Refined Dark Theme
+ * Emerald accent, better contrast, works WITH DaisyUI not against it
  */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 
-/* ═══ DaisyUI Theme Override ═══ */
-[data-theme="dark"] {
-  --p: 160 84% 39%;        /* primary → emerald-500 */
-  --pf: 160 84% 32%;       /* primary-focus → emerald-600 */
-  --pc: 0 0% 100%;         /* primary-content → white */
-  --s: 160 60% 28%;        /* secondary → muted emerald */
-  --sf: 160 60% 22%;
-  --sc: 0 0% 95%;
-  --a: 160 84% 39%;        /* accent → emerald */
-  --af: 160 84% 32%;
-  --ac: 0 0% 100%;
-  --b1: 220 14% 10%;       /* base-100 → #16181d */
-  --b2: 220 14% 8%;        /* base-200 → #121317 */
-  --b3: 220 14% 6%;        /* base-300 → #0e0f12 */
-  --bc: 220 10% 85%;       /* base-content → light gray text */
-  --su: 160 84% 39%;       /* success → emerald */
-  --wa: 38 92% 50%;        /* warning → amber */
-  --er: 0 84% 60%;         /* error → red */
-  --in: 198 93% 60%;       /* info → sky blue */
-  --rounded-box: 0.75rem;
-  --rounded-btn: 0.5rem;
-  --rounded-badge: 999px;
-  --btn-text-case: none;   /* No uppercase on buttons */
-}
-
-/* ═══ Global Typography ═══ */
+/* ═══ Typography ═══ */
 body, html {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
-}
-
-h1, h2, h3, h4, h5, h6,
-.text-3xl, .text-2xl, .text-xl, .text-lg,
-.card-title, .stat-value, .font-semibold, .font-bold {
-  letter-spacing: -0.025em;
-}
-
-/* ═══ Sidebar ═══ */
-aside {
-  background: oklch(var(--b3)) !important;
-  border-color: oklch(var(--bc) / 0.06) !important;
-}
-
-aside nav a:hover,
-aside nav a.active {
-  background: oklch(var(--p) / 0.1) !important;
-  color: oklch(var(--p)) !important;
-}
-
-aside .border-base-300 {
-  border-color: oklch(var(--bc) / 0.06) !important;
-}
-
-/* ═══ Top Bar / Header ═══ */
-.navbar, header {
-  border-color: oklch(var(--bc) / 0.06) !important;
-  backdrop-filter: blur(12px);
-}
-
-/* ═══ Cards ═══ */
-.card {
-  border: 1px solid oklch(var(--bc) / 0.06);
-  background: oklch(var(--b2));
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 0 0 1px oklch(var(--bc) / 0.03);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-  border-color: oklch(var(--bc) / 0.12);
-}
-
-.card-body {
-  gap: 0.75rem;
-}
-
-/* ═══ Form Inputs ═══ */
-.input, .select, .textarea {
-  background: oklch(var(--b1)) !important;
-  border-color: oklch(var(--bc) / 0.1) !important;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.input:focus, .select:focus, .textarea:focus {
-  border-color: oklch(var(--p)) !important;
-  box-shadow: 0 0 0 2px oklch(var(--p) / 0.15) !important;
-  outline: none !important;
-}
-
-.input::placeholder {
-  color: oklch(var(--bc) / 0.3);
 }
 
 /* ═══ Buttons ═══ */
 .btn-primary {
-  background: oklch(var(--p)) !important;
-  border-color: oklch(var(--p)) !important;
-  color: white !important;
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   transition: all 0.15s;
 }
-
 .btn-primary:hover {
-  background: oklch(var(--pf)) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px oklch(var(--p) / 0.25);
-}
-
-.btn-ghost:hover {
-  background: oklch(var(--bc) / 0.06) !important;
-}
-
-.btn-outline {
-  border-color: oklch(var(--bc) / 0.12) !important;
-}
-
-.btn-outline:hover {
-  background: oklch(var(--bc) / 0.06) !important;
-  border-color: oklch(var(--bc) / 0.2) !important;
-  color: oklch(var(--bc)) !important;
+  box-shadow: 0 4px 12px rgba(16,185,129,0.2);
 }
 
 /* ═══ Tables ═══ */
@@ -135,115 +27,11 @@ aside .border-base-300 {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: oklch(var(--bc) / 0.5);
-  border-color: oklch(var(--bc) / 0.06);
-}
-
-.table td {
-  border-color: oklch(var(--bc) / 0.04);
-}
-
-.table tr:hover td,
-.table tr.hover:hover td {
-  background: oklch(var(--p) / 0.04) !important;
-}
-
-/* ═══ Badges ═══ */
-.badge-success { background: oklch(var(--su) / 0.15) !important; color: oklch(var(--su)) !important; border: none !important; }
-.badge-warning { background: oklch(var(--wa) / 0.15) !important; color: oklch(var(--wa)) !important; border: none !important; }
-.badge-error   { background: oklch(var(--er) / 0.15) !important; color: oklch(var(--er)) !important; border: none !important; }
-.badge-info    { background: oklch(var(--in) / 0.15) !important; color: oklch(var(--in)) !important; border: none !important; }
-.badge-ghost   { background: oklch(var(--bc) / 0.08) !important; color: oklch(var(--bc) / 0.6) !important; border: none !important; }
-
-/* ═══ Stats ═══ */
-.stat {
-  border-color: oklch(var(--bc) / 0.06) !important;
-}
-
-.stat-title {
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: oklch(var(--bc) / 0.45);
 }
 
-.stat-value {
-  font-weight: 700;
-}
-
-/* ═══ Progress Bars ═══ */
-.progress {
-  background: oklch(var(--bc) / 0.08);
-  height: 6px;
-  border-radius: 999px;
-}
-
-.progress-primary, .progress-success {
-  --tw-bg-opacity: 1;
-  background-color: oklch(var(--p) / var(--tw-bg-opacity));
-}
-
-/* ═══ Tabs ═══ */
-.tab {
-  font-size: 0.8rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.tab-active, .tab[aria-selected="true"] {
-  color: oklch(var(--p)) !important;
-  border-color: oklch(var(--p)) !important;
-}
-
-/* ═══ Modals ═══ */
-.modal-box {
-  background: oklch(var(--b2));
-  border: 1px solid oklch(var(--bc) / 0.08);
-  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
-}
-
-/* ═══ Alerts ═══ */
-.alert {
-  border-radius: 0.5rem;
-  border: 1px solid oklch(var(--bc) / 0.06);
-}
-
-/* ═══ Dividers ═══ */
-.divider::before, .divider::after {
-  background: oklch(var(--bc) / 0.06);
-}
-
-/* ═══ Tooltips ═══ */
-.tooltip::before {
-  font-size: 0.7rem;
-  font-weight: 500;
-}
-
-/* ═══ Drawer / Panel ═══ */
-.drawer-panel {
-  border-color: oklch(var(--bc) / 0.06) !important;
-  background: oklch(var(--b2)) !important;
-}
-
-/* ═══ AG Grid Theme Override ═══ */
+/* ═══ AG Grid Dark Theme ═══ */
 .ag-theme-quartz {
-  --ag-background-color: oklch(var(--b2));
-  --ag-foreground-color: oklch(var(--bc));
-  --ag-header-background-color: oklch(var(--b3));
-  --ag-header-foreground-color: oklch(var(--bc) / 0.6);
-  --ag-border-color: oklch(var(--bc) / 0.06);
-  --ag-row-hover-color: oklch(var(--p) / 0.04);
-  --ag-selected-row-background-color: oklch(var(--p) / 0.08);
-  --ag-odd-row-background-color: transparent;
-  --ag-row-border-color: oklch(var(--bc) / 0.04);
-  --ag-control-panel-background-color: oklch(var(--b2));
-  --ag-subheader-background-color: oklch(var(--b3));
-  --ag-input-focus-border-color: oklch(var(--p));
-  --ag-range-selection-border-color: oklch(var(--p));
-  --ag-icon-font-color: oklch(var(--bc) / 0.4);
   --ag-font-family: 'DM Sans', system-ui, sans-serif;
   --ag-font-size: 13px;
   --ag-header-height: 38px;
@@ -253,31 +41,17 @@ aside .border-base-300 {
 /* ═══ Scrollbar ═══ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.15); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.25); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
 /* ═══ Selection ═══ */
 ::selection {
-  background: oklch(var(--p) / 0.3);
+  background: rgba(16,185,129,0.3);
   color: white;
 }
 
 /* ═══ Scroll progress bar ═══ */
 .h-1.bg-secondary {
-  background: oklch(var(--p)) !important;
+  background: #10b981 !important;
   height: 2px !important;
-}
-
-/* ═══ Subtle animations ═══ */
-.card, .btn, .badge, .stat, .input, .select {
-  transition: all 0.15s ease;
-}
-
-/* ═══ Integration tiles ═══ */
-.int-card {
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s !important;
-}
-
-.int-card:hover {
-  box-shadow: 0 4px 20px oklch(var(--p) / 0.06) !important;
 }
