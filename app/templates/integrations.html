@@ -47,6 +47,8 @@
   .status-dot.amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.3); }
   .status-dot.gray  { background: #4b5563; }
   .status-dot.red   { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .status-dot.yellow { background: #eab308; animation: pulse-dot 1.5s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   /* Drawer */
   .drawer-panel { position: fixed; top: 0; right: 0; width: 520px; max-width: 100vw; height: 100vh; background: oklch(var(--b1)); border-left: 1px solid oklch(var(--bc) / .12); z-index: 50; overflow-y: auto; transform: translateX(100%); transition: transform .2s ease; }
@@ -1447,7 +1449,8 @@ function integrationsHub() {
     drawerOpen: false,
     selected: null,
     statuses: {},
-    healthStatus: {},  // API health: { telivy: 'ok', entra: 'error', llm_anthropic: 'ok', ... }
+    healthStatus: {},  // API health: { telivy: 'ok', entra: 'not_configured', ... }
+    healthChecking: true,  // Yellow dots until first check completes
 
     // LLM form state
     llmForm: { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false },
@@ -1635,8 +1638,9 @@ function integrationsHub() {
         const resp = await fetch('/api/v1/settings/health-check');
         if (resp.ok) {
           this.healthStatus = await resp.json();
+          this.healthChecking = false;
         }
-      } catch(e) {}
+      } catch(e) { this.healthChecking = false; }
     },
 
     getStatus(id) {
@@ -1648,18 +1652,17 @@ function integrationsHub() {
     getHealthDot(id) {
       const s = this.getStatus(id);
       if (!s.configured) return 'gray';
-      // Check API health for integrations that have it
+      if (this.healthChecking) return 'yellow';
       const hk = this._healthKeyMap[id];
       if (hk) {
         if (hk === 'llm_') {
-          const anyOk = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'ok');
-          const anyErr = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'error');
-          if (anyErr && !anyOk) return 'red';
-          if (anyOk) return 'green';
-        } else {
-          const h = this.healthStatus[hk];
-          if (h) return h.status === 'ok' ? 'green' : h.status === 'error' ? 'red' : 'amber';
+          const llmKeys = Object.entries(this.healthStatus).filter(([k]) => k.startsWith('llm_'));
+          if (!llmKeys.length) return s.enabled ? 'green' : 'amber';
+          const allOk = llmKeys.every(([,v]) => v.status === 'ok');
+          return allOk ? 'green' : 'red';
         }
+        const h = this.healthStatus[hk];
+        if (h) return h.status === 'ok' ? 'green' : h.status === 'not_configured' ? 'gray' : 'red';
       }
       return s.enabled ? 'green' : 'amber';
     },
@@ -1667,18 +1670,22 @@ function integrationsHub() {
     getHealthLabel(id) {
       const s = this.getStatus(id);
       if (!s.configured) return 'Not configured';
+      if (this.healthChecking) return 'Checking...';
       const hk = this._healthKeyMap[id];
       if (hk) {
         if (hk === 'llm_') {
-          const anyErr = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'error');
-          if (anyErr) return 'API error';
+          const llmKeys = Object.entries(this.healthStatus).filter(([k]) => k.startsWith('llm_'));
+          if (llmKeys.length) {
+            const allOk = llmKeys.every(([,v]) => v.status === 'ok');
+            return allOk ? 'Connected' : 'Check config';
+          }
         } else {
           const h = this.healthStatus[hk];
-          if (h && h.status === 'error') return 'API error';
           if (h && h.status === 'ok') return 'Connected';
+          if (h && h.status !== 'ok' && h.status !== 'not_configured') return 'Check config';
         }
       }
-      return s.enabled ? 'Active' : 'Disabled';
+      return s.enabled ? 'Active' : 'Configured';
     },
 
     getCategoryLabel(catId) {

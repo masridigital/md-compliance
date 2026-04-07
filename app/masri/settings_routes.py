@@ -1977,13 +1977,17 @@ def global_risk_dashboard():
 # ===========================================================================
 
 @settings_bp.route("/health-check", methods=["GET"])
-@limiter.limit("10 per minute")
+@limiter.limit("30 per minute")
 @login_required
 def integration_health_check():
-    """GET /api/v1/settings/health-check — test all configured integrations."""
+    """GET /api/v1/settings/health-check — check config status of all integrations.
+
+    Lightweight check: verifies credentials EXIST (not live API calls).
+    Live API testing is done via the Test buttons in each integration drawer.
+    """
     results = {}
 
-    # LLM providers
+    # LLM providers — check if keys are configured
     try:
         from app.models import ConfigStore
         import json as _hj
@@ -1991,84 +1995,63 @@ def integration_health_check():
         if rec and rec.value:
             for key, cfg in _hj.loads(rec.value).items():
                 provider = cfg.get("provider", key)
-                try:
-                    if cfg.get("api_key_enc"):
-                        from app.masri.settings_service import decrypt_value
-                        api_key = decrypt_value(cfg["api_key_enc"])
-                        _quick_test_provider(provider, api_key)
-                        results[f"llm_{provider}"] = {"status": "ok", "provider": provider}
-                    else:
-                        results[f"llm_{provider}"] = {"status": "no_key", "provider": provider}
-                except Exception as e:
-                    results[f"llm_{provider}"] = {"status": "error", "provider": provider, "error": str(e)[:100]}
+                has_key = bool(cfg.get("api_key_enc"))
+                results[f"llm_{provider}"] = {
+                    "status": "ok" if has_key else "no_key",
+                    "provider": provider,
+                }
     except Exception:
         pass
 
-    # Telivy
+    # Telivy — check if API key is stored
     try:
         from app.masri.new_models import SettingsStorage
         telivy_cfg = db.session.execute(
             db.select(SettingsStorage).filter_by(provider="telivy")
         ).scalars().first()
         if telivy_cfg and telivy_cfg.config_enc:
-            import json as _tj
-            from app.masri.settings_service import decrypt_value
-            config = _tj.loads(decrypt_value(telivy_cfg.config_enc))
-            api_key = config.get("api_key")
-            if api_key:
-                import requests as _tr
-                resp = _tr.get("https://api.telivy.com/v1/external-scans",
-                               headers={"x-api-key": api_key}, timeout=10)
-                results["telivy"] = {"status": "ok" if resp.ok else "error",
-                                     "http_code": resp.status_code}
-            else:
-                results["telivy"] = {"status": "no_key"}
-    except Exception as e:
-        results["telivy"] = {"status": "error", "error": str(e)[:100]}
+            results["telivy"] = {"status": "ok"}
+        else:
+            results["telivy"] = {"status": "not_configured"}
+    except Exception:
+        results["telivy"] = {"status": "not_configured"}
 
-    # Microsoft Entra
+    # Microsoft Entra — check if credentials are stored
     try:
         from app.masri.new_models import SettingsEntra
         entra = db.session.execute(
             db.select(SettingsEntra).filter_by(tenant_id=None)
         ).scalars().first()
         if entra and entra.is_fully_configured():
-            from app.masri.entra_integration import EntraIntegration
-            creds = entra.get_credentials()
-            client = EntraIntegration(
-                tenant_id=creds["entra_tenant_id"],
-                client_id=creds["client_id"],
-                client_secret=creds["client_secret"],
-            )
-            token = client._get_token()
-            results["entra"] = {"status": "ok" if token else "error"}
+            results["entra"] = {"status": "ok"}
         else:
             results["entra"] = {"status": "not_configured"}
-    except Exception as e:
-        results["entra"] = {"status": "error", "error": str(e)[:100]}
+    except Exception:
+        results["entra"] = {"status": "not_configured"}
 
-    # NinjaOne
+    # NinjaOne — check if credentials are stored
     try:
         from app.masri.new_models import SettingsStorage
         ninja_cfg = db.session.execute(
             db.select(SettingsStorage).filter_by(provider="ninjaone")
         ).scalars().first()
         if ninja_cfg and ninja_cfg.config_enc:
-            import json as _nj
-            from app.masri.settings_service import decrypt_value
-            config = _nj.loads(decrypt_value(ninja_cfg.config_enc))
-            if config.get("client_id") and config.get("client_secret"):
-                from app.masri.ninjaone_integration import NinjaOneIntegration
-                ninja = NinjaOneIntegration(
-                    client_id=config["client_id"],
-                    client_secret=config["client_secret"],
-                    region=config.get("region", "us"),
-                )
-                token = ninja._get_token()
-                results["ninjaone"] = {"status": "ok" if token else "error"}
-            else:
-                results["ninjaone"] = {"status": "no_key"}
-    except Exception as e:
-        results["ninjaone"] = {"status": "error", "error": str(e)[:100]}
+            results["ninjaone"] = {"status": "ok"}
+        else:
+            results["ninjaone"] = {"status": "not_configured"}
+    except Exception:
+        results["ninjaone"] = {"status": "not_configured"}
+
+    # DefensX — check if credentials are stored
+    try:
+        dx_cfg = db.session.execute(
+            db.select(SettingsStorage).filter_by(provider="defensx")
+        ).scalars().first()
+        if dx_cfg and dx_cfg.config_enc:
+            results["defensx"] = {"status": "ok"}
+        else:
+            results["defensx"] = {"status": "not_configured"}
+    except Exception:
+        results["defensx"] = {"status": "not_configured"}
 
     return jsonify(results)
