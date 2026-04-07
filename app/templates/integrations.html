@@ -1889,7 +1889,7 @@ function integrationsHub() {
         }
         const resp = await fetch('/api/v1/settings/llm', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
           body: JSON.stringify(payload),
         });
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `HTTP ${resp.status}`);
@@ -1909,7 +1909,7 @@ function integrationsHub() {
         };
         fetch('/api/v1/settings/llm/features', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
           body: JSON.stringify(featureConfig),
         }).catch(() => {});
 
@@ -1962,7 +1962,7 @@ function integrationsHub() {
     async saveAdditionalProvider(p) {
       try {
         const resp = await fetch(`/api/v1/settings/llm/providers/${p.key || p.provider}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken() },
           body: JSON.stringify(p),
         });
         if (resp.ok) {
@@ -1975,7 +1975,7 @@ function integrationsHub() {
 
     async deleteAdditionalProvider(key) {
       try {
-        await fetch(`/api/v1/settings/llm/providers/${key}`, { method: 'DELETE' });
+        await fetch(`/api/v1/settings/llm/providers/${key}`, { method: 'DELETE', headers: { 'X-CSRFToken': _csrfToken() } });
         toast('Provider removed', 'success');
         this.loadLlmProviders();
       } catch(e) { toast('Error: ' + e.message, 'error'); }
@@ -1984,7 +1984,7 @@ function integrationsHub() {
     async deleteLlmProvider(key, isPrimary) {
       if (isPrimary) {
         try {
-          await fetch('/api/v1/settings/llm', { method: 'DELETE' });
+          await fetch('/api/v1/settings/llm', { method: 'DELETE', headers: { 'X-CSRFToken': _csrfToken() } });
           this.llmForm = { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false };
           toast('Provider removed', 'success');
           this.loadLlmProviders();

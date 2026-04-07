@@ -4,6 +4,24 @@ function _csrfToken() {
   return el ? el.getAttribute("content") : "";
 }
 
+// Auto-inject CSRF token into all non-GET fetch requests
+(function() {
+  const _origFetch = window.fetch;
+  window.fetch = function(url, options) {
+    options = options || {};
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      options.headers = options.headers || {};
+      if (options.headers instanceof Headers) {
+        if (!options.headers.has('X-CSRFToken')) options.headers.set('X-CSRFToken', _csrfToken());
+      } else {
+        if (!options.headers['X-CSRFToken']) options.headers['X-CSRFToken'] = _csrfToken();
+      }
+    }
+    return _origFetch.call(this, url, options);
+  };
+})();
+
 // Network requests
 function request(method, url, onSuccess, onError, jsonData = null) {
 
