@@ -385,8 +385,8 @@
                     <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
-                       x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }"
-                       x-effect="if (editing && !secModels.length && p.has_key) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }">
+                       x-data="{ secModels: [], newKey: '', result: '', testing: false, modelsLoaded: false }"
+                       x-effect="if (editing && !modelsLoaded && p.has_key) { modelsLoaded = true; fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{ modelsLoaded = false; }); }">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key" x-model="newKey"
                            @blur="if (newKey) {
                              saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey });
@@ -423,7 +423,7 @@
                             testing = false;
                             result = r.ok ? (d.message || 'Connected') : (d.error || 'Failed');
                             llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: r.ok ? 'ok' : 'fail' };
-                            if (r.ok) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r2=>r2.json()).then(d2=>{ secModels = d2.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }
+                            if (r.ok) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r2=>r2.json()).then(d2=>{ let m = d2.models||[]; secModels = [...m]; llmModelsByProvider[p.provider] = m; }).catch(()=>{}); }
                           }))
                           .catch(() => { testing = false; result = 'Failed'; llmProviderStatuses = { ...llmProviderStatuses, [p.provider]: 'fail' }; });
                       ">

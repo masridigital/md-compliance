@@ -1337,6 +1337,10 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         init_data=False,
     ):
 
+        # Ensure proper capitalization (e.g. "masri digital" → "Masri Digital")
+        if name and name == name.lower():
+            name = name.title()
+
         tenant = Tenant(
             owner_id=user.id,
             name=name,
