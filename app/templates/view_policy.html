@@ -48,7 +48,8 @@
                         <button @click="updatePolicy" :class="{'btn-disabled': btnDisabled}" class="btn btn-md btn-primary">Save Changes</button>
                     </div>
                 </div>
-                <textarea id="default">{%if policy.content%}{{policy.content|safe}}{%endif%}</textarea>
+                <textarea id="default"></textarea>
+                <script id="policy-initial-content" type="application/json">{{policy.content|default("", true)|tojson}}</script>
             </div>
         </div>
     </div>
@@ -74,10 +75,16 @@ function policy() {
               variable_suffix: "}",
 
               setup: (editor) => {
-                this.editor = editor; // Store the editor instance
+                this.editor = editor;
                 const outerContext = this;
+                editor.on('init', () => {
+                    // Load initial content safely from JSON to prevent XSS via textarea breakout
+                    const el = document.getElementById('policy-initial-content');
+                    if (el) {
+                        try { editor.setContent(JSON.parse(el.textContent)); } catch(e) {}
+                    }
+                });
                 editor.on('input', () => {
-                    console.log(outerContext.btnDisabled)
                     outerContext.btnDisabled = false
                 });
               }

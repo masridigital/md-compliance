@@ -18,10 +18,24 @@ from app.auth.flows import UserFlow
 
 
 def _safe_next(next_url):
-    """Return next_url only if it is a relative path (no external redirect)."""
-    if next_url and urlparse(next_url).netloc == "":
-        return next_url
-    return url_for("main.home")
+    """Return next_url only if it is a safe relative path (no external redirect).
+
+    Blocks protocol-relative URLs (//evil.com), backslash-relative URLs
+    (\\evil.com), and any URL with a scheme or netloc.
+    """
+    if not next_url:
+        return url_for("main.home")
+    # Block protocol-relative and backslash URLs
+    stripped = next_url.strip()
+    if stripped.startswith(("//", "\\", "/\\")):
+        return url_for("main.home")
+    parsed = urlparse(stripped)
+    if parsed.scheme or parsed.netloc:
+        return url_for("main.home")
+    # Must start with / to be a valid relative path
+    if not stripped.startswith("/"):
+        return url_for("main.home")
+    return stripped
 
 
 @auth.route("/login", methods=["GET"])
@@ -406,9 +420,14 @@ def get_setup():
 
 
 @auth.route("/setup", methods=["POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("3 per minute")
 def post_setup():
-    """Create the first admin user and default tenant."""
+    """Create the first admin user and default tenant.
+
+    Uses a PostgreSQL advisory lock to prevent race conditions where
+    concurrent requests could both pass the _setup_required() check
+    and create duplicate admin accounts.
+    """
     if not _setup_required():
         return redirect(url_for("auth.get_login"))
 
@@ -424,6 +443,17 @@ def post_setup():
         return render_template("auth/setup.html")
 
     try:
+        # Advisory lock prevents race condition: only one request can
+        # create the admin at a time.  Lock ID 12345678 is arbitrary
+        # but fixed — all setup attempts contend on the same lock.
+        from sqlalchemy import text
+        db.session.execute(text("SELECT pg_advisory_xact_lock(12345678)"))
+
+        # Re-check inside the lock — another request may have won the race
+        if not _setup_required():
+            db.session.rollback()
+            return redirect(url_for("auth.get_login"))
+
         user = User.add(
             email,
             password=password,

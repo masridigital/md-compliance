@@ -87,6 +87,7 @@ def _get_telivy_client():
 @login_required
 def telivy_test():
     """POST /api/v1/telivy/test — Test API connection."""
+    _require_admin()
     try:
         client = _get_telivy_client()
         result = client.test_connection()
