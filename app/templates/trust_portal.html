@@ -7,112 +7,189 @@
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    :root {
+      --accent: #10b981;
+      --accent-dim: rgba(16,185,129,0.12);
+      --accent-glow: rgba(16,185,129,0.06);
+      --surface: #111318;
+      --surface-raised: #181b22;
+      --text-primary: #e8eaed;
+      --text-muted: rgba(232,234,237,0.45);
+    }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--surface); color: var(--text-primary); }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .trust-grid {
+      background-image:
+        url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Cpath d='M20 0v40M0 20h40' stroke='%23ffffff' stroke-opacity='0.02' stroke-width='0.5'/%3E%3C/svg%3E"),
+        radial-gradient(ellipse 50% 40% at 50% 0%, var(--accent-glow), transparent);
+    }
+
+    .trust-card {
+      background: var(--surface-raised);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      transition: border-color 0.3s, transform 0.2s;
+    }
+    .trust-card:hover { border-color: rgba(16,185,129,0.2); transform: translateY(-1px); }
+
+    .progress-ring { position: relative; width: 56px; height: 56px; }
+    .progress-ring svg { transform: rotate(-90deg); }
+    .progress-ring circle { fill: none; stroke-width: 4; stroke-linecap: round; }
+    .progress-ring .track { stroke: rgba(255,255,255,0.06); }
+    .progress-ring .fill { stroke: var(--accent); transition: stroke-dashoffset 1s ease-out; }
+
+    .cert-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 999px;
+      background: var(--accent-dim); color: var(--accent);
+      font-size: 0.8rem; font-weight: 500;
+    }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .anim { animation: fadeUp 0.6s ease-out both; }
+    .anim-d1 { animation-delay: 0.1s; }
+    .anim-d2 { animation-delay: 0.2s; }
+    .anim-d3 { animation-delay: 0.3s; }
+    .anim-d4 { animation-delay: 0.4s; }
+
+    .accent-line { width: 32px; height: 2px; background: var(--accent); }
   </style>
 </head>
-<body class="bg-base-200 min-h-screen" data-theme="light">
+<body class="trust-grid min-h-screen">
 
   <!-- Header -->
-  <div class="navbar bg-primary text-primary-content shadow-lg">
-    <div class="container mx-auto">
-      <div class="flex-1">
-        <i class="ti ti-shield-check text-2xl mr-2"></i>
-        <span class="text-xl font-bold">{{ trust_data.organization }}</span>
+  <header class="border-b border-white/5">
+    <div class="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+          <i class="ti ti-shield-check text-white text-base"></i>
+        </div>
+        <div>
+          <div class="font-bold text-sm">{{ trust_data.organization }}</div>
+          <div class="mono text-emerald-400/60">Trust Portal</div>
+        </div>
       </div>
-      <div class="flex-none">
-        <span class="text-sm opacity-70">Trust Portal</span>
+      <div class="mono" style="color: var(--text-muted);">
+        Updated {{ trust_data.last_updated[:10] if trust_data.last_updated else 'N/A' }}
       </div>
     </div>
-  </div>
+  </header>
 
-  <div class="container mx-auto px-4 py-8 max-w-4xl">
+  <main class="max-w-5xl mx-auto px-6 py-10">
 
     {% if config.custom_message %}
-    <div class="alert alert-info mb-6">
-      <i class="ti ti-info-circle"></i>
-      <span>{{ config.custom_message }}</span>
+    <div class="anim trust-card px-5 py-3 mb-8 flex items-center gap-3 border-l-2" style="border-left-color: var(--accent);">
+      <i class="ti ti-info-circle text-emerald-400"></i>
+      <span class="text-sm" style="color: var(--text-muted);">{{ config.custom_message }}</span>
     </div>
     {% endif %}
 
-    <!-- Compliance Status -->
-    <div class="card bg-base-100 shadow-md mb-6">
-      <div class="card-body">
-        <h2 class="card-title">
-          <i class="ti ti-clipboard-check mr-1"></i>
-          Compliance Status
-        </h2>
+    <!-- Compliance Frameworks -->
+    <section class="anim anim-d1 mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="accent-line"></div>
+        <h2 class="mono text-emerald-400/80 text-xs">Compliance Status</h2>
+      </div>
 
-        {% if trust_data.frameworks %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {% for fw in trust_data.frameworks %}
-          <div class="border rounded-lg p-4">
-            <div class="flex justify-between items-center mb-2">
-              <h3 class="font-semibold text-sm uppercase">{{ fw.name }}</h3>
-              <span class="badge {% if fw.compliance_percentage >= 80 %}badge-success{% elif fw.compliance_percentage >= 50 %}badge-warning{% else %}badge-error{% endif %}">
-                {{ fw.compliance_percentage }}%
-              </span>
+      {% if trust_data.frameworks %}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for fw in trust_data.frameworks %}
+        <div class="trust-card p-5">
+          <div class="flex items-center gap-4">
+            <!-- Progress ring -->
+            <div class="progress-ring shrink-0">
+              <svg viewBox="0 0 56 56">
+                <circle class="track" cx="28" cy="28" r="24"/>
+                <circle class="fill" cx="28" cy="28" r="24"
+                        stroke-dasharray="{{ 2 * 3.14159 * 24 }}"
+                        stroke-dashoffset="{{ 2 * 3.14159 * 24 * (1 - fw.compliance_percentage / 100) }}"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="text-sm font-bold">{{ fw.compliance_percentage }}%</span>
+              </div>
             </div>
-            <progress class="progress {% if fw.compliance_percentage >= 80 %}progress-success{% elif fw.compliance_percentage >= 50 %}progress-warning{% else %}progress-error{% endif %} w-full"
-                      value="{{ fw.compliance_percentage }}" max="100"></progress>
-            <div class="flex justify-between text-xs opacity-60 mt-1">
-              <span>{{ fw.complete }} complete</span>
-              <span>{{ fw.in_review }} in review</span>
-              <span>{{ fw.total_controls }} total</span>
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-sm truncate">{{ fw.name }}</h3>
+              <div class="flex gap-4 mt-2">
+                <div class="text-xs" style="color: var(--text-muted);">
+                  <span class="text-emerald-400 font-medium">{{ fw.complete }}</span> complete
+                </div>
+                <div class="text-xs" style="color: var(--text-muted);">
+                  <span class="text-amber-400 font-medium">{{ fw.in_review }}</span> in review
+                </div>
+                <div class="text-xs" style="color: var(--text-muted);">
+                  {{ fw.total_controls }} total
+                </div>
+              </div>
             </div>
           </div>
-          {% endfor %}
         </div>
-        {% else %}
-        <p class="text-sm opacity-60 mt-2">No frameworks are currently shared.</p>
-        {% endif %}
+        {% endfor %}
       </div>
-    </div>
+      {% else %}
+      <div class="trust-card p-8 text-center" style="color: var(--text-muted);">
+        <i class="ti ti-folder-off text-2xl mb-2 block opacity-40"></i>
+        <p class="text-sm">No frameworks are currently shared.</p>
+      </div>
+      {% endif %}
+    </section>
 
     <!-- Certifications -->
     {% if trust_data.certifications %}
-    <div class="card bg-base-100 shadow-md mb-6">
-      <div class="card-body">
-        <h2 class="card-title">
-          <i class="ti ti-certificate mr-1"></i>
-          Certifications
-        </h2>
-        <div class="flex flex-wrap gap-2 mt-2">
-          {% for cert in trust_data.certifications %}
-          <div class="badge badge-lg badge-outline">
-            <i class="ti ti-rosette mr-1"></i>
-            {{ cert }}
-          </div>
-          {% endfor %}
-        </div>
+    <section class="anim anim-d2 mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="accent-line"></div>
+        <h2 class="mono text-emerald-400/80 text-xs">Certifications</h2>
       </div>
-    </div>
+      <div class="flex flex-wrap gap-2">
+        {% for cert in trust_data.certifications %}
+        <span class="cert-chip">
+          <i class="ti ti-rosette text-sm"></i> {{ cert }}
+        </span>
+        {% endfor %}
+      </div>
+    </section>
     {% endif %}
 
-    <!-- Contact -->
+    <!-- Security Contact -->
     {% if trust_data.contact_email or trust_data.security_contact %}
-    <div class="card bg-base-100 shadow-md mb-6">
-      <div class="card-body">
-        <h2 class="card-title">
-          <i class="ti ti-mail mr-1"></i>
-          Security Contact
-        </h2>
+    <section class="anim anim-d3 mb-10">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="accent-line"></div>
+        <h2 class="mono text-emerald-400/80 text-xs">Security Contact</h2>
+      </div>
+      <div class="trust-card p-5">
         {% if trust_data.security_contact %}
-        <p class="text-sm"><strong>Security Team:</strong> {{ trust_data.security_contact }}</p>
+        <div class="flex items-center gap-3 mb-2">
+          <i class="ti ti-shield text-emerald-400"></i>
+          <span class="text-sm">{{ trust_data.security_contact }}</span>
+        </div>
         {% endif %}
         {% if trust_data.contact_email %}
-        <p class="text-sm"><strong>General:</strong> {{ trust_data.contact_email }}</p>
+        <div class="flex items-center gap-3">
+          <i class="ti ti-mail text-emerald-400"></i>
+          <span class="text-sm">{{ trust_data.contact_email }}</span>
+        </div>
         {% endif %}
       </div>
-    </div>
+    </section>
     {% endif %}
+  </main>
 
-    <!-- Footer -->
-    <div class="text-center text-xs opacity-40 mt-8">
-      <p>Powered by MD Compliance</p>
-      <p>Last updated: {{ trust_data.last_updated[:10] }}</p>
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-auto">
+    <div class="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+      <span class="mono" style="color: var(--text-muted);">Powered by MD Compliance</span>
+      <div class="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center">
+        <i class="ti ti-shield-check text-emerald-400 text-[10px]"></i>
+      </div>
     </div>
+  </footer>
 
-  </div>
 </body>
 </html>

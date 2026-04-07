@@ -1,48 +1,120 @@
 {% extends "layouts/basic.html" %}
 
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  .login-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .login-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .login-hero {
+    background: #0a0f0d;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(16,185,129,0.12) 0%, transparent 60%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='none'/%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='0.03' stroke-width='1'/%3E%3C/svg%3E");
+  }
+  .login-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.1s; }
+  .anim-d2 { animation-delay: 0.2s; }
+  .anim-d3 { animation-delay: 0.3s; }
+  .anim-d4 { animation-delay: 0.4s; }
+</style>
+{%endblock%}
+
 {%block body%}
-<div x-data="login()" class="min-h-screen">
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
-    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary"></div>
-    <form class="lg:col-span-2 max-w-lg w-full p-4 mx-auto" action="{{url_for("auth.get_login", next=request.args.get("next"))}}" method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="mb-5">
-        <h3 class=" text-4xl font-extrabold mt-10">Login</h3>
-        {%if config.IS_SELF_REGISTRATION_ENABLED %}
-        <p class="text-sm my-2">Interested? <a href="/register" class="text-primary font-semibold hover:underline ml-1 whitespace-nowrap">Sign up here</a></p>
-        {%endif%}
+<div x-data="login()" class="min-h-screen login-panel" data-theme="dark">
+  <div class="grid lg:grid-cols-5 min-h-screen">
+
+    <!-- Left: geometric hero -->
+    <div class="hidden lg:flex lg:col-span-2 login-hero relative items-end p-10 overflow-hidden">
+      <div class="relative z-10 mb-8">
+        <div class="login-mono text-emerald-400/80 mb-3">Compliance Platform</div>
+        <h1 class="text-4xl font-bold text-white leading-tight tracking-tight">Secure.<br>Compliant.<br>Verified.</h1>
+        <div class="w-12 h-0.5 bg-emerald-500 mt-6"></div>
       </div>
-      <div class="mb-4">
-        <label class="text-sm block mb-1">Email</label>
-        <label class="input input-sm input-bordered flex items-center gap-2">
-          <i class="ti ti-mail"></i>
-          <input name="email" x-model="payload.email" type="text" class="grow" placeholder="Email" />
-        </label>
-      </div>
-      <div class="mb-4">
-        <div class="flex justify-between">
-            <label class="text-sm block mb-1">Password</label>
-            <a href="/reset-password" class="text-primary font-semibold hover:underline ml-1 whitespace-nowrap text-xs">Forgot Password?</a>
+      <!-- Geometric decoration -->
+      <svg class="absolute top-8 right-8 w-32 h-32 text-emerald-500/10" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="0.5">
+        <rect x="10" y="10" width="80" height="80"/><rect x="20" y="20" width="60" height="60"/><rect x="30" y="30" width="40" height="40"/>
+      </svg>
+      <svg class="absolute bottom-32 right-12 w-20 h-20 text-emerald-500/8" viewBox="0 0 100 100" fill="currentColor">
+        <circle cx="50" cy="50" r="50"/>
+      </svg>
+    </div>
+
+    <!-- Right: login form -->
+    <div class="lg:col-span-3 flex items-center justify-center p-6 bg-base-100">
+      <form class="w-full max-w-sm" action="{{url_for('auth.get_login', next=request.args.get('next'))}}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="anim-up mb-8">
+          <div class="flex items-center gap-2 mb-6">
+            <div class="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center">
+              <i class="ti ti-shield-check text-white text-lg"></i>
+            </div>
+            <span class="font-bold text-lg">MD Compliance</span>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight">Welcome back</h2>
+          <p class="text-sm opacity-50 mt-1">Sign in to your account</p>
+          {%if config.IS_SELF_REGISTRATION_ENABLED %}
+          <p class="text-sm mt-2 opacity-60">New here? <a href="/register" class="text-emerald-400 hover:underline">Create an account</a></p>
+          {%endif%}
         </div>
-        <label class="input input-sm input-bordered flex items-center gap-2">
-          <i class="ti ti-lock"></i>
-          <input name="password" x-model="payload.password" placeholder="Enter password" class="grow" type="password"/>
-        </label>
-      </div>
-      <div class="mt-4">
-        <button :disabled="!readyToGo" class="btn btn-primary btn-block">
-          Login
-        </button>
-      </div>
-      <div class="divider text-xs font-semibold">OR</div>
-      <div class="flex flex-row gap-x-4 justify-between">
-        {%if config.ENABLE_GOOGLE_AUTH%}
-        <a href="{{url_for('auth.google_auth', flow='login')}}" class="btn grow"><i class="ti ti-brand-google text-error text-2xl"></i>Continue with Google</a>
-        {%endif%}
-        <a href="{{url_for('auth.microsoft_auth', flow='login')}}" class="btn grow"><i class="ti ti-brand-azure text-info text-2xl"></i>Sign in with Microsoft</a>
-      </div>
-      <div x-show="adminEmail.length>2" class="mt-4 text-xs" x-text="'Having issues? Reach out to '+adminEmail"></div>
-    </form>
+
+        <div class="space-y-4">
+          <div class="anim-up anim-d1">
+            <label class="login-mono text-base-content/40 block mb-1.5">Email</label>
+            <input name="email" x-model="payload.email" type="email"
+                   class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
+                   placeholder="you@company.com" />
+          </div>
+
+          <div class="anim-up anim-d2">
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="login-mono text-base-content/40">Password</label>
+              <a href="/reset-password" class="text-emerald-400 text-xs hover:underline">Forgot?</a>
+            </div>
+            <input name="password" x-model="payload.password" type="password"
+                   class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
+                   placeholder="Enter your password" />
+          </div>
+
+          <div class="anim-up anim-d3 pt-2">
+            <button :disabled="!readyToGo"
+                    class="btn w-full bg-emerald-500 hover:bg-emerald-600 text-white border-none font-semibold tracking-wide disabled:opacity-30">
+              Sign In
+            </button>
+          </div>
+        </div>
+
+        <div class="anim-up anim-d4">
+          <div class="flex items-center gap-3 my-6">
+            <div class="flex-1 h-px bg-base-content/10"></div>
+            <span class="login-mono text-base-content/30">or continue with</span>
+            <div class="flex-1 h-px bg-base-content/10"></div>
+          </div>
+
+          <div class="flex gap-3">
+            {%if config.ENABLE_GOOGLE_AUTH%}
+            <a href="{{url_for('auth.google_auth', flow='login')}}" class="btn btn-outline flex-1 gap-2 hover:bg-base-200 hover:border-base-content/20">
+              <i class="ti ti-brand-google text-lg"></i> Google
+            </a>
+            {%endif%}
+            <a href="{{url_for('auth.microsoft_auth', flow='login')}}" class="btn btn-outline flex-1 gap-2 hover:bg-base-200 hover:border-base-content/20">
+              <i class="ti ti-brand-azure text-lg"></i> Microsoft
+            </a>
+          </div>
+        </div>
+
+        <div x-show="adminEmail.length>2" class="mt-6 text-center text-xs opacity-30" x-text="'Need help? Contact '+adminEmail"></div>
+      </form>
+    </div>
   </div>
 </div>
 {%endblock%}

@@ -1,60 +1,114 @@
 {% extends "layouts/basic.html" %}
 
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  .setup-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .setup-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .setup-hero {
+    background: #0a0f0d;
+    background-image:
+      radial-gradient(ellipse 60% 60% at 30% 80%, rgba(16,185,129,0.15) 0%, transparent 60%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='none'/%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='0.03' stroke-width='1'/%3E%3C/svg%3E");
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.15s; }
+  .anim-d2 { animation-delay: 0.25s; }
+  .anim-d3 { animation-delay: 0.35s; }
+  .anim-d4 { animation-delay: 0.45s; }
+  @keyframes pulse-border { 0%,100% { border-color: rgba(16,185,129,0.2); } 50% { border-color: rgba(16,185,129,0.5); } }
+  .step-ring { animation: pulse-border 3s ease-in-out infinite; }
+</style>
+{%endblock%}
+
 {%block body%}
-<div class="min-h-screen">
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
-    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary flex items-center justify-center">
-      <div class="text-primary-content text-center p-8">
-        <i class="ti ti-shield-check text-6xl"></i>
-        <h2 class="text-2xl font-bold mt-4">MD Compliance</h2>
-        <p class="text-sm opacity-70 mt-2">Compliance Management Platform</p>
+<div class="min-h-screen setup-panel" data-theme="dark">
+  <div class="grid lg:grid-cols-5 min-h-screen">
+
+    <!-- Left: hero -->
+    <div class="hidden lg:flex lg:col-span-2 setup-hero relative items-center justify-center p-10 overflow-hidden">
+      <div class="relative z-10 text-center">
+        <div class="w-20 h-20 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 step-ring flex items-center justify-center mx-auto mb-6">
+          <i class="ti ti-shield-check text-emerald-400 text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">MD Compliance</h1>
+        <p class="text-sm text-emerald-400/60 mt-2">Compliance Management Platform</p>
+        <div class="mt-8 space-y-3 text-left max-w-[220px] mx-auto">
+          <div class="flex items-center gap-3 text-white/50 text-xs">
+            <div class="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0"><i class="ti ti-check text-emerald-400 text-[10px]"></i></div>
+            22 compliance frameworks
+          </div>
+          <div class="flex items-center gap-3 text-white/50 text-xs">
+            <div class="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0"><i class="ti ti-check text-emerald-400 text-[10px]"></i></div>
+            AI-powered control mapping
+          </div>
+          <div class="flex items-center gap-3 text-white/50 text-xs">
+            <div class="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center shrink-0"><i class="ti ti-check text-emerald-400 text-[10px]"></i></div>
+            Automated evidence collection
+          </div>
+        </div>
       </div>
+
+      <svg class="absolute bottom-8 left-8 w-24 h-24 text-emerald-500/6" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1">
+        <polygon points="50,5 95,75 5,75"/>
+      </svg>
     </div>
-    <form class="lg:col-span-2 max-w-lg w-full p-4 mx-auto" action="{{url_for('auth.post_setup')}}" method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="mb-6">
-        <h3 class="text-3xl font-extrabold mt-10">Welcome</h3>
-        <p class="text-sm opacity-60 mt-2">Create your admin account to get started.</p>
-      </div>
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-      {% for category, message in messages %}
-      <div class="alert alert-{{ 'error' if category == 'error' else 'success' }} text-sm mb-4">
-        <span>{{ message }}</span>
-      </div>
-      {% endfor %}
-      {% endif %}
-      {% endwith %}
+    <!-- Right: setup form -->
+    <div class="lg:col-span-3 flex items-center justify-center p-6 bg-base-100">
+      <form class="w-full max-w-sm" action="{{url_for('auth.post_setup')}}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <div class="mb-4">
-        <label class="text-sm block mb-1">Organization Name</label>
-        <label class="input input-sm input-bordered flex items-center gap-2">
-          <i class="ti ti-building"></i>
-          <input name="company" type="text" class="grow" placeholder="My Organization" />
-        </label>
-      </div>
-      <div class="mb-4">
-        <label class="text-sm block mb-1">Admin Email</label>
-        <label class="input input-sm input-bordered flex items-center gap-2">
-          <i class="ti ti-mail"></i>
-          <input name="email" type="email" class="grow" placeholder="admin@yourcompany.com" required />
-        </label>
-      </div>
-      <div class="mb-4">
-        <label class="text-sm block mb-1">Password</label>
-        <label class="input input-sm input-bordered flex items-center gap-2">
-          <i class="ti ti-lock"></i>
-          <input name="password" type="password" class="grow" placeholder="Minimum 8 characters" minlength="8" required />
-        </label>
-      </div>
-      <div class="mt-6">
-        <button class="btn btn-primary btn-block">
-          <i class="ti ti-rocket"></i> Create Account & Get Started
-        </button>
-      </div>
-      <p class="text-xs opacity-40 mt-4 text-center">This page only appears once. After setup, use the login page.</p>
-    </form>
+        <div class="anim-up mb-8">
+          <div class="setup-mono text-emerald-400/60 mb-2">First-time setup</div>
+          <h2 class="text-2xl font-bold tracking-tight">Create your account</h2>
+          <p class="text-sm opacity-40 mt-1">Set up the admin account for your organization.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="anim-up alert alert-{{ 'error' if category == 'error' else 'success' }} text-sm mb-4 py-2">
+          <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="space-y-4">
+          <div class="anim-up anim-d1">
+            <label class="setup-mono text-base-content/40 block mb-1.5">Organization</label>
+            <input name="company" type="text"
+                   class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
+                   placeholder="Your company name" />
+          </div>
+
+          <div class="anim-up anim-d2">
+            <label class="setup-mono text-base-content/40 block mb-1.5">Admin Email</label>
+            <input name="email" type="email" required
+                   class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
+                   placeholder="admin@yourcompany.com" />
+          </div>
+
+          <div class="anim-up anim-d3">
+            <label class="setup-mono text-base-content/40 block mb-1.5">Password</label>
+            <input name="password" type="password" required minlength="8"
+                   class="input input-bordered w-full bg-base-200/50 focus:border-emerald-500 focus:outline-none transition-colors"
+                   placeholder="Minimum 8 characters" />
+          </div>
+
+          <div class="anim-up anim-d4 pt-2">
+            <button class="btn w-full bg-emerald-500 hover:bg-emerald-600 text-white border-none font-semibold tracking-wide">
+              <i class="ti ti-rocket text-lg"></i> Launch Platform
+            </button>
+          </div>
+        </div>
+
+        <p class="anim-up anim-d4 text-[11px] opacity-20 mt-6 text-center">This page appears once. After setup, use the login page.</p>
+      </form>
+    </div>
   </div>
 </div>
 {%endblock%}
