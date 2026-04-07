@@ -181,8 +181,7 @@ def update_llm_config():
     except ValueError as e:
         logger.warning("LLM config validation error: %s", e)
         return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        logger.exception("Error updating LLM config: %s", e)
+    except Exception:
         db.session.rollback()
         logger.exception("Failed to save LLM configuration")
         return jsonify({"error": "Failed to save LLM configuration"}), 500
@@ -1635,8 +1634,7 @@ def reset_integration(integration_type):
         Logs.add(message=f"Reset integration: {integration_type}", action="DELETE", namespace="settings", user_id=current_user.id)
         return jsonify({"message": f"{integration_type} configuration cleared"})
 
-    except Exception as e:
-        logger.exception("Error resetting integration %s", integration_type)
+    except Exception:
         db.session.rollback()
         logger.exception("Reset failed for %s", integration_type)
         return jsonify({"error": "Reset failed"}), 500

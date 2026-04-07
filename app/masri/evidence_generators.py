@@ -40,14 +40,17 @@ def generate_all_evidence(db, project, tenant_id):
     ninjaone = data.get("ninjaone", {})
     defensx = data.get("defensx", {})
 
+    # Preload all controls + subcontrols once (avoids N+1 in _associate_by_keywords)
+    controls_index = _build_controls_index(project)
+
     if microsoft:
-        total += _generate_microsoft_evidence(db, project, microsoft)
+        total += _generate_microsoft_evidence(db, project, microsoft, controls_index)
     if telivy:
-        total += _generate_telivy_evidence(db, project, telivy)
+        total += _generate_telivy_evidence(db, project, telivy, controls_index)
     if ninjaone:
-        total += _generate_ninjaone_evidence(db, project, ninjaone)
+        total += _generate_ninjaone_evidence(db, project, ninjaone, controls_index)
     if defensx:
-        total += _generate_defensx_evidence(db, project, defensx)
+        total += _generate_defensx_evidence(db, project, defensx, controls_index)
 
     try:
         db.session.commit()
@@ -87,21 +90,52 @@ def _create_evidence(db, project, name, description, content, group):
     return ev
 
 
-def _associate_by_keywords(db, project, evidence, keywords):
-    """Link evidence to subcontrols whose name or parent control category matches keywords."""
-    from app.models import EvidenceAssociation
-    count = 0
+def _build_controls_index(project):
+    """Preload all controls and their applicable subcontrols into a searchable index.
+
+    Returns a list of tuples: (keywords_text, [subcontrol_ids])
+    where keywords_text is the lowercased control name + category for matching.
+    """
+    index = []
     for pc in project.controls.all():
         ctrl = pc.control
-        ctrl_name = (ctrl.name if ctrl else "").lower()
-        ctrl_cat = (ctrl.category if ctrl else "").lower()
-        if any(kw in ctrl_name or kw in ctrl_cat for kw in keywords):
-            for sc in pc.subcontrols.all():
-                if sc.is_applicable:
-                    if not EvidenceAssociation.exists(sc.id, evidence.id):
-                        db.session.add(EvidenceAssociation(
-                            control_id=sc.id, evidence_id=evidence.id))
-                        count += 1
+        text = ((ctrl.name if ctrl else "") + " " + (ctrl.category if ctrl else "")).lower()
+        sc_ids = [sc.id for sc in pc.subcontrols.all() if sc.is_applicable]
+        if sc_ids:
+            index.append((text, sc_ids))
+    return index
+
+
+def _associate_by_keywords(db, project, evidence, keywords, controls_index=None):
+    """Link evidence to subcontrols whose control name/category matches keywords."""
+    from app.models import EvidenceAssociation
+
+    if controls_index is None:
+        controls_index = _build_controls_index(project)
+
+    sc_ids = []
+    for text, sub_ids in controls_index:
+        if any(kw in text for kw in keywords):
+            sc_ids.extend(sub_ids)
+
+    if not sc_ids:
+        return 0
+
+    # Bulk check existing associations
+    existing = set(
+        row[0] for row in db.session.execute(
+            db.select(EvidenceAssociation.control_id).filter(
+                EvidenceAssociation.evidence_id == evidence.id,
+                EvidenceAssociation.control_id.in_(sc_ids)
+            )
+        ).all()
+    )
+
+    count = 0
+    for sc_id in sc_ids:
+        if sc_id not in existing:
+            db.session.add(EvidenceAssociation(control_id=sc_id, evidence_id=evidence.id))
+            count += 1
     return count
 
 
@@ -109,7 +143,7 @@ def _associate_by_keywords(db, project, evidence, keywords):
 # Microsoft 365 Evidence Generators
 # ---------------------------------------------------------------------------
 
-def _generate_microsoft_evidence(db, project, ms_data):
+def _generate_microsoft_evidence(db, project, ms_data, controls_index=None):
     """Generate evidence from Microsoft 365 / Entra ID cached data."""
     total = 0
 
@@ -142,7 +176,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Multi-factor authentication enrollment status. {mfa_enrolled}/{total_users} users enrolled ({pct}%).",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["mfa", "multi-factor", "authentication", "access control", "identity"])
             total += 1
 
@@ -169,7 +203,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Intune device compliance status. {compliant}/{len(devices)} compliant, {encrypted} encrypted.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["endpoint", "device", "encryption", "asset", "mobile", "workstation"])
             total += 1
 
@@ -191,7 +225,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Azure AD Conditional Access policy inventory. {len(enabled)} enabled policies.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["access control", "conditional", "authentication", "authorization", "logical access"])
             total += 1
 
@@ -220,7 +254,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Security posture score: {current}/{max_score} ({pct}%). {len(gap_items)} controls below maximum.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["security", "posture", "monitoring", "risk", "configuration"])
             total += 1
 
@@ -241,7 +275,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Defender alerts: {len(alerts)} total, {len(high_sev)} high/critical severity.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["incident", "alert", "monitoring", "detection", "response", "threat"])
             total += 1
 
@@ -266,7 +300,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
                               f"Sign-in monitoring: {len(failed)} failures, {len(risky_users)} risky users.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["monitoring", "audit", "log", "sign-in", "anomaly", "access"])
             total += 1
 
@@ -277,7 +311,7 @@ def _generate_microsoft_evidence(db, project, ms_data):
 # Telivy Evidence Generators
 # ---------------------------------------------------------------------------
 
-def _generate_telivy_evidence(db, project, tv_data):
+def _generate_telivy_evidence(db, project, tv_data, controls_index=None):
     """Generate evidence from Telivy external scan cached data."""
     total = 0
 
@@ -299,7 +333,7 @@ def _generate_telivy_evidence(db, project, tv_data):
                               f"External scan: {len(findings)} findings, {critical} critical/high severity.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["vulnerability", "scan", "penetration", "network", "external", "firewall", "web app"])
             total += 1
 
@@ -320,7 +354,7 @@ def _generate_telivy_evidence(db, project, tv_data):
                               f"Dark web / breach monitoring: {len(items)} records found.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["breach", "incident", "data loss", "password", "credential", "dark web"])
             total += 1
 
@@ -342,7 +376,7 @@ def _generate_telivy_evidence(db, project, tv_data):
                               f"Email security findings: {len(email_findings)} issues (SPF/DKIM/DMARC/spoofing).",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["email", "communication", "spoofing", "phishing"])
             total += 1
 
@@ -353,7 +387,7 @@ def _generate_telivy_evidence(db, project, tv_data):
 # NinjaOne Evidence Generators
 # ---------------------------------------------------------------------------
 
-def _generate_ninjaone_evidence(db, project, ninja_data):
+def _generate_ninjaone_evidence(db, project, ninja_data, controls_index=None):
     """Generate evidence from NinjaOne RMM cached data."""
     total = 0
 
@@ -374,7 +408,7 @@ def _generate_ninjaone_evidence(db, project, ninja_data):
                               f"Patch status: {pending_os} OS patches pending, {pending_sw} software patches pending.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["patch", "update", "vulnerability", "maintenance", "software"])
             total += 1
 
@@ -399,7 +433,7 @@ def _generate_ninjaone_evidence(db, project, ninja_data):
                               f"AV coverage: {protected}/{len(av_status)} devices active. {len(av_threats)} threats detected.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["malware", "antivirus", "anti-virus", "endpoint", "threat", "protection"])
             total += 1
 
@@ -422,7 +456,7 @@ def _generate_ninjaone_evidence(db, project, ninja_data):
                               f"Managed endpoint inventory: {len(devices)} devices across {len(os_counts)} OS types.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["asset", "inventory", "device", "endpoint", "hardware"])
             total += 1
 
@@ -433,7 +467,7 @@ def _generate_ninjaone_evidence(db, project, ninja_data):
 # DefensX Evidence Generators
 # ---------------------------------------------------------------------------
 
-def _generate_defensx_evidence(db, project, dx_data):
+def _generate_defensx_evidence(db, project, dx_data, controls_index=None):
     """Generate evidence from DefensX browser security cached data."""
     total = 0
 
@@ -454,7 +488,7 @@ def _generate_defensx_evidence(db, project, dx_data):
                               f"Browser security policies: {len(policies)} policies tracked.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["web", "filter", "browser", "internet", "acceptable use"])
             total += 1
 
@@ -475,7 +509,7 @@ def _generate_defensx_evidence(db, project, dx_data):
                               f"Shadow AI monitoring: {len(items)} unauthorized AI services detected.",
                               content, "auto_evidence")
         if ev:
-            _associate_by_keywords(db, project, ev,
+            _associate_by_keywords(db, project, ev, controls_index=controls_index, keywords=
                                    ["data loss", "shadow", "unauthorized", "ai", "acceptable use", "classification"])
             total += 1
 

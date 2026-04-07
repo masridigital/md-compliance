@@ -286,16 +286,20 @@ def training_dashboard():
     overdue = 0
     now = datetime.utcnow()
 
-    for t in trainings:
-        assignments = db.session.execute(
-            db.select(TrainingAssignment).filter_by(training_id=t.id, tenant_id=tenant_id)
-        ).scalars().all()
-        for a in assignments:
-            total_assigned += 1
-            if a.completed_date:
-                total_completed += 1
-            elif a.due_date and a.due_date < now:
-                overdue += 1
+    training_ids = [t.id for t in trainings]
+    assignments = db.session.execute(
+        db.select(TrainingAssignment).filter(
+            TrainingAssignment.training_id.in_(training_ids),
+            TrainingAssignment.tenant_id == tenant_id,
+        )
+    ).scalars().all() if training_ids else []
+
+    for a in assignments:
+        total_assigned += 1
+        if a.completed_date:
+            total_completed += 1
+        elif a.due_date and a.due_date < now:
+            overdue += 1
 
     completion_rate = (total_completed / total_assigned * 100) if total_assigned else 0
 

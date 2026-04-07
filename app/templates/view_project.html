@@ -2874,7 +2874,7 @@
 				</div>
 			</div>
 
-			<div class="col-span-6" x-show="selectedTab === 'integrations' && !tabLoading" x-data="integrationDataTab()" x-init="loadIntegrationData()">
+			<div class="col-span-6" x-show="selectedTab === 'integrations' && !tabLoading" x-data="integrationDataTab()" x-effect="if (selectedTab === 'integrations' && !intLoaded) { intLoaded = true; loadIntegrationData(); }">
 
 				<!-- Loading -->
 				<div x-show="intLoading" class="text-center py-12"><span class="loading loading-dots loading-lg"></span></div>
@@ -4848,6 +4848,7 @@ function integrationDataTab() {
 	const _tenantId = '{{ project.tenant_id }}';
 	return {
 		intLoading: false,
+		intLoaded: false,
 		intData: {},
 		driftAlerts: [],
 		driftChecking: false,
