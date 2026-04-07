@@ -665,22 +665,7 @@ def get_llm_providers():
 
     providers = []
 
-    # Primary provider from SettingsLLM
-    try:
-        from app.masri.settings_service import SettingsService
-        primary = SettingsService.get_active_llm_config()
-        if primary:
-            providers.append({
-                "key": primary.provider,
-                "provider": primary.provider,
-                "model": primary.model_name,
-                "is_primary": True,
-                "has_key": bool(primary.api_key_enc),
-            })
-    except Exception:
-        pass
-
-    # Additional providers from ConfigStore
+    # All providers from ConfigStore (single source of truth)
     try:
         record = ConfigStore.find("llm_additional_providers")
         if record and record.value:
@@ -692,6 +677,38 @@ def get_llm_providers():
                     "model": cfg.get("model_name", ""),
                     "is_primary": False,
                     "has_key": bool(cfg.get("api_key_enc")),
+                })
+    except Exception:
+        pass
+
+    # Migrate: if SettingsLLM has a provider not yet in ConfigStore, add it
+    try:
+        from app.masri.settings_service import SettingsService
+        primary = SettingsService.get_active_llm_config()
+        if primary and primary.provider:
+            existing_keys = {p["key"] for p in providers}
+            if primary.provider not in existing_keys:
+                from app.masri.settings_service import encrypt_value
+                # Auto-migrate primary to ConfigStore
+                extras = {}
+                try:
+                    rec = ConfigStore.find("llm_additional_providers")
+                    if rec and rec.value:
+                        extras = json.loads(rec.value)
+                except Exception:
+                    pass
+                extras[primary.provider] = {
+                    "provider": primary.provider,
+                    "model_name": primary.model_name or "",
+                    "api_key_enc": primary.api_key_enc or "",
+                }
+                ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+                providers.append({
+                    "key": primary.provider,
+                    "provider": primary.provider,
+                    "model": primary.model_name or "",
+                    "is_primary": False,
+                    "has_key": bool(primary.api_key_enc),
                 })
     except Exception:
         pass

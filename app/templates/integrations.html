@@ -381,41 +381,37 @@
                     <span class="text-sm font-semibold capitalize flex-1" x-text="p.provider.replace('_', ' ')"></span>
                     <span class="text-xs opacity-40" x-text="(p.model || '').split('/').pop()"></span>
                     <i class="ti text-xs opacity-40" :class="editing ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
-                    <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteLlmProvider(p.key, p.is_primary)"><i class="ti ti-x text-xs"></i></button>
+                    <button class="btn btn-xs btn-ghost btn-square opacity-30 hover:opacity-100" @click.stop="deleteAdditionalProvider(p.key)"><i class="ti ti-x text-xs"></i></button>
                   </div>
                   <div x-show="editing" x-collapse x-cloak class="mt-2 space-y-1"
                        x-data="{ secModels: llmModelsByProvider[p.provider] || [], newKey: '', result: '', testing: false }"
                        x-effect="if (editing && !secModels.length && p.has_key) { fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }">
                     <input type="password" class="input input-bordered input-xs w-full" placeholder="Update API key" x-model="newKey"
                            @blur="if (newKey) {
-                             if (p.is_primary) { llmForm.api_key = newKey; saveLlmSlot().then(() => { testSingleLlmProvider(p.provider); fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }); }
-                             else { saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey }); setTimeout(() => { testSingleLlmProvider(p.provider); fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }, 500); }
+                             saveAdditionalProvider({ key: p.key, provider: p.provider, api_key: newKey });
                              newKey = '';
+                             setTimeout(() => { testSingleLlmProvider(p.provider); fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) }).then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{}); }, 500);
                            }">
                     <div class="flex gap-1">
                       <select x-show="secModels.length > 0" class="select select-bordered select-xs flex-1"
-                              @change="
-                                if (p.is_primary) { llmForm.model_name = $event.target.value; saveLlmSlot(); }
-                                else { saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); }
-                                toast('Model saved', 'success');">
+                              @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model saved', 'success');">
                         <option value="">Select model...</option>
-                        <template x-for="m in secModels" :key="'prov-'+p.key+'-'+m"><option :value="m" x-text="m" :selected="m === (p.is_primary ? llmForm.model_name : p.model)"></option></template>
+                        <template x-for="m in secModels" :key="'prov-'+p.key+'-'+m"><option :value="m" x-text="m" :selected="m === p.model"></option></template>
                       </select>
                       <input x-show="secModels.length === 0" type="text" class="input input-bordered input-xs flex-1" placeholder="Model name (click refresh to load list)"
-                             :value="p.is_primary ? llmForm.model_name : p.model"
-                             @change="
-                               if (p.is_primary) { llmForm.model_name = $event.target.value; saveLlmSlot(); }
-                               else { saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); }
-                               toast('Model saved', 'success');">
+                             :value="p.model"
+                             @change="saveAdditionalProvider({ key: p.key, provider: p.provider, model_name: $event.target.value }); toast('Model saved', 'success');">
                       <button class="btn btn-ghost btn-xs btn-square" @click="
                         fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: p.provider}) })
                           .then(r=>r.json()).then(d=>{ secModels = d.models||[]; llmModelsByProvider[p.provider]=secModels; }).catch(()=>{});
                       "><i class="ti ti-refresh"></i></button>
                     </div>
-                    <template x-if="p.is_primary && p.provider === 'azure_openai'">
+                    <template x-if="p.provider === 'azure_openai'">
                       <div class="grid grid-cols-2 gap-1">
-                        <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_endpoint" placeholder="Endpoint" @blur="saveLlmSlot()" />
-                        <input type="text" class="input input-bordered input-xs" x-model="llmForm.azure_deployment" placeholder="Deployment" @blur="saveLlmSlot()" />
+                        <input type="text" class="input input-bordered input-xs" placeholder="Endpoint"
+                               @change="saveAdditionalProvider({ key: p.key, provider: p.provider, azure_endpoint: $event.target.value })" />
+                        <input type="text" class="input input-bordered input-xs" placeholder="Deployment"
+                               @change="saveAdditionalProvider({ key: p.key, provider: p.provider, azure_deployment: $event.target.value })" />
                       </div>
                     </template>
                     <div class="flex items-center gap-2">
@@ -1998,17 +1994,8 @@ function integrationsHub() {
       } catch(e) { toast('Error: ' + e.message, 'error'); }
     },
 
-    async deleteLlmProvider(key, isPrimary) {
-      if (isPrimary) {
-        try {
-          await fetch('/api/v1/settings/llm', { method: 'DELETE', headers: { 'X-CSRFToken': _csrfToken() } });
-          this.llmForm = { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false };
-          toast('Provider removed', 'success');
-          this.loadLlmProviders();
-        } catch(e) { toast('Error: ' + e.message, 'error'); }
-      } else {
-        await this.deleteAdditionalProvider(key);
-      }
+    async deleteLlmProvider(key) {
+      await this.deleteAdditionalProvider(key);
     },
 
     async testLlm() {
@@ -2054,7 +2041,7 @@ function integrationsHub() {
           this.llmModelsByProvider[this.llmForm.provider] = this.llmModels;
         }
         // Also fetch models for all configured secondary providers
-        for (const p of this.llmProvidersList.filter(p => !p.is_primary && p.has_key)) {
+        for (const p of this.llmProvidersList.filter(p => p.has_key)) {
           try {
             const r2 = await fetch('/api/v1/settings/llm/models', {
               method: 'POST',
