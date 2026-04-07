@@ -1181,7 +1181,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     "success": has_any_data,
                     "controls_mapped": 0, "risks_added": 0,
                     "data_stored": has_any_data,
-                    "message": "Data saved (no projects)." if has_any_data else "No data pulled.",
+                    "message": "Scan data saved but this client has no compliance projects. Create a project (e.g. SOC 2 or FTC Safeguards) for this client first, then re-run." if has_any_data else "No scan data was pulled. Check your API key and scan mapping.",
                 }, default=str))
             except Exception:
                 pass

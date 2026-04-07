@@ -2587,8 +2587,13 @@ function integrationsHub() {
               const mapped = status.controls_mapped || 0;
               const risks = status.risks_added || 0;
               this.telivyScanMappings[scanId].process_status = 'done';
-              this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
-              toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
+              if (mapped === 0 && risks === 0 && status.message) {
+                this.telivyScanMappings[scanId].process_result = status.message;
+                toast(status.message, 'warning');
+              } else {
+                this.telivyScanMappings[scanId].process_result = `${mapped} controls, ${risks} risks`;
+                toast(`Processed: ${mapped} controls, ${risks} risks`, 'success');
+              }
               this._saveMapping();
             } else if (status.stage) {
               // Show stage progress
