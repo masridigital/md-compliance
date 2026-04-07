@@ -75,6 +75,15 @@
     </div>
   </div>
 
+  <!-- Status legend -->
+  <div class="flex items-center gap-4 mb-3 text-[10px] opacity-40">
+    <span class="flex items-center gap-1"><span class="status-dot green" style="width:6px;height:6px;"></span> Connected</span>
+    <span class="flex items-center gap-1"><span class="status-dot yellow" style="width:6px;height:6px;"></span> Checking</span>
+    <span class="flex items-center gap-1"><span class="status-dot amber" style="width:6px;height:6px;"></span> Configured</span>
+    <span class="flex items-center gap-1"><span class="status-dot red" style="width:6px;height:6px;"></span> Issue detected</span>
+    <span class="flex items-center gap-1"><span class="status-dot gray" style="width:6px;height:6px;"></span> Not configured</span>
+  </div>
+
   <!-- Loading -->
   <div x-show="!loaded" class="flex justify-center py-12">
     <span class="loading loading-spinner loading-lg"></span>
