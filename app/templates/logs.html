@@ -171,7 +171,10 @@ function logViewer(){
           params.set('limit', this.filters.limit);
           request("GET",
             `/api/v1/logs?${params.toString()}`,
-            data => { this.items = Array.isArray(data) ? data : []; },
+            data => {
+              this.loading = false;
+              this.$nextTick(() => { this.items = Array.isArray(data) ? data : []; });
+            },
             error => { toast(error.message, "error"); this.loading = false; }
           );
         },
