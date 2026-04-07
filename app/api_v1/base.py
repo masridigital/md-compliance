@@ -351,7 +351,11 @@ def update_tenant(tid):
 def get_tenants():
     data = []
     for tenant in current_user.get_tenants():
-        data.append(tenant.as_dict())
+        td = tenant.as_dict()
+        td["project_count"] = tenant.projects.count()
+        td["user_count"] = tenant.members.count()
+        td["risk_count"] = tenant.risks.count()
+        data.append(td)
     return jsonify(data)
 
 

@@ -482,15 +482,11 @@ function workspaceHub() {
         const resp = await fetch('/api/v1/tenants');
         if (!resp.ok) return;
         const data = await resp.json();
-        // Enrich with project counts
-        this.tenants = data;
-        for (const t of this.tenants) {
-          t._projectCount = 0;
-          try {
-            const pr = await fetch(`/api/v1/tenants/${t.id}/projects?exclude-timely=true`);
-            if (pr.ok) { const pdata = await pr.json(); t._projectCount = pdata.length; }
-          } catch(e) {}
+        // Project counts are now included in the tenant response (no extra calls)
+        for (const t of data) {
+          t._projectCount = t.project_count || 0;
         }
+        this.tenants = data;
       } catch (e) { console.error('Failed to load tenants:', e); }
     },
 
