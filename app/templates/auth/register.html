@@ -89,7 +89,7 @@ function standup(){
           })
           this.isReadyToContinue(this.payload)
         },
-        adminEmail: "{{config.HELP_EMAIL}}",
+        adminEmail: "{{branding.support_email or config.HELP_EMAIL}}",
         registrationEnabled: {{ "true" if registration_enabled else "false" }},
         emailConfigured: {{ "true" if config.IS_EMAIL_CONFIGURED else "false" }},
         googleAuthEnabled: {{ "true" if config.ENABLE_GOOGLE_AUTH else "false" }},

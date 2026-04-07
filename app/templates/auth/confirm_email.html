@@ -45,7 +45,7 @@ function confirm(){
         init() {
           this.confirmationCode = this.getURLParam("code")
         },
-        adminEmail: "{{config.HELP_EMAIL}}",
+        adminEmail: "{{branding.support_email or config.HELP_EMAIL}}",
         tryResend: true,
         confirmationCode: "",
         isEmailConfigured: {{ "true" if email_configured else "false" }},

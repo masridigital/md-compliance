@@ -60,8 +60,17 @@ def register_context_processors(app):
                         if val:
                             branding[key] = val
         except Exception:
-            # Fail silently — never break template rendering over branding
             logger.debug("Could not load tenant branding, using defaults", exc_info=True)
+
+        # Platform-level support_email from PlatformSettings (configurable in Settings UI)
+        try:
+            from app.masri.new_models import PlatformSettings
+            from app import db
+            ps = db.session.execute(db.select(PlatformSettings)).scalars().first()
+            if ps and ps.support_email:
+                branding["support_email"] = ps.support_email
+        except Exception:
+            pass
 
         return {"branding": branding}
 

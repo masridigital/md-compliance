@@ -129,7 +129,7 @@ function login(){
           this.isReadyToGo(this.payload)
           this.payload.email = this.getURLParam("email")
         },
-        adminEmail: "{{config.HELP_EMAIL}}",
+        adminEmail: "{{branding.support_email or config.HELP_EMAIL}}",
         payload: {},
         btnLoading: true,
         readyToGo: false,
