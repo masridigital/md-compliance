@@ -48,8 +48,7 @@ services:
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
       - RATELIMIT_STORAGE_URI=redis://redis:6379/0
-      # IMPORTANT: Do NOT set PLAYGROUND_CSS in production — it loads a 2MB
-      # Tailwind JIT compiler in the browser. Use the compiled main.css instead.
+      - PLAYGROUND_CSS=
     env_file:
       - .env
 

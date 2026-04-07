@@ -170,7 +170,7 @@ class Config:
         os.environ.get("DEBUG_ENV_VARS", "STORAGE_METHOD").upper().split(",")
     )
 
-    PLAYGROUND_CSS = os.environ.get("PLAYGROUND_CSS")
+    PLAYGROUND_CSS = os.environ.get("PLAYGROUND_CSS", "").strip().lower() in ("true", "1", "yes")
     LAYOUT = {
         "header": True,
         "footer": False,
