@@ -359,7 +359,7 @@ class VendorApp(db.Model, QueryMixin):
         if address:
             try:
                 email_validator.validate_email(address, check_deliverability=False)
-            except:
+            except Exception:
                 abort(422, "Invalid email")
         return address
 
@@ -502,7 +502,7 @@ class Vendor(db.Model, QueryMixin):
             return address
         try:
             email_validator.validate_email(address, check_deliverability=False)
-        except:
+        except Exception:
             abort(422, "Invalid email")
         return address
 
@@ -976,7 +976,7 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
         if address:
             try:
                 email_validator.validate_email(address, check_deliverability=False)
-            except:
+            except Exception:
                 abort(422, "Invalid email")
         return address
 
@@ -1450,7 +1450,7 @@ class ProjectEvidence(db.Model, QueryMixin):
     def delete(self):
         try:
             self.delete_file()
-        except:
+        except Exception:
             pass
         db.session.delete(self)
         db.session.commit()
@@ -3662,7 +3662,7 @@ class User(db.Model, UserMixin):
         if address:
             try:
                 email_validator.validate_email(address, check_deliverability=False)
-            except:
+            except Exception:
                 abort(422, "Invalid email")
         return address
 
@@ -3683,7 +3683,7 @@ class User(db.Model, UserMixin):
             return False
         try:
             email_validator.validate_email(email, check_deliverability=False)
-        except:
+        except Exception:
             return False
         return True
 

@@ -85,10 +85,11 @@ def ninjaone_test():
         result = client.test_connection()
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"connected": False, "error": str(e)}), 400
+        logger.warning("NinjaOne connection test error: %s", e)
+        return jsonify({"connected": False, "error": "Connection test failed. Check credentials and region."}), 400
     except Exception as e:
         logger.exception("NinjaOne connection test failed")
-        return jsonify({"connected": False, "error": "Connection test failed"}), 500
+        return jsonify({"connected": False, "error": "An internal error occurred. Check system logs."}), 500
 
 
 # ─── Organizations ────────────────────────────────────────────────

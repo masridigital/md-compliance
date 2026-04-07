@@ -92,10 +92,11 @@ def telivy_test():
         result = client.test_connection()
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"connected": False, "error": str(e)}), 400
+        logger.warning("Telivy connection test error: %s", e)
+        return jsonify({"connected": False, "error": "Connection test failed. Check API key and try again."}), 400
     except Exception as e:
         logger.exception("Telivy connection test failed")
-        return jsonify({"connected": False, "error": str(e)}), 500
+        return jsonify({"connected": False, "error": "An internal error occurred. Check system logs."}), 500
 
 
 # ─── External Scans ──────────────────────────────────────────────

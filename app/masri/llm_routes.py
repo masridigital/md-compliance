@@ -486,7 +486,7 @@ def auto_map():
         return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Auto-map failed")
-        return jsonify({"error": "Auto-map failed: " + str(e)}), 500
+        return jsonify({"error": "Auto-map failed. Check system logs for details."}), 500
 
 
 # ===========================================================================
