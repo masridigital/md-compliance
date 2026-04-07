@@ -57,9 +57,11 @@ Last updated: 2026-04-07
 ### Phase C — ALL ITEMS COMPLETE
 
 ### Remaining Work (Priority Order)
-1. Global Risk Dashboard (cross-client risk register on home page)
-2. Nginx branded error page (502/503/504)
-3. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
+1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
+2. UI polish: Related Controls panel on control detail view (C5 data is ready)
+3. Training management UI page and employee completion dashboard
+4. Continuous monitoring UI: drift alerts dashboard widget
+5. Trust portal: NDA gate implementation, custom domain CNAME support
 3. **C3**: Employee training module
 4. **C5**: Cross-framework control mapping (populate `Control.mapping` field)
 5. **C6**: Trust portal (client-facing compliance status page)
