@@ -148,7 +148,7 @@
         </button>
       </div>
       <!-- Sidebar links -->
-      <nav x-cloak @mouseover="isSidebarOpen=true" class="flex-1 overflow-hidden hover:overflow-y-auto">
+      <nav x-cloak @mouseenter="isSidebarOpen=true" @mouseleave="isSidebarOpen=false" class="flex-1 overflow-hidden hover:overflow-y-auto">
         <ul class="p-2 overflow-hidden text-sm font-semibold">
           {%if "vendor" in user_roles%}
           {% set sidebarlinks = [{'label':'home','link':'/','icon':'<i class="ti ti-timeline text-2xl"></i>'}]%}
