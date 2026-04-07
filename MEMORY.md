@@ -52,7 +52,9 @@ Last updated: 2026-04-07
 - C2 continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices, AV)
 - C3 employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation)
 - C6 trust portal (public /trust/<slug>, compliance bars, certifications, JSON API)
-- Security hardening: CSRF, error sanitization, bare except fixes, input validation
+- Global risk dashboard on home page (cross-client, filterable by severity/tenant)
+- Security hardening round 1: CSRF protection, error message sanitization, bare except fixes
+- Security hardening round 2: Setup race condition (advisory lock), tenant isolation (notifications, WISP), stored XSS fix (policy editor), open redirect fix (TOTP flow), Telivy admin check
 
 ### Phase C — ALL ITEMS COMPLETE
 
