@@ -236,6 +236,7 @@
                     <div class="flex items-center gap-1 mt-2 flex-wrap">
                       <button class="btn btn-ghost btn-xs" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i></button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> View Report</button>
+                      <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(s.id, getScanTenantMapping(s.id))" title="View raw data + LLM output"><i class="ti ti-code"></i> Debug</button>
                       <div class="ml-auto flex items-center gap-1">
                         <select class="select select-bordered select-xs capitalize w-44"
                                 @change="mapScanToTenant(s.id, $event.target.value, 'scan')">
@@ -350,22 +351,6 @@
                         <i class="ti ti-player-play text-xs"></i> Run AI Analysis
                       </button>
                     </div>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <!-- Findings viewer -->
-            <div x-show="telivyFindings.length > 0" class="mt-4">
-              <div class="divider text-xs">Findings</div>
-              <div class="space-y-1 max-h-60 overflow-y-auto">
-                <template x-for="f in telivyFindings" :key="f.slug">
-                  <div class="finding-card flex justify-between items-center">
-                    <div>
-                      <span class="text-xs font-semibold" x-text="f.name"></span>
-                      <div class="text-xs opacity-50" x-text="f.description?.substring(0, 100) + '...'"></div>
-                    </div>
-                    <span class="badge badge-xs" :class="{'badge-error': f.severity === 'critical' || f.severity === 'high', 'badge-warning': f.severity === 'medium', 'badge-info': f.severity === 'low' || f.severity === 'info'}" x-text="f.severity"></span>
                   </div>
                 </template>
               </div>
@@ -2406,6 +2391,11 @@ function integrationsHub() {
         if (!resp.ok) throw new Error('Failed to load findings');
         this.telivyFindings = await resp.json();
       } catch (e) { this.telivyError = e.message; }
+    },
+
+    showRawDebugData(scanId, tenantId) {
+      if (!tenantId) { toast('Map this scan to a client first', 'warning'); return; }
+      window.open('/api/v1/settings/debug-data/' + tenantId, '_blank');
     },
 
     async telivyViewAssessmentDetails(assessmentId) {

@@ -1973,6 +1973,55 @@ def global_risk_dashboard():
 
 
 # ===========================================================================
+# Debug Data (raw API + LLM output)
+# ===========================================================================
+
+@settings_bp.route("/debug-data/<string:tenant_id>", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_debug_data(tenant_id):
+    """GET /api/v1/settings/debug-data/<tid> — raw integration + LLM data."""
+    _require_admin()
+    import json as _dj
+    from app.models import ConfigStore
+
+    result = {"tenant_id": tenant_id}
+
+    # Raw integration data (from Telivy, Microsoft, NinjaOne, etc.)
+    try:
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if record and record.value:
+            raw = _dj.loads(record.value)
+            result["integration_data"] = {
+                "telivy": raw.get("telivy", {}),
+                "microsoft": raw.get("microsoft", {}),
+                "ninjaone": raw.get("ninjaone", {}),
+                "defensx": raw.get("defensx", {}),
+                "_updated": raw.get("_updated"),
+            }
+    except Exception:
+        result["integration_data"] = None
+
+    # LLM auto-process result
+    try:
+        record = ConfigStore.find(f"auto_process_result_{tenant_id}")
+        if record and record.value:
+            result["llm_result"] = _dj.loads(record.value)
+    except Exception:
+        result["llm_result"] = None
+
+    # LLM job status (last stage)
+    try:
+        record = ConfigStore.find(f"auto_process_status_{tenant_id}")
+        if record and record.value:
+            result["llm_status"] = _dj.loads(record.value)
+    except Exception:
+        result["llm_status"] = None
+
+    return jsonify(result)
+
+
+# ===========================================================================
 # Integration Health Checks
 # ===========================================================================
 
