@@ -1576,12 +1576,18 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
         # Store result for polling
         _update_job_status(tenant_id, "done", f"{total_mapped} controls, {total_risks} risks")
         try:
+            msg = ""
+            if not llm_available:
+                msg = "LLM not configured. Add an AI provider in Settings → Integrations → AI/LLM Providers, then re-run."
+            elif total_mapped == 0 and total_risks == 0:
+                msg = f"LLM ran but produced no mappings. {len(projects)} project(s) with {sum(len(p.controls.all()) for p in projects)} controls checked."
             ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
                 "success": total_mapped > 0 or total_risks > 0,
                 "controls_mapped": total_mapped,
                 "risks_added": total_risks,
                 "projects_processed": len(projects),
                 "llm_available": llm_available,
+                "message": msg,
             }, default=str))
         except Exception:
             pass

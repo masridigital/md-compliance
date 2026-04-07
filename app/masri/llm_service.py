@@ -508,6 +508,11 @@ class LLMService:
                         config["token_budget_per_tenant"] = token_budget
                 if routing.get("model"):
                     kwargs["model"] = routing["model"]
+                elif routing.get("provider"):
+                    # No model specified in tier — use provider's default model
+                    prov_cfg = LLMService._get_provider_config(routing["provider"])
+                    if prov_cfg and prov_cfg.get("model_name"):
+                        kwargs["model"] = prov_cfg["model_name"]
 
         # Enforce rate limit
         if tenant_id and config.get("rate_limit_per_hour"):
