@@ -46,6 +46,7 @@
   .status-dot.green { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
   .status-dot.amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.3); }
   .status-dot.gray  { background: #4b5563; }
+  .status-dot.red   { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
 
   /* Drawer */
   .drawer-panel { position: fixed; top: 0; right: 0; width: 520px; max-width: 100vw; height: 100vh; background: oklch(var(--b1)); border-left: 1px solid oklch(var(--bc) / .12); z-index: 50; overflow-y: auto; transform: translateX(100%); transition: transform .2s ease; }
@@ -92,8 +93,8 @@
               </template>
               <template x-if="!item.comingSoon">
                 <span class="flex items-center gap-1.5">
-                  <span class="status-dot" :class="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'green' : 'amber') : 'gray'"></span>
-                  <span class="text-xs opacity-50" x-text="getStatus(item.id).configured ? (getStatus(item.id).enabled ? 'Active' : 'Disabled') : 'Not configured'"></span>
+                  <span class="status-dot" :class="getHealthDot(item.id)"></span>
+                  <span class="text-xs opacity-50" x-text="getHealthLabel(item.id)"></span>
                 </span>
               </template>
             </div>
@@ -578,26 +579,7 @@
                 </div>
               </template>
 
-              <!-- Fallback config (aligned with tier rows: w-24 label + rest) -->
-              <div class="bg-base-300 rounded p-2 mt-1">
-                <div class="flex items-center gap-2">
-                  <div class="w-24 shrink-0">
-                    <div class="text-[10px] font-bold">Fallback</div>
-                    <div class="text-[9px] opacity-40">If tier fails</div>
-                  </div>
-                  <select class="select select-bordered select-xs w-28"
-                          x-model="llmTierConfig.fallback_provider"
-                          x-init="if(!llmTierConfig.fallback_provider) llmTierConfig.fallback_provider = ''"
-                          @change="saveLlmSlot()">
-                    <option value="">Select...</option>
-                    <option value="together_ai">Together AI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="azure_openai">Azure OpenAI</option>
-                  </select>
-                  <div class="w-40 min-w-0"></div>
-                </div>
-              </div>
+              <!-- Fallback removed per user request -->
               <button class="btn btn-xs btn-ghost gap-1 mt-1" @click="
                 llmTierConfig = {};
                 llmTiers.forEach(t => { llmTierConfig[t.id] = { provider: t.recProvider, model: t.recModel }; });
@@ -1447,6 +1429,7 @@ function integrationsHub() {
     drawerOpen: false,
     selected: null,
     statuses: {},
+    healthStatus: {},  // API health: { telivy: 'ok', entra: 'error', llm_anthropic: 'ok', ... }
 
     // LLM form state
     llmForm: { provider: '', api_key: '', model_name: '', azure_endpoint: '', azure_deployment: '', enabled: false, has_api_key: false },
@@ -1624,10 +1607,60 @@ function integrationsHub() {
       ]);
       this.loaded = true;
       this.loadReportHistory();
+      this.runHealthCheck();
+      // Re-check every 60 seconds
+      setInterval(() => this.runHealthCheck(), 60000);
+    },
+
+    async runHealthCheck() {
+      try {
+        const resp = await fetch('/api/v1/settings/health-check');
+        if (resp.ok) {
+          this.healthStatus = await resp.json();
+        }
+      } catch(e) {}
     },
 
     getStatus(id) {
       return this.statuses[id] || { configured: false, enabled: false, detail: '' };
+    },
+
+    _healthKeyMap: { telivy: 'telivy', entra: 'entra', ninjaone: 'ninjaone', defensx: 'defensx', llm_unified: 'llm_' },
+
+    getHealthDot(id) {
+      const s = this.getStatus(id);
+      if (!s.configured) return 'gray';
+      // Check API health for integrations that have it
+      const hk = this._healthKeyMap[id];
+      if (hk) {
+        if (hk === 'llm_') {
+          const anyOk = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'ok');
+          const anyErr = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'error');
+          if (anyErr && !anyOk) return 'red';
+          if (anyOk) return 'green';
+        } else {
+          const h = this.healthStatus[hk];
+          if (h) return h.status === 'ok' ? 'green' : h.status === 'error' ? 'red' : 'amber';
+        }
+      }
+      return s.enabled ? 'green' : 'amber';
+    },
+
+    getHealthLabel(id) {
+      const s = this.getStatus(id);
+      if (!s.configured) return 'Not configured';
+      const hk = this._healthKeyMap[id];
+      if (hk) {
+        if (hk === 'llm_') {
+          const anyErr = Object.entries(this.healthStatus).some(([k,v]) => k.startsWith('llm_') && v.status === 'error');
+          if (anyErr) return 'API error';
+        } else {
+          const h = this.healthStatus[hk];
+          if (h && h.status === 'error') return 'API error';
+          if (h && h.status === 'ok') return 'Connected';
+        }
+      }
+      return s.enabled ? 'Active' : 'Disabled';
     },
 
     getCategoryLabel(catId) {
@@ -1759,13 +1792,15 @@ function integrationsHub() {
 
     async loadLlm() {
       try {
-        const resp = await fetch('/api/v1/settings/llm');
+        const resp = await fetch('/api/v1/settings/llm/providers');
         if (!resp.ok) return;
-        const data = await resp.json();
+        const providers = await resp.json();
+        const configured = providers.length > 0;
+        const names = providers.map(p => p.provider.replace('_', ' ')).join(', ');
         this.statuses['llm_unified'] = {
-          configured: !!data.provider,
-          enabled: !!data.enabled,
-          detail: data.provider ? (data.provider + ': ' + (data.model_name || '')) : '',
+          configured: configured,
+          enabled: configured,
+          detail: names || '',
         };
       } catch (e) { console.debug('LLM status check skipped:', e); }
     },
