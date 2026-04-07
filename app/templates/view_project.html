@@ -2914,7 +2914,7 @@
 							<div x-show="showDriftAlerts" x-collapse class="space-y-1">
 								<template x-for="(alert, i) in driftAlerts" :key="i">
 									<div class="flex items-start gap-2 text-xs bg-base-100 rounded p-2">
-										<span class="badge badge-xs mt-0.5 shrink-0" :class="{'badge-error': alert.severity === 'critical', 'badge-warning': alert.severity === 'high', 'badge-info': alert.severity === 'medium' || alert.severity === 'info'}" x-text="alert.severity"></span>
+										<span class="badge badge-xs mt-0.5 shrink-0" :class="{'badge-error': alert.severity === 'critical' || alert.severity === 'high', 'badge-warning': alert.severity === 'medium', 'badge-info': alert.severity === 'low' || alert.severity === 'info'}" x-text="alert.severity"></span>
 										<div>
 											<div class="font-semibold" x-text="alert.title"></div>
 											<div class="opacity-60" x-text="alert.detail"></div>
@@ -4816,12 +4816,14 @@ function imageToBase64(img) {
 }
 
 function integrationDataTab() {
+	const _tenantId = '{{ project.tenant_id }}';
 	return {
 		intLoading: false,
 		intData: {},
 		driftAlerts: [],
 		driftChecking: false,
-		showDriftAlerts: true,
+		showDriftAlerts: false,
+		_driftLoaded: false,
 		async loadIntegrationData() {
 			this.intLoading = true;
 			this.intData = {};
@@ -4837,34 +4839,38 @@ function integrationDataTab() {
 				}
 			} catch(e) { console.warn('Integration data fetch failed:', e.message); }
 			this.intLoading = false;
-			this.loadDriftAlerts();
+			if (!this._driftLoaded) this.loadDriftAlerts();
 		},
 		async loadDriftAlerts() {
+			if (!_tenantId) return;
 			try {
-				const tenantId = '{{ project.tenant_id }}';
-				if (!tenantId) return;
-				const resp = await fetch(`/api/v1/settings/monitoring/drift?tenant_id=${tenantId}&limit=20`);
-				if (resp.ok) this.driftAlerts = await resp.json();
-			} catch(e) {}
+				const resp = await fetch(`/api/v1/settings/monitoring/drift?tenant_id=${_tenantId}&limit=20`);
+				if (resp.ok) {
+					this.driftAlerts = await resp.json();
+					this._driftLoaded = true;
+					if (this.driftAlerts.length > 0) this.showDriftAlerts = true;
+				}
+			} catch(e) { console.warn('Drift alerts fetch failed:', e.message); }
 		},
 		async checkDrift() {
+			if (!_tenantId) return;
 			this.driftChecking = true;
 			try {
-				const tenantId = '{{ project.tenant_id }}';
 				const resp = await fetch('/api/v1/settings/monitoring/check', {
 					method: 'POST',
 					headers: {'Content-Type': 'application/json'},
-					body: JSON.stringify({ tenant_id: tenantId })
+					body: JSON.stringify({ tenant_id: _tenantId })
 				});
 				const data = await resp.json();
 				if (resp.ok) {
-					const count = (data.alerts || []).length;
-					if (count > 0) {
-						toast(count + ' drift alert(s) detected', 'warning');
+					this.driftAlerts = data.alerts || [];
+					this._driftLoaded = true;
+					if (this.driftAlerts.length > 0) {
+						toast(this.driftAlerts.length + ' drift alert(s) detected', 'warning');
+						this.showDriftAlerts = true;
 					} else {
 						toast('No configuration drift detected', 'success');
 					}
-					this.loadDriftAlerts();
 				} else {
 					toast(data.error || 'Drift check failed', 'error');
 				}
