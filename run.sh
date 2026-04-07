@@ -31,6 +31,7 @@ start_server() {
     exec gunicorn \
         --bind "0.0.0.0:$PORT" \
         flask_app:app \
+        --preload \
         --access-logfile '-' \
         --error-logfile '-' \
         --workers="$GUNICORN_WORKERS" \
