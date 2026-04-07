@@ -3207,6 +3207,8 @@ class RiskRegister(db.Model):
     title_hash = db.Column(db.String(64), nullable=True)
     title = db.Column(EncryptedText, nullable=False)
     description = db.Column(EncryptedText, default="No description")
+    summary = db.Column(db.String, nullable=True)  # Brief one-liner
+    evidence_data = db.Column(db.JSON(), default=list)  # Raw findings: IPs, users, devices, breaches
     remediation = db.Column(EncryptedText)
     enabled = db.Column(db.Boolean(), default=True)
     risk = db.Column(db.String, default="unknown", nullable=False)
