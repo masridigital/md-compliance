@@ -1,0 +1,150 @@
+[
+  {
+    "name": "Rule 1.1 — Technology Competence",
+    "description": "A lawyer shall provide competent representation to a client, which includes keeping abreast of the benefits and risks associated with relevant technology (Comment [8]).",
+    "ref_code": "1.1",
+    "system_level": false,
+    "category": "Competence",
+    "subcategory": "Technology Competence",
+    "mapping": {"nist_800_53": ["AT-1", "AT-2", "AT-3"], "soc2": ["CC1.4"]},
+    "subcontrols": [
+      {"name": "Attorneys maintain reasonable understanding of technology used in their practice including risks and benefits", "description": "Duty of technology competence per Comment [8].", "guidance": "Examine CLE records for technology training. Interview attorneys on technology awareness.", "ref_code": "1.1.a"},
+      {"name": "Firm provides or requires continuing education on technology competence topics including cybersecurity, cloud computing, and AI tools", "description": "Technology CLE requirements.", "guidance": "Examine CLE tracking records. Verify technology topics covered annually.", "ref_code": "1.1.b"},
+      {"name": "When outsourcing technology functions, attorney retains supervisory responsibility and ensures competence of technology providers", "description": "Outsourced technology oversight.", "guidance": "Examine vendor agreements. Verify attorney oversight of technology providers.", "ref_code": "1.1.c"},
+      {"name": "Attorneys understand the capabilities and limitations of AI tools used in legal practice and verify AI-generated work product", "description": "AI tool competence and verification.", "guidance": "Examine AI tool usage policies. Verify review procedures for AI-generated content.", "ref_code": "1.1.d"}
+    ]
+  },
+  {
+    "name": "Rule 1.4 — Communication and Breach Notification",
+    "description": "A lawyer shall keep the client reasonably informed about the status of the matter, including material data security incidents affecting client information.",
+    "ref_code": "1.4",
+    "system_level": false,
+    "category": "Communications",
+    "subcategory": "Client Communication",
+    "mapping": {"nist_800_53": ["IR-6", "IR-8"], "soc2": ["CC7.3", "CC7.4"], "hipaa": ["164.404"]},
+    "subcontrols": [
+      {"name": "Firm has a documented incident response plan that includes client notification procedures for data breaches affecting client information (ABA Opinion 483)", "description": "Breach notification obligation.", "guidance": "Examine incident response plan. Verify client notification procedures documented.", "ref_code": "1.4.a"},
+      {"name": "Clients are promptly notified of data security incidents that may affect confidentiality of their information, with sufficient detail to make informed decisions", "description": "Timely breach communication.", "guidance": "Examine breach notification records. Verify promptness and completeness.", "ref_code": "1.4.b"},
+      {"name": "Attorney explains technology-related risks to clients in terms they can understand and obtains informed consent for technology choices affecting their data", "description": "Technology risk communication.", "guidance": "Examine client communications. Verify technology risks explained.", "ref_code": "1.4.c"},
+      {"name": "Firm uses secure communication methods for transmitting sensitive client information and advises clients on secure communication practices", "description": "Secure client communications (ABA Opinion 477R).", "guidance": "Examine communication policies and tools. Verify encrypted channels for sensitive data.", "ref_code": "1.4.d"}
+    ]
+  },
+  {
+    "name": "Rule 1.6 — Confidentiality: Encryption and Data Protection",
+    "description": "A lawyer shall make reasonable efforts to prevent the inadvertent or unauthorized disclosure of, or unauthorized access to, information relating to the representation of a client.",
+    "ref_code": "1.6",
+    "system_level": true,
+    "category": "Confidentiality",
+    "subcategory": "Data Protection",
+    "mapping": {"nist_800_53": ["SC-8", "SC-28", "SC-13", "MP-5"], "soc2": ["CC6.1", "CC6.7"], "iso_27001": ["A.8.24"]},
+    "subcontrols": [
+      {"name": "Client data is encrypted at rest using industry-standard encryption on all storage systems including laptops, mobile devices, and cloud services", "description": "Encryption at rest.", "guidance": "Examine encryption configurations. Verify AES-256 or equivalent on all client data stores.", "ref_code": "1.6.a"},
+      {"name": "Client data is encrypted in transit using TLS 1.2 or higher for all communications including email, file transfers, and remote access", "description": "Encryption in transit.", "guidance": "Examine TLS configurations. Verify encrypted channels for client data.", "ref_code": "1.6.b"},
+      {"name": "Cloud services storing client data are evaluated for security adequacy before use, with BAAs or confidentiality agreements in place", "description": "Cloud storage security.", "guidance": "Examine cloud service assessments. Verify security evaluation and agreements.", "ref_code": "1.6.c"},
+      {"name": "Remote access to firm systems requires multi-factor authentication and uses encrypted VPN or equivalent secure connections", "description": "Remote access security (ABA Opinion 498).", "guidance": "Examine remote access configurations. Verify MFA and VPN required.", "ref_code": "1.6.d"},
+      {"name": "Document metadata is scrubbed before sharing documents externally to prevent inadvertent disclosure of confidential information", "description": "Metadata scrubbing.", "guidance": "Examine document sharing procedures. Verify metadata removal tools deployed.", "ref_code": "1.6.e"},
+      {"name": "Client data is securely disposed of when no longer needed, with certificates of destruction for physical and electronic media", "description": "Secure data disposal.", "guidance": "Examine data destruction procedures and certificates. Verify secure erasure methods.", "ref_code": "1.6.f"}
+    ]
+  },
+  {
+    "name": "Rule 1.6 — Confidentiality: Access Controls",
+    "description": "Reasonable measures must be taken to prevent unauthorized access to client information through appropriate access controls and authentication.",
+    "ref_code": "1.6.ac",
+    "system_level": true,
+    "category": "Confidentiality",
+    "subcategory": "Access Management",
+    "mapping": {"nist_800_53": ["AC-2", "AC-3", "AC-6", "IA-2"], "soc2": ["CC6.1", "CC6.3"], "iso_27001": ["A.8.3"]},
+    "subcontrols": [
+      {"name": "Access to client files and systems is limited to authorized personnel on a need-to-know basis", "description": "Least-privilege access to client data.", "guidance": "Examine access control lists. Verify role-based access and need-to-know enforcement.", "ref_code": "1.6.ac.a"},
+      {"name": "Strong passwords and multi-factor authentication are required for all systems containing client information", "description": "Authentication controls.", "guidance": "Examine password policies and MFA configurations. Verify enforcement.", "ref_code": "1.6.ac.b"},
+      {"name": "Mobile device management (MDM) policies are in place for devices accessing client data, including remote wipe capability", "description": "Mobile device security.", "guidance": "Examine MDM policies and configurations. Verify remote wipe and encryption.", "ref_code": "1.6.ac.c"}
+    ]
+  },
+  {
+    "name": "Rule 1.6 — Confidentiality: Email Security",
+    "description": "Attorneys must take reasonable precautions when communicating client information via email, particularly for sensitive matters.",
+    "ref_code": "1.6.em",
+    "system_level": true,
+    "category": "Confidentiality",
+    "subcategory": "Communication Security",
+    "mapping": {"nist_800_53": ["SC-8", "SC-7"], "soc2": ["CC6.7"]},
+    "subcontrols": [
+      {"name": "Email encryption is used for communications containing sensitive or highly confidential client information (ABA Opinion 477R)", "description": "Encrypted email for sensitive matters.", "guidance": "Examine email encryption tools and policies. Verify use for sensitive communications.", "ref_code": "1.6.em.a"},
+      {"name": "Firm implements email security measures including SPF, DKIM, and DMARC to prevent spoofing and phishing", "description": "Email authentication protocols.", "guidance": "Examine DNS records. Verify SPF, DKIM, DMARC configured.", "ref_code": "1.6.em.b"},
+      {"name": "Anti-phishing training is provided to all firm personnel who handle client information", "description": "Phishing awareness training.", "guidance": "Examine training records. Verify anti-phishing training delivered.", "ref_code": "1.6.em.c"}
+    ]
+  },
+  {
+    "name": "Rule 1.15 — Safekeeping Client Property and Digital Assets",
+    "description": "A lawyer shall hold property of clients separate from the lawyer's own property, including digital assets and electronically stored client files.",
+    "ref_code": "1.15",
+    "system_level": false,
+    "category": "Safekeeping Property",
+    "subcategory": "Client Property Protection",
+    "mapping": {"nist_800_53": ["MP-2", "MP-4"], "soc2": ["CC6.5"]},
+    "subcontrols": [
+      {"name": "Client trust accounts are protected by strong access controls and monitoring for unauthorized transactions", "description": "Trust account security.", "guidance": "Examine trust account access controls. Verify monitoring and reconciliation.", "ref_code": "1.15.a"},
+      {"name": "Digital client files are backed up regularly and can be restored in case of data loss or ransomware attack", "description": "Client data backup.", "guidance": "Examine backup procedures and test results. Verify regular backups and restore testing.", "ref_code": "1.15.b"},
+      {"name": "Client file retention and destruction policies comply with applicable rules and bar requirements", "description": "File retention and destruction.", "guidance": "Examine retention schedule. Verify compliance with jurisdictional requirements.", "ref_code": "1.15.c"}
+    ]
+  },
+  {
+    "name": "Rule 5.1 — Firm-Wide Security Policies and Compliance",
+    "description": "Partners and supervising lawyers shall make reasonable efforts to ensure that the firm has in effect measures giving reasonable assurance that all lawyers' conduct conforms to the Rules of Professional Conduct.",
+    "ref_code": "5.1",
+    "system_level": false,
+    "category": "Supervision",
+    "subcategory": "Firm Governance",
+    "mapping": {"nist_800_53": ["PM-1", "PM-2", "PL-1"], "soc2": ["CC1.1", "CC1.2", "CC1.3"]},
+    "subcontrols": [
+      {"name": "Firm maintains a written information security policy covering client data protection, acceptable use, incident response, and vendor management", "description": "Written security policy.", "guidance": "Examine information security policy. Verify coverage of all key areas.", "ref_code": "5.1.a"},
+      {"name": "Security policies are reviewed and updated at least annually to address evolving threats and technology changes", "description": "Annual policy review.", "guidance": "Examine policy review records. Verify annual review and updates.", "ref_code": "5.1.b"},
+      {"name": "Partners ensure security policies are communicated to and acknowledged by all firm personnel", "description": "Policy communication and acknowledgment.", "guidance": "Examine acknowledgment records. Verify all personnel signed.", "ref_code": "5.1.c"},
+      {"name": "Firm conducts periodic risk assessments to identify threats to client data and implements appropriate safeguards", "description": "Periodic risk assessment.", "guidance": "Examine risk assessment reports. Verify regular cadence and remediation tracking.", "ref_code": "5.1.d"}
+    ]
+  },
+  {
+    "name": "Rule 5.3 — Supervision of Non-Lawyer Staff and Vendors",
+    "description": "A lawyer having supervisory authority over a non-lawyer shall make reasonable efforts to ensure that the person's conduct is compatible with the professional obligations of the lawyer.",
+    "ref_code": "5.3",
+    "system_level": false,
+    "category": "Supervision",
+    "subcategory": "Staff and Vendor Oversight",
+    "mapping": {"nist_800_53": ["AT-2", "PS-7", "SA-9"], "soc2": ["CC1.4", "CC9.2"]},
+    "subcontrols": [
+      {"name": "Non-lawyer staff with access to client information receive security awareness training upon hire and at least annually thereafter", "description": "Staff security training.", "guidance": "Examine training records. Verify onboarding and annual security training.", "ref_code": "5.3.a"},
+      {"name": "Third-party IT vendors and cloud service providers are vetted for security practices before engagement and monitored ongoing", "description": "Vendor security assessment.", "guidance": "Examine vendor assessment records. Verify pre-engagement and ongoing review.", "ref_code": "5.3.b"},
+      {"name": "Vendor agreements include confidentiality obligations, security requirements, breach notification duties, and data return/destruction provisions", "description": "Vendor contractual safeguards.", "guidance": "Examine vendor contracts. Verify required security clauses included.", "ref_code": "5.3.c"},
+      {"name": "Supervising attorney monitors staff compliance with security policies and takes corrective action for violations", "description": "Staff compliance monitoring.", "guidance": "Examine compliance monitoring records. Verify corrective action for violations.", "ref_code": "5.3.d"}
+    ]
+  },
+  {
+    "name": "Virtual Practice and Remote Work Security (ABA Opinion 498)",
+    "description": "Attorneys practicing virtually must implement additional safeguards to protect client information when working remotely or from non-traditional office settings.",
+    "ref_code": "Op. 498",
+    "system_level": true,
+    "category": "Confidentiality",
+    "subcategory": "Remote Work Security",
+    "mapping": {"nist_800_53": ["AC-17", "AC-20"], "soc2": ["CC6.1"], "iso_27001": ["A.6.7"]},
+    "subcontrols": [
+      {"name": "Remote work security policy addresses home office setup requirements, public Wi-Fi restrictions, and physical security of devices and documents", "description": "Remote work policy.", "guidance": "Examine remote work policy. Verify coverage of home office and public space security.", "ref_code": "498.a"},
+      {"name": "Attorneys use firm-approved and managed devices for accessing client information remotely, or personal devices meeting firm security standards", "description": "Approved device requirements.", "guidance": "Examine device inventory and MDM enrollment. Verify compliance.", "ref_code": "498.b"},
+      {"name": "Virtual meetings involving client matters use end-to-end encrypted platforms with appropriate access controls", "description": "Secure virtual meeting tools.", "guidance": "Examine approved platform list. Verify encryption and access controls.", "ref_code": "498.c"}
+    ]
+  },
+  {
+    "name": "Incident Response and Forensics",
+    "description": "Firms must have documented procedures for detecting, responding to, and recovering from data security incidents affecting client information.",
+    "ref_code": "IR",
+    "system_level": true,
+    "category": "Incident Management",
+    "subcategory": "Incident Response",
+    "mapping": {"nist_800_53": ["IR-1", "IR-4", "IR-5", "IR-8"], "soc2": ["CC7.3", "CC7.4", "CC7.5"]},
+    "subcontrols": [
+      {"name": "Firm maintains a written incident response plan covering detection, containment, investigation, client notification, regulatory reporting, and recovery", "description": "Documented IR plan.", "guidance": "Examine incident response plan. Verify all phases covered.", "ref_code": "IR.a"},
+      {"name": "Incident response team and roles are designated with clear escalation procedures", "description": "IR team and escalation.", "guidance": "Examine team roster and escalation matrix. Verify assignments current.", "ref_code": "IR.b"},
+      {"name": "Incident response plan is tested at least annually through tabletop exercises or simulations", "description": "Annual IR testing.", "guidance": "Examine exercise records. Verify annual testing and lessons learned.", "ref_code": "IR.c"},
+      {"name": "Firm evaluates obligation to notify clients, regulators, and bar disciplinary authorities after a data security incident per ABA Opinion 483", "description": "Post-incident notification assessment.", "guidance": "Examine notification assessment procedures. Verify multi-party notification evaluated.", "ref_code": "IR.d"}
+    ]
+  }
+]

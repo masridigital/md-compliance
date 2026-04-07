@@ -1,0 +1,238 @@
+[
+  {
+    "name": "Lawfulness, fairness, and transparency of processing",
+    "description": "Personal data must be processed lawfully, fairly, and in a transparent manner in relation to the data subject.",
+    "ref_code": "Art. 5(1)(a)",
+    "system_level": false,
+    "category": "Chapter II: Principles",
+    "subcategory": "Data Protection Principles",
+    "mapping": {"nist_800_53": ["AP-1", "AP-2"], "iso_27001": ["A.5.1"], "soc2": ["P1.1", "CC1.2"]},
+    "subcontrols": [
+      {"name": "Legal basis for processing is identified and documented for each processing activity", "description": "At least one lawful basis under Art. 6 applies.", "guidance": "Examine records of processing. Verify legal basis documented per activity.", "ref_code": "6.1"},
+      {"name": "Where consent is the legal basis, conditions for valid consent are met including freely given, specific, informed, and unambiguous indication", "description": "Consent meets GDPR requirements.", "guidance": "Examine consent mechanisms. Verify opt-in, granularity, and withdrawal process.", "ref_code": "7.1"},
+      {"name": "Data subjects are informed about processing at or before the time of collection via a privacy notice", "description": "Transparent privacy notice provided.", "guidance": "Examine privacy notices. Verify Art. 13/14 required information included.", "ref_code": "13.1"},
+      {"name": "Processing of special categories of personal data is prohibited unless a specific exception applies", "description": "Sensitive data processing restrictions enforced.", "guidance": "Examine processing records for special categories. Verify Art. 9 exception documented.", "ref_code": "9.1"}
+    ]
+  },
+  {
+    "name": "Purpose limitation",
+    "description": "Personal data must be collected for specified, explicit, and legitimate purposes and not further processed in an incompatible manner.",
+    "ref_code": "Art. 5(1)(b)",
+    "system_level": false,
+    "category": "Chapter II: Principles",
+    "subcategory": "Data Protection Principles",
+    "mapping": {"nist_800_53": ["AP-2"], "iso_27001": ["A.5.1"]},
+    "subcontrols": [
+      {"name": "Purposes of processing are specified and documented before processing begins", "description": "Clear purpose specification.", "guidance": "Examine records of processing activities. Verify purposes specified before collection.", "ref_code": "5.1.b.1"},
+      {"name": "Further processing is assessed for compatibility with original purposes", "description": "Compatibility assessment for new uses.", "guidance": "Examine compatibility assessments. Verify Art. 6(4) criteria applied.", "ref_code": "5.1.b.2"}
+    ]
+  },
+  {
+    "name": "Data minimization",
+    "description": "Personal data must be adequate, relevant, and limited to what is necessary in relation to the purposes for which they are processed.",
+    "ref_code": "Art. 5(1)(c)",
+    "system_level": false,
+    "category": "Chapter II: Principles",
+    "subcategory": "Data Protection Principles",
+    "mapping": {"nist_800_53": ["DM-1", "DM-2"], "iso_27001": ["A.5.1"], "soc2": ["P3.1"]},
+    "subcontrols": [
+      {"name": "Only personal data necessary for each specific purpose is collected", "description": "Collection limited to necessity.", "guidance": "Examine data collection forms and systems. Verify no excessive data collected.", "ref_code": "5.1.c.1"},
+      {"name": "Periodic reviews ensure data held remains relevant and necessary", "description": "Ongoing necessity review.", "guidance": "Examine data review schedules and records. Verify periodic minimization reviews.", "ref_code": "5.1.c.2"}
+    ]
+  },
+  {
+    "name": "Accuracy of personal data",
+    "description": "Personal data must be accurate and, where necessary, kept up to date. Every reasonable step must be taken to ensure inaccurate data is erased or rectified without delay.",
+    "ref_code": "Art. 5(1)(d)",
+    "system_level": false,
+    "category": "Chapter II: Principles",
+    "subcategory": "Data Protection Principles",
+    "mapping": {"nist_800_53": ["DI-1", "DI-2"], "iso_27001": ["A.5.1"], "soc2": ["PI1.1"]},
+    "subcontrols": [
+      {"name": "Processes exist to verify and maintain the accuracy of personal data", "description": "Data accuracy mechanisms.", "guidance": "Examine data quality procedures. Verify accuracy checks in place.", "ref_code": "5.1.d.1"},
+      {"name": "Inaccurate personal data is corrected or erased without undue delay upon discovery or request", "description": "Prompt rectification process.", "guidance": "Examine rectification request logs. Verify timely corrections.", "ref_code": "16.1"}
+    ]
+  },
+  {
+    "name": "Storage limitation",
+    "description": "Personal data must be kept in a form which permits identification of data subjects for no longer than is necessary for the purposes for which it is processed.",
+    "ref_code": "Art. 5(1)(e)",
+    "system_level": false,
+    "category": "Chapter II: Principles",
+    "subcategory": "Data Protection Principles",
+    "mapping": {"nist_800_53": ["DM-2", "SI-12"], "iso_27001": ["A.5.1"], "soc2": ["P4.1"]},
+    "subcontrols": [
+      {"name": "Retention periods are defined for each category of personal data", "description": "Documented retention schedule.", "guidance": "Examine retention policy. Verify periods defined per data category.", "ref_code": "5.1.e.1"},
+      {"name": "Personal data is erased or anonymized when retention period expires", "description": "Automated or scheduled deletion.", "guidance": "Examine deletion procedures and logs. Verify data deleted on schedule.", "ref_code": "5.1.e.2"}
+    ]
+  },
+  {
+    "name": "Integrity and confidentiality (security of processing)",
+    "description": "Personal data must be processed in a manner that ensures appropriate security, including protection against unauthorized or unlawful processing and against accidental loss, destruction, or damage.",
+    "ref_code": "Art. 5(1)(f)",
+    "system_level": true,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Security of Processing",
+    "mapping": {"nist_800_53": ["SC-8", "SC-28", "SC-13"], "iso_27001": ["A.8.24", "A.8.10"], "soc2": ["CC6.1", "CC6.7"]},
+    "subcontrols": [
+      {"name": "Pseudonymization and encryption of personal data are implemented where appropriate", "description": "Data protection technical measures.", "guidance": "Examine encryption implementations. Verify pseudonymization where applicable.", "ref_code": "32.1.a"},
+      {"name": "The ability to ensure ongoing confidentiality, integrity, availability, and resilience of processing systems and services", "description": "System resilience and security.", "guidance": "Examine system security architecture. Verify CIA controls.", "ref_code": "32.1.b"},
+      {"name": "The ability to restore the availability and access to personal data in a timely manner in the event of a physical or technical incident", "description": "Disaster recovery for personal data.", "guidance": "Examine backup and DR procedures. Verify recovery testing.", "ref_code": "32.1.c"},
+      {"name": "A process for regularly testing, assessing, and evaluating the effectiveness of technical and organizational measures for ensuring the security of the processing", "description": "Regular security testing.", "guidance": "Examine security testing records. Verify periodic assessments conducted.", "ref_code": "32.1.d"}
+    ]
+  },
+  {
+    "name": "Accountability",
+    "description": "The controller shall be responsible for, and be able to demonstrate compliance with, the data protection principles.",
+    "ref_code": "Art. 5(2)",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Accountability and Governance",
+    "mapping": {"nist_800_53": ["PM-1", "PM-2"], "iso_27001": ["A.5.1", "A.5.2"], "soc2": ["CC1.1", "CC1.2"]},
+    "subcontrols": [
+      {"name": "The controller implements appropriate technical and organizational measures to ensure and demonstrate compliance", "description": "Documented compliance program.", "guidance": "Examine compliance documentation. Verify policies, procedures, and records.", "ref_code": "24.1"},
+      {"name": "Data protection policies are implemented and documented", "description": "Written data protection policies.", "guidance": "Examine data protection policy. Verify it covers all GDPR principles.", "ref_code": "24.2"},
+      {"name": "Records of processing activities are maintained as required", "description": "Art. 30 processing records.", "guidance": "Examine ROPA. Verify all required fields populated.", "ref_code": "30.1"}
+    ]
+  },
+  {
+    "name": "Rights of the data subject — Access and portability",
+    "description": "Data subjects have the right to obtain confirmation of processing, access their data, and receive it in a portable format.",
+    "ref_code": "Art. 15/20",
+    "system_level": false,
+    "category": "Chapter III: Rights of the Data Subject",
+    "subcategory": "Individual Rights",
+    "mapping": {"nist_800_53": ["IP-1", "IP-2"], "iso_27001": ["A.5.1"], "soc2": ["P5.1", "P6.1"]},
+    "subcontrols": [
+      {"name": "Data subjects can obtain confirmation of whether personal data concerning them is being processed", "description": "Right of access mechanism.", "guidance": "Examine SAR handling process. Verify confirmation provided within 1 month.", "ref_code": "15.1"},
+      {"name": "A copy of the personal data undergoing processing is provided free of charge in a commonly used electronic format", "description": "Data access fulfillment.", "guidance": "Examine SAR response records. Verify data provided in accessible format.", "ref_code": "15.3"},
+      {"name": "Data subjects can receive their personal data in a structured, commonly used, and machine-readable format and transmit it to another controller", "description": "Data portability mechanism.", "guidance": "Examine portability request handling. Verify machine-readable format provided.", "ref_code": "20.1"}
+    ]
+  },
+  {
+    "name": "Rights of the data subject — Erasure and restriction",
+    "description": "Data subjects have the right to obtain erasure of personal data and restriction of processing under certain conditions.",
+    "ref_code": "Art. 17/18",
+    "system_level": false,
+    "category": "Chapter III: Rights of the Data Subject",
+    "subcategory": "Individual Rights",
+    "mapping": {"nist_800_53": ["DM-2", "IP-3"], "iso_27001": ["A.5.1"], "soc2": ["P4.2", "P6.5"]},
+    "subcontrols": [
+      {"name": "Data subjects can obtain erasure of personal data without undue delay where one of the specified grounds applies", "description": "Right to be forgotten.", "guidance": "Examine erasure request handling. Verify deletion within 1 month.", "ref_code": "17.1"},
+      {"name": "Where erasure requests apply to data made public, reasonable steps are taken to inform other controllers processing the data", "description": "Erasure notification to third parties.", "guidance": "Examine notification procedures. Verify downstream controllers informed.", "ref_code": "17.2"},
+      {"name": "Data subjects can obtain restriction of processing where accuracy is contested, processing is unlawful, or data is no longer needed but required for legal claims", "description": "Restriction of processing mechanism.", "guidance": "Examine restriction request handling. Verify processing halted appropriately.", "ref_code": "18.1"}
+    ]
+  },
+  {
+    "name": "Right to object and automated decision-making",
+    "description": "Data subjects have the right to object to processing and not to be subject to decisions based solely on automated processing which produce legal or similarly significant effects.",
+    "ref_code": "Art. 21/22",
+    "system_level": false,
+    "category": "Chapter III: Rights of the Data Subject",
+    "subcategory": "Individual Rights",
+    "mapping": {"nist_800_53": ["IP-1", "IP-3"], "iso_27001": ["A.5.1"], "soc2": ["P6.1"]},
+    "subcontrols": [
+      {"name": "Data subjects can object to processing based on legitimate interests or public interest, including profiling", "description": "Right to object mechanism.", "guidance": "Examine objection handling process. Verify processing ceases unless compelling grounds.", "ref_code": "21.1"},
+      {"name": "Where personal data is processed for direct marketing, data subjects can object at any time and processing ceases", "description": "Direct marketing opt-out.", "guidance": "Examine marketing consent/opt-out mechanisms. Verify immediate cessation.", "ref_code": "21.2"},
+      {"name": "Data subjects are not subject to decisions based solely on automated processing that produce legal or similarly significant effects, unless explicit consent, contractual necessity, or law authorizes it", "description": "Automated decision-making safeguards.", "guidance": "Examine automated decision systems. Verify human oversight and right to contest.", "ref_code": "22.1"}
+    ]
+  },
+  {
+    "name": "Data protection by design and by default",
+    "description": "The controller shall implement appropriate technical and organizational measures designed to implement data-protection principles in an effective manner and integrate necessary safeguards into the processing.",
+    "ref_code": "Art. 25",
+    "system_level": true,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Accountability and Governance",
+    "mapping": {"nist_800_53": ["SA-8", "PM-25"], "iso_27001": ["A.8.25", "A.8.27"], "soc2": ["CC3.1"]},
+    "subcontrols": [
+      {"name": "Data protection considerations are integrated into the design of processing operations and systems from the earliest stage", "description": "Privacy by design.", "guidance": "Examine SDLC procedures. Verify privacy impact considered at design stage.", "ref_code": "25.1"},
+      {"name": "By default, only personal data necessary for each specific purpose is processed with regard to amount, extent, storage period, and accessibility", "description": "Privacy by default settings.", "guidance": "Examine default system configurations. Verify minimal data processing by default.", "ref_code": "25.2"}
+    ]
+  },
+  {
+    "name": "Processor requirements",
+    "description": "Processing by a processor shall be governed by a contract or legal act that sets out the subject-matter and duration of the processing, the nature and purpose, the type of personal data, and the categories of data subjects.",
+    "ref_code": "Art. 28",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Third-Party Management",
+    "mapping": {"nist_800_53": ["SA-9", "PS-7"], "iso_27001": ["A.5.19", "A.5.20"], "soc2": ["CC9.2"]},
+    "subcontrols": [
+      {"name": "Processors are engaged only where sufficient guarantees of appropriate technical and organizational measures are provided", "description": "Processor due diligence.", "guidance": "Examine vendor assessment records. Verify security guarantees evaluated.", "ref_code": "28.1"},
+      {"name": "Processing by a processor is governed by a written contract containing all required Art. 28(3) clauses", "description": "Data processing agreements.", "guidance": "Examine DPAs. Verify all mandatory clauses included.", "ref_code": "28.3"},
+      {"name": "Sub-processors are engaged only with prior written authorization of the controller", "description": "Sub-processor authorization.", "guidance": "Examine sub-processor lists and authorizations. Verify controller approval.", "ref_code": "28.2"}
+    ]
+  },
+  {
+    "name": "Records of processing activities",
+    "description": "Each controller and processor shall maintain a record of processing activities under its responsibility.",
+    "ref_code": "Art. 30",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Accountability and Governance",
+    "mapping": {"nist_800_53": ["PM-5"], "iso_27001": ["A.5.1"], "soc2": ["CC1.2"]},
+    "subcontrols": [
+      {"name": "Controller maintains records containing name and contact details, purposes, categories of data subjects and data, recipients, transfers, retention periods, and security measures", "description": "Controller ROPA completeness.", "guidance": "Examine ROPA. Verify all Art. 30(1) required fields populated.", "ref_code": "30.1"},
+      {"name": "Processor maintains records containing name and contact details of each controller, categories of processing, transfers, and security measures", "description": "Processor ROPA.", "guidance": "Examine processor ROPA. Verify Art. 30(2) fields complete.", "ref_code": "30.2"},
+      {"name": "Records are made available to the supervisory authority on request", "description": "ROPA availability.", "guidance": "Verify records accessible and current for regulatory requests.", "ref_code": "30.4"}
+    ]
+  },
+  {
+    "name": "Data breach notification",
+    "description": "Personal data breaches must be notified to the supervisory authority within 72 hours and to data subjects without undue delay where the breach is likely to result in a high risk to their rights and freedoms.",
+    "ref_code": "Art. 33/34",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Incident Management",
+    "mapping": {"nist_800_53": ["IR-6", "IR-8"], "iso_27001": ["A.5.24", "A.5.26"], "soc2": ["CC7.3", "CC7.4"]},
+    "subcontrols": [
+      {"name": "Personal data breaches are notified to the supervisory authority without undue delay and where feasible within 72 hours of becoming aware", "description": "72-hour breach notification to authority.", "guidance": "Examine breach notification procedures and logs. Verify 72-hour timeline met.", "ref_code": "33.1"},
+      {"name": "Breach notification to authority includes nature of breach, categories and approximate number of data subjects and records affected, likely consequences, and measures taken", "description": "Complete breach notification content.", "guidance": "Examine breach notifications. Verify all Art. 33(3) information included.", "ref_code": "33.3"},
+      {"name": "When a breach is likely to result in a high risk to the rights and freedoms of natural persons, the data subject is informed without undue delay", "description": "Breach communication to data subjects.", "guidance": "Examine subject notification procedures. Verify high-risk breaches communicated.", "ref_code": "34.1"},
+      {"name": "A record of all personal data breaches is maintained including facts, effects, and remedial action taken", "description": "Breach register.", "guidance": "Examine breach register. Verify completeness and remediation documentation.", "ref_code": "33.5"}
+    ]
+  },
+  {
+    "name": "Data protection impact assessment",
+    "description": "Where processing is likely to result in a high risk to the rights and freedoms of natural persons, the controller shall carry out a data protection impact assessment prior to the processing.",
+    "ref_code": "Art. 35",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Risk Management",
+    "mapping": {"nist_800_53": ["RA-3", "RA-8"], "iso_27001": ["A.5.1"], "soc2": ["CC3.2", "CC9.1"]},
+    "subcontrols": [
+      {"name": "DPIAs are conducted for processing likely to result in high risk, including systematic evaluation/profiling, large-scale processing of special categories, and large-scale monitoring of public areas", "description": "Mandatory DPIA for high-risk processing.", "guidance": "Examine DPIA records. Verify DPIAs conducted for all Art. 35(3) scenarios.", "ref_code": "35.1"},
+      {"name": "DPIA contains a systematic description of processing operations, assessment of necessity and proportionality, assessment of risks, and measures to address risks", "description": "Complete DPIA content.", "guidance": "Examine DPIA documents. Verify all Art. 35(7) elements included.", "ref_code": "35.7"},
+      {"name": "Where DPIA indicates high residual risk, the supervisory authority is consulted prior to processing", "description": "Prior consultation for high-risk processing.", "guidance": "Examine prior consultation records. Verify authority consulted where required.", "ref_code": "36.1"}
+    ]
+  },
+  {
+    "name": "Data Protection Officer",
+    "description": "A Data Protection Officer must be designated where the core activities require regular and systematic monitoring of data subjects on a large scale, or consist of large-scale processing of special categories of data.",
+    "ref_code": "Art. 37-39",
+    "system_level": false,
+    "category": "Chapter IV: Controller and Processor",
+    "subcategory": "Accountability and Governance",
+    "mapping": {"nist_800_53": ["PM-2"], "iso_27001": ["A.5.2"], "soc2": ["CC1.1"]},
+    "subcontrols": [
+      {"name": "A DPO is designated where required and their contact details are published and communicated to the supervisory authority", "description": "DPO designation and registration.", "guidance": "Examine DPO appointment. Verify contact details published and authority notified.", "ref_code": "37.1"},
+      {"name": "The DPO is involved properly and in a timely manner in all issues relating to the protection of personal data", "description": "DPO involvement in privacy matters.", "guidance": "Examine DPO consultation records. Verify timely involvement in privacy decisions.", "ref_code": "38.1"},
+      {"name": "The DPO independently performs tasks including informing, advising, monitoring compliance, providing advice on DPIAs, and cooperating with the supervisory authority", "description": "DPO task independence.", "guidance": "Examine DPO activity records. Verify independent task performance.", "ref_code": "39.1"}
+    ]
+  },
+  {
+    "name": "International data transfers",
+    "description": "Transfers of personal data to third countries or international organizations may only take place where adequate safeguards are in place.",
+    "ref_code": "Art. 44-49",
+    "system_level": false,
+    "category": "Chapter V: Transfers",
+    "subcategory": "Cross-Border Data Transfers",
+    "mapping": {"nist_800_53": ["AC-21", "PM-15"], "iso_27001": ["A.5.1"], "soc2": ["CC9.2"]},
+    "subcontrols": [
+      {"name": "Transfers to third countries occur only on the basis of an adequacy decision, appropriate safeguards, or a derogation under Art. 49", "description": "Valid transfer mechanism.", "guidance": "Examine transfer records. Verify legal basis for each transfer destination.", "ref_code": "44.1"},
+      {"name": "Where standard contractual clauses (SCCs) are used, supplementary measures are assessed and implemented where necessary to ensure adequate protection", "description": "Transfer impact assessment (Schrems II).", "guidance": "Examine TIAs and supplementary measures. Verify adequacy of protections.", "ref_code": "46.1"},
+      {"name": "Transfers and their legal bases are documented in the records of processing activities", "description": "Transfer documentation.", "guidance": "Examine ROPA transfer entries. Verify transfer destinations and mechanisms documented.", "ref_code": "30.1.e"}
+    ]
+  }
+]
