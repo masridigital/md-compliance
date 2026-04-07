@@ -81,7 +81,7 @@ class Config:
     DOC_LINK = os.environ.get("DOC_LINK", "https://github.com/masridigital/md-compliance")
     DEFAULT_EMAIL = os.environ.get("DEFAULT_EMAIL", "admin@example.com")
     DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD")
-    HELP_EMAIL = os.environ.get("HELP_EMAIL", DEFAULT_EMAIL)
+    HELP_EMAIL = os.environ.get("HELP_EMAIL") or os.environ.get("SUPPORT_EMAIL") or "support@masridigital.com"
 
     ENABLE_GOOGLE_AUTH = os.environ.get("ENABLE_GOOGLE_AUTH", "false").lower() == "true"
     ENABLE_MICROSOFT_AUTH = (
