@@ -931,13 +931,56 @@
 											</template>
 										</select>
 									</div>
+									<!-- Summary -->
+									<div class="col-span-6" x-show="selectedReport.summary">
+										<div class="bg-base-300 rounded-lg p-3 mb-1">
+											<div class="text-xs font-semibold uppercase tracking-wider opacity-40 mb-1">Summary</div>
+											<p class="text-sm" x-text="selectedReport.summary"></p>
+										</div>
+									</div>
 									<div class="col-span-6">
 										<h4 class="my-2 subtitle text-sm">Risk Description</h4>
-										<textarea rows="4" @change="updateRisk(selectedReport)" x-model="selectedReport.description" :value="selectedReport.description" x-text="selectedReport.description" class="textarea w-full" placeholder="No description as been provided."></textarea>
+										<textarea rows="4" @change="updateRisk(selectedReport)" x-model="selectedReport.description" :value="selectedReport.description" x-text="selectedReport.description" class="textarea w-full" placeholder="No description has been provided."></textarea>
 									</div>
 									<div class="col-span-6">
 										<h4 class="my-2 subtitle text-sm">Risk Remediation</h4>
-										<textarea rows="4" @change="updateRisk(selectedReport)" x-model="selectedReport.remediation" :value="selectedReport.remediation" x-text="selectedReport.remediation" class="textarea w-full" placeholder="No remediation as been provided."></textarea>
+										<textarea rows="4" @change="updateRisk(selectedReport)" x-model="selectedReport.remediation" :value="selectedReport.remediation" x-text="selectedReport.remediation" class="textarea w-full" placeholder="No remediation has been provided."></textarea>
+									</div>
+									<!-- Evidence Data -->
+									<div class="col-span-6" x-show="selectedReport.evidence_data && selectedReport.evidence_data.length > 0">
+										<h4 class="my-2 subtitle text-sm flex items-center gap-2">
+											<i class="ti ti-file-search text-primary"></i> Supporting Evidence
+											<span class="badge badge-sm badge-ghost" x-text="(selectedReport.evidence_data || []).length + ' items'"></span>
+										</h4>
+										<div class="bg-base-300 rounded-lg overflow-hidden">
+											<table class="table table-xs w-full">
+												<thead>
+													<tr class="border-b border-base-100">
+														<th class="w-24">Type</th>
+														<th class="w-40">Entity</th>
+														<th>Detail</th>
+													</tr>
+												</thead>
+												<tbody>
+													<template x-for="(ev, idx) in (selectedReport.evidence_data || [])" :key="idx">
+														<tr class="border-b border-base-100/50">
+															<td>
+																<span class="badge badge-xs"
+																	:class="{
+																		'badge-error': ev.type === 'breach' || ev.type === 'vulnerability' || ev.type === 'credential',
+																		'badge-warning': ev.type === 'user' || ev.type === 'device' || ev.type === 'patch',
+																		'badge-info': ev.type === 'policy' || ev.type === 'config' || ev.type === 'alert',
+																		'badge-ghost': !ev.type || ev.type === 'finding' || ev.type === 'cross_source',
+																	}"
+																	x-text="ev.type || 'finding'"></span>
+															</td>
+															<td class="font-medium text-xs" x-text="ev.name || ev.source || '-'"></td>
+															<td class="text-xs opacity-70" x-text="ev.detail || '-'"></td>
+														</tr>
+													</template>
+												</tbody>
+											</table>
+										</div>
 									</div>
 								</div>
 							</div>
