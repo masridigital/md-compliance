@@ -237,6 +237,10 @@
                       <button class="btn btn-ghost btn-xs gap-1" @click="telivyViewFindings(s.id)" title="View findings"><i class="ti ti-list-details"></i> Findings</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/external-scans/' + s.id + '/report?format=pdf&inline=true', s.assessmentDetails?.organization_name || s.id, 'scan', s.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> Report</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(s.id, getScanTenantMapping(s.id))" title="Debug data"><i class="ti ti-code"></i> Debug</button>
+                      <button x-show="getScanTenantMapping(s.id)" class="btn btn-ghost btn-xs gap-1" @click="rerunAutoProcess(s.id, 'scan')" :disabled="telivyScanMappings[s.id]?.process_status === 'processing'">
+                        <span class="loading loading-spinner loading-xs" x-show="telivyScanMappings[s.id]?.process_status === 'processing'"></span>
+                        <i class="ti ti-refresh text-xs" x-show="telivyScanMappings[s.id]?.process_status !== 'processing'"></i> Re-run
+                      </button>
                     </div>
                     <div class="flex items-center gap-1 mt-1">
                       <select class="select select-bordered select-xs capitalize flex-1 min-w-0"
@@ -252,25 +256,11 @@
                         <i class="ti ti-brain text-primary" x-show="!s._aiMapping"></i>
                       </button>
                     </div>
-                    <!-- Processing status -->
-                    <div x-show="telivyScanMappings[s.id] && telivyScanMappings[s.id].process_status" class="mt-1 flex items-center gap-2">
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[s.id]?.process_result || 'Processed'"></span></span>
-                      <span x-show="telivyScanMappings[s.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
-                      <button x-show="telivyScanMappings[s.id]?.process_status === 'processing'"
-                              class="btn btn-xs btn-outline btn-error gap-1" @click="cancelAutoProcess(s.id)">
-                        <i class="ti ti-x text-xs"></i> Cancel
-                      </button>
-                      <button x-show="telivyScanMappings[s.id]?.process_status === 'done' || telivyScanMappings[s.id]?.process_status === 'failed'"
-                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(s.id, 'scan')">
-                        <i class="ti ti-refresh text-xs"></i> Re-run
-                      </button>
-                    </div>
-                    <!-- Re-run button when mapped but never processed -->
-                    <div x-show="getScanTenantMapping(s.id) && (!telivyScanMappings[s.id]?.process_status)" class="mt-1">
-                      <button class="btn btn-xs btn-ghost gap-1 text-info" @click="rerunAutoProcess(s.id, 'scan')">
-                        <i class="ti ti-player-play text-xs"></i> Run AI Analysis
-                      </button>
+                    <!-- Processing status (inline text only, Re-run button is above) -->
+                    <div x-show="telivyScanMappings[s.id]?.process_status" class="mt-1 flex items-center gap-2 text-xs">
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'processing'" class="text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> <span x-text="telivyScanMappings[s.id]?.process_result || 'Processing...'"></span></span>
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'done'" class="text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[s.id]?.process_result || 'Done'"></span></span>
+                      <span x-show="telivyScanMappings[s.id]?.process_status === 'failed'" class="text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
                     </div>
                   </div>
                 </template>
@@ -317,6 +307,10 @@
                       <button class="btn btn-ghost btn-xs gap-1" @click="telivyViewAssessmentDetails(a.id)" title="View details"><i class="ti ti-list-details"></i> Details</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> Report</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(a.id, getScanTenantMapping(a.id))" title="Debug data"><i class="ti ti-code"></i> Debug</button>
+                      <button x-show="getScanTenantMapping(a.id)" class="btn btn-ghost btn-xs gap-1" @click="rerunAutoProcess(a.id, 'assessment')" :disabled="telivyScanMappings[a.id]?.process_status === 'processing'">
+                        <span class="loading loading-spinner loading-xs" x-show="telivyScanMappings[a.id]?.process_status === 'processing'"></span>
+                        <i class="ti ti-refresh text-xs" x-show="telivyScanMappings[a.id]?.process_status !== 'processing'"></i> Re-run
+                      </button>
                     </div>
                     <div class="flex items-center gap-1 mt-1">
                       <select class="select select-bordered select-xs capitalize flex-1 min-w-0"
@@ -332,25 +326,10 @@
                         <i class="ti ti-brain text-primary" x-show="!a._aiMapping"></i>
                       </button>
                     </div>
-                    <!-- Processing status -->
-                    <div x-show="telivyScanMappings[a.id] && telivyScanMappings[a.id].process_status" class="mt-1 flex items-center gap-2">
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'processing'" class="text-xs text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> Processing...</span>
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'done'" class="text-xs text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[a.id]?.process_result || 'Processed'"></span></span>
-                      <span x-show="telivyScanMappings[a.id]?.process_status === 'failed'" class="text-xs text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
-                      <button x-show="telivyScanMappings[a.id]?.process_status === 'processing'"
-                              class="btn btn-xs btn-outline btn-error gap-1" @click="cancelAutoProcess(a.id)">
-                        <i class="ti ti-x text-xs"></i> Cancel
-                      </button>
-                      <button x-show="telivyScanMappings[a.id]?.process_status === 'done' || telivyScanMappings[a.id]?.process_status === 'failed'"
-                              class="btn btn-xs btn-ghost gap-1" @click="rerunAutoProcess(a.id, 'assessment')">
-                        <i class="ti ti-refresh text-xs"></i> Re-run
-                      </button>
-                    </div>
-                    <!-- Re-run button when mapped but never processed -->
-                    <div x-show="getScanTenantMapping(a.id) && (!telivyScanMappings[a.id]?.process_status)" class="mt-1">
-                      <button class="btn btn-xs btn-ghost gap-1 text-info" @click="rerunAutoProcess(a.id, 'assessment')">
-                        <i class="ti ti-player-play text-xs"></i> Run AI Analysis
-                      </button>
+                    <div x-show="telivyScanMappings[a.id]?.process_status" class="mt-1 flex items-center gap-2 text-xs">
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'processing'" class="text-info flex items-center gap-1"><span class="loading loading-spinner loading-xs"></span> <span x-text="telivyScanMappings[a.id]?.process_result || 'Processing...'"></span></span>
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'done'" class="text-success flex items-center gap-1"><i class="ti ti-check"></i> <span x-text="telivyScanMappings[a.id]?.process_result || 'Done'"></span></span>
+                      <span x-show="telivyScanMappings[a.id]?.process_status === 'failed'" class="text-error flex items-center gap-1"><i class="ti ti-x"></i> Failed</span>
                     </div>
                   </div>
                 </template>
