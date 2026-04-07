@@ -5,7 +5,12 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
   .login-panel { font-family: 'DM Sans', system-ui, sans-serif; }
-  .login-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .login-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .login-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
+  .login-panel .input:focus { border-color: #10b981 !important; }
+  .login-panel .input::placeholder { color: rgba(255,255,255,0.3); }
+  .login-panel .btn-outline { border-color: rgba(255,255,255,0.15) !important; color: rgba(255,255,255,0.8) !important; }
+  .login-panel .btn-outline:hover { background: rgba(255,255,255,0.06) !important; }
   .login-hero {
     background: #0a0f0d;
     background-image:
@@ -47,7 +52,7 @@
 
   <!-- Login card floating on the right -->
   <div class="relative z-20 min-h-screen flex items-center justify-center p-4 lg:p-10">
-    <div class="w-full max-w-md bg-base-100/95 backdrop-blur-xl rounded-2xl shadow-2xl shadow-black/40 p-8 lg:p-10 border border-white/5">
+    <div class="w-full max-w-md bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 lg:p-10 border border-emerald-500/10">
       <form action="{{url_for('auth.get_login', next=request.args.get('next'))}}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -58,8 +63,8 @@
             </div>
             <span class="font-bold text-lg">MD Compliance</span>
           </div>
-          <h2 class="text-2xl font-bold tracking-tight">Welcome back</h2>
-          <p class="text-sm opacity-50 mt-1">Sign in to your account</p>
+          <h2 class="text-2xl font-bold tracking-tight text-white">Welcome back</h2>
+          <p class="text-sm text-gray-400 mt-1">Sign in to your account</p>
           {%if config.IS_SELF_REGISTRATION_ENABLED %}
           <p class="text-sm mt-2 opacity-60">New here? <a href="/register" class="text-emerald-400 hover:underline">Create an account</a></p>
           {%endif%}
