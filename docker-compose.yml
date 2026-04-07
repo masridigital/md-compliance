@@ -74,8 +74,6 @@ services:
       retries: 10
 
   # ── Celery Worker (background tasks) ─────────────────────────────────────────
-  # Processes scheduled tasks (due reminders, drift detection, integration refresh).
-  # Optional: if not running, scheduler falls back to threading.Timer in the app.
   celery-worker:
     container_name: celery-worker
     image: app
@@ -103,8 +101,6 @@ services:
       - celery
 
   # ── Celery Beat (task scheduler) ───────────────────────────────────────────
-  # Triggers tasks on schedule (1h, 24h, 7d intervals).
-  # Optional: if not running, scheduler falls back to threading.Timer in the app.
   celery-beat:
     container_name: celery-beat
     image: app

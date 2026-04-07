@@ -1,14 +1,14 @@
 """
-In-memory + Redis ring buffer for capturing application logs.
+Ring buffer for capturing application logs, backed by Redis with
+in-memory fallback.
 
-Used by the system page real-time log viewer. Stores the last N log
-entries in memory — and optionally in Redis for cross-worker visibility
-and persistence across restarts.
+Redis mode: LPUSH + LTRIM to a Redis LIST (key: ``md_compliance:logs``).
+Fallback: in-memory deque (same as before) if Redis is unavailable.
 
 Usage in __init__.py::
 
     from app.masri.log_buffer import BufferHandler, get_recent_logs
-    handler = BufferHandler(capacity=500, redis_url="redis://redis:6379/0")
+    handler = BufferHandler(capacity=500)
     app.logger.addHandler(handler)
 """
 
@@ -21,33 +21,43 @@ from datetime import datetime
 
 _lock = threading.Lock()
 _buffer = deque(maxlen=500)
-_redis_client = None
-_worker_id = str(os.getpid())
 
-_REDIS_KEY = "masri:logs"
-_REDIS_MAX = 500
+# Redis connection (lazy init)
+_redis = None
+_redis_checked = False
+_REDIS_KEY = "md_compliance:logs"
+_CAPACITY = 500
+
+
+def _get_redis():
+    """Lazy-init Redis connection. Returns None if unavailable."""
+    global _redis, _redis_checked
+    if _redis_checked:
+        return _redis
+    _redis_checked = True
+    try:
+        import redis
+        redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+        _redis = redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+        _redis.ping()
+    except Exception:
+        _redis = None
+    return _redis
+
+
+def _get_worker_id():
+    """Return a short worker identifier for multi-worker log attribution."""
+    return f"w{os.getpid()}"
 
 
 class BufferHandler(logging.Handler):
-    """Logging handler that stores formatted records in a ring buffer.
+    """Logging handler that stores formatted records in Redis or memory."""
 
-    Supports optional Redis backend for cross-worker log aggregation.
-    Falls back to in-memory deque if Redis is unavailable.
-    """
-
-    def __init__(self, capacity=500, redis_url=None):
+    def __init__(self, capacity=500):
         super().__init__()
-        global _buffer, _redis_client
+        global _buffer, _CAPACITY
+        _CAPACITY = capacity
         _buffer = deque(maxlen=capacity)
-
-        if redis_url:
-            try:
-                import redis as _redis_mod
-                client = _redis_mod.from_url(redis_url, decode_responses=True)
-                client.ping()
-                _redis_client = client
-            except Exception:
-                _redis_client = None  # Fallback to in-memory only
 
     # Patterns to redact from log messages shown in the UI
     _REDACT_PATTERNS = None
@@ -84,30 +94,34 @@ class BufferHandler(logging.Handler):
                 "message": msg,
                 "logger": record.name,
                 "module": record.module,
-                "worker": _worker_id,
+                "worker": _get_worker_id(),
             }
             if record.exc_info and record.exc_info[1]:
                 import traceback
                 tb = "".join(traceback.format_exception(*record.exc_info))
                 entry["traceback"] = self._redact(tb)
 
-            # Always write to in-memory buffer (fast, no-fail)
+            # Try Redis first, fall back to in-memory
+            r = _get_redis()
+            if r:
+                try:
+                    pipe = r.pipeline()
+                    pipe.lpush(_REDIS_KEY, json.dumps(entry))
+                    pipe.ltrim(_REDIS_KEY, 0, _CAPACITY - 1)
+                    pipe.execute()
+                    return
+                except Exception:
+                    pass
+
+            # Fallback: in-memory buffer
             with _lock:
                 _buffer.append(entry)
-
-            # Also push to Redis if available
-            if _redis_client is not None:
-                try:
-                    _redis_client.lpush(_REDIS_KEY, json.dumps(entry))
-                    _redis_client.ltrim(_REDIS_KEY, 0, _REDIS_MAX - 1)
-                except Exception:
-                    pass  # Redis down — in-memory still works
         except Exception:
             pass
 
 
 def get_recent_logs(limit=200, level=None, since=None):
-    """Return recent log entries from Redis (preferred) or in-memory buffer.
+    """Return recent log entries from Redis or the in-memory ring buffer.
 
     Args:
         limit: Max entries to return
@@ -115,20 +129,26 @@ def get_recent_logs(limit=200, level=None, since=None):
         since: ISO timestamp — only return entries after this time
 
     Returns:
-        list of log entry dicts
+        list of log entry dicts (newest last)
     """
-    entries = None
+    entries = []
 
-    # Try Redis first (cross-worker, persistent)
-    if _redis_client is not None:
+    # Try Redis first
+    r = _get_redis()
+    if r:
         try:
-            raw = _redis_client.lrange(_REDIS_KEY, 0, _REDIS_MAX - 1)
-            entries = [json.loads(r) for r in raw]
+            raw = r.lrange(_REDIS_KEY, 0, _CAPACITY - 1)
+            entries = []
+            for item in reversed(raw):  # LPUSH stores newest first, we want oldest first
+                try:
+                    entries.append(json.loads(item))
+                except (json.JSONDecodeError, TypeError):
+                    pass
         except Exception:
-            entries = None  # Fall through to in-memory
+            entries = []
 
-    # Fallback to in-memory buffer
-    if entries is None:
+    # Fallback to in-memory if Redis returned nothing
+    if not entries:
         with _lock:
             entries = list(_buffer)
 

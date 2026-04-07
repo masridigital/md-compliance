@@ -69,6 +69,94 @@
           </div>
         </div>
       </div>
+
+      <!-- Global Risk Dashboard -->
+      <div class="text-xl font-medium mt-8 mb-4">
+        <i class="ti ti-alert-triangle"></i> Risk Overview
+      </div>
+      <div class="bg-base-200 rounded-box p-6">
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          <div class="stat bg-base-100 rounded-lg p-3">
+            <div class="stat-title text-xs">Total Risks</div>
+            <div class="stat-value text-xl" x-text="riskDashboard.total || 0"></div>
+          </div>
+          <div class="stat bg-base-100 rounded-lg p-3">
+            <div class="stat-title text-xs">Critical</div>
+            <div class="stat-value text-xl text-error" x-text="riskDashboard.by_severity?.critical || 0"></div>
+          </div>
+          <div class="stat bg-base-100 rounded-lg p-3">
+            <div class="stat-title text-xs">High</div>
+            <div class="stat-value text-xl text-warning" x-text="riskDashboard.by_severity?.high || 0"></div>
+          </div>
+          <div class="stat bg-base-100 rounded-lg p-3">
+            <div class="stat-title text-xs">Moderate</div>
+            <div class="stat-value text-xl text-info" x-text="riskDashboard.by_severity?.moderate || 0"></div>
+          </div>
+          <div class="stat bg-base-100 rounded-lg p-3">
+            <div class="stat-title text-xs">Low</div>
+            <div class="stat-value text-xl text-success" x-text="riskDashboard.by_severity?.low || 0"></div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex gap-2 mb-3">
+          <select class="select select-xs select-bordered" x-model="riskFilter.severity" @change="loadRiskDashboard()">
+            <option value="">All Severities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="moderate">Moderate</option>
+            <option value="low">Low</option>
+          </select>
+          <template x-if="riskDashboard.tenants?.length > 1">
+            <select class="select select-xs select-bordered" x-model="riskFilter.tenant_id" @change="loadRiskDashboard()">
+              <option value="">All Clients</option>
+              <template x-for="t in riskDashboard.tenants" :key="t.id">
+                <option :value="t.id" x-text="t.name"></option>
+              </template>
+            </select>
+          </template>
+        </div>
+
+        <!-- Risk List -->
+        <div class="overflow-x-auto">
+          <table class="table table-xs table-zebra bg-base-100 rounded-lg">
+            <thead>
+              <tr>
+                <th>Risk</th>
+                <th>Severity</th>
+                <th>Client</th>
+                <th>Project</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="risk in (riskDashboard.risks || []).slice(0, 20)" :key="risk.id">
+                <tr class="hover cursor-pointer" @click="window.location.href='/tenants/'+risk.tenant_id+'/risk'">
+                  <td class="max-w-xs truncate" x-text="risk.title"></td>
+                  <td>
+                    <span class="badge badge-xs"
+                          :class="{
+                            'badge-error': risk.risk === 'critical',
+                            'badge-warning': risk.risk === 'high',
+                            'badge-info': risk.risk === 'moderate',
+                            'badge-success': risk.risk === 'low',
+                          }"
+                          x-text="risk.risk"></span>
+                  </td>
+                  <td class="text-xs opacity-70" x-text="risk.tenant_name"></td>
+                  <td class="text-xs opacity-70" x-text="risk.project_name"></td>
+                  <td class="text-xs" x-text="risk.status"></td>
+                </tr>
+              </template>
+              <template x-if="!riskDashboard.risks?.length">
+                <tr><td colspan="5" class="text-center text-xs opacity-50">No risks found</td></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -82,9 +170,12 @@ function welcome(){
         init() {
             this.setWelcomeMessage()
             this.getTenantInfo()
+            this.loadRiskDashboard()
         },
         welcomeMessage: "",
         tenantInfo: {},
+        riskDashboard: {},
+        riskFilter: { severity: "", tenant_id: "" },
         setWelcomeMessage: function() {
             const currentHour = new Date().getHours(); // Get local browser time (hour)
             if (currentHour < 12) {
@@ -104,6 +195,15 @@ function welcome(){
             error => {
               toast(error.message, "error");
             }
+          );
+        },
+        loadRiskDashboard: function() {
+          let url = '/api/v1/settings/global-risks?limit=50';
+          if (this.riskFilter.severity) url += '&severity=' + this.riskFilter.severity;
+          if (this.riskFilter.tenant_id) url += '&tenant_id=' + this.riskFilter.tenant_id;
+          request("GET", url,
+            data => { this.riskDashboard = data; },
+            error => { console.log('Risk dashboard:', error.message); }
           );
         }
     }

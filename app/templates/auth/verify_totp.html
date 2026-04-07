@@ -19,6 +19,7 @@
       {% endwith %}
 
       <form method="POST" action="{{ url_for('auth.verify_totp') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-control mb-4">
           <input type="text" name="code" class="input input-bordered text-center text-2xl tracking-widest"
                  placeholder="000000" maxlength="6" pattern="[0-9]{6}" autofocus

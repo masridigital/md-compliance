@@ -90,7 +90,7 @@ def control_assist():
         return jsonify({"assessment": result})
     except RuntimeError as e:
         logger.warning("Control assist failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Control assist unexpected error")
         return jsonify({"error": "Internal error during assessment"}), 500
@@ -128,13 +128,11 @@ def gap_narrative():
 
     try:
         from app.masri.llm_service import LLMService
-        from app.masri.prompt_adapters import get_adapter_for_feature
 
-        _adapter = get_adapter_for_feature("gap_narrative")
         messages = [
             {
                 "role": "system",
-                "content": _adapter.adapt_system(
+                "content": (
                     "You are a compliance gap analyst. Write a clear, professional "
                     "gap analysis narrative that identifies the gap between the "
                     "current state and the control requirement. Include: "
@@ -155,8 +153,8 @@ def gap_narrative():
             messages=messages,
             tenant_id=tenant_id,
             feature="gap_narrative",
-            temperature=_adapter.adapt_temperature(0.3),
-            max_tokens=_adapter.adapt_max_tokens(1500),
+            temperature=0.3,
+            max_tokens=1500,
         )
 
         return jsonify({
@@ -165,7 +163,7 @@ def gap_narrative():
         })
     except RuntimeError as e:
         logger.warning("Gap narrative failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Gap narrative unexpected error")
         return jsonify({"error": "Internal error during generation"}), 500
@@ -201,14 +199,12 @@ def risk_score():
 
     try:
         from app.masri.llm_service import LLMService
-        from app.masri.prompt_adapters import get_adapter_for_feature
         import json
 
-        _adapter = get_adapter_for_feature("risk_score")
         messages = [
             {
                 "role": "system",
-                "content": _adapter.adapt_system(
+                "content": (
                     "You are a risk assessment specialist. Evaluate the described "
                     "risk and respond with valid JSON: "
                     '{"likelihood": <1-5>, "impact": <1-5>, "overall_score": <1-25>, '
@@ -268,7 +264,7 @@ def risk_score():
         })
     except RuntimeError as e:
         logger.warning("Risk score failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Risk score unexpected error")
         return jsonify({"error": "Internal error during scoring"}), 500
@@ -304,13 +300,11 @@ def interpret_evidence():
 
     try:
         from app.masri.llm_service import LLMService
-        from app.masri.prompt_adapters import get_adapter_for_feature
 
-        _adapter = get_adapter_for_feature("evidence_interpret")
         messages = [
             {
                 "role": "system",
-                "content": _adapter.adapt_system(
+                "content": (
                     "You are a compliance evidence analyst. Analyze the provided "
                     "evidence and extract key findings relevant to compliance. "
                     "Summarise what the evidence demonstrates, any gaps, and "
@@ -330,8 +324,8 @@ def interpret_evidence():
             messages=messages,
             tenant_id=tenant_id,
             feature="evidence_interpret",
-            temperature=_adapter.adapt_temperature(0.2),
-            max_tokens=_adapter.adapt_max_tokens(1200),
+            temperature=0.2,
+            max_tokens=1200,
         )
 
         return jsonify({
@@ -340,7 +334,7 @@ def interpret_evidence():
         })
     except RuntimeError as e:
         logger.warning("Interpret evidence failed: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Interpret evidence unexpected error")
         return jsonify({"error": "Internal error during interpretation"}), 500
@@ -489,10 +483,10 @@ def auto_map():
         })
 
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "LLM service request failed. Check provider configuration."}), 502
     except Exception as e:
         logger.exception("Auto-map failed")
-        return jsonify({"error": "Auto-map failed: " + str(e)}), 500
+        return jsonify({"error": "Auto-map failed. Check system logs for details."}), 500
 
 
 # ===========================================================================
@@ -563,10 +557,8 @@ def _bg_assist_gaps(app, project_id, tenant_id):
 
             fw_name = project.framework.name if project.framework else "Unknown"
 
-            from app.masri.prompt_adapters import get_adapter_for_feature
-            _ag_adapter = get_adapter_for_feature("assist_gaps")
             all_recommendations = []
-            chunk_size = _ag_adapter.adapt_chunk_size(10)
+            chunk_size = 10
             for i in range(0, len(gap_controls), chunk_size):
                 chunk = gap_controls[i:i + chunk_size]
                 ctrl_text = "\n".join([
@@ -579,13 +571,12 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                 messages = [
                     {
                         "role": "system",
-                        "content": _ag_adapter.adapt_system(
+                        "content": (
                             f"You are a compliance consultant specializing in {fw_name}. "
                             "You will receive controls that have gaps, along with security data from "
                             "Telivy vulnerability scans and/or Microsoft 365.\n\n"
                             "For EACH control, provide specific, actionable recommendations.\n"
-                            f"{_ag_adapter.adapt_json_instruction()}\n"
-                            "Respond with ONLY a valid JSON array:\n"
+                            "You MUST respond with ONLY a valid JSON array:\n"
                             '[{"project_control_id":"ID","priority":"high","recommendation":"specific action",'
                             '"evidence_suggestion":"specific source","estimated_effort":"quick",'
                             '"policy_needed":false,"template_suggestion":""}]\n\n'
@@ -606,9 +597,7 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                 try:
                     result = LLMService.chat(
                         messages=messages, tenant_id=tenant_id,
-                        feature="assist_gaps",
-                        temperature=_ag_adapter.adapt_temperature(0.3),
-                        max_tokens=_ag_adapter.adapt_max_tokens(4096),
+                        feature="assist_gaps", temperature=0.3, max_tokens=4096,
                     )
                     content = result["content"].strip()
                     if content.startswith("```"):
@@ -704,6 +693,7 @@ def assist_gaps():
 @login_required
 def assist_gaps_status(project_id):
     """GET /api/v1/llm/assist-gaps-status/<project_id> — poll for results."""
+    import json
     from app import db
     from app.models import Project, ConfigStore
 
@@ -715,7 +705,7 @@ def assist_gaps_status(project_id):
     try:
         record = ConfigStore.find(f"assist_gaps_result_{project_id}")
         if record and record.value:
-            return jsonify(_json.loads(record.value))
+            return jsonify(json.loads(record.value))
     except Exception:
         pass
     return jsonify({"status": "processing"})
@@ -779,6 +769,7 @@ def get_integration_data(project_id):
         result["telivy"] = telivy
 
     # Microsoft Security data (from cached collect_all_security_data)
+    import json as _json_local
     ms_cached = raw.get("microsoft") or {}
     if not ms_cached:
         # Try reading from ConfigStore cache
@@ -786,7 +777,7 @@ def get_integration_data(project_id):
             from app.models import ConfigStore as _CS
             _rec = _CS.find(f"tenant_integration_data_{tenant_id}")
             if _rec and _rec.value:
-                _cached = _json.loads(_rec.value)
+                _cached = _json_local.loads(_rec.value)
                 ms_cached = _cached.get("microsoft", {})
         except Exception:
             pass
@@ -838,7 +829,7 @@ def get_integration_data(project_id):
             from app.models import ConfigStore as _CS2
             _rec2 = _CS2.find(f"tenant_integration_data_{tenant_id}")
             if _rec2 and _rec2.value:
-                rp_cached = _json.loads(_rec2.value).get("risk_profiles")
+                rp_cached = _json_local.loads(_rec2.value).get("risk_profiles")
         except Exception:
             pass
     if rp_cached:
@@ -847,6 +838,68 @@ def get_integration_data(project_id):
             "users": rp_cached.get("users", [])[:30],
             "devices": rp_cached.get("devices", [])[:30],
         }
+
+    # NinjaOne data (from ConfigStore cache)
+    ninja_cached = {}
+    try:
+        from app.models import ConfigStore as _CS3
+        _rec3 = _CS3.find(f"tenant_integration_data_{tenant_id}")
+        if _rec3 and _rec3.value:
+            ninja_cached = _json_local.loads(_rec3.value).get("ninjaone", {})
+    except Exception:
+        pass
+    if ninja_cached:
+        ninjaone = {}
+        devices = ninja_cached.get("devices", [])
+        if isinstance(devices, list):
+            ninjaone["device_count"] = len(devices)
+            ninjaone["devices"] = devices[:20]
+        patches = ninja_cached.get("os_patches", [])
+        if isinstance(patches, list):
+            missing = [p for p in patches if isinstance(p, dict) and p.get("status") != "INSTALLED"]
+            ninjaone["missing_patches"] = len(missing)
+            ninjaone["patch_details"] = missing[:15]
+        av = ninja_cached.get("antivirus_status", [])
+        if isinstance(av, list):
+            ninjaone["av_count"] = len(av)
+            no_av = [a for a in av if isinstance(a, dict) and not a.get("productState")]
+            ninjaone["unprotected_devices"] = len(no_av)
+        threats = ninja_cached.get("antivirus_threats", [])
+        if isinstance(threats, list):
+            ninjaone["threat_count"] = len(threats)
+            ninjaone["threats"] = threats[:10]
+        alerts = ninja_cached.get("alerts", [])
+        if isinstance(alerts, list):
+            ninjaone["alert_count"] = len(alerts)
+            ninjaone["alerts"] = alerts[:15]
+        if ninjaone:
+            result["ninjaone"] = ninjaone
+
+    # DefensX data (from ConfigStore cache)
+    dx_cached = {}
+    try:
+        if not _rec3:
+            _rec3 = _CS3.find(f"tenant_integration_data_{tenant_id}")
+        if _rec3 and _rec3.value:
+            dx_cached = _json_local.loads(_rec3.value).get("defensx", {})
+    except Exception:
+        pass
+    if dx_cached:
+        defensx = {}
+        agent = dx_cached.get("agent_status", {})
+        if isinstance(agent, dict) and not agent.get("error"):
+            defensx["agent_status"] = agent
+        policy = dx_cached.get("policy_compliance", {})
+        if isinstance(policy, dict) and not policy.get("error"):
+            defensx["policy_compliance"] = policy
+        resilience = dx_cached.get("resilience_score", {})
+        if isinstance(resilience, dict) and not resilience.get("error"):
+            defensx["resilience_score"] = resilience
+        shadow_ai = dx_cached.get("shadow_ai", {})
+        if isinstance(shadow_ai, dict) and not shadow_ai.get("error"):
+            defensx["shadow_ai"] = shadow_ai
+        if defensx:
+            result["defensx"] = defensx
 
     if raw.get("_cached_at"):
         result["_cached_at"] = raw["_cached_at"]
@@ -909,18 +962,23 @@ def debug_integration_mapping(project_id):
     })
 
 
-def _update_job_status(db, ConfigStore, tenant_id, stage, detail="", json_mod=None):
-    """Update auto-process job stage for frontend polling."""
-    import json as _j
-    if json_mod:
-        _j = json_mod
+def _update_job_status(tenant_id, stage, detail="", chunk_info=""):
+    """Write current job stage to ConfigStore for frontend polling.
+
+    Stages: collecting_telivy → collecting_microsoft → computing_risk_profiles
+            → analyzing_phase1 → analyzing_phase2 → analyzing_cross_source
+            → generating_evidence → syncing_progress → done
+    """
+    import json
+    from app.models import ConfigStore
     try:
-        ConfigStore.upsert(f"auto_process_result_{tenant_id}", _j.dumps({
+        status = {
             "status": "processing",
             "stage": stage,
             "detail": detail,
-        }, default=str))
-        db.session.commit()
+            "chunk_info": chunk_info,
+        }
+        ConfigStore.upsert(f"auto_process_status_{tenant_id}", json.dumps(status))
     except Exception:
         pass
 
@@ -928,9 +986,14 @@ def _update_job_status(db, ConfigStore, tenant_id, stage, detail="", json_mod=No
 def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
     """Background worker for auto-process. Runs in a thread, never blocks gunicorn.
 
-    run_mode: 'full' (default) | 'telivy_only' | 'microsoft_only'
+    Args:
+        run_mode: "telivy_only" | "microsoft_only" | "ninjaone_only" | "defensx_only" | "full" (default)
     """
     import json
+    _VALID_MODES = {"telivy_only", "microsoft_only", "ninjaone_only", "defensx_only", "full"}
+    if run_mode not in _VALID_MODES:
+        run_mode = "full"
+
     with app.app_context():
         from app import db
         from app.models import Project, RiskRegister, ConfigStore, ProjectControl
@@ -943,9 +1006,14 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
         integration_data = {}
         telivy_raw = {}
 
-        # Step 1: Pull data from Telivy (skip if microsoft_only)
-        if scan_id and run_mode != "microsoft_only":
-            _update_job_status(db, ConfigStore, tenant_id, "collecting_telivy", "Pulling Telivy scan data...", json)
+        _only_mode = run_mode.endswith("_only")
+        skip_telivy = _only_mode and run_mode != "telivy_only"
+        skip_microsoft = _only_mode and run_mode != "microsoft_only"
+
+        # Step 1: Pull data from Telivy
+        if not skip_telivy:
+            _update_job_status(tenant_id, "collecting_telivy", "Pulling Telivy scan data")
+        if scan_id and not skip_telivy:
             try:
                 from app.masri.telivy_routes import _get_telivy_client
                 client = _get_telivy_client()
@@ -972,11 +1040,12 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 if telivy_raw:
                     integration_data["telivy"] = telivy_raw
             except Exception as e:
-                integration_data["telivy_error"] = str(e)
+                logger.warning("Telivy data collection failed: %s", e)
+                integration_data["telivy_error"] = "Data collection failed"
 
-        # Pull Microsoft Security data (skip if telivy_only)
-        if run_mode != "telivy_only":
-            _update_job_status(db, ConfigStore, tenant_id, "collecting_microsoft", "Pulling Microsoft 365 data...", json)
+        # Pull Microsoft Security data (Entra + Defender + Devices + Secure Score)
+        if not skip_microsoft:
+            _update_job_status(tenant_id, "collecting_microsoft", "Pulling Microsoft 365 security data")
             try:
                 from app.masri.new_models import SettingsEntra
                 entra_cfg = db.session.execute(
@@ -997,20 +1066,86 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 logger.debug("Microsoft data collection skipped: %s", e)
 
         # Compute risk profiles from Microsoft data
-        if integration_data.get("microsoft"):
-            _update_job_status(db, ConfigStore, tenant_id, "computing_risk_profiles", "Computing user & device risk profiles...", json)
+        if integration_data.get("microsoft") and not skip_microsoft:
+            _update_job_status(tenant_id, "computing_risk_profiles", "Computing user & device risk profiles")
             try:
                 from app.masri.risk_profiles import compute_risk_profiles, generate_risk_narratives
                 profiles = compute_risk_profiles(integration_data["microsoft"])
                 if profiles:
-                    # Generate AI narratives for high-risk items (Tier 4)
                     profiles = generate_risk_narratives(profiles, tenant_id=tenant_id)
                     integration_data["risk_profiles"] = profiles
             except Exception as e:
                 logger.debug("Risk profile computation skipped: %s", e)
 
+        # Pull NinjaOne data (if configured and mapped to this tenant)
+        skip_ninjaone = _only_mode and run_mode != "ninjaone_only"
+        if not skip_ninjaone:
+            _update_job_status(tenant_id, "collecting_ninjaone", "Pulling NinjaOne RMM data")
+            try:
+                from app.masri.new_models import SettingsStorage
+                ninja_cfg = db.session.execute(
+                    db.select(SettingsStorage).filter_by(provider="ninjaone")
+                ).scalars().first()
+                if ninja_cfg:
+                    # Find the org_id mapped to this tenant
+                    mapping_record = ConfigStore.find("ninjaone_org_mappings")
+                    org_id = None
+                    if mapping_record and mapping_record.value:
+                        mappings = json.loads(mapping_record.value)
+                        for oid, info in mappings.items():
+                            if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                org_id = oid
+                                break
+                    if org_id:
+                        from app.masri.ninjaone_integration import NinjaOneIntegration
+                        from app.masri.settings_service import decrypt_value
+                        config = json.loads(decrypt_value(ninja_cfg.config_enc)) if ninja_cfg.config_enc else {}
+                        if config.get("client_id") and config.get("client_secret"):
+                            ninja_client = NinjaOneIntegration(
+                                client_id=config["client_id"],
+                                client_secret=config["client_secret"],
+                                region=config.get("region", "us"),
+                            )
+                            ninja_data = ninja_client.collect_all_data(org_id=org_id)
+                            if ninja_data:
+                                integration_data["ninjaone"] = ninja_data
+            except Exception as e:
+                logger.debug("NinjaOne data collection skipped: %s", e)
+
+        # Pull DefensX data (if configured and mapped to this tenant)
+        skip_defensx = _only_mode and run_mode != "defensx_only"
+        if not skip_defensx:
+            _update_job_status(tenant_id, "collecting_defensx", "Pulling DefensX browser security data")
+            try:
+                from app.masri.new_models import SettingsStorage
+                dx_cfg = db.session.execute(
+                    db.select(SettingsStorage).filter_by(provider="defensx")
+                ).scalars().first()
+                if dx_cfg:
+                    mapping_record = ConfigStore.find("defensx_customer_mappings")
+                    customer_id = None
+                    if mapping_record and mapping_record.value:
+                        mappings = json.loads(mapping_record.value)
+                        for cid, info in mappings.items():
+                            if isinstance(info, dict) and info.get("tenant_id") == tenant_id:
+                                customer_id = cid
+                                break
+                    if customer_id:
+                        from app.masri.defensx_integration import DefensXIntegration
+                        from app.masri.settings_service import decrypt_value
+                        config = json.loads(decrypt_value(dx_cfg.config_enc)) if dx_cfg.config_enc else {}
+                        if config.get("api_token"):
+                            dx_client = DefensXIntegration(api_token=config["api_token"])
+                            dx_data = dx_client.collect_all_data(customer_id=customer_id)
+                            if dx_data:
+                                integration_data["defensx"] = dx_data
+            except Exception as e:
+                logger.debug("DefensX data collection skipped: %s", e)
+
         # Store raw data at tenant level
-        has_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
+        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft")
+                           or integration_data.get("ninjaone") or integration_data.get("defensx"))
+        has_data = has_any_data
         if has_data:
             try:
                 existing = {}
@@ -1026,6 +1161,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     existing["microsoft"] = integration_data["microsoft"]
                 if integration_data.get("risk_profiles"):
                     existing["risk_profiles"] = integration_data["risk_profiles"]
+                if integration_data.get("ninjaone"):
+                    existing["ninjaone"] = integration_data["ninjaone"]
+                if integration_data.get("defensx"):
+                    existing["defensx"] = integration_data["defensx"]
                 existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
                 ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
             except Exception:
@@ -1035,7 +1174,6 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
             db.select(Project).filter_by(tenant_id=tenant_id)
         ).scalars().all()
 
-        has_any_data = bool(integration_data.get("telivy") or integration_data.get("microsoft"))
         if not projects or not has_any_data:
             # Store result for polling
             try:
@@ -1085,19 +1223,17 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     has_microsoft = bool(integration_data.get("microsoft"))
                     has_profiles = bool(integration_data.get("risk_profiles"))
 
-                    from app.masri.prompt_adapters import get_adapter_for_feature
-                    adapter = get_adapter_for_feature("auto_map")
-                    CHUNK_SIZE = adapter.adapt_chunk_size(10)
+                    CHUNK_SIZE = 10
                     all_mappings = []
                     all_risks = []
 
                     # ── Phase 1: Telivy-only analysis ─────────────────────
                     if has_telivy:
-                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase1", f"Analyzing Telivy data for {fw_name}...", json)
+                        _update_job_status(tenant_id, "analyzing_phase1", "Analyzing Telivy findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
                         telivy_data = _compress_for_llm({"telivy": integration_data["telivy"]})
-                        telivy_prompt = adapter.adapt_system(
+                        telivy_prompt = (
                             f"You are an external vulnerability analyst mapping Telivy scan findings to "
-                            f"{fw_name} controls.\n\n"
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
                             "TELIVY DATA INCLUDES: External vulnerability scan results — network exposure, "
                             "DNS security, email spoofing risk, SSL/TLS configuration, web application "
                             "vulnerabilities, typosquatting domains, breach data exposure.\n\n"
@@ -1105,7 +1241,6 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "or non-compliance. Reference specific finding names and severity levels.\n\n"
                             "MAPPING: compliant (scan confirms control met) | partial (some evidence) | "
                             "non_compliant (clear gap found)\n\n"
-                            f"{adapter.adapt_json_instruction()}\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Telivy finding: [name] - [details]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"What + affected assets + remediation\","
@@ -1114,17 +1249,17 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         all_mappings, all_risks = _run_chunked_llm(
                             LLMService, telivy_prompt, telivy_data, controls,
                             fw_name, "Telivy scan", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map", adapter,
+                            all_mappings, all_risks, "auto_map",
                         )
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
                     if has_microsoft:
-                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_phase2", f"Analyzing Microsoft 365 data for {fw_name}...", json)
+                        _update_job_status(tenant_id, "analyzing_phase2", "Analyzing Microsoft 365 findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
                         ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
                                                       "risk_profiles": integration_data.get("risk_profiles", {})})
-                        ms_prompt = adapter.adapt_system(
+                        ms_prompt = (
                             f"You are a Microsoft 365 security analyst mapping findings to "
-                            f"{fw_name} controls.\n\n"
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
                             "MICROSOFT DATA INCLUDES: Secure Score (overall posture + gap controls), "
                             "Defender security alerts, Intune device compliance (encryption, policy status), "
                             "MFA enrollment rates, Conditional Access policies, Identity Protection "
@@ -1138,7 +1273,6 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- For device controls: cite compliance %, encryption %, specific non-compliant devices\n"
                             "- For access controls: cite Conditional Access policy count and status\n\n"
                             "MAPPING: compliant | partial | non_compliant\n\n"
-                            f"{adapter.adapt_json_instruction()}\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"Microsoft finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific users/devices + remediation\","
@@ -1147,27 +1281,100 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         all_mappings, all_risks = _run_chunked_llm(
                             LLMService, ms_prompt, ms_data, controls,
                             fw_name, "Microsoft 365", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map", adapter,
+                            all_mappings, all_risks, "auto_map",
                         )
 
-                    # ── Phase 3: Cross-source analysis (if both available) ─
-                    if has_telivy and has_microsoft:
-                        _update_job_status(db, ConfigStore, tenant_id, "analyzing_cross_source", "Cross-source correlation analysis...", json)
+                    # ── Phase 3: NinjaOne RMM analysis ────────────────────
+                    has_ninjaone = bool(integration_data.get("ninjaone"))
+                    if has_ninjaone:
+                        _update_job_status(tenant_id, "analyzing_phase3", "Analyzing NinjaOne RMM data", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
+                        ninja_data = _compress_for_llm({"ninjaone": integration_data["ninjaone"]})
+                        ninja_prompt = (
+                            f"You are an endpoint security analyst mapping NinjaOne RMM findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "NINJAONE DATA INCLUDES: Device inventory (OS, model, last sync), "
+                            "OS patch compliance (missing patches, severity), antivirus status "
+                            "(engine, definitions date, threats detected), disk encryption status, "
+                            "device alerts and activities.\n\n"
+                            "For each control:\n"
+                            "- Check if NinjaOne data provides evidence of compliance or gaps\n"
+                            "- Reference SPECIFIC devices by name: unpatched systems, missing AV, unencrypted drives\n"
+                            "- For patch management: cite specific missing patches and their severity\n"
+                            "- For endpoint protection: cite AV coverage %, devices without protection\n"
+                            "- For asset management: cite stale/inactive devices (30+ days no sync)\n\n"
+                            "MAPPING: compliant | partial | non_compliant\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific devices + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, ninja_prompt, ninja_data, controls,
+                            fw_name, "NinjaOne RMM", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
+
+                    # ── Phase 4: DefensX browser security analysis ────────
+                    has_defensx = bool(integration_data.get("defensx"))
+                    if has_defensx:
+                        _update_job_status(tenant_id, "analyzing_phase4", "Analyzing DefensX browser security data", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
+                        dx_data = _compress_for_llm({"defensx": integration_data["defensx"]})
+                        dx_prompt = (
+                            f"You are a browser security analyst mapping DefensX findings to "
+                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "DEFENSX DATA INCLUDES: Browser agent deployment coverage, web policy "
+                            "compliance (URL filtering, content categories), cyber resilience scores, "
+                            "user browsing activity, shadow AI detection (unauthorized AI tool usage), "
+                            "credential protection events, file transfer monitoring.\n\n"
+                            "For each control:\n"
+                            "- Check if DefensX data provides evidence of compliance or gaps\n"
+                            "- For web filtering: cite policy compliance %, blocked categories\n"
+                            "- For data protection: cite credential events, file transfer violations\n"
+                            "- For shadow IT/AI: cite detected unauthorized tools and users\n"
+                            "- For endpoint coverage: cite agent deployment % and unprotected users\n\n"
+                            "MAPPING: compliant | partial | non_compliant\n\n"
+                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
+                            "\"status\":\"compliant|partial|non_compliant\"}],"
+                            "\"risks\":[{\"title\":\"risk\",\"description\":\"What + specific findings + remediation\","
+                            "\"severity\":\"critical|high|medium|low\"}]}"
+                        )
+                        all_mappings, all_risks = _run_chunked_llm(
+                            LLMService, dx_prompt, dx_data, controls,
+                            fw_name, "DefensX", tenant_id, CHUNK_SIZE,
+                            all_mappings, all_risks, "auto_map",
+                        )
+
+                    # ── Phase 5: Cross-source analysis (if 2+ sources) ───
+                    source_count = sum([has_telivy, has_microsoft, has_ninjaone, has_defensx])
+                    if source_count >= 2:
+                        _update_job_status(tenant_id, "analyzing_cross_source", "Cross-source correlation analysis")
                         combined_data = _compress_for_llm(integration_data)
-                        cross_prompt = adapter.adapt_system(
+                        # Build dynamic source list for cross-source prompt
+                        sources = []
+                        if has_telivy:
+                            sources.append("Telivy (external vulnerability scan)")
+                        if has_microsoft:
+                            sources.append("Microsoft 365 (internal security posture)")
+                        if has_ninjaone:
+                            sources.append("NinjaOne RMM (endpoint management)")
+                        if has_defensx:
+                            sources.append("DefensX (browser security)")
+                        source_list = ", ".join(sources)
+
+                        cross_prompt = (
                             f"You are a compliance analyst performing CROSS-SOURCE analysis for "
-                            f"{fw_name}.\n\n"
-                            "You have data from BOTH Telivy (external scan) and Microsoft 365 (internal security). "
-                            "Focus ONLY on controls where both sources provide relevant information:\n"
-                            "- Email security: Telivy (SPF/DKIM/DMARC) + Microsoft (Exchange transport rules)\n"
-                            "- Authentication: Telivy (exposed credentials/breaches) + Microsoft (MFA, risky sign-ins)\n"
-                            "- Encryption: Telivy (SSL/TLS findings) + Microsoft (device encryption)\n"
-                            "- Access control: Telivy (open ports/services) + Microsoft (Conditional Access)\n\n"
+                            f"{fw_name}. You MUST respond with ONLY valid JSON.\n\n"
+                            f"You have data from MULTIPLE sources: {source_list}. "
+                            "Focus ONLY on controls where correlating data across sources adds value:\n"
+                            "- Email security: Telivy (SPF/DKIM) + Microsoft (Exchange rules)\n"
+                            "- Authentication: breach data + MFA enrollment + browser credential events\n"
+                            "- Encryption: SSL/TLS + device encryption + browser HTTPS enforcement\n"
+                            "- Endpoint compliance: device compliance + patch status + AV coverage + browser agents\n"
+                            "- Access control: open ports + Conditional Access + web filtering policies\n\n"
                             "ONLY map controls where cross-source correlation adds value beyond what "
-                            "individual analyses already found. Reference data from BOTH sources in notes.\n\n"
-                            f"{adapter.adapt_json_instruction()}\n\n"
+                            "individual analyses already found. Reference data from MULTIPLE sources in notes.\n\n"
                             "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
-                            "\"notes\":\"Cross-source: Telivy shows [X] + Microsoft shows [Y] = [conclusion]\","
+                            "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"risk\",\"description\":\"Combined finding + remediation\","
                             "\"severity\":\"critical|high|medium|low\"}]}"
@@ -1180,10 +1387,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             all_mappings, all_risks = _run_chunked_llm(
                                 LLMService, cross_prompt, combined_data, unmapped,
                                 fw_name, "Cross-source", tenant_id, CHUNK_SIZE,
-                                all_mappings, all_risks, "auto_map", adapter,
+                                all_mappings, all_risks, "auto_map",
                             )
 
-                    _update_job_status(db, ConfigStore, tenant_id, "generating_evidence", f"Applying mappings + generating evidence...", json)
+                    _update_job_status(tenant_id, "generating_evidence", f"Applying {len(all_mappings)} mappings + generating evidence")
                     # Apply mappings
                     _STATUS_MAP = {
                         "compliant": "complete", "partial": "ready for auditor",
@@ -1239,7 +1446,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                             # Build exhibit references based on what evidence is needed
                                             ctrl_name = ctrl.name if ctrl else ref_code
                                             exhibits = []
-                                            exhibits.append(f"Exhibit A: Telivy scan report showing {ref_code} compliance status (Source: Telivy Portal → Scan Report → {ref_code})")
+                                            exhibits.append(f"Exhibit A: Integration scan report showing {ref_code} compliance status")
                                             if not is_compliant:
                                                 exhibits.append(f"Exhibit B: Screenshot of current configuration or policy addressing this control")
                                                 exhibits.append(f"Exhibit C: Remediation plan or change ticket documenting the fix")
@@ -1254,7 +1461,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                                     f"Evidence Status: {ev_status}\n\n"
                                                     f"Control: {ref_code} — {ctrl_name}\n"
                                                     f"Compliance Status: {llm_status}\n"
-                                                    f"Source: Telivy Security Scan\n\n"
+                                                    f"Source: Integration Security Scan\n\n"
                                                     f"What the scan found:\n{notes}\n\n"
                                                     f"--- REQUIRED EXHIBITS ---\n" +
                                                     "\n".join(exhibits) +
@@ -1305,11 +1512,20 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                 total_risks += 1
                         except Exception:
                             pass
-                    _update_job_status(db, ConfigStore, tenant_id, "syncing_progress", "Syncing project progress...", json)
+                    _update_job_status(tenant_id, "syncing_progress", f"Syncing progress for {project.name if hasattr(project, 'name') else project.id}")
                     # Sync ALL subcontrol progress for this project
-                    # (catches controls mapped in previous runs with stale progress)
                     _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
                     db.session.commit()
+
+                    # Generate automated evidence from integration data
+                    _update_job_status(tenant_id, "generating_evidence", f"Generating evidence for {project.name if hasattr(project, 'name') else project.id}")
+                    try:
+                        from app.masri.evidence_generators import generate_all_evidence
+                        ev_count = generate_all_evidence(db, project, tenant_id)
+                        if ev_count:
+                            logger.info("Generated %d evidence records for project %s", ev_count, project.id)
+                    except Exception as ev_err:
+                        logger.warning("Evidence generation failed for project %s: %s", project.id, ev_err)
                 except Exception as e:
                     logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
             else:
@@ -1323,7 +1539,17 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 except Exception:
                     pass
 
+        # Run drift check against baseline (non-fatal)
+        try:
+            from app.masri.continuous_monitor import check_drift
+            record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+            if record and record.value:
+                check_drift(tenant_id, json.loads(record.value))
+        except Exception:
+            pass
+
         # Store result for polling
+        _update_job_status(tenant_id, "done", f"{total_mapped} controls, {total_risks} risks")
         try:
             ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
                 "success": total_mapped > 0 or total_risks > 0,
@@ -1331,7 +1557,6 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                 "risks_added": total_risks,
                 "projects_processed": len(projects),
                 "llm_available": llm_available,
-                "stage": "done",
             }, default=str))
         except Exception:
             pass
@@ -1356,9 +1581,9 @@ def auto_process():
     tenant_id = data.get("tenant_id")
     scan_id = data.get("scan_id")
     scan_type = data.get("scan_type", "scan")
-    run_mode = data.get("run_mode", "full")  # full | telivy_only | microsoft_only
-    if run_mode not in ("full", "telivy_only", "microsoft_only"):
-        run_mode = "full"
+    run_mode = data.get("run_mode", "full")
+    if scan_type not in ("scan", "assessment"):
+        scan_type = "scan"
     if not tenant_id:
         return jsonify({"success": False, "error": "tenant_id required"}), 400
 
@@ -1388,11 +1613,28 @@ def auto_process():
 def auto_process_status(tenant_id):
     """GET /api/v1/llm/auto-process-status/<tenant_id> — poll for results."""
     _validate_tenant_access(tenant_id)
+    import json
     from app.models import ConfigStore
     try:
+        # Check for final result first
         record = ConfigStore.find(f"auto_process_result_{tenant_id}")
         if record and record.value:
-            return jsonify(_json.loads(record.value))
+            result = json.loads(record.value)
+            # Merge in stage info if available
+            stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
+            if stage_record and stage_record.value:
+                stage_data = json.loads(stage_record.value)
+                result["stage"] = stage_data.get("stage", "done")
+                result["stage_detail"] = stage_data.get("detail", "")
+                result["chunk_info"] = stage_data.get("chunk_info", "")
+            return jsonify(result)
+    except Exception:
+        pass
+    # No final result yet — check for in-progress stage
+    try:
+        stage_record = ConfigStore.find(f"auto_process_status_{tenant_id}")
+        if stage_record and stage_record.value:
+            return jsonify(json.loads(stage_record.value))
     except Exception:
         pass
     return jsonify({"status": "processing"})
@@ -1458,20 +1700,37 @@ def refresh_microsoft_data(tenant_id):
 
 def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                       fw_name, source_label, tenant_id, chunk_size,
-                      all_mappings, all_risks, feature, adapter=None):
+                      all_mappings, all_risks, feature):
     """Run chunked LLM analysis for a single data source.
 
     Sends controls in batches of chunk_size, accumulates mappings and risks.
+    Uses prompt adapter layer to optimize prompts per model family.
     Returns updated (all_mappings, all_risks) lists.
     """
     import json
-    from app.masri.prompt_adapters import BaseAdapter
-    if adapter is None:
-        adapter = BaseAdapter()
+    from app.masri.prompt_adapters import get_adapter
+
+    # Resolve the model being used for this feature and get the right adapter
+    # (system prompt + temperature adapted automatically in LLMService.chat(),
+    #  but chunk_size is adapted here since it controls batching logic)
+    model_name = LLMService.get_feature_model(feature) or ""
+    if not model_name:
+        try:
+            config = LLMService._get_config()
+            model_name = config.get("model_name", "") if config else ""
+        except Exception:
+            model_name = ""
+    adapter = get_adapter(model_name)
+    adapted_chunk_size = adapter.adapt_chunk_size(chunk_size)
+    adapted_max_tokens = adapter.adapt_max_tokens(3000)
+
     prev_summary = ""
-    for chunk_idx in range(0, len(controls), chunk_size):
-        chunk = controls[chunk_idx:chunk_idx + chunk_size]
-        chunk_label = f"{source_label} {chunk_idx // chunk_size + 1}/{(len(controls) + chunk_size - 1) // chunk_size}"
+    total_chunks = (len(controls) + adapted_chunk_size - 1) // adapted_chunk_size
+    for chunk_idx in range(0, len(controls), adapted_chunk_size):
+        chunk = controls[chunk_idx:chunk_idx + adapted_chunk_size]
+        chunk_num = chunk_idx // adapted_chunk_size + 1
+        chunk_label = f"{source_label} {chunk_num}/{total_chunks}"
+        _update_job_status(tenant_id, f"analyzing_{source_label.lower().replace(' ', '_')}", f"Analyzing {source_label}", f"{chunk_num}/{total_chunks} chunks")
         ctrl_list = "\n".join([
             f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
             for c in chunk
@@ -1488,6 +1747,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                 user_content += f"Recent: {prev_summary}\n"
             user_content += "\n"
         user_content += f"CONTROLS ({chunk_label}):\n{ctrl_list}"
+        user_content += f"\n\n{adapter.adapt_json_instruction()}"
 
         try:
             result = LLMService.chat(
@@ -1496,8 +1756,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                     {"role": "user", "content": user_content},
                 ],
                 tenant_id=tenant_id, feature=feature,
-                temperature=adapter.adapt_temperature(0.2),
-                max_tokens=adapter.adapt_max_tokens(3000),
+                temperature=0.2, max_tokens=adapted_max_tokens,
             )
             content = result["content"].strip()
             if content.startswith("```"):
@@ -1566,7 +1825,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                         ctrl_obj = pc.control
                         ctrl_name = ctrl_obj.name if ctrl_obj else ref_code
                         exhibits = []
-                        exhibits.append(f"Exhibit A: Telivy scan report for {ref_code} (Source: Telivy Portal)")
+                        exhibits.append(f"Exhibit A: Integration scan report for {ref_code}")
                         if not is_compliant:
                             exhibits.append(f"Exhibit B: Screenshot of current configuration or policy")
                             exhibits.append(f"Exhibit C: Remediation plan or change ticket")
@@ -1577,7 +1836,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                                 f"Evidence Status: {ev_status}\n\n"
                                 f"Control: {ref_code} — {ctrl_name}\n"
                                 f"Compliance Status: {status_label}\n"
-                                f"Source: Telivy Security Scan\n\n"
+                                f"Source: Integration Security Scan\n\n"
                                 f"What the scan found:\n{finding_text[:500]}\n\n"
                                 f"--- REQUIRED EXHIBITS ---\n" +
                                 "\n".join(exhibits) +
@@ -1732,6 +1991,81 @@ def _compress_for_llm(data: dict) -> str:
             for d in rp.get("devices", [])[:5]:
                 if d.get("score", 0) >= 50:
                     lines.append(f"  - HIGH RISK DEVICE: {d.get('name', '?')} (score: {d['score']}) — {'; '.join(d.get('risk_factors', [])[:3])}")
+
+    # NinjaOne RMM data
+    ninja = data.get("ninjaone", {})
+    if ninja:
+        devices = ninja.get("devices", [])
+        if isinstance(devices, list) and devices:
+            lines.append(f"\nNINJAONE DEVICES ({len(devices)}):")
+            for d in devices[:15]:
+                if isinstance(d, dict):
+                    name = d.get("systemName", d.get("dnsName", "Unknown"))
+                    os_name = d.get("os", {}).get("name", "Unknown") if isinstance(d.get("os"), dict) else d.get("os", "Unknown")
+                    last_contact = d.get("lastContact", "Unknown")
+                    lines.append(f"  - {name}: OS={os_name}, last_contact={last_contact}")
+
+        patches = ninja.get("os_patches", [])
+        if isinstance(patches, list) and patches:
+            missing = [p for p in patches if isinstance(p, dict) and p.get("status") != "INSTALLED"]
+            if missing:
+                lines.append(f"\nMISSING OS PATCHES ({len(missing)}):")
+                for p in missing[:10]:
+                    lines.append(f"  - {p.get('name', '?')} severity={p.get('severity', '?')} device={p.get('deviceName', '?')}")
+
+        av = ninja.get("antivirus_status", [])
+        if isinstance(av, list) and av:
+            lines.append(f"\nANTIVIRUS STATUS ({len(av)}):")
+            no_av = [a for a in av if isinstance(a, dict) and not a.get("productState")]
+            if no_av:
+                lines.append(f"  Devices without AV: {len(no_av)}")
+                for a in no_av[:5]:
+                    lines.append(f"  - {a.get('deviceName', '?')}: no active antivirus")
+
+        threats = ninja.get("antivirus_threats", [])
+        if isinstance(threats, list) and threats:
+            lines.append(f"\nAV THREATS DETECTED ({len(threats)}):")
+            for t in threats[:10]:
+                if isinstance(t, dict):
+                    lines.append(f"  - {t.get('name', '?')} on {t.get('deviceName', '?')}: {t.get('status', '?')}")
+
+        alerts = ninja.get("alerts", [])
+        if isinstance(alerts, list) and alerts:
+            lines.append(f"\nNINJAONE ALERTS ({len(alerts)}):")
+            for a in alerts[:10]:
+                if isinstance(a, dict):
+                    lines.append(f"  - [{a.get('severity', '?')}] {a.get('message', a.get('subject', '?'))[:120]}")
+
+    # DefensX browser security data
+    dx = data.get("defensx", {})
+    if dx:
+        agent = dx.get("agent_status", {})
+        if isinstance(agent, dict) and not agent.get("error"):
+            total = agent.get("total_users", 0)
+            protected = agent.get("protected_users", 0)
+            rate = int(protected / total * 100) if total else 0
+            lines.append(f"\nDEFENSX AGENT COVERAGE: {protected}/{total} users ({rate}%)")
+
+        policy = dx.get("policy_compliance", {})
+        if isinstance(policy, dict) and not policy.get("error"):
+            lines.append(f"WEB POLICY COMPLIANCE: {policy.get('compliant_users', 0)}/{policy.get('total_users', 0)} compliant")
+            violations = policy.get("violations", [])
+            for v in violations[:5] if isinstance(violations, list) else []:
+                if isinstance(v, dict):
+                    lines.append(f"  - {v.get('user', '?')}: {v.get('category', '?')} ({v.get('count', 0)} events)")
+
+        resilience = dx.get("resilience_score", {})
+        if isinstance(resilience, dict) and not resilience.get("error"):
+            lines.append(f"CYBER RESILIENCE SCORE: {resilience.get('score', 'N/A')}/100")
+
+        shadow_ai = dx.get("shadow_ai", {})
+        if isinstance(shadow_ai, dict) and not shadow_ai.get("error"):
+            tools = shadow_ai.get("detected_tools", [])
+            if isinstance(tools, list) and tools:
+                lines.append(f"\nSHADOW AI DETECTED ({len(tools)}):")
+                for t in tools[:5]:
+                    if isinstance(t, dict):
+                        lines.append(f"  - {t.get('tool_name', '?')}: {t.get('user_count', 0)} users, {t.get('usage_count', 0)} uses")
 
     # Existing risks (from risk register)
     risks = data.get("risk_register", {})

@@ -1,0 +1,178 @@
+[
+  {
+    "name": "Right to know what personal information is collected",
+    "description": "Consumers have the right to know what categories and specific pieces of personal information a business has collected about them.",
+    "ref_code": "1798.100",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Access and Disclosure",
+    "mapping": {"gdpr": ["Art. 13", "Art. 14", "Art. 15"], "nist_800_53": ["IP-1", "IP-2"]},
+    "subcontrols": [
+      {"name": "Business discloses at or before the point of collection the categories of personal information to be collected and the purposes for which they will be used", "description": "Notice at collection requirement.", "guidance": "Examine privacy notice and collection points. Verify disclosure at/before collection.", "ref_code": "1798.100(a)"},
+      {"name": "Business provides consumers upon verifiable request the specific pieces of personal information collected about them", "description": "Access request fulfillment.", "guidance": "Examine request handling logs. Verify specific data provided within 45 days.", "ref_code": "1798.100(a)"},
+      {"name": "Business does not collect additional categories of personal information or use collected information for additional purposes without providing notice", "description": "No undisclosed collection expansion.", "guidance": "Examine data collection changes. Verify updated notices provided.", "ref_code": "1798.100(b)"}
+    ]
+  },
+  {
+    "name": "Right to delete personal information",
+    "description": "Consumers have the right to request that a business delete any personal information about the consumer which the business has collected.",
+    "ref_code": "1798.105",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Deletion Rights",
+    "mapping": {"gdpr": ["Art. 17"], "nist_800_53": ["DM-2", "IP-3"]},
+    "subcontrols": [
+      {"name": "Business deletes consumer personal information upon receiving a verifiable request, subject to enumerated exceptions", "description": "Deletion request processing.", "guidance": "Examine deletion request logs. Verify deletion completed within 45 days.", "ref_code": "1798.105(a)"},
+      {"name": "Business directs service providers and contractors to delete consumer personal information from their records", "description": "Downstream deletion notification.", "guidance": "Examine service provider notification records. Verify downstream deletion directed.", "ref_code": "1798.105(c)"},
+      {"name": "Business maintains records of deletion requests and responses for at least 24 months", "description": "Deletion request recordkeeping.", "guidance": "Examine request records. Verify 24-month retention.", "ref_code": "1798.105(d)"}
+    ]
+  },
+  {
+    "name": "Right to correct inaccurate personal information",
+    "description": "Consumers have the right to request that a business correct inaccurate personal information that it maintains about the consumer.",
+    "ref_code": "1798.106",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Correction Rights",
+    "mapping": {"gdpr": ["Art. 16"], "nist_800_53": ["DI-1", "DI-2"]},
+    "subcontrols": [
+      {"name": "Business corrects inaccurate personal information upon receiving a verifiable request from the consumer", "description": "Correction request handling.", "guidance": "Examine correction request logs. Verify corrections made within 45 days.", "ref_code": "1798.106(a)"},
+      {"name": "Business instructs service providers and contractors to correct inaccurate information in their records", "description": "Downstream correction.", "guidance": "Examine correction notification records. Verify downstream corrections directed.", "ref_code": "1798.106(b)"}
+    ]
+  },
+  {
+    "name": "Right to know about sale and disclosure of personal information",
+    "description": "Consumers have the right to request that a business disclose what personal information it has sold or disclosed for a business purpose.",
+    "ref_code": "1798.115",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Access and Disclosure",
+    "mapping": {"gdpr": ["Art. 15"], "nist_800_53": ["IP-1"]},
+    "subcontrols": [
+      {"name": "Business discloses the categories of personal information sold or shared in the preceding 12 months, or states that no information was sold or shared", "description": "Sale/sharing disclosure.", "guidance": "Examine disclosure records. Verify categories and recipients disclosed.", "ref_code": "1798.115(a)"},
+      {"name": "Business discloses the categories of personal information disclosed for a business purpose in the preceding 12 months", "description": "Business purpose disclosure.", "guidance": "Examine disclosure records. Verify business purpose disclosures documented.", "ref_code": "1798.115(b)"}
+    ]
+  },
+  {
+    "name": "Right to opt-out of sale or sharing of personal information",
+    "description": "Consumers have the right to direct a business that sells or shares personal information about the consumer to third parties not to sell or share the consumer's personal information.",
+    "ref_code": "1798.120",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Opt-Out Rights",
+    "mapping": {"gdpr": ["Art. 21"], "nist_800_53": ["IP-3"]},
+    "subcontrols": [
+      {"name": "Business provides a clear and conspicuous link on the homepage titled 'Do Not Sell or Share My Personal Information'", "description": "Do Not Sell/Share link requirement.", "guidance": "Examine website homepage. Verify link present, clear, and functional.", "ref_code": "1798.135(a)"},
+      {"name": "Business ceases selling or sharing consumer personal information after receiving an opt-out request", "description": "Opt-out request compliance.", "guidance": "Examine opt-out processing records. Verify sale/sharing ceased.", "ref_code": "1798.120(d)"},
+      {"name": "Business respects opt-out preference signals including Global Privacy Control (GPC)", "description": "Universal opt-out mechanism.", "guidance": "Examine GPC/preference signal handling. Verify signals honored.", "ref_code": "1798.135(e)"}
+    ]
+  },
+  {
+    "name": "Right to limit use of sensitive personal information",
+    "description": "Consumers have the right to direct a business to limit its use and disclosure of sensitive personal information to only what is necessary.",
+    "ref_code": "1798.121",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Sensitive Data Rights",
+    "mapping": {"gdpr": ["Art. 9"], "nist_800_53": ["DM-1"]},
+    "subcontrols": [
+      {"name": "Business provides a clear and conspicuous link titled 'Limit the Use of My Sensitive Personal Information'", "description": "Sensitive data use limitation link.", "guidance": "Examine website. Verify link present and functional.", "ref_code": "1798.135(a)"},
+      {"name": "Business limits use of sensitive PI to purposes necessary to perform services or provide goods when consumer exercises this right", "description": "Purpose limitation for sensitive PI.", "guidance": "Examine data processing after limitation request. Verify use restricted.", "ref_code": "1798.121(a)"}
+    ]
+  },
+  {
+    "name": "Non-discrimination for exercising consumer rights",
+    "description": "A business shall not discriminate against a consumer because the consumer exercised any of their rights under the CCPA/CPRA.",
+    "ref_code": "1798.125",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Non-Discrimination",
+    "mapping": {"gdpr": ["Art. 7(4)", "Art. 22"]},
+    "subcontrols": [
+      {"name": "Business does not deny goods or services, charge different prices, or provide a different level of quality to consumers who exercise their rights", "description": "No retaliatory treatment.", "guidance": "Examine pricing and service policies. Verify no discrimination based on rights exercise.", "ref_code": "1798.125(a)"},
+      {"name": "Financial incentive programs related to collection, sale, or deletion of PI include clear opt-in consent and are not unjust or coercive", "description": "Fair financial incentive programs.", "guidance": "Examine incentive programs. Verify opt-in and fairness.", "ref_code": "1798.125(b)"}
+    ]
+  },
+  {
+    "name": "Request handling and verification requirements",
+    "description": "Businesses must establish processes to receive and respond to consumer requests within specified timeframes and verify the identity of requestors.",
+    "ref_code": "1798.130",
+    "system_level": false,
+    "category": "Business Obligations",
+    "subcategory": "Request Management",
+    "mapping": {"gdpr": ["Art. 12"], "nist_800_53": ["IP-4"]},
+    "subcontrols": [
+      {"name": "Business provides at least two designated methods for submitting consumer requests including a toll-free telephone number and, for businesses with websites, a website address", "description": "Multiple request submission methods.", "guidance": "Examine request channels. Verify at least two methods available.", "ref_code": "1798.130(a)"},
+      {"name": "Business responds to verifiable consumer requests within 45 calendar days, extendable by an additional 45 days when reasonably necessary with notice", "description": "45-day response timeline.", "guidance": "Examine response logs. Verify responses within 45 days (90 with extension).", "ref_code": "1798.130(a)(2)"},
+      {"name": "Business verifies the identity of the consumer making the request using reasonable methods proportional to the sensitivity of the information", "description": "Identity verification process.", "guidance": "Examine verification procedures. Verify proportional to data sensitivity.", "ref_code": "1798.130(a)(3)"}
+    ]
+  },
+  {
+    "name": "Privacy policy and notice requirements",
+    "description": "Businesses must maintain a comprehensive privacy policy that is updated at least every 12 months and discloses all required information about data practices.",
+    "ref_code": "1798.130(a)(5)",
+    "system_level": false,
+    "category": "Business Obligations",
+    "subcategory": "Transparency",
+    "mapping": {"gdpr": ["Art. 13", "Art. 14"], "nist_800_53": ["AP-1", "TR-1"]},
+    "subcontrols": [
+      {"name": "Privacy policy lists categories of PI collected, purposes of collection, consumer rights, and how to submit requests", "description": "Comprehensive privacy policy.", "guidance": "Examine privacy policy. Verify all required disclosures present.", "ref_code": "1798.130(a)(5)"},
+      {"name": "Privacy policy is updated at least once every 12 months and the effective date is included", "description": "Annual privacy policy update.", "guidance": "Examine privacy policy version history. Verify annual updates.", "ref_code": "1798.130(a)(5)"},
+      {"name": "Privacy policy discloses whether PI is sold or shared and the categories of third parties to whom it is disclosed", "description": "Sale/sharing disclosure in policy.", "guidance": "Examine privacy policy. Verify sale/sharing disclosures and third-party categories.", "ref_code": "1798.130(a)(5)(C)"}
+    ]
+  },
+  {
+    "name": "Service provider and contractor agreements",
+    "description": "Businesses must enter into agreements with service providers and contractors that restrict the use, retention, and disclosure of personal information.",
+    "ref_code": "1798.140(j)(w)",
+    "system_level": false,
+    "category": "Business Obligations",
+    "subcategory": "Third-Party Management",
+    "mapping": {"gdpr": ["Art. 28"], "nist_800_53": ["SA-9", "PS-7"], "soc2": ["CC9.2"]},
+    "subcontrols": [
+      {"name": "Written contracts with service providers prohibit selling or sharing PI, retaining or using PI outside the direct business relationship, and combining PI with data from other sources", "description": "Service provider contractual restrictions.", "guidance": "Examine service provider agreements. Verify required restrictions included.", "ref_code": "1798.140(j)"},
+      {"name": "Written contracts with contractors include the same restrictions as service providers plus certification of understanding and compliance", "description": "Contractor agreements.", "guidance": "Examine contractor agreements. Verify restrictions and compliance certification.", "ref_code": "1798.140(w)"},
+      {"name": "Business conducts due diligence and periodic assessments of service providers' and contractors' compliance with contractual obligations", "description": "Vendor compliance monitoring.", "guidance": "Examine vendor assessment records. Verify periodic compliance reviews.", "ref_code": "1798.185(a)(15)"}
+    ]
+  },
+  {
+    "name": "Data minimization and purpose limitation",
+    "description": "A business's collection, use, retention, and sharing of a consumer's personal information shall be reasonably necessary and proportionate to achieve the purposes for which it was collected.",
+    "ref_code": "1798.100(c)",
+    "system_level": false,
+    "category": "CPRA Additions",
+    "subcategory": "Data Governance",
+    "mapping": {"gdpr": ["Art. 5(1)(b)", "Art. 5(1)(c)"], "nist_800_53": ["DM-1", "DM-2"]},
+    "subcontrols": [
+      {"name": "Personal information collected is reasonably necessary and proportionate to the disclosed purposes", "description": "Collection proportionality.", "guidance": "Examine data collection practices. Verify necessity and proportionality.", "ref_code": "1798.100(c)"},
+      {"name": "Personal information is not retained longer than reasonably necessary for the disclosed purpose", "description": "Retention limitation.", "guidance": "Examine retention schedules. Verify alignment with disclosed purposes.", "ref_code": "1798.100(c)"}
+    ]
+  },
+  {
+    "name": "Risk assessments and cybersecurity audits",
+    "description": "Businesses whose processing presents significant risk to consumer privacy or security must conduct regular risk assessments and cybersecurity audits.",
+    "ref_code": "1798.185(a)(15)",
+    "system_level": true,
+    "category": "CPRA Additions",
+    "subcategory": "Risk Management",
+    "mapping": {"gdpr": ["Art. 32", "Art. 35"], "nist_800_53": ["RA-3", "CA-8"], "soc2": ["CC3.2", "CC4.1"]},
+    "subcontrols": [
+      {"name": "Regular cybersecurity audits are performed for businesses whose processing presents significant risk", "description": "Periodic security audit.", "guidance": "Examine audit reports. Verify regular cadence and scope.", "ref_code": "1798.185(a)(15)(A)"},
+      {"name": "Risk assessments are conducted for processing that presents significant risk to consumer privacy, submitted to the CPPA on request", "description": "Privacy risk assessment.", "guidance": "Examine risk assessment documentation. Verify risk identification and mitigation.", "ref_code": "1798.185(a)(15)(B)"},
+      {"name": "Automated decision-making technology is assessed for risk to consumer rights and appropriate safeguards are implemented", "description": "ADM risk assessment.", "guidance": "Examine ADM assessments. Verify consumer right to opt-out and human review.", "ref_code": "1798.185(a)(16)"}
+    ]
+  },
+  {
+    "name": "Children's privacy protections",
+    "description": "Businesses must obtain affirmative authorization (opt-in) before selling or sharing the personal information of consumers under age 16.",
+    "ref_code": "1798.120(c)",
+    "system_level": false,
+    "category": "Consumer Rights",
+    "subcategory": "Children's Privacy",
+    "mapping": {"gdpr": ["Art. 8"], "nist_800_53": ["IP-1"]},
+    "subcontrols": [
+      {"name": "Business does not sell or share PI of consumers under 16 without affirmative authorization", "description": "Minor opt-in consent.", "guidance": "Examine age verification and consent mechanisms. Verify opt-in for minors.", "ref_code": "1798.120(c)"},
+      {"name": "For consumers under 13, consent is obtained from the consumer's parent or guardian", "description": "Parental consent for under-13.", "guidance": "Examine parental consent process. Verify verifiable parental consent obtained.", "ref_code": "1798.120(c)"}
+    ]
+  }
+]

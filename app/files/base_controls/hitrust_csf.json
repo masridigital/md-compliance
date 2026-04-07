@@ -1,0 +1,209 @@
+[
+  {
+    "name": "Information Security Management Program",
+    "description": "Establish and maintain a comprehensive information security management program including policies, risk management, and governance.",
+    "ref_code": "01",
+    "system_level": false,
+    "category": "Domain 01: Information Security Management",
+    "subcategory": "Governance and Risk Management",
+    "mapping": {"nist_800_53": ["PM-1", "PM-2", "PL-1"], "hipaa": ["164.316(a)"], "iso_27001": ["A.5.1", "A.5.2"], "pci_dss_v4": ["12.1"]},
+    "subcontrols": [
+      {"name": "An information security policy is established, approved by management, published, and communicated to all relevant parties", "description": "Written security policy.", "guidance": "Examine security policy. Verify management approval and communication.", "ref_code": "01.a"},
+      {"name": "Information security responsibilities are clearly defined and assigned", "description": "Security role assignments.", "guidance": "Examine role descriptions and assignments. Verify accountability.", "ref_code": "01.b"},
+      {"name": "Information security policies and procedures are reviewed at planned intervals or when significant changes occur", "description": "Policy review cycle.", "guidance": "Examine review records. Verify periodic reviews conducted.", "ref_code": "01.c"},
+      {"name": "Risk assessments are performed regularly to identify threats and vulnerabilities to information assets", "description": "Regular risk assessment.", "guidance": "Examine risk assessment reports. Verify annual cadence and scope.", "ref_code": "01.d"},
+      {"name": "A risk treatment plan is developed and implemented to address identified risks", "description": "Risk treatment planning.", "guidance": "Examine risk treatment plans. Verify controls implemented for identified risks.", "ref_code": "01.e"}
+    ]
+  },
+  {
+    "name": "Access Control",
+    "description": "Control access to information assets to ensure that only authorized users can access systems and data based on business and security requirements.",
+    "ref_code": "02",
+    "system_level": true,
+    "category": "Domain 02: Access Control",
+    "subcategory": "Identity and Access Management",
+    "mapping": {"nist_800_53": ["AC-1", "AC-2", "AC-3", "AC-6", "IA-2"], "hipaa": ["164.312(a)(1)", "164.312(d)"], "iso_27001": ["A.8.2", "A.8.3"], "pci_dss_v4": ["7.1", "7.2", "8.1"]},
+    "subcontrols": [
+      {"name": "An access control policy is documented and implemented based on business and security requirements", "description": "Access control policy.", "guidance": "Examine access control policy. Verify alignment with business needs.", "ref_code": "02.a"},
+      {"name": "User registration and de-registration processes ensure authorized access assignment and timely revocation", "description": "User lifecycle management.", "guidance": "Examine user provisioning/deprovisioning logs. Verify timely execution.", "ref_code": "02.b"},
+      {"name": "Privileged access rights are restricted and controlled, with elevated permissions granted on a least-privilege basis", "description": "Privileged access management.", "guidance": "Examine privileged accounts. Verify least-privilege and regular review.", "ref_code": "02.c"},
+      {"name": "Multi-factor authentication is required for remote access, privileged accounts, and access to sensitive data", "description": "MFA implementation.", "guidance": "Examine MFA configurations. Verify enforcement for required scenarios.", "ref_code": "02.d"},
+      {"name": "Access rights are reviewed at regular intervals to ensure they remain appropriate", "description": "Access review.", "guidance": "Examine access review records. Verify periodic reviews conducted.", "ref_code": "02.e"},
+      {"name": "Password management requires complexity, expiration, history, and lockout controls", "description": "Password policy enforcement.", "guidance": "Examine password policy configurations. Verify technical enforcement.", "ref_code": "02.f"},
+      {"name": "Remote access is controlled through encrypted connections and authorized endpoints", "description": "Remote access controls.", "guidance": "Examine VPN and remote access configurations. Verify encryption and authorization.", "ref_code": "02.g"}
+    ]
+  },
+  {
+    "name": "Human Resources Security",
+    "description": "Ensure personnel understand their responsibilities and are suitable for their roles, and that security awareness is maintained throughout employment.",
+    "ref_code": "03",
+    "system_level": false,
+    "category": "Domain 03: Human Resources Security",
+    "subcategory": "Personnel Security",
+    "mapping": {"nist_800_53": ["PS-1", "PS-2", "PS-3", "AT-1", "AT-2"], "hipaa": ["164.308(a)(3)"], "iso_27001": ["A.6.1", "A.6.2"], "pci_dss_v4": ["12.6", "12.7"]},
+    "subcontrols": [
+      {"name": "Background checks are performed on all candidates for employment in accordance with relevant laws and proportional to business requirements", "description": "Pre-employment screening.", "guidance": "Examine screening records. Verify background checks conducted.", "ref_code": "03.a"},
+      {"name": "Terms and conditions of employment include the employee's information security responsibilities", "description": "Security in employment terms.", "guidance": "Examine employment agreements. Verify security obligations included.", "ref_code": "03.b"},
+      {"name": "All employees and contractors receive appropriate security awareness education and training upon hire and regularly thereafter", "description": "Security awareness training.", "guidance": "Examine training records. Verify onboarding and annual training.", "ref_code": "03.c"},
+      {"name": "A formal disciplinary process is established for employees who have committed a security breach", "description": "Security violation disciplinary process.", "guidance": "Examine disciplinary policy. Verify security breach procedures documented.", "ref_code": "03.d"},
+      {"name": "Termination procedures include return of assets, revocation of access, and confidentiality reminders", "description": "Secure offboarding.", "guidance": "Examine termination checklists. Verify access revocation and asset return.", "ref_code": "03.e"}
+    ]
+  },
+  {
+    "name": "Asset Management",
+    "description": "Identify organizational assets and define appropriate protection responsibilities including classification, labeling, and acceptable use.",
+    "ref_code": "04",
+    "system_level": false,
+    "category": "Domain 04: Asset Management",
+    "subcategory": "Information Asset Management",
+    "mapping": {"nist_800_53": ["CM-8", "MP-1", "RA-2"], "hipaa": ["164.310(d)(1)"], "iso_27001": ["A.5.9", "A.5.10", "A.5.12"], "pci_dss_v4": ["9.4", "12.3.4"]},
+    "subcontrols": [
+      {"name": "An inventory of information assets is maintained including ownership and classification", "description": "Asset inventory.", "guidance": "Examine asset inventory. Verify completeness, ownership, and classification.", "ref_code": "04.a"},
+      {"name": "Information is classified according to its value, legal requirements, sensitivity, and criticality", "description": "Data classification.", "guidance": "Examine classification scheme and application. Verify consistent labeling.", "ref_code": "04.b"},
+      {"name": "Acceptable use rules for information assets are documented and communicated", "description": "Acceptable use policy.", "guidance": "Examine acceptable use policy. Verify communication to all users.", "ref_code": "04.c"},
+      {"name": "Removable media is managed and controlled according to the classification scheme", "description": "Removable media controls.", "guidance": "Examine media management procedures. Verify controls enforced.", "ref_code": "04.d"},
+      {"name": "Media is securely disposed of when no longer needed using appropriate methods for the classification level", "description": "Secure media disposal.", "guidance": "Examine disposal records. Verify destruction methods appropriate to classification.", "ref_code": "04.e"}
+    ]
+  },
+  {
+    "name": "Physical and Environmental Security",
+    "description": "Prevent unauthorized physical access, damage, and interference to the organization's information and information processing facilities.",
+    "ref_code": "05",
+    "system_level": false,
+    "category": "Domain 05: Physical Security",
+    "subcategory": "Facility Protection",
+    "mapping": {"nist_800_53": ["PE-1", "PE-2", "PE-3", "PE-6"], "hipaa": ["164.310(a)(1)", "164.310(b)", "164.310(c)"], "iso_27001": ["A.7.1", "A.7.2", "A.7.3"], "pci_dss_v4": ["9.1", "9.2"]},
+    "subcontrols": [
+      {"name": "Physical security perimeters are defined and used to protect areas containing sensitive information and systems", "description": "Security perimeters.", "guidance": "Examine physical security controls. Verify perimeter protection.", "ref_code": "05.a"},
+      {"name": "Entry to secure areas is controlled by appropriate entry controls to ensure only authorized personnel are allowed access", "description": "Physical access controls.", "guidance": "Examine access control mechanisms. Verify authorization and logging.", "ref_code": "05.b"},
+      {"name": "Equipment is protected from environmental threats and hazards including fire, flood, temperature, and humidity", "description": "Environmental controls.", "guidance": "Examine environmental controls. Verify monitoring and protection systems.", "ref_code": "05.c"},
+      {"name": "Visitor access is controlled with sign-in/sign-out procedures and escort requirements", "description": "Visitor management.", "guidance": "Examine visitor logs. Verify sign-in/escort procedures.", "ref_code": "05.d"}
+    ]
+  },
+  {
+    "name": "Communications and Operations Management",
+    "description": "Ensure correct and secure operations of information processing facilities including malware protection, backup, logging, and network security.",
+    "ref_code": "06",
+    "system_level": true,
+    "category": "Domain 06: Communications and Operations",
+    "subcategory": "Operational Security",
+    "mapping": {"nist_800_53": ["SI-3", "CP-9", "AU-2", "SC-7"], "hipaa": ["164.312(b)", "164.312(c)(1)", "164.312(e)(1)"], "iso_27001": ["A.8.7", "A.8.13", "A.8.15"], "pci_dss_v4": ["5.1", "10.1", "11.5"]},
+    "subcontrols": [
+      {"name": "Operating procedures are documented, maintained, and made available to all users who need them", "description": "Documented operating procedures.", "guidance": "Examine operations documentation. Verify currency and availability.", "ref_code": "06.a"},
+      {"name": "Anti-malware controls are implemented, regularly updated, and configured to detect and prevent known threats", "description": "Malware protection.", "guidance": "Examine anti-malware configurations. Verify coverage and update frequency.", "ref_code": "06.b"},
+      {"name": "Backup copies of information and software are taken and tested regularly in accordance with the backup policy", "description": "Backup and recovery.", "guidance": "Examine backup logs and test results. Verify regular execution and testing.", "ref_code": "06.c"},
+      {"name": "Audit logs recording user activities, exceptions, faults, and security events are produced, kept, and regularly reviewed", "description": "Audit logging and review.", "guidance": "Examine log configurations and review records. Verify completeness and review.", "ref_code": "06.d"},
+      {"name": "Networks are managed and controlled to protect information in systems and applications including segregation and monitoring", "description": "Network security management.", "guidance": "Examine network architecture and monitoring. Verify segmentation and controls.", "ref_code": "06.e"},
+      {"name": "Procedures for the management of removable media and information transfer are established", "description": "Information transfer controls.", "guidance": "Examine transfer procedures. Verify secure handling documented.", "ref_code": "06.f"}
+    ]
+  },
+  {
+    "name": "Information Systems Acquisition, Development, and Maintenance",
+    "description": "Ensure security is an integral part of information systems across the entire lifecycle including development, testing, and change management.",
+    "ref_code": "07",
+    "system_level": true,
+    "category": "Domain 07: Systems Development",
+    "subcategory": "Secure Development Lifecycle",
+    "mapping": {"nist_800_53": ["SA-3", "SA-11", "CM-3", "RA-5"], "hipaa": ["164.312(a)(2)(iv)"], "iso_27001": ["A.8.25", "A.8.27", "A.8.31"], "pci_dss_v4": ["6.1", "6.2", "6.3"]},
+    "subcontrols": [
+      {"name": "Security requirements are identified and documented for new information systems and enhancements to existing systems", "description": "Security requirements specification.", "guidance": "Examine system requirements. Verify security requirements included.", "ref_code": "07.a"},
+      {"name": "Applications are developed using secure coding practices and reviewed for common vulnerabilities", "description": "Secure development practices.", "guidance": "Examine SDLC procedures. Verify secure coding guidelines and code review.", "ref_code": "07.b"},
+      {"name": "Technical vulnerability management includes timely identification, assessment, and remediation of vulnerabilities", "description": "Vulnerability management.", "guidance": "Examine vulnerability scan reports. Verify remediation timelines met.", "ref_code": "07.c"},
+      {"name": "Changes to systems are controlled using formal change management procedures including testing and approval", "description": "Change management.", "guidance": "Examine change tickets. Verify testing, approval, and rollback procedures.", "ref_code": "07.d"},
+      {"name": "Test data is carefully selected, protected, and controlled with no use of production data containing PII in test environments without appropriate safeguards", "description": "Test data protection.", "guidance": "Examine test data management. Verify no unprotected PII in test environments.", "ref_code": "07.e"}
+    ]
+  },
+  {
+    "name": "Information Security Incident Management",
+    "description": "Ensure a consistent and effective approach to the management of information security incidents including detection, response, and lessons learned.",
+    "ref_code": "08",
+    "system_level": false,
+    "category": "Domain 08: Incident Management",
+    "subcategory": "Security Incident Response",
+    "mapping": {"nist_800_53": ["IR-1", "IR-4", "IR-5", "IR-6", "IR-8"], "hipaa": ["164.308(a)(6)", "164.404", "164.410"], "iso_27001": ["A.5.24", "A.5.25", "A.5.26"], "pci_dss_v4": ["12.10"]},
+    "subcontrols": [
+      {"name": "Incident response procedures are established including identification, containment, eradication, recovery, and post-incident review", "description": "Documented IR procedures.", "guidance": "Examine IR plan. Verify all phases covered.", "ref_code": "08.a"},
+      {"name": "Security events are reported through appropriate management channels as quickly as possible", "description": "Incident reporting.", "guidance": "Examine reporting procedures. Verify reporting channels and timelines.", "ref_code": "08.b"},
+      {"name": "Information security incidents are responded to in accordance with documented procedures and within required notification timelines including HIPAA breach notification", "description": "Incident response and breach notification.", "guidance": "Examine incident response records. Verify HIPAA notification timelines met.", "ref_code": "08.c"},
+      {"name": "Lessons learned from security incidents are used to improve incident response procedures and reduce likelihood of future incidents", "description": "Post-incident improvement.", "guidance": "Examine post-incident review records. Verify lessons learned documented and applied.", "ref_code": "08.d"},
+      {"name": "Evidence is collected, retained, and handled in a forensically sound manner for potential legal proceedings", "description": "Forensic evidence handling.", "guidance": "Examine evidence handling procedures. Verify chain of custody maintained.", "ref_code": "08.e"}
+    ]
+  },
+  {
+    "name": "Business Continuity Management",
+    "description": "Ensure the availability of information processing facilities and business operations during and after disruptions.",
+    "ref_code": "09",
+    "system_level": false,
+    "category": "Domain 09: Business Continuity",
+    "subcategory": "Continuity and Recovery",
+    "mapping": {"nist_800_53": ["CP-1", "CP-2", "CP-4", "CP-10"], "hipaa": ["164.308(a)(7)"], "iso_27001": ["A.5.29", "A.5.30"], "pci_dss_v4": ["12.10.1"]},
+    "subcontrols": [
+      {"name": "A business continuity framework is established to identify critical processes and maintain or restore operations within required timeframes", "description": "BCM framework.", "guidance": "Examine BCM framework. Verify critical process identification.", "ref_code": "09.a"},
+      {"name": "Business impact analysis is conducted to determine priorities, recovery time objectives, and recovery point objectives", "description": "BIA and RTO/RPO.", "guidance": "Examine BIA documentation. Verify RTO/RPO defined for critical systems.", "ref_code": "09.b"},
+      {"name": "Business continuity plans are developed, documented, and address all identified requirements including ePHI availability", "description": "Business continuity plans.", "guidance": "Examine BC plans. Verify coverage including ePHI availability.", "ref_code": "09.c"},
+      {"name": "Business continuity plans are tested at least annually, and test results are used to update plans", "description": "BC plan testing.", "guidance": "Examine test records. Verify annual testing and plan updates.", "ref_code": "09.d"}
+    ]
+  },
+  {
+    "name": "Privacy Practices",
+    "description": "Implement privacy controls to protect personal and health information in compliance with HIPAA Privacy Rule and applicable state regulations.",
+    "ref_code": "10",
+    "system_level": false,
+    "category": "Domain 10: Privacy",
+    "subcategory": "Privacy Compliance",
+    "mapping": {"nist_800_53": ["AP-1", "AP-2", "IP-1", "IP-2", "DM-1"], "hipaa": ["164.502", "164.514", "164.520", "164.524", "164.526"], "iso_27001": ["A.5.1"], "gdpr": ["Art. 5", "Art. 12"]},
+    "subcontrols": [
+      {"name": "Notice of Privacy Practices is provided to individuals describing how their health information may be used and disclosed, and their rights", "description": "NPP requirements.", "guidance": "Examine Notice of Privacy Practices. Verify all HIPAA-required elements included.", "ref_code": "10.a"},
+      {"name": "Uses and disclosures of PHI are limited to the minimum necessary to accomplish the intended purpose", "description": "Minimum necessary standard.", "guidance": "Examine minimum necessary policies. Verify implementation in systems and processes.", "ref_code": "10.b"},
+      {"name": "Individuals can access, inspect, and obtain a copy of their PHI maintained in designated record sets", "description": "Individual access rights.", "guidance": "Examine access request procedures. Verify 30-day response timeline.", "ref_code": "10.c"},
+      {"name": "Individuals can request amendments to their PHI and the covered entity responds within 60 days", "description": "Amendment rights.", "guidance": "Examine amendment request logs. Verify timely response.", "ref_code": "10.d"},
+      {"name": "An accounting of disclosures is maintained and provided upon request covering the six years prior to the request", "description": "Accounting of disclosures.", "guidance": "Examine disclosure tracking. Verify six-year accounting capability.", "ref_code": "10.e"},
+      {"name": "Business associate agreements are in place with all entities that create, receive, maintain, or transmit PHI on behalf of the covered entity", "description": "BAA requirements.", "guidance": "Examine BAA inventory. Verify agreements in place for all business associates.", "ref_code": "10.f"}
+    ]
+  },
+  {
+    "name": "Compliance",
+    "description": "Ensure compliance with legal, regulatory, and contractual requirements related to information security and avoid violations of any law or obligations.",
+    "ref_code": "11",
+    "system_level": false,
+    "category": "Domain 11: Compliance",
+    "subcategory": "Regulatory Compliance",
+    "mapping": {"nist_800_53": ["CA-2", "CA-7", "AU-6"], "hipaa": ["164.308(a)(8)", "164.312(b)"], "iso_27001": ["A.5.31", "A.5.35", "A.5.36"], "pci_dss_v4": ["12.5.1"]},
+    "subcontrols": [
+      {"name": "All relevant statutory, regulatory, and contractual requirements are identified, documented, and kept up to date for each information system", "description": "Legal and regulatory requirements.", "guidance": "Examine compliance register. Verify requirements identified and current.", "ref_code": "11.a"},
+      {"name": "Information systems are regularly reviewed for compliance with security policies, standards, and technical implementation", "description": "Compliance monitoring.", "guidance": "Examine audit reports. Verify regular compliance reviews conducted.", "ref_code": "11.b"},
+      {"name": "Audit activities involving checks on operational systems are carefully planned and agreed to minimize disruption to business processes", "description": "Audit planning.", "guidance": "Examine audit plans. Verify coordination and minimal disruption.", "ref_code": "11.c"},
+      {"name": "The organization maintains an ongoing authorization and continuous monitoring program for information systems", "description": "Continuous monitoring.", "guidance": "Examine monitoring program. Verify ongoing security assessment activities.", "ref_code": "11.d"}
+    ]
+  },
+  {
+    "name": "Encryption and Cryptographic Controls",
+    "description": "Use cryptographic controls to protect the confidentiality, integrity, and authenticity of information including ePHI.",
+    "ref_code": "06.d",
+    "system_level": true,
+    "category": "Domain 06: Communications and Operations",
+    "subcategory": "Cryptographic Controls",
+    "mapping": {"nist_800_53": ["SC-8", "SC-12", "SC-13", "SC-28"], "hipaa": ["164.312(a)(2)(iv)", "164.312(e)(2)(ii)"], "iso_27001": ["A.8.24"], "pci_dss_v4": ["3.5", "4.2"]},
+    "subcontrols": [
+      {"name": "A policy on the use of cryptographic controls is developed and implemented", "description": "Cryptographic policy.", "guidance": "Examine crypto policy. Verify coverage of key management and algorithm standards.", "ref_code": "06.d.1"},
+      {"name": "Data at rest is encrypted using NIST-approved algorithms (e.g., AES-256) including ePHI on workstations, servers, and portable devices", "description": "Encryption at rest.", "guidance": "Examine encryption configurations. Verify NIST-approved algorithms.", "ref_code": "06.d.2"},
+      {"name": "Data in transit is protected using TLS 1.2 or higher for all network communications containing sensitive information", "description": "Encryption in transit.", "guidance": "Examine TLS configurations. Verify minimum version and cipher suites.", "ref_code": "06.d.3"},
+      {"name": "Cryptographic key management procedures are established covering key generation, distribution, storage, rotation, and destruction", "description": "Key management.", "guidance": "Examine key management procedures. Verify lifecycle controls.", "ref_code": "06.d.4"}
+    ]
+  },
+  {
+    "name": "Third-Party Management",
+    "description": "Manage information security risks associated with external parties including business associates, vendors, and cloud service providers.",
+    "ref_code": "01.f",
+    "system_level": false,
+    "category": "Domain 01: Information Security Management",
+    "subcategory": "Vendor Risk Management",
+    "mapping": {"nist_800_53": ["SA-9", "PS-7", "SR-1"], "hipaa": ["164.308(b)(1)", "164.314(a)"], "iso_27001": ["A.5.19", "A.5.20", "A.5.21"], "pci_dss_v4": ["12.8"]},
+    "subcontrols": [
+      {"name": "Risks associated with third-party access to information assets are identified and appropriate controls are implemented", "description": "Third-party risk assessment.", "guidance": "Examine vendor risk assessments. Verify risk identification and controls.", "ref_code": "01.f.1"},
+      {"name": "Security requirements are established and agreed in contracts with third parties that access, process, or manage organizational information", "description": "Vendor security contracts.", "guidance": "Examine vendor agreements. Verify security requirements and BAAs.", "ref_code": "01.f.2"},
+      {"name": "Third-party service delivery is monitored and reviewed to ensure adherence to terms, conditions, and security requirements", "description": "Vendor monitoring.", "guidance": "Examine vendor review records. Verify ongoing monitoring and assessment.", "ref_code": "01.f.3"},
+      {"name": "Cloud service providers are assessed for compliance with HITRUST CSF or equivalent security framework before use", "description": "Cloud provider assessment.", "guidance": "Examine cloud assessments. Verify HITRUST or equivalent certification.", "ref_code": "01.f.4"}
+    ]
+  }
+]

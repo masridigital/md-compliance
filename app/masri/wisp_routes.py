@@ -132,6 +132,16 @@ def wisp_generate():
     tenant_id = data.get("tenant_id")
     output_format = data.get("format", "html")
 
+    # Tenant isolation: ensure user has access to the requested tenant
+    if current_user.super:
+        pass  # Super admins can access any tenant
+    else:
+        from app.utils.authorizer import Authorizer
+        user_tid = Authorizer.get_tenant_id()
+        if user_tid != tenant_id:
+            from flask import abort
+            abort(403, "Access denied to this tenant")
+
     try:
         from app.masri.new_models import WISPDocument, WISPVersion
         from app import db

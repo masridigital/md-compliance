@@ -85,10 +85,11 @@ def ninjaone_test():
         result = client.test_connection()
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"connected": False, "error": str(e)}), 400
+        logger.warning("NinjaOne connection test error: %s", e)
+        return jsonify({"connected": False, "error": "Connection test failed. Check credentials and region."}), 400
     except Exception as e:
         logger.exception("NinjaOne connection test failed")
-        return jsonify({"connected": False, "error": "Connection test failed"}), 500
+        return jsonify({"connected": False, "error": "An internal error occurred. Check system logs."}), 500
 
 
 # ─── Organizations ────────────────────────────────────────────────
@@ -104,7 +105,8 @@ def ninjaone_organizations():
         orgs = client.list_organizations()
         return jsonify(orgs)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne organization list failed")
         return jsonify({"error": "An internal error occurred"}), 500
@@ -124,7 +126,8 @@ def ninjaone_devices():
         devices = client.get_devices_detailed(org_id=org_id)
         return jsonify(devices)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne device list failed")
         return jsonify({"error": "An internal error occurred"}), 500
@@ -174,7 +177,8 @@ def ninjaone_compliance_summary():
             "devices_by_os": _group_by(devices, "nodeClass"),
         })
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("NinjaOne API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("NinjaOne compliance summary failed")
         return jsonify({"error": "An internal error occurred"}), 500

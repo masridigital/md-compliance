@@ -78,10 +78,11 @@ def defensx_test():
         result = client.test_connection()
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"connected": False, "error": str(e)}), 400
+        logger.warning("DefensX connection test error: %s", e)
+        return jsonify({"connected": False, "error": "Connection test failed. Check API token."}), 400
     except Exception as e:
         logger.exception("DefensX connection test failed")
-        return jsonify({"connected": False, "error": "Connection test failed"}), 500
+        return jsonify({"connected": False, "error": "An internal error occurred. Check system logs."}), 500
 
 
 # ─── Customers ────────────────────────────────────────────────────
@@ -97,7 +98,8 @@ def defensx_customers():
         customers = client.list_customers()
         return jsonify(customers)
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 400
+        logger.warning("DefensX API error: %s", e)
+        return jsonify({"error": "Integration request failed. Check credentials and try again."}), 400
     except Exception:
         logger.exception("DefensX customer list failed")
         return jsonify({"error": "An internal error occurred"}), 500

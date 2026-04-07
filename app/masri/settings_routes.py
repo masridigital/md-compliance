@@ -188,6 +188,25 @@ def update_llm_config():
         return jsonify({"error": "Failed to save LLM configuration"}), 500
 
 
+@settings_bp.route("/llm", methods=["DELETE"])
+@limiter.limit("10 per minute")
+@login_required
+def delete_llm_config():
+    """DELETE /api/v1/settings/llm — remove the primary LLM provider."""
+    _require_admin()
+    try:
+        from app.masri.new_models import SettingsLLM
+        llm = db.session.execute(db.select(SettingsLLM)).scalars().first()
+        if llm:
+            db.session.delete(llm)
+            db.session.commit()
+        return jsonify({"message": "Primary provider removed"})
+    except Exception as e:
+        db.session.rollback()
+        logger.exception("Failed to delete LLM config: %s", e)
+        return jsonify({"error": "Failed to remove provider"}), 500
+
+
 # ===========================================================================
 # Storage (admin only)
 # ===========================================================================
@@ -833,7 +852,6 @@ def _quick_test_provider(provider, api_key):
             "https://api.together.xyz/v1/models",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=15,
-            params={"limit": 1},
         )
         resp.raise_for_status()
     elif provider == "azure_openai":
@@ -901,7 +919,7 @@ def fetch_llm_models():
         return jsonify({"models": models})
     except Exception as e:
         logger.warning("Failed to fetch models for %s: %s", provider, e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "Failed to fetch models from provider. Check API key and try again."}), 502
 
 
 def _fetch_models_for_provider(provider: str, api_key: str) -> list:
@@ -926,30 +944,28 @@ def _fetch_models_for_provider(provider: str, api_key: str) -> list:
 
     elif provider in ("together", "together_ai"):
         import requests as _requests
-        # Together AI model list can be slow — use longer timeout with retry
         for attempt in range(2):
             try:
                 resp = _requests.get(
                     "https://api.together.xyz/v1/models",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=45,
+                    timeout=30,
                 )
                 resp.raise_for_status()
                 break
-            except _requests.exceptions.ReadTimeout:
+            except (_requests.exceptions.ReadTimeout, _requests.exceptions.ConnectionError):
                 if attempt == 0:
                     continue
                 raise
         data = resp.json()
         model_list = data if isinstance(data, list) else data.get("data", data.get("models", []))
-        chat_models = [
-            m["id"] for m in model_list
-            if isinstance(m, dict) and m.get("id") and
-            m.get("type", "chat") in ("chat", "language", "")
-        ]
-        return sorted(chat_models) if chat_models else sorted(
-            [m["id"] for m in model_list if isinstance(m, dict) and m.get("id")]
-        )
+        all_models, chat_models = [], []
+        for m in model_list:
+            if isinstance(m, dict) and m.get("id"):
+                all_models.append(m["id"])
+                if m.get("type", "") in ("chat", "language"):
+                    chat_models.append(m["id"])
+        return sorted(chat_models) if chat_models else sorted(all_models)
 
     elif provider == "azure_openai":
         return []
@@ -1749,3 +1765,193 @@ def get_system_logs():
 
     logs = get_recent_logs(limit=min(limit, 500), level=level, since=since)
     return jsonify(logs)
+
+
+# ===========================================================================
+# Cross-Framework Control Mappings
+# ===========================================================================
+
+@settings_bp.route("/control-mappings/populate", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def populate_control_mappings():
+    """POST /api/v1/settings/control-mappings/populate — Backfill cross-framework mappings."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.masri.control_mappings import populate_mappings
+        updated = populate_mappings(tenant_id)
+        return jsonify({"updated": updated, "message": f"Populated mappings for {updated} controls"})
+    except Exception:
+        logger.exception("Failed to populate control mappings")
+        return jsonify({"error": "Failed to populate mappings. Check system logs."}), 500
+
+
+@settings_bp.route("/control-mappings/<string:ref_code>", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_control_mapping(ref_code):
+    """GET /api/v1/settings/control-mappings/<ref_code> — Get cross-references for a control."""
+    framework = request.args.get("framework", "")
+    if not framework:
+        return jsonify({"error": "framework query parameter is required"}), 400
+    try:
+        from app.masri.control_mappings import get_mapping_for_control
+        mapping = get_mapping_for_control(framework, ref_code)
+        return jsonify({"ref_code": ref_code, "framework": framework, "mappings": mapping})
+    except Exception:
+        logger.exception("Failed to get control mapping")
+        return jsonify({"error": "Failed to retrieve mapping."}), 500
+
+
+# ===========================================================================
+# Continuous Monitoring
+# ===========================================================================
+
+@settings_bp.route("/monitoring/baseline", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def create_monitoring_baseline():
+    """POST /api/v1/settings/monitoring/baseline — Create compliance baseline from current data."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if not record or not record.value:
+            return jsonify({"error": "No integration data available. Run integrations first."}), 400
+
+        import json as _json
+        data = _json.loads(record.value)
+
+        from app.masri.continuous_monitor import create_baseline
+        baseline = create_baseline(tenant_id, data)
+        return jsonify({
+            "created": baseline.get("created"),
+            "has_microsoft": "microsoft" in baseline,
+            "has_ninjaone": "ninjaone" in baseline,
+        })
+    except Exception:
+        logger.exception("Failed to create monitoring baseline")
+        return jsonify({"error": "Failed to create baseline. Check system logs."}), 500
+
+
+@settings_bp.route("/monitoring/baseline", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_monitoring_baseline():
+    """GET /api/v1/settings/monitoring/baseline — Get baseline info."""
+    tenant_id = Authorizer.get_tenant_id()
+    from app.masri.continuous_monitor import get_baseline_info
+    info = get_baseline_info(tenant_id)
+    if not info:
+        return jsonify({"exists": False})
+    return jsonify({"exists": True, **info})
+
+
+@settings_bp.route("/monitoring/drift", methods=["GET"])
+@limiter.limit("60 per minute")
+@login_required
+def get_drift_alerts():
+    """GET /api/v1/settings/monitoring/drift — Get drift alerts."""
+    tenant_id = Authorizer.get_tenant_id()
+    limit = request.args.get("limit", 50, type=int)
+    from app.masri.continuous_monitor import get_drift_alerts as _get_alerts
+    alerts = _get_alerts(tenant_id, limit=min(limit, 100))
+    return jsonify({"alerts": alerts, "count": len(alerts)})
+
+
+@settings_bp.route("/monitoring/check", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def check_drift_now():
+    """POST /api/v1/settings/monitoring/check — Run drift check against baseline."""
+    _require_admin()
+    tenant_id = Authorizer.get_tenant_id()
+    try:
+        from app.models import ConfigStore
+        record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
+        if not record or not record.value:
+            return jsonify({"error": "No integration data available."}), 400
+
+        import json as _json
+        data = _json.loads(record.value)
+
+        from app.masri.continuous_monitor import check_drift
+        alerts = check_drift(tenant_id, data)
+        return jsonify({"alerts": alerts, "count": len(alerts)})
+    except Exception:
+        logger.exception("Drift check failed")
+        return jsonify({"error": "Drift check failed. Check system logs."}), 500
+
+
+# ===========================================================================
+# Global Risk Dashboard
+# ===========================================================================
+
+@settings_bp.route("/global-risks", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def global_risk_dashboard():
+    """
+    GET /api/v1/settings/global-risks — Cross-client risk register.
+
+    Super admins see risks across ALL tenants.
+    Regular users see only their tenant's risks.
+    """
+    from app.models import RiskRegister, Tenant, Project
+
+    severity = request.args.get("severity")
+    status = request.args.get("status")
+    tenant_filter = request.args.get("tenant_id")
+    limit = min(request.args.get("limit", 100, type=int), 500)
+
+    # Build query
+    query = db.select(RiskRegister).order_by(RiskRegister.date_added.desc())
+
+    if current_user.super and not tenant_filter:
+        # Super admin: all tenants
+        pass
+    elif current_user.super and tenant_filter:
+        query = query.filter(RiskRegister.tenant_id == tenant_filter)
+    else:
+        # Regular user: own tenant only
+        tid = Authorizer.get_tenant_id()
+        query = query.filter(RiskRegister.tenant_id == tid)
+
+    if severity and severity in ("unknown", "low", "moderate", "high", "critical"):
+        query = query.filter(RiskRegister.risk == severity)
+    if status:
+        query = query.filter(RiskRegister.status == status)
+
+    query = query.limit(limit)
+    risks = db.session.execute(query).scalars().all()
+
+    # Batch-load tenant and project names
+    tenant_ids = {r.tenant_id for r in risks}
+    project_ids = {r.project_id for r in risks if r.project_id}
+    tenants = {t.id: t.name for t in db.session.execute(
+        db.select(Tenant).filter(Tenant.id.in_(tenant_ids))
+    ).scalars().all()} if tenant_ids else {}
+    projects = {p.id: p.name for p in db.session.execute(
+        db.select(Project).filter(Project.id.in_(project_ids))
+    ).scalars().all()} if project_ids else {}
+
+    result = []
+    for r in risks:
+        item = r.as_dict()
+        item["tenant_name"] = tenants.get(r.tenant_id, "Unknown")
+        item["project_name"] = projects.get(r.project_id, "") if r.project_id else ""
+        result.append(item)
+
+    # Summary stats
+    severity_counts = {}
+    for r in risks:
+        severity_counts[r.risk] = severity_counts.get(r.risk, 0) + 1
+
+    return jsonify({
+        "risks": result,
+        "total": len(result),
+        "by_severity": severity_counts,
+        "tenants": [{"id": tid, "name": tname} for tid, tname in tenants.items()],
+    })

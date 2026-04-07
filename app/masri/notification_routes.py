@@ -32,6 +32,24 @@ notification_bp = Blueprint(
 )
 
 
+def _require_admin():
+    """Abort 403 if the current user is not an admin."""
+    if not current_user.super:
+        abort(403, "Admin access required")
+
+
+def _validate_tenant_access(tenant_id):
+    """Ensure the current user has access to the given tenant."""
+    if not tenant_id:
+        abort(400, "tenant_id is required")
+    if current_user.super:
+        return  # Super admins can access any tenant
+    from app.utils.authorizer import Authorizer
+    user_tid = Authorizer.get_tenant_id()
+    if user_tid != tenant_id:
+        abort(403, "Access denied to this tenant")
+
+
 @notification_bp.route("/test-teams", methods=["POST"])
 @limiter.limit("30 per minute")
 @login_required
@@ -44,10 +62,12 @@ def test_teams():
 
     Sends a test Microsoft Teams adaptive card notification.
     """
+    _require_admin()
     data, err = validate_payload(TestTeamsSchema, request.get_json(silent=True))
     if err:
         return err
     tenant_id = data.get("tenant_id")
+    _validate_tenant_access(tenant_id)
     webhook_url = data.get("webhook_url")
 
     try:
@@ -67,7 +87,7 @@ def test_teams():
         return jsonify({"success": True, "result": result})
     except Exception as e:
         logger.exception("Test Teams notification failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/test-email", methods=["POST"])
@@ -82,10 +102,12 @@ def test_email():
 
     Sends a test email notification.
     """
+    _require_admin()
     data, err = validate_payload(TestEmailSchema, request.get_json(silent=True))
     if err:
         return err
     tenant_id = data.get("tenant_id")
+    _validate_tenant_access(tenant_id)
     recipient = data.get("recipient")
 
     try:
@@ -100,7 +122,7 @@ def test_email():
         return jsonify({"success": True, "result": result})
     except Exception as e:
         logger.exception("Test email notification failed")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/send", methods=["POST"])
@@ -122,10 +144,12 @@ def send_notification():
 
     Sends a notification through the specified channel.
     """
+    _require_admin()
     data, err = validate_payload(SendNotificationSchema, request.get_json(silent=True))
     if err:
         return err
     tenant_id = data.get("tenant_id")
+    _validate_tenant_access(tenant_id)
     channel = data.get("channel", "")
     subject = data.get("subject", "Notification")
     body = data.get("body", "")
@@ -156,7 +180,7 @@ def send_notification():
         return jsonify({"success": True, "channel": channel, "result": result})
     except Exception as e:
         logger.exception("Send notification failed for channel %s", channel)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500
 
 
 @notification_bp.route("/logs", methods=["GET"])
@@ -171,6 +195,7 @@ def notification_logs():
     tenant_id = request.args.get("tenant_id")
     if not tenant_id:
         return jsonify({"error": "tenant_id query parameter is required"}), 400
+    _validate_tenant_access(tenant_id)
 
     limit = request.args.get("limit", 50, type=int)
     offset = request.args.get("offset", 0, type=int)
@@ -210,10 +235,12 @@ def check_reminders():
 
     Manually triggers a due-date reminder check for the tenant.
     """
+    _require_admin()
     data, err = validate_payload(CheckRemindersSchema, request.get_json(silent=True))
     if err:
         return err
     tenant_id = data.get("tenant_id")
+    _validate_tenant_access(tenant_id)
 
     try:
         from app.masri.notification_engine import NotificationEngine
@@ -228,4 +255,4 @@ def check_reminders():
         })
     except Exception as e:
         logger.exception("Reminder check failed for tenant %s", tenant_id)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Operation failed. Check system logs for details."}), 500

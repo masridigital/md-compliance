@@ -83,10 +83,11 @@ def entra_test():
         result = client.test_connection()
         return jsonify(result)
     except RuntimeError as e:
-        return jsonify({"connected": False, "error": str(e)}), 400
+        logger.warning("Entra connection test error: %s", e)
+        return jsonify({"connected": False, "error": "Connection test failed. Check credentials and try again."}), 400
     except Exception as e:
         logger.exception("Entra connection test failed")
-        return jsonify({"connected": False, "error": str(e)}), 500
+        return jsonify({"connected": False, "error": "An internal error occurred. Check system logs."}), 500
 
 
 @entra_bp.route("/users", methods=["GET"])
@@ -233,7 +234,7 @@ def entra_import_csp_clients():
                 results["skipped"] += 1
                 results["details"].append({
                     "name": name, "action": "error",
-                    "message": f"Failed: {str(e)}"
+                    "message": "Operation failed"
                 })
 
     return jsonify(results)

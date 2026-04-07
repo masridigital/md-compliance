@@ -6,6 +6,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 from authlib.integrations.flask_client import OAuth
 from sqlalchemy import exc
 import logging
@@ -16,6 +17,7 @@ migrate = Migrate()
 mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
+csrf = CSRFProtect()
 import os as _os
 
 limiter = Limiter(
@@ -70,8 +72,22 @@ def create_app(config_name="default"):
             if request.endpoint in (
                 "auth.get_login", "auth.login", "auth.get_register",
                 "auth.get_verify_totp", "auth.verify_totp", "auth.logout",
+                "auth.get_setup", "auth.post_setup",
             ):
                 return
+
+            # First-run: redirect to setup if no admin user exists yet
+            if not hasattr(app, "_setup_checked"):
+                try:
+                    from app.models import User
+                    admin = db.session.execute(
+                        db.select(User).filter(User.super == True)  # noqa: E712
+                    ).scalars().first()
+                    if admin is None:
+                        return redirect(url_for("auth.get_setup"))
+                    app._setup_checked = True  # Cache: don't check again
+                except Exception:
+                    pass
 
             if not (current_user and current_user.is_authenticated):
                 return
@@ -341,6 +357,7 @@ def configure_extensions(app):
     migrate.init_app(app, db)
     login.init_app(app)
     limiter.init_app(app)
+    csrf.init_app(app)
     return
 
 
@@ -369,6 +386,7 @@ def registering_blueprints(app):
     from app.masri.mcp_server import mcp_bp
 
     app.register_blueprint(mcp_bp)
+    csrf.exempt(mcp_bp)  # MCP uses OAuth bearer tokens, not sessions
 
     from app.masri.llm_routes import llm_bp
 
@@ -389,6 +407,12 @@ def registering_blueprints(app):
 
     from app.masri.defensx_routes import defensx_bp
     app.register_blueprint(defensx_bp)
+
+    from app.masri.training_routes import training_bp
+    app.register_blueprint(training_bp)
+
+    from app.masri.trust_portal import trust_bp
+    app.register_blueprint(trust_bp)
 
     return
 

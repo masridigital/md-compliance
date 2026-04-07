@@ -5,79 +5,78 @@ Uses Redis DB 1 as broker (DB 0 is rate limiting).
 Falls back gracefully — if Celery/Redis is unavailable, the
 MasriScheduler in scheduler.py uses threading.Timer instead.
 
-Usage:
-    # Start worker:
+Usage (only when celery is installed and Docker profile enabled):
     celery -A app.masri.celery_app:celery worker --loglevel=info
-
-    # Start beat scheduler:
     celery -A app.masri.celery_app:celery beat --loglevel=info
 """
 
 import logging
 
-from celery import Celery
-from celery.schedules import crontab
-
 logger = logging.getLogger(__name__)
 
-celery = Celery("md_compliance")
+# Graceful import — celery may not be installed
+try:
+    from celery import Celery
+    _CELERY_INSTALLED = True
+except ImportError:
+    _CELERY_INSTALLED = False
 
-# Default config — overridden by init_celery() when Flask app is available
-celery.conf.update(
-    broker_url="redis://redis:6379/1",
-    result_backend="redis://redis:6379/1",
-    timezone="UTC",
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    task_acks_late=True,
-    worker_prefetch_multiplier=1,
-    beat_schedule={
-        "due-reminders": {
-            "task": "app.masri.celery_app.task_due_reminders",
-            "schedule": 3600.0,  # 1 hour
-        },
-        "drift-detection": {
-            "task": "app.masri.celery_app.task_drift_detection",
-            "schedule": 86400.0,  # 24 hours
-        },
-        "auto-update-check": {
-            "task": "app.masri.celery_app.task_auto_update",
-            "schedule": 3600.0,  # 1 hour
-        },
-        "integration-refresh": {
-            "task": "app.masri.celery_app.task_integration_refresh",
-            "schedule": 86400.0,  # 24 hours
-        },
-        "model-recommendations": {
-            "task": "app.masri.celery_app.task_model_recommendations",
-            "schedule": 604800.0,  # 7 days
-        },
-        "backup-integration-data": {
-            "task": "app.masri.celery_app.task_backup_integration_data",
-            "schedule": 86400.0,  # 24 hours
-        },
-    },
-)
-
-# Flask app reference for task context
+# Only create the Celery app and tasks if celery is installed
+celery = None
 _flask_app = None
+
+if _CELERY_INSTALLED:
+    celery = Celery("md_compliance")
+    celery.conf.update(
+        broker_url="redis://redis:6379/1",
+        result_backend="redis://redis:6379/1",
+        timezone="UTC",
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        task_acks_late=True,
+        worker_prefetch_multiplier=1,
+        beat_schedule={
+            "due-reminders": {
+                "task": "app.masri.celery_app.task_due_reminders",
+                "schedule": 3600.0,
+            },
+            "drift-detection": {
+                "task": "app.masri.celery_app.task_drift_detection",
+                "schedule": 86400.0,
+            },
+            "auto-update-check": {
+                "task": "app.masri.celery_app.task_auto_update",
+                "schedule": 3600.0,
+            },
+            "integration-refresh": {
+                "task": "app.masri.celery_app.task_integration_refresh",
+                "schedule": 86400.0,
+            },
+            "model-recommendations": {
+                "task": "app.masri.celery_app.task_model_recommendations",
+                "schedule": 604800.0,
+            },
+            "backup-integration-data": {
+                "task": "app.masri.celery_app.task_backup_integration_data",
+                "schedule": 86400.0,
+            },
+        },
+    )
 
 
 def init_celery(app):
     """Configure Celery from Flask app config and bind Flask context."""
     global _flask_app
-    _flask_app = app
+    if not _CELERY_INSTALLED or celery is None:
+        return
 
+    _flask_app = app
     broker = app.config.get("CELERY_BROKER_URL", "redis://redis:6379/1")
     backend = app.config.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 
-    celery.conf.update(
-        broker_url=broker,
-        result_backend=backend,
-    )
+    celery.conf.update(broker_url=broker, result_backend=backend)
 
-    # Wrap all tasks in Flask app context
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with _flask_app.app_context():
@@ -109,46 +108,40 @@ def _safe_task(task_func):
             pass
 
 
-@celery.task(name="app.masri.celery_app.task_due_reminders", bind=True, max_retries=2)
-def task_due_reminders(self):
-    """Check for upcoming due dates and send reminders."""
-    _safe_task(_get_scheduler()._task_due_reminders)
-
-
-@celery.task(name="app.masri.celery_app.task_drift_detection", bind=True, max_retries=2)
-def task_drift_detection(self):
-    """Detect configuration drift across tenants."""
-    _safe_task(_get_scheduler()._task_drift_detection)
-
-
-@celery.task(name="app.masri.celery_app.task_auto_update", bind=True, max_retries=2)
-def task_auto_update(self):
-    """Check for and optionally apply platform updates."""
-    _safe_task(_get_scheduler()._task_auto_update)
-
-
-@celery.task(name="app.masri.celery_app.task_integration_refresh", bind=True, max_retries=2)
-def task_integration_refresh(self):
-    """Daily refresh: re-pull integration data for all mapped tenants."""
-    _safe_task(_get_scheduler()._task_integration_refresh)
-
-
-@celery.task(name="app.masri.celery_app.task_model_recommendations", bind=True, max_retries=1)
-def task_model_recommendations(self):
-    """Weekly: research and update AI model recommendations."""
-    _safe_task(_get_scheduler()._task_model_recommendations)
-
-
-@celery.task(name="app.masri.celery_app.task_backup_integration_data", bind=True, max_retries=2)
-def task_backup_integration_data(self):
-    """Daily: backup integration data to configured storage provider."""
-    _safe_task(_get_scheduler()._task_backup_integration_data)
-
-
 def is_celery_available():
     """Check if Celery workers are running and reachable."""
+    if not _CELERY_INSTALLED or celery is None:
+        return False
     try:
         result = celery.control.ping(timeout=2.0)
         return bool(result)
     except Exception:
         return False
+
+
+# Task definitions — only created when celery is installed
+if _CELERY_INSTALLED:
+
+    @celery.task(name="app.masri.celery_app.task_due_reminders", bind=True, max_retries=2)
+    def task_due_reminders(self):
+        _safe_task(_get_scheduler()._task_due_reminders)
+
+    @celery.task(name="app.masri.celery_app.task_drift_detection", bind=True, max_retries=2)
+    def task_drift_detection(self):
+        _safe_task(_get_scheduler()._task_drift_detection)
+
+    @celery.task(name="app.masri.celery_app.task_auto_update", bind=True, max_retries=2)
+    def task_auto_update(self):
+        _safe_task(_get_scheduler()._task_auto_update)
+
+    @celery.task(name="app.masri.celery_app.task_integration_refresh", bind=True, max_retries=2)
+    def task_integration_refresh(self):
+        _safe_task(_get_scheduler()._task_integration_refresh)
+
+    @celery.task(name="app.masri.celery_app.task_model_recommendations", bind=True, max_retries=1)
+    def task_model_recommendations(self):
+        _safe_task(_get_scheduler()._task_model_recommendations)
+
+    @celery.task(name="app.masri.celery_app.task_backup_integration_data", bind=True, max_retries=2)
+    def task_backup_integration_data(self):
+        _safe_task(_get_scheduler()._task_backup_integration_data)

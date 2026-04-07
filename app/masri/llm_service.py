@@ -497,6 +497,24 @@ class LLMService:
 
         provider = LLMService._get_provider(config)
 
+        # Apply prompt adapter based on model family (CLAUDE.md rule #14)
+        try:
+            from app.masri.prompt_adapters import get_adapter
+            model_name = kwargs.get("model", config.get("model_name", ""))
+            adapter = get_adapter(model_name)
+            adapted_messages = []
+            for m in messages:
+                if m["role"] == "system":
+                    adapted_messages.append({"role": "system", "content": adapter.adapt_system(m["content"])})
+                else:
+                    adapted_messages.append(m)
+            messages = adapted_messages
+            # Adapt temperature if not explicitly overridden to a non-default value
+            if "temperature" in kwargs:
+                kwargs["temperature"] = adapter.adapt_temperature(kwargs["temperature"])
+        except Exception:
+            pass  # Graceful fallback: use original messages if adapter fails
+
         try:
             result = provider.chat(messages, **kwargs)
         except Exception as e:

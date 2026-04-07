@@ -1,0 +1,60 @@
+{% extends "layouts/basic.html" %}
+
+{%block body%}
+<div class="min-h-screen">
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
+    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary flex items-center justify-center">
+      <div class="text-primary-content text-center p-8">
+        <i class="ti ti-shield-check text-6xl"></i>
+        <h2 class="text-2xl font-bold mt-4">MD Compliance</h2>
+        <p class="text-sm opacity-70 mt-2">Compliance Management Platform</p>
+      </div>
+    </div>
+    <form class="lg:col-span-2 max-w-lg w-full p-4 mx-auto" action="{{url_for('auth.post_setup')}}" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-6">
+        <h3 class="text-3xl font-extrabold mt-10">Welcome</h3>
+        <p class="text-sm opacity-60 mt-2">Create your admin account to get started.</p>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert alert-{{ 'error' if category == 'error' else 'success' }} text-sm mb-4">
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+
+      <div class="mb-4">
+        <label class="text-sm block mb-1">Organization Name</label>
+        <label class="input input-sm input-bordered flex items-center gap-2">
+          <i class="ti ti-building"></i>
+          <input name="company" type="text" class="grow" placeholder="My Organization" />
+        </label>
+      </div>
+      <div class="mb-4">
+        <label class="text-sm block mb-1">Admin Email</label>
+        <label class="input input-sm input-bordered flex items-center gap-2">
+          <i class="ti ti-mail"></i>
+          <input name="email" type="email" class="grow" placeholder="admin@yourcompany.com" required />
+        </label>
+      </div>
+      <div class="mb-4">
+        <label class="text-sm block mb-1">Password</label>
+        <label class="input input-sm input-bordered flex items-center gap-2">
+          <i class="ti ti-lock"></i>
+          <input name="password" type="password" class="grow" placeholder="Minimum 8 characters" minlength="8" required />
+        </label>
+      </div>
+      <div class="mt-6">
+        <button class="btn btn-primary btn-block">
+          <i class="ti ti-rocket"></i> Create Account & Get Started
+        </button>
+      </div>
+      <p class="text-xs opacity-40 mt-4 text-center">This page only appears once. After setup, use the login page.</p>
+    </form>
+  </div>
+</div>
+{%endblock%}

@@ -2880,21 +2880,51 @@
 				<div x-show="intLoading" class="text-center py-12"><span class="loading loading-dots loading-lg"></span></div>
 
 				<!-- No data at all — completely empty -->
-				<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks" class="text-center py-16 opacity-40">
+				<div x-show="!intLoading && !intData.entra && !intData.telivy && !intData.risks && !intData.ninjaone && !intData.defensx" class="text-center py-16 opacity-40">
 					<i class="ti ti-plug-connected-x text-4xl block mb-3"></i>
 					<p class="text-sm font-medium">No integration data available for this project</p>
 					<p class="text-xs mt-1">Map scans and configure integrations in the <a href="/integrations" class="underline">Integrations</a> page to see data here.</p>
 				</div>
 
 				<!-- Data cards — only shown when data exists -->
-				<div x-show="!intLoading && (intData.entra || intData.telivy || intData.risks)" class="space-y-4">
+				<div x-show="!intLoading && (intData.entra || intData.telivy || intData.risks || intData.ninjaone || intData.defensx)" class="space-y-4">
 
 					<div class="flex justify-between items-center mb-2">
 						<h3 class="text-lg font-semibold">Integration Data</h3>
-						<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="loadIntegrationData()" :disabled="intLoading">
-							<i class="ti ti-refresh"></i> Refresh
-						</button>
+						<div class="flex gap-1">
+							<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="checkDrift()" :disabled="driftChecking" title="Check for configuration drift">
+								<span class="loading loading-spinner loading-xs" x-show="driftChecking"></span>
+								<i class="ti ti-shield-check" x-show="!driftChecking"></i> Drift Check
+							</button>
+							<button class="btn btn-xs btn-ghost border border-base-300 gap-1" @click="loadIntegrationData()" :disabled="intLoading">
+								<i class="ti ti-refresh"></i> Refresh
+							</button>
+						</div>
 					</div>
+
+					<!-- Drift Alerts -->
+					<template x-if="driftAlerts.length > 0">
+						<div class="bg-warning/10 border border-warning/30 rounded-lg p-3 mb-3">
+							<div class="flex items-center gap-2 mb-2 cursor-pointer" @click="showDriftAlerts = !showDriftAlerts">
+								<i class="ti ti-alert-triangle text-warning"></i>
+								<span class="text-sm font-semibold">Configuration Changes Detected</span>
+								<span class="badge badge-warning badge-sm" x-text="driftAlerts.length"></span>
+								<i class="ti text-xs opacity-40 ml-auto" :class="showDriftAlerts ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+							</div>
+							<div x-show="showDriftAlerts" x-collapse class="space-y-1">
+								<template x-for="(alert, i) in driftAlerts" :key="i">
+									<div class="flex items-start gap-2 text-xs bg-base-100 rounded p-2">
+										<span class="badge badge-xs mt-0.5 shrink-0" :class="{'badge-error': alert.severity === 'critical' || alert.severity === 'high', 'badge-warning': alert.severity === 'medium', 'badge-info': alert.severity === 'low' || alert.severity === 'info'}" x-text="alert.severity"></span>
+										<div>
+											<div class="font-semibold" x-text="alert.title"></div>
+											<div class="opacity-60" x-text="alert.detail"></div>
+											<div class="opacity-40 text-[10px]" x-text="alert.timestamp ? new Date(alert.timestamp).toLocaleString() : ''"></div>
+										</div>
+									</div>
+								</template>
+							</div>
+						</div>
+					</template>
 
 					<!-- Entra ID -->
 					<template x-if="intData.entra">
@@ -3268,6 +3298,89 @@
 												</template>
 												<div class="text-[10px] opacity-40 mt-1" x-show="d.last_sync" x-text="'Last sync: ' + (d.last_sync ? new Date(d.last_sync).toLocaleDateString() : 'Unknown')"></div>
 											</div>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
+					<!-- NinjaOne RMM -->
+					<template x-if="intData.ninjaone">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-info" :class="showPreview ? 'ti-chevron-down' : 'ti-device-desktop-analytics'"></i>
+									<h3 class="font-bold text-sm flex-1">NinjaOne RMM</h3>
+									<span class="text-xs opacity-40" x-show="!showPreview" x-text="(intData.ninjaone.device_count || 0) + ' devices'"></span>
+								</div>
+								<div class="flex gap-3 text-center">
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.ninjaone.device_count || 0"></div>
+										<div class="text-[10px] opacity-60">Devices</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.missing_patches || 0) > 0 ? 'text-warning' : 'text-success'" x-text="intData.ninjaone.missing_patches || 0"></div>
+										<div class="text-[10px] opacity-60">Missing Patches</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.unprotected_devices || 0) > 0 ? 'text-error' : 'text-success'" x-text="intData.ninjaone.unprotected_devices || 0"></div>
+										<div class="text-[10px] opacity-60">No AV</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.ninjaone.threat_count || 0) > 0 ? 'text-error' : 'text-success'" x-text="intData.ninjaone.threat_count || 0"></div>
+										<div class="text-[10px] opacity-60">Threats</div>
+									</div>
+								</div>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-3 space-y-1 max-h-[24rem] overflow-y-auto">
+									<template x-for="d in (intData.ninjaone.devices || []).slice(0, 15)" :key="d.id || d.systemName">
+										<div class="text-xs bg-base-300 rounded p-2 flex justify-between">
+											<span x-text="d.systemName || d.dnsName || 'Unknown'"></span>
+											<span class="opacity-50" x-text="typeof d.os === 'object' ? (d.os?.name || 'Unknown') : (d.os || 'Unknown')"></span>
+										</div>
+									</template>
+								</div>
+							</div>
+						</div>
+					</template>
+
+					<!-- DefensX Browser Security -->
+					<template x-if="intData.defensx">
+						<div class="card bg-base-200 border border-base-300" x-data="{ showPreview: false }">
+							<div class="card-body p-4">
+								<div class="flex items-center gap-2 mb-3 cursor-pointer select-none" @click="showPreview = !showPreview">
+									<i class="ti text-xl text-accent" :class="showPreview ? 'ti-chevron-down' : 'ti-browser-check'"></i>
+									<h3 class="font-bold text-sm flex-1">DefensX Browser Security</h3>
+									<span class="text-xs opacity-40" x-show="!showPreview && intData.defensx.resilience_score" x-text="'Score: ' + (intData.defensx.resilience_score?.score || 'N/A') + '/100'"></span>
+								</div>
+								<div class="flex gap-3 text-center">
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.agent_status?.protected_users || intData.defensx.agent_status?.total_users || 0"></div>
+										<div class="text-[10px] opacity-60">Protected Users</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.resilience_score?.score || 'N/A'"></div>
+										<div class="text-[10px] opacity-60">Resilience Score</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" x-text="intData.defensx.policy_compliance?.compliant_users || 0"></div>
+										<div class="text-[10px] opacity-60">Policy Compliant</div>
+									</div>
+									<div class="flex-1 bg-base-300 rounded p-2">
+										<div class="text-xl font-bold" :class="(intData.defensx.shadow_ai?.detected_tools || []).length > 0 ? 'text-warning' : 'text-success'" x-text="(intData.defensx.shadow_ai?.detected_tools || []).length"></div>
+										<div class="text-[10px] opacity-60">Shadow AI Tools</div>
+									</div>
+								</div>
+								<div x-show="showPreview" x-collapse x-cloak class="mt-3 space-y-1 max-h-[24rem] overflow-y-auto">
+									<template x-if="intData.defensx.shadow_ai?.detected_tools?.length > 0">
+										<div>
+											<div class="text-xs font-semibold mb-1 opacity-60">Shadow AI Detected:</div>
+											<template x-for="t in intData.defensx.shadow_ai.detected_tools.slice(0, 5)" :key="t.tool_name">
+												<div class="text-xs bg-base-300 rounded p-2 flex justify-between">
+													<span x-text="t.tool_name || 'Unknown'"></span>
+													<span class="opacity-50" x-text="(t.user_count || 0) + ' users, ' + (t.usage_count || 0) + ' uses'"></span>
+												</div>
+											</template>
 										</div>
 									</template>
 								</div>
@@ -4732,9 +4845,14 @@ function imageToBase64(img) {
 }
 
 function integrationDataTab() {
+	const _tenantId = '{{ project.tenant_id }}';
 	return {
 		intLoading: false,
 		intData: {},
+		driftAlerts: [],
+		driftChecking: false,
+		showDriftAlerts: false,
+		_driftLoaded: false,
 		async loadIntegrationData() {
 			this.intLoading = true;
 			this.intData = {};
@@ -4750,6 +4868,43 @@ function integrationDataTab() {
 				}
 			} catch(e) { console.warn('Integration data fetch failed:', e.message); }
 			this.intLoading = false;
+			if (!this._driftLoaded) this.loadDriftAlerts();
+		},
+		async loadDriftAlerts() {
+			if (!_tenantId) return;
+			try {
+				const resp = await fetch(`/api/v1/settings/monitoring/drift?tenant_id=${_tenantId}&limit=20`);
+				if (resp.ok) {
+					this.driftAlerts = await resp.json();
+					this._driftLoaded = true;
+					if (this.driftAlerts.length > 0) this.showDriftAlerts = true;
+				}
+			} catch(e) { console.warn('Drift alerts fetch failed:', e.message); }
+		},
+		async checkDrift() {
+			if (!_tenantId) return;
+			this.driftChecking = true;
+			try {
+				const resp = await fetch('/api/v1/settings/monitoring/check', {
+					method: 'POST',
+					headers: {'Content-Type': 'application/json'},
+					body: JSON.stringify({ tenant_id: _tenantId })
+				});
+				const data = await resp.json();
+				if (resp.ok) {
+					this.driftAlerts = data.alerts || [];
+					this._driftLoaded = true;
+					if (this.driftAlerts.length > 0) {
+						toast(this.driftAlerts.length + ' drift alert(s) detected', 'warning');
+						this.showDriftAlerts = true;
+					} else {
+						toast('No configuration drift detected', 'success');
+					}
+				} else {
+					toast(data.error || 'Drift check failed', 'error');
+				}
+			} catch(e) { toast('Drift check failed', 'error'); }
+			this.driftChecking = false;
 		},
 	};
 }
