@@ -48,6 +48,7 @@ def create_app(config_name="default"):
         ("load_smtp", _load_smtp_from_db),
         ("boot_stamp", _write_boot_stamp),
         ("db_columns", _ensure_db_columns),
+        ("setup_check", _check_admin_exists),
     ]:
         try:
             fn(app)
@@ -76,18 +77,10 @@ def create_app(config_name="default"):
             ):
                 return
 
-            # First-run: redirect to setup if no admin user exists yet
-            if not hasattr(app, "_setup_checked"):
-                try:
-                    from app.models import User
-                    admin = db.session.execute(
-                        db.select(User).filter(User.super == True)  # noqa: E712
-                    ).scalars().first()
-                    if admin is None:
-                        return redirect(url_for("auth.get_setup"))
-                    app._setup_checked = True  # Cache: don't check again
-                except Exception:
-                    pass
+            # First-run: redirect to /setup if no admin exists yet
+            # Flag set at startup by _check_admin_exists — no DB query here
+            if not getattr(app, "_setup_checked", False):
+                return redirect(url_for("auth.get_setup"))
 
             if not (current_user and current_user.is_authenticated):
                 return
@@ -244,6 +237,24 @@ def _load_smtp_from_db(app):
             mail.init_app(app)
     except Exception:
         pass  # DB may not be ready yet (first boot)
+
+
+def _check_admin_exists(app):
+    """Check if an admin user exists and cache the result on the app object.
+
+    This runs once at startup so the before_request hook doesn't need to
+    query the database (CLAUDE.md rule #4).
+    """
+    try:
+        with app.app_context():
+            from app.models import User
+            admin = db.session.execute(
+                db.select(User).filter(User.super == True)  # noqa: E712
+            ).scalars().first()
+            if admin is not None:
+                app._setup_checked = True
+    except Exception:
+        pass  # DB may not be ready; will retry via /setup route
 
 
 def configure_masri(app):

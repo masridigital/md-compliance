@@ -466,6 +466,9 @@ def post_setup():
         Tenant.create(user, company, email, is_default=True, init_data=True)
         db.session.commit()
 
+        from flask import current_app
+        current_app._setup_checked = True
+
         custom_login(user)
         flash("Welcome! Your admin account has been created.", "success")
         return redirect(url_for("main.home"))
