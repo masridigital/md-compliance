@@ -2,10 +2,39 @@
 
 {%block head%}
 <style>
-#main {
-  background-image: url("https://www.gstatic.com/pantheon/images/welcome/background_illustration_v2.svg");
-  background-repeat: no-repeat;
-}
+  .dash-card {
+    background: oklch(var(--b2));
+    border: 1px solid oklch(var(--bc) / 0.06);
+    border-radius: 14px;
+    padding: 1.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  }
+  .dash-card:hover {
+    border-color: oklch(var(--p) / 0.2);
+    box-shadow: 0 8px 32px oklch(var(--p) / 0.06);
+    transform: translateY(-2px);
+  }
+  .dash-stat {
+    background: oklch(var(--b2));
+    border: 1px solid oklch(var(--bc) / 0.06);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+  .dash-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: oklch(var(--bc) / 0.4);
+  }
+  .risk-row { transition: background 0.1s; cursor: pointer; }
+  .risk-row:hover { background: oklch(var(--p) / 0.04); }
+  .sev-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .sev-critical { background: #ef4444; }
+  .sev-high { background: #f59e0b; }
+  .sev-moderate { background: #3b82f6; }
+  .sev-low { background: #10b981; }
+  .sev-unknown { background: oklch(var(--bc) / 0.2); }
 </style>
 {%endblock%}
 {%block header%}{%endblock%}
@@ -13,169 +42,176 @@
 {%block page_header%}{%endblock%}
 
 {%block content%}
-<div x-data="welcome()" class="mt-12 px-10">
-  <div class="flex-col">
+<div x-data="welcome()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-8">
     <div>
-      <div class="flex flex-row">
-        <div><span class="text-3xl" id="emoji">👋</span></div>
-        <div class="text-4xl font-medium ml-4" x-text="welcomeMessage"></div>
-      </div>
-      <p class="py-6 w-1/2 mt-4 font-medium ">{{config.APP_NAME}} is a risk governance and compliance platform. <a class="underline underline-offset-4 hover:text-neutral-content" href="{{config.DOC_LINK}}">Please check here</a> for more information and/or questions.</p>
-      <div class="text-xl font-medium  mt-4 mb-4">🚀 Get Started</div>
-      <div class="flex flex-row bg-base-200 w-full rounded-box space-x-4 p-6">
-        <div class="card bg-base-100 w-full">
-          <div class="card-body">
-            <h2 class="card-title text-xl">Compliance Projects</h2>
-            <p class="font-medium my-6">Start managing your compliance projects. Track controls, edit policies and monitor your progress.</p>
-            <div class="card-actions border-t border-base-300">
-              <div class="mt-4 flex justify-between w-full">
-                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
-                  <i class="ti ti-brand-asana my-auto"></i>
-                  <span x-text="tenantInfo.projects"></span>
-                </div>
-                <a href="/projects" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="card bg-base-100 w-full">
-          <div class="card-body">
-            <h2 class="card-title text-xl">Risk Management</h2>
-            <p class="font-medium my-6">Start managing your risk register. Assess threats, implement controls, and monitor your mitigation progress.</p>
-            <div class="card-actions border-t border-base-300">
-              <div class="mt-4 flex justify-between w-full">
-                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
-                  <i class="ti ti-flag-exclamation my-auto"></i>
-                  <span x-text="tenantInfo.risks"></span>
-                </div>
-                <a :href="'/tenants/'+selectedTenantId+'/risk'" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="card bg-base-100 w-full">
-          <div class="card-body">
-            <h2 class="card-title text-xl">User Management</h2>
-            <p class="font-medium my-6">Start managing your users in your tenant. Invite users, assign roles, set permissions, and monitor user activity.</p>
-            <div class="card-actions border-t border-base-300">
-              <div class="mt-4 flex justify-between w-full">
-                <div class="text-xs my-auto px-2 py-1 font-medium bg-base-300 rounded-lg">
-                  <i class="ti ti-users my-auto"></i>
-                  <span x-text="tenantInfo.users"></span>
-                </div>
-                <a href="/users" class="btn btn-sm my-auto">Continue<i class="ti ti-arrow-right text-lg my-auto"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <h1 class="text-2xl font-bold tracking-tight text-white" x-text="welcomeMessage + ', ' + userName"></h1>
+      <p class="text-sm text-gray-400 mt-1">Here's your compliance overview</p>
+    </div>
+    <div class="text-xs text-gray-500" x-text="new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})"></div>
+  </div>
 
-      <!-- Global Risk Dashboard -->
-      <div class="text-xl font-medium mt-8 mb-4">
-        <i class="ti ti-alert-triangle"></i> Risk Overview
-      </div>
-      <div class="bg-base-200 rounded-box p-6">
-        <!-- Summary Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-          <div class="stat bg-base-100 rounded-lg p-3">
-            <div class="stat-title text-xs">Total Risks</div>
-            <div class="stat-value text-xl" x-text="riskDashboard.total || 0"></div>
-          </div>
-          <div class="stat bg-base-100 rounded-lg p-3">
-            <div class="stat-title text-xs">Critical</div>
-            <div class="stat-value text-xl text-error" x-text="riskDashboard.by_severity?.critical || 0"></div>
-          </div>
-          <div class="stat bg-base-100 rounded-lg p-3">
-            <div class="stat-title text-xs">High</div>
-            <div class="stat-value text-xl text-warning" x-text="riskDashboard.by_severity?.high || 0"></div>
-          </div>
-          <div class="stat bg-base-100 rounded-lg p-3">
-            <div class="stat-title text-xs">Moderate</div>
-            <div class="stat-value text-xl text-info" x-text="riskDashboard.by_severity?.moderate || 0"></div>
-          </div>
-          <div class="stat bg-base-100 rounded-lg p-3">
-            <div class="stat-title text-xs">Low</div>
-            <div class="stat-value text-xl text-success" x-text="riskDashboard.by_severity?.low || 0"></div>
-          </div>
+  <!-- Quick nav cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+    <a href="/projects" class="dash-card group block">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+          <i class="ti ti-folder text-emerald-400 text-xl"></i>
         </div>
+        <div>
+          <div class="font-semibold text-sm text-white">Projects</div>
+          <div class="dash-label mt-0.5" x-text="(tenantInfo.projects || 0) + ' active'"></div>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 leading-relaxed">Track compliance controls, manage policies, and monitor audit readiness across frameworks.</p>
+      <div class="flex items-center gap-1 mt-4 text-emerald-400 text-xs font-medium">Open Projects <i class="ti ti-arrow-right text-sm"></i></div>
+    </a>
 
-        <!-- Filters -->
-        <div class="flex gap-2 mb-3">
-          <select class="select select-xs select-bordered" x-model="riskFilter.severity" @change="loadRiskDashboard()">
-            <option value="">All Severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="moderate">Moderate</option>
-            <option value="low">Low</option>
-          </select>
-          <template x-if="riskDashboard.tenants?.length > 1">
-            <select class="select select-xs select-bordered" x-model="riskFilter.tenant_id" @change="loadRiskDashboard()">
-              <option value="">All Clients</option>
-              <template x-for="t in riskDashboard.tenants" :key="t.id">
-                <option :value="t.id" x-text="t.name"></option>
-              </template>
-            </select>
+    <a :href="'/tenants/'+selectedTenantId+'/risk'" class="dash-card group block">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+          <i class="ti ti-alert-triangle text-amber-400 text-xl"></i>
+        </div>
+        <div>
+          <div class="font-semibold text-sm text-white">Risk Register</div>
+          <div class="dash-label mt-0.5" x-text="(tenantInfo.risks || 0) + ' tracked'"></div>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 leading-relaxed">Assess threats, assign ownership, implement controls, and track mitigation progress.</p>
+      <div class="flex items-center gap-1 mt-4 text-amber-400 text-xs font-medium">View Risks <i class="ti ti-arrow-right text-sm"></i></div>
+    </a>
+
+    <a href="/users" class="dash-card group block">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
+          <i class="ti ti-users text-sky-400 text-xl"></i>
+        </div>
+        <div>
+          <div class="font-semibold text-sm text-white">Users</div>
+          <div class="dash-label mt-0.5" x-text="(tenantInfo.users || 0) + ' members'"></div>
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 leading-relaxed">Manage team access, assign roles and permissions, invite collaborators, and review activity.</p>
+      <div class="flex items-center gap-1 mt-4 text-sky-400 text-xs font-medium">Manage Users <i class="ti ti-arrow-right text-sm"></i></div>
+    </a>
+  </div>
+
+  <!-- Risk Overview -->
+  <div class="mb-4 flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-white tracking-tight">Risk Overview</h2>
+    <div class="flex gap-2">
+      <select class="select select-xs select-bordered" x-model="riskFilter.severity" @change="loadRiskDashboard()">
+        <option value="">All Severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="moderate">Moderate</option>
+        <option value="low">Low</option>
+      </select>
+      <template x-if="riskDashboard.tenants?.length > 1">
+        <select class="select select-xs select-bordered" x-model="riskFilter.tenant_id" @change="loadRiskDashboard()">
+          <option value="">All Clients</option>
+          <template x-for="t in riskDashboard.tenants" :key="t.id">
+            <option :value="t.id" x-text="t.name"></option>
           </template>
-        </div>
-
-        <!-- Search -->
-        <div class="flex gap-2 mb-2">
-          <input type="text" class="input input-xs input-bordered flex-1" placeholder="Search risks..." x-model="riskSearch" />
-        </div>
-
-        <!-- Risk List -->
-        <div class="overflow-x-auto">
-          <table class="table table-xs table-zebra bg-base-100 rounded-lg">
-            <thead>
-              <tr>
-                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('title')">
-                  Risk <i class="ti text-[10px]" :class="riskSort.key==='title' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
-                </th>
-                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('risk')">
-                  Severity <i class="ti text-[10px]" :class="riskSort.key==='risk' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
-                </th>
-                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('tenant_name')">
-                  Client <i class="ti text-[10px]" :class="riskSort.key==='tenant_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
-                </th>
-                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('project_name')">
-                  Project <i class="ti text-[10px]" :class="riskSort.key==='project_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
-                </th>
-                <th class="cursor-pointer select-none hover:text-primary" @click="sortRisks('status')">
-                  Status <i class="ti text-[10px]" :class="riskSort.key==='status' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="risk in filteredRisks()" :key="risk.id">
-                <tr class="hover cursor-pointer" @click="if(risk.project_id) window.location.href='/projects/'+risk.project_id+'?tab=risk'; else window.location.href='/tenants/'+risk.tenant_id+'/risk'">
-                  <td class="max-w-xs truncate" x-text="risk.title"></td>
-                  <td>
-                    <span class="badge badge-xs"
-                          :class="{
-                            'badge-error': risk.risk === 'critical',
-                            'badge-warning': risk.risk === 'high',
-                            'badge-info': risk.risk === 'moderate',
-                            'badge-success': risk.risk === 'low',
-                          }"
-                          x-text="risk.risk"></span>
-                  </td>
-                  <td class="text-xs opacity-70" x-text="risk.tenant_name"></td>
-                  <td class="text-xs opacity-70" x-text="risk.project_name"></td>
-                  <td class="text-xs" x-text="risk.status"></td>
-                </tr>
-              </template>
-              <template x-if="!filteredRisks().length">
-                <tr><td colspan="5" class="text-center text-xs opacity-50">No risks found</td></tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+        </select>
+      </template>
     </div>
   </div>
-</div>
 
+  <!-- Stat row -->
+  <div class="grid grid-cols-5 gap-3 mb-6">
+    <div class="dash-stat">
+      <div class="dash-label">Total</div>
+      <div class="text-xl font-bold text-white mt-1" x-text="riskDashboard.total || 0"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-label flex items-center gap-1.5"><span class="sev-dot sev-critical"></span> Critical</div>
+      <div class="text-xl font-bold text-red-400 mt-1" x-text="riskDashboard.by_severity?.critical || 0"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-label flex items-center gap-1.5"><span class="sev-dot sev-high"></span> High</div>
+      <div class="text-xl font-bold text-amber-400 mt-1" x-text="riskDashboard.by_severity?.high || 0"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-label flex items-center gap-1.5"><span class="sev-dot sev-moderate"></span> Moderate</div>
+      <div class="text-xl font-bold text-blue-400 mt-1" x-text="riskDashboard.by_severity?.moderate || 0"></div>
+    </div>
+    <div class="dash-stat">
+      <div class="dash-label flex items-center gap-1.5"><span class="sev-dot sev-low"></span> Low</div>
+      <div class="text-xl font-bold text-emerald-400 mt-1" x-text="riskDashboard.by_severity?.low || 0"></div>
+    </div>
+  </div>
+
+  <!-- Risk table -->
+  <div class="rounded-xl border border-base-300 overflow-hidden" style="background: oklch(var(--b2));">
+    <div class="px-4 py-3 border-b border-base-300">
+      <input type="text" class="input input-sm input-ghost w-full bg-transparent focus:outline-none" placeholder="Search risks by name, client, or project..." x-model="riskSearch" />
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm w-full">
+        <thead>
+          <tr class="border-b border-base-300">
+            <th class="cursor-pointer select-none hover:text-emerald-400 transition-colors text-xs" @click="sortRisks('title')">
+              Risk <i class="ti text-[10px] ml-0.5" :class="riskSort.key==='title' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+            </th>
+            <th class="cursor-pointer select-none hover:text-emerald-400 transition-colors text-xs w-28" @click="sortRisks('risk')">
+              Severity <i class="ti text-[10px] ml-0.5" :class="riskSort.key==='risk' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+            </th>
+            <th class="cursor-pointer select-none hover:text-emerald-400 transition-colors text-xs" @click="sortRisks('tenant_name')">
+              Client <i class="ti text-[10px] ml-0.5" :class="riskSort.key==='tenant_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+            </th>
+            <th class="cursor-pointer select-none hover:text-emerald-400 transition-colors text-xs" @click="sortRisks('project_name')">
+              Project <i class="ti text-[10px] ml-0.5" :class="riskSort.key==='project_name' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+            </th>
+            <th class="cursor-pointer select-none hover:text-emerald-400 transition-colors text-xs w-24" @click="sortRisks('status')">
+              Status <i class="ti text-[10px] ml-0.5" :class="riskSort.key==='status' ? (riskSort.asc ? 'ti-chevron-up' : 'ti-chevron-down') : 'ti-selector'"></i>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="risk in filteredRisks()" :key="risk.id">
+            <tr class="risk-row border-b border-base-300/50" @click="if(risk.project_id) window.location.href='/projects/'+risk.project_id+'?tab=risk'; else window.location.href='/tenants/'+risk.tenant_id+'/risk'">
+              <td class="max-w-sm"><span class="text-sm text-white truncate block" x-text="risk.title"></span></td>
+              <td>
+                <span class="flex items-center gap-2 text-xs">
+                  <span class="sev-dot" :class="'sev-'+(risk.risk || 'unknown')"></span>
+                  <span class="capitalize" x-text="risk.risk || 'unknown'"></span>
+                </span>
+              </td>
+              <td class="text-xs text-gray-400" x-text="risk.tenant_name"></td>
+              <td class="text-xs text-gray-400" x-text="risk.project_name"></td>
+              <td>
+                <span class="text-xs capitalize px-2 py-0.5 rounded-md"
+                      :class="{
+                        'bg-emerald-500/10 text-emerald-400': risk.status === 'mitigated',
+                        'bg-sky-500/10 text-sky-400': risk.status === 'in_progress' || risk.status === 'in progress',
+                        'bg-amber-500/10 text-amber-400': risk.status === 'accepted',
+                        'bg-gray-500/10 text-gray-400': !risk.status || risk.status === 'new',
+                      }"
+                      x-text="(risk.status || 'new').replace('_', ' ')"></span>
+              </td>
+            </tr>
+          </template>
+          <template x-if="!filteredRisks().length && !riskSearch">
+            <tr>
+              <td colspan="5" class="text-center py-12">
+                <i class="ti ti-shield-check text-3xl text-emerald-500/30 block mb-2"></i>
+                <p class="text-sm text-gray-400">No risks registered yet</p>
+                <p class="text-xs text-gray-500 mt-1">Risks are automatically identified during compliance analysis</p>
+              </td>
+            </tr>
+          </template>
+          <template x-if="!filteredRisks().length && riskSearch">
+            <tr><td colspan="5" class="text-center py-8 text-sm text-gray-500">No risks match your search</td></tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
 {%endblock%}
 
 {%block extrajs%}
@@ -186,32 +222,27 @@ function welcome(){
             this.setWelcomeMessage()
             this.getTenantInfo()
             this.loadRiskDashboard()
+            this.userName = this.$store.currentUser?.name || this.$store.currentUser?.email?.split('@')[0] || ''
         },
         welcomeMessage: "",
+        userName: "",
         tenantInfo: {},
         riskDashboard: {},
         riskFilter: { severity: "", tenant_id: "" },
         riskSort: { key: "risk", asc: false },
         riskSearch: "",
+        selectedTenantId: "",
         setWelcomeMessage: function() {
-            const currentHour = new Date().getHours(); // Get local browser time (hour)
-            if (currentHour < 12) {
-              this.welcomeMessage = 'Good Morning';
-            } else if (currentHour < 16) {
-              this.welcomeMessage = 'Good Afternoon';
-            } else {
-              this.welcomeMessage = 'Good Evening';
-            }
+            const h = new Date().getHours();
+            this.welcomeMessage = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+            this.selectedTenantId = this.$store.currentUser?.selectedTenant?.id || '';
         },
         getTenantInfo: function() {
-          request("GET",
-            `/api/v1/tenants/${this.$store.currentUser.selectedTenant.id}/info`,
-            data => {
-              this.tenantInfo = data
-            },
-            error => {
-              toast(error.message, "error");
-            }
+          const tid = this.$store.currentUser?.selectedTenant?.id;
+          if (!tid) return;
+          request("GET", `/api/v1/tenants/${tid}/info`,
+            data => { this.tenantInfo = data; },
+            error => {}
           );
         },
         loadRiskDashboard: function() {
@@ -220,7 +251,7 @@ function welcome(){
           if (this.riskFilter.tenant_id) url += '&tenant_id=' + this.riskFilter.tenant_id;
           request("GET", url,
             data => { this.riskDashboard = data; },
-            error => { console.log('Risk dashboard:', error.message); }
+            error => {}
           );
         },
         sortRisks(key) {
@@ -240,13 +271,12 @@ function welcome(){
           const sevOrder = { critical: 0, high: 1, moderate: 2, low: 3, unknown: 4 };
           const key = this.riskSort.key;
           const asc = this.riskSort.asc;
-          risks = [...risks].sort((a, b) => {
+          return [...risks].sort((a, b) => {
             let va = a[key] || '', vb = b[key] || '';
             if (key === 'risk') { va = sevOrder[va] ?? 5; vb = sevOrder[vb] ?? 5; }
-            else { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+            else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
             return asc ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
           });
-          return risks;
         }
     }
 }
