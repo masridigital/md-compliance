@@ -216,14 +216,22 @@ function table(){
         payload: {},
         tableHeaders: [
           {"field": "id", "headerName": "#", "width": 100, "filter": "agTextColumnFilter", "hide": true, "modal": {"disable": true}},
-          {"field": "email", "headerName": "Email", "filter": "agTextColumnFilter"},
+          {"field": "email", "headerName": "Email", "filter": "agTextColumnFilter", "flex": 2},
           {"field": "first_name", "headerName": "First", "filter": "agTextColumnFilter"},
           {"field": "last_name", "headerName": "Last", "filter": "agTextColumnFilter"},
-          {"field": "super", "headerName": "Super user", "filter": "agTextColumnFilter",  "cellRenderer":booleanBadge},
-          {"field": "is_active", "headerName": "Active", "filter": "agTextColumnFilter",  "cellRenderer":booleanBadge},
-          {"field": "email_confirmed_at", "headerName": "Confirmed", "filter": "agTextColumnFilter",  "cellRenderer":hasValue},
-          {"field": "license", "headerName": "License", "filter": "agTextColumnFilter", "cellClass": "capitalize"},
-          {"field": "date_added", "headerName": "Created", "filter": "agTextColumnFilter"}
+          {"field": "is_active", "headerName": "Active", "width": 90, "cellRenderer": booleanBadge},
+          {"field": "super", "headerName": "Admin", "width": 90, "cellRenderer": booleanBadge},
+          {"field": "license", "headerName": "License", "width": 100, "cellClass": "capitalize"},
+          {"field": "date_added", "headerName": "Created", "width": 130, "cellRenderer": simpleDate},
+          {"field": "id", "headerName": "", "width": 80, "sortable": false, "filter": false,
+            "cellRenderer": (params) => {
+              const btn = document.createElement('button');
+              btn.className = 'btn btn-xs btn-ghost';
+              btn.innerHTML = '<i class="ti ti-pencil text-sm"></i> Edit';
+              btn.onclick = () => { const item = this.items.find(u => u.id === params.value); if (item) this.openModal(item); };
+              return btn;
+            }
+          },
         ],
         openModal(item) {
           this.selectedItem = item;

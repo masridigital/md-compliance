@@ -229,12 +229,9 @@ class booleanBadge {
     this.eGui.classList.add("opacity-90");
 
     if (params.value === true) {
-        //this.eGui.classList.add("badge-success")
-        this.eGui.innerHTML = '<i class="ti ti-progress-check text-success text-lg"></i>'
-
+        this.eGui.innerHTML = '<i class="ti ti-circle-check-filled text-success text-lg"></i>'
     } else {
-        this.eGui.innerHTML = '<i class="ti ti-progress-x text-error text-lg"></i>'
-        //this.eGui.classList.add("badge-error")
+        this.eGui.innerHTML = '<i class="ti ti-circle-x-filled text-error text-lg"></i>'
     }
 
   }
@@ -258,12 +255,9 @@ class hasValue {
     this.eGui.classList.add("opacity-90");
 
     if (params.value) {
-        //this.eGui.classList.add("badge-success")
-        this.eGui.innerHTML = '<i class="ti ti-progress-check text-success text-lg"></i>'
-
+        this.eGui.innerHTML = '<i class="ti ti-circle-check-filled text-success text-lg"></i>'
     } else {
-        this.eGui.innerHTML = '<i class="ti ti-progress-x text-error text-lg"></i>'
-        //this.eGui.classList.add("badge-error")
+        this.eGui.innerHTML = '<i class="ti ti-circle-x-filled text-error text-lg"></i>'
     }
 
   }
