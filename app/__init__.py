@@ -70,8 +70,22 @@ def create_app(config_name="default"):
             if request.endpoint in (
                 "auth.get_login", "auth.login", "auth.get_register",
                 "auth.get_verify_totp", "auth.verify_totp", "auth.logout",
+                "auth.get_setup", "auth.post_setup",
             ):
                 return
+
+            # First-run: redirect to setup if no admin user exists yet
+            if not hasattr(app, "_setup_checked"):
+                try:
+                    from app.models import User
+                    admin = db.session.execute(
+                        db.select(User).filter(User.super == True)  # noqa: E712
+                    ).scalars().first()
+                    if admin is None:
+                        return redirect(url_for("auth.get_setup"))
+                    app._setup_checked = True  # Cache: don't check again
+                except Exception:
+                    pass
 
             if not (current_user and current_user.is_authenticated):
                 return

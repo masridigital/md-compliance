@@ -382,3 +382,64 @@ def post_get_started():
         abort(400, str(e))
     flash("Created tenant")
     return redirect(url_for("main.home"))
+
+
+# ── First-run setup (no admin exists yet) ────────────────────────────────────
+
+def _setup_required():
+    """Return True if no admin user exists yet (first-run state)."""
+    try:
+        admin = db.session.execute(
+            db.select(User).filter(User.super == True)  # noqa: E712
+        ).scalars().first()
+        return admin is None
+    except Exception:
+        return False
+
+
+@auth.route("/setup", methods=["GET"])
+def get_setup():
+    """Show the first-time admin setup page."""
+    if not _setup_required():
+        return redirect(url_for("auth.get_login"))
+    return render_template("auth/setup.html")
+
+
+@auth.route("/setup", methods=["POST"])
+@limiter.limit("5 per minute")
+def post_setup():
+    """Create the first admin user and default tenant."""
+    if not _setup_required():
+        return redirect(url_for("auth.get_login"))
+
+    email = (request.form.get("email") or "").strip()
+    password = request.form.get("password", "")
+    company = (request.form.get("company") or "").strip() or "My Organization"
+
+    if not email or "@" not in email:
+        flash("Please enter a valid email address.", "error")
+        return render_template("auth/setup.html")
+    if len(password) < 8:
+        flash("Password must be at least 8 characters.", "error")
+        return render_template("auth/setup.html")
+
+    try:
+        user = User.add(
+            email,
+            password=password,
+            confirmed=True,
+            built_in=True,
+            super=True,
+            require_pwd_change=False,
+            return_user_object=True,
+        )
+        Tenant.create(user, company, email, is_default=True, init_data=True)
+        db.session.commit()
+
+        custom_login(user)
+        flash("Welcome! Your admin account has been created.", "success")
+        return redirect(url_for("main.home"))
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Setup failed: {e}", "error")
+        return render_template("auth/setup.html")

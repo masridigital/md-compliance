@@ -1,8 +1,11 @@
+import logging
 from flask import current_app
 from flask_migrate import Migrate
 from alembic import command
 from app.models import User, Tenant, Role
 from app import db
+
+logger = logging.getLogger(__name__)
 
 
 # ── Command classes (plain Python — no flask_script dependency) ───────────────
@@ -84,9 +87,21 @@ def migrate_db():
 
 
 def create_default_users():
-    """Seed the default admin user and default tenant."""
-    default_email = current_app.config.get("DEFAULT_EMAIL", "admin@example.com")
-    default_password = current_app.config.get("DEFAULT_PASSWORD") or "admin1234567"
+    """Seed the default admin user and default tenant.
+
+    If DEFAULT_EMAIL is not set in the environment, skip seeding — the admin
+    account will be created via the first-time web setup UI instead.
+    """
+    default_email = current_app.config.get("DEFAULT_EMAIL", "").strip()
+    default_password = current_app.config.get("DEFAULT_PASSWORD", "").strip()
+
+    # No credentials configured — defer to web-based first-run setup
+    if not default_email:
+        logger.info("No DEFAULT_EMAIL set — admin setup deferred to web UI")
+        return True
+
+    if not default_password:
+        default_password = "admin1234567"
 
     existing = db.session.execute(
         db.select(User).filter(User.email == default_email)

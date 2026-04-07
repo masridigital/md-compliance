@@ -195,8 +195,8 @@ else
     warn "Skipping SSL — the app will run on HTTP only. Not recommended for production."
 fi
 
-# ── Step 3: App credentials ───────────────────────────────────────────────────
-header "Step 3 of 4 — App Credentials"
+# ── Step 3: Generate secrets ─────────────────────────────────────────────────
+header "Step 3 of 3 — Generating Configuration"
 
 # Secret key — reuse from existing .env if present, so re-runs are safe
 if [ -f .env ]; then
@@ -222,18 +222,7 @@ else
     log "Generated database password (random)"
 fi
 
-echo ""
-prompt "Admin email address (used to log in):"
-read -r ADMIN_EMAIL
-ADMIN_EMAIL=${ADMIN_EMAIL:-admin@masridigital.com}
-
-prompt "Admin password (leave blank to use default 'admin1234567'):"
-read -rs ADMIN_PASSWORD
-echo ""
-ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin1234567}
-
-# ── Step 4: Generate files ────────────────────────────────────────────────────
-header "Step 4 of 4 — Generating Configuration"
+info "Admin account will be created in the web UI on first visit."
 
 # ── .env ─────────────────────────────────────────────────────────────────────
 info "Writing .env..."
@@ -256,9 +245,8 @@ POSTGRES_DB=mdcompliance
 POSTGRES_USER=mdcompliance
 POSTGRES_PASSWORD=${DB_PASSWORD}
 
-# ── Admin credentials ─────────────────────────────────────────────────────────
-DEFAULT_EMAIL=${ADMIN_EMAIL}
-DEFAULT_PASSWORD=${ADMIN_PASSWORD}
+# ── Admin ─────────────────────────────────────────────────────────────────────
+# Admin account is created via the web UI on first visit (no .env credentials).
 
 # ── SSL / Certbot ─────────────────────────────────────────────────────────────
 CERTBOT_EMAIL=${CERTBOT_EMAIL:-}
