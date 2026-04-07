@@ -201,8 +201,9 @@
             <div class="divider text-xs">External Scans</div>
             <div class="space-y-3 mb-6">
               <div class="flex gap-2">
-                <button class="btn btn-sm btn-outline gap-1" @click="telivyListScans()" :disabled="telivyLoading.scans">
+                <button class="btn btn-sm btn-outline gap-1" @click="telivyListScans()" :disabled="telivyLoading.scans" title="Refresh scan list from Telivy API">
                   <span class="loading loading-spinner loading-xs" x-show="telivyLoading.scans"></span>
+                  <i class="ti ti-refresh" x-show="!telivyLoading.scans"></i>
                   <i class="ti ti-list-search" x-show="!telivyLoading.scans"></i> List Scans
                 </button>
                 <button class="btn btn-sm btn-outline gap-1" @click="telivyShowCreateScan = !telivyShowCreateScan">
@@ -2363,8 +2364,44 @@ function integrationsHub() {
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
         const data = await resp.json();
         this.telivyScans = data.assessments || [];
+        // Auto-map scans to tenants by name similarity (>80% match)
+        this._autoMapByName(this.telivyScans);
       } catch (e) { this.telivyError = e.message; }
       finally { this.telivyLoading.scans = false; }
+    },
+
+    _nameSimilarity(a, b) {
+      if (!a || !b) return 0;
+      a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
+      if (a === b) return 1;
+      // Check if one contains the other
+      if (a.includes(b) || b.includes(a)) return 0.9;
+      // Simple word overlap
+      const wa = new Set(a.split(/\s+/));
+      const wb = new Set(b.split(/\s+/));
+      let overlap = 0;
+      for (const w of wa) { if (wb.has(w)) overlap++; }
+      return overlap / Math.max(wa.size, wb.size);
+    },
+
+    _autoMapByName(scans) {
+      if (!this.telivyTenants?.length) return;
+      let mapped = 0;
+      for (const s of scans) {
+        if (this.getScanTenantMapping(s.id)) continue; // already mapped
+        const orgName = s.assessmentDetails?.organization_name || '';
+        if (!orgName) continue;
+        let bestMatch = null, bestScore = 0;
+        for (const t of this.telivyTenants) {
+          const score = this._nameSimilarity(orgName, t.name);
+          if (score > bestScore) { bestScore = score; bestMatch = t; }
+        }
+        if (bestMatch && bestScore >= 0.8) {
+          this.mapScanToTenant(s.id, bestMatch.id, 'scan');
+          mapped++;
+        }
+      }
+      if (mapped > 0) toast(mapped + ' scan(s) auto-mapped to matching clients', 'info');
     },
 
     async telivyCreateScan() {
@@ -2436,6 +2473,7 @@ function integrationsHub() {
         if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || 'Failed');
         const data = await resp.json();
         this.telivyAssessments = data.assessments || [];
+        this._autoMapByName(this.telivyAssessments);
       } catch (e) { this.telivyError = e.message; }
       finally { this.telivyLoading.assessments = false; }
     },
