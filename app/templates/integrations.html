@@ -304,7 +304,6 @@
                       </template>
                     </div>
                     <div class="flex items-center gap-1 mt-2">
-                      <button class="btn btn-ghost btn-xs gap-1" @click="telivyViewAssessmentDetails(a.id)" title="View assessment details"><i class="ti ti-list-details"></i> Details</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="viewReport('/api/v1/telivy/risk-assessments/' + a.id + '/report?inline=true', a.assessmentDetails?.organization_name || a.id, 'assessment', a.id)" title="View Report"><i class="ti ti-file-type-pdf"></i> Report</button>
                       <button class="btn btn-ghost btn-xs gap-1" @click="showRawDebugData(a.id, getScanTenantMapping(a.id))" title="Debug data"><i class="ti ti-code"></i> Debug</button>
                       <button x-show="getScanTenantMapping(a.id)" class="btn btn-ghost btn-xs gap-1" @click="rerunAutoProcess(a.id, 'assessment')" :disabled="telivyScanMappings[a.id]?.process_status === 'processing'">
@@ -337,24 +336,6 @@
             </div>
 
             <!-- Findings/Details viewer -->
-            <div x-show="telivyFindings.length > 0" class="mt-4">
-              <div class="divider text-xs">Findings / Details</div>
-              <div class="space-y-1 max-h-72 overflow-y-auto">
-                <template x-for="f in telivyFindings" :key="f.slug || f.name">
-                  <div class="bg-base-300 rounded p-2 flex justify-between items-start gap-2">
-                    <div class="min-w-0">
-                      <div class="text-xs font-semibold" x-text="f.name"></div>
-                      <div class="text-[11px] opacity-50 truncate" x-text="(f.description || '').substring(0, 120)"></div>
-                    </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                      <span x-show="f.count > 0" class="text-[10px] opacity-40" x-text="f.count + 'x'"></span>
-                      <span class="badge badge-xs" :class="{'badge-error': f.severity === 'critical' || f.severity === 'high', 'badge-warning': f.severity === 'medium', 'badge-info': f.severity === 'low', 'badge-ghost': f.severity === 'info'}" x-text="f.severity"></span>
-                    </div>
-                  </div>
-                </template>
-              </div>
-            </div>
-
             <div x-show="telivyError" class="alert alert-error text-sm mt-3">
               <i class="ti ti-circle-x"></i> <span x-text="telivyError"></span>
             </div>
