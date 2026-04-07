@@ -412,6 +412,42 @@ class LLMService:
         return None
 
     @staticmethod
+    def _store_debug(entry):
+        """Store an LLM debug entry in ConfigStore (ring buffer, max 50)."""
+        try:
+            import json
+            from app.models import ConfigStore
+            from app import db
+            key = "llm_debug_log"
+            existing = []
+            rec = ConfigStore.find(key)
+            if rec and rec.value:
+                try:
+                    existing = json.loads(rec.value)
+                except Exception:
+                    existing = []
+            existing.insert(0, entry)
+            existing = existing[:50]  # Keep last 50 calls
+            ConfigStore.upsert(key, json.dumps(existing, default=str))
+            db.session.commit()
+        except Exception:
+            pass  # Never crash the LLM call for debug logging
+
+    @staticmethod
+    def get_debug_log(limit=50):
+        """Get stored LLM debug entries."""
+        try:
+            import json
+            from app.models import ConfigStore
+            rec = ConfigStore.find("llm_debug_log")
+            if rec and rec.value:
+                entries = json.loads(rec.value)
+                return entries[:limit]
+        except Exception:
+            pass
+        return []
+
+    @staticmethod
     def get_feature_model(feature: str) -> str:
         """Get the model name for a feature (backward compat)."""
         routing = LLMService.get_feature_routing(feature)
@@ -534,6 +570,18 @@ class LLMService:
 
         provider = LLMService._get_provider(config)
 
+        # Debug log: capture every LLM call for troubleshooting
+        debug_entry = {
+            "ts": datetime.utcnow().isoformat() if 'datetime' in dir() else __import__('datetime').datetime.utcnow().isoformat(),
+            "provider": config.get("provider"),
+            "model": kwargs.get("model", config.get("model_name", "")),
+            "feature": feature,
+            "tenant_id": tenant_id,
+            "msg_count": len(messages),
+            "system_prompt_len": len(messages[0]["content"]) if messages and messages[0]["role"] == "system" else 0,
+            "user_prompt_len": sum(len(m["content"]) for m in messages if m["role"] == "user"),
+        }
+
         # Apply prompt adapter based on model family (CLAUDE.md rule #14)
         try:
             from app.masri.prompt_adapters import get_adapter
@@ -554,7 +602,14 @@ class LLMService:
 
         try:
             result = provider.chat(messages, **kwargs)
+            debug_entry["status"] = "ok"
+            debug_entry["response_len"] = len(result.get("content", ""))
+            debug_entry["tokens"] = result.get("usage", {}).get("total_tokens", 0)
+            LLMService._store_debug(debug_entry)
         except Exception as e:
+            debug_entry["status"] = "error"
+            debug_entry["error"] = str(e)[:300]
+            LLMService._store_debug(debug_entry)
             logger.error("LLM call failed (%s/%s): %s", config.get("provider"), feature, e)
             # Try fallback provider if configured
             fallback = LLMService._get_fallback_config(config.get("provider"))

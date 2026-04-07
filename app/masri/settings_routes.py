@@ -1973,6 +1973,26 @@ def global_risk_dashboard():
 
 
 # ===========================================================================
+# LLM Debug Log
+# ===========================================================================
+
+@settings_bp.route("/llm-debug-log", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_llm_debug_log():
+    """GET /api/v1/settings/llm-debug-log — last 50 LLM calls with status."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import LLMService
+        limit = request.args.get("limit", 50, type=int)
+        entries = LLMService.get_debug_log(limit=min(limit, 100))
+        return jsonify(entries)
+    except Exception as e:
+        logger.exception("Failed to get LLM debug log")
+        return jsonify([])
+
+
+# ===========================================================================
 # Debug Data (raw API + LLM output)
 # ===========================================================================
 
@@ -2025,6 +2045,14 @@ def get_debug_data(tenant_id):
             result["llm_last_error"] = _dj.loads(record.value)
     except Exception:
         result["llm_last_error"] = None
+
+    # Recent LLM calls for this tenant (from debug log)
+    try:
+        from app.masri.llm_service import LLMService
+        all_calls = LLMService.get_debug_log(limit=50)
+        result["llm_calls"] = [c for c in all_calls if c.get("tenant_id") == tenant_id][:20]
+    except Exception:
+        result["llm_calls"] = []
 
     return jsonify(result)
 
