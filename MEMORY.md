@@ -29,18 +29,18 @@ Last updated: 2026-04-09
 - C5: Cross-framework control mapping (50+ NIST 800-53 controls) — DONE 2026-04-07
 - C6: Trust portal (public compliance status page) — DONE 2026-04-07
 
-**Phase D (UI/UX Redesign) — IN PROGRESS:**
+**Phase D (UI/UX Redesign) — NEARLY COMPLETE:**
 - D1: Sidebar + Top Bar — **DONE** (80px/224px, tooltips, emerald accent, DM Sans, collapse on mouse leave)
 - D2: Home Dashboard — **DONE** (two-column, clean greeting, 3 feature cards, risk table, stat row)
-- D3: Clients/Workspace — **PARTIAL** (grid cards with hover glow, drawer panel, search/filter)
-- D4: Projects List — **NOT STARTED** (still uses old DaisyUI styling)
-- D5: Project Detail — **NOT STARTED** (complex page, old styling)
-- D6: Integrations/Settings — **PARTIAL** (4-column grid, status dots, drawer panel)
-- D7: Users + Activity Logs — **NOT STARTED** (AG Grid tables, no theme D styling)
+- D3: Clients/Workspace — **DONE** (grid cards + drawer, consistent header, emerald hover/status dots)
+- D4: Projects List — **DONE** (progress rings, framework badges, stat pills, card grid)
+- D5: Project Detail — **PARTIAL** (header, tab pills, stat cards done; inner drawers/editors still old style)
+- D6: Integrations/Settings — **DONE** (4-column grid, status dots, drawer, consistent header)
+- D7: Users + Activity Logs — **DONE** (AG Grid dark theme, emerald styling, meta-labels)
 - D8A: Login — **DONE** (full redesign, animations, emerald gradient, OAuth buttons)
 - D8B: Setup — **DONE** (hero + form, animations, emerald focus)
-- D8C: Register — **NOT STARTED** (old DaisyUI layout)
-- D8D: Reset Password — **NOT STARTED** (old DaisyUI layout)
+- D8C: Register — **DONE** (hero + animated form, emerald accents)
+- D8D: Reset Password — **DONE** (centered card, emerald gradient background)
 
 **Integration Pipeline — ALL 4 INTEGRATIONS FULLY WIRED:**
 - Telivy: Phase 1 LLM analysis + 3 evidence generators
@@ -87,13 +87,22 @@ Last updated: 2026-04-09
 ### This Session (2026-04-09)
 - Recovered 50 orphaned commits from detached HEAD into main
 - Fixed critical security bug: `Authorizer.get_tenant_id()` was undefined but called in 17+ routes
-- Audited full codebase against documentation — updated MEMORY.md and PHASES.md
+- Fixed trust portal: added `@login_required` to config endpoints
+- Fixed latent XSS: changed `x-html` to `x-text` for invite alert
+- Fixed users page bug: `selectedItem.id` to `this.selectedItem.id`
+- D4: Complete Projects List redesign (progress rings, framework badges, card grid)
+- D5: Project Detail header, tab pills, stat cards redesigned
+- D7: Users page + Activity Logs with AG Grid dark theme
+- D8C: Register page redesign (hero + animated form)
+- D8D: Reset Password redesign (centered card + emerald gradient)
+- D3: Workspace polish (consistent header, card hover effects)
+- D6: Integrations polish (consistent header, 14px radius)
+- Audited full codebase against documentation — updated all docs
 
 ### Remaining Work (Priority Order)
-1. **Phase D UI**: D4 (Projects List), D5 (Project Detail), D7 (Users/Logs), D8C/D (Register/Reset)
-2. **Phase D polish**: D3 (Workspace) and D6 (Integrations) need final touches
-3. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
-4. Training management UI page and employee completion dashboard
-5. Continuous monitoring UI: drift alerts dashboard widget
-6. Trust portal: NDA gate implementation, custom domain CNAME support
-7. UI polish: Related Controls panel on control detail view (C5 data is ready)
+1. **Phase D UI**: D5 inner components (drawer panels, control editor, evidence tab) — deep restyle
+2. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
+3. Training management UI page and employee completion dashboard
+4. Continuous monitoring UI: drift alerts dashboard widget
+5. Trust portal: NDA gate implementation, custom domain CNAME support
+6. UI polish: Related Controls panel on control detail view (C5 data is ready)

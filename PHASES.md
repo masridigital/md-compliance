@@ -40,15 +40,15 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 |------|-----------|--------|-------|
 | D1 | Sidebar + Top Bar | **DONE** 2026-04-08 | 80px/224px, tooltips, emerald accent, collapse on hover |
 | D2 | Home Dashboard | **DONE** 2026-04-08 | Two-column, feature cards, risk table, stat row |
-| D3 | Clients/Workspace | **PARTIAL** | Grid cards + drawer, needs final polish |
-| D4 | Projects List | **NOT STARTED** | Needs gradient borders, progress rings |
-| D5 | Project Detail | **NOT STARTED** | Complex — tabs, controls, evidence, risks |
-| D6 | Integrations/Settings | **PARTIAL** | 4-column grid + status dots + drawer |
-| D7 | Users + Activity Logs | **NOT STARTED** | AG Grid tables need dark theme styling |
+| D3 | Clients/Workspace | **DONE** 2026-04-09 | Grid cards, drawer, consistent header, emerald hover |
+| D4 | Projects List | **DONE** 2026-04-09 | Progress rings, framework badges, stat pills |
+| D5 | Project Detail | **PARTIAL** 2026-04-09 | Header, tab pills, stat cards done; drawers still old |
+| D6 | Integrations/Settings | **DONE** 2026-04-09 | 4-column grid, status dots, drawer, consistent header |
+| D7 | Users + Activity Logs | **DONE** 2026-04-09 | AG Grid dark theme, emerald styling, meta-labels |
 | D8A | Login | **DONE** 2026-04-08 | Full redesign with animations |
 | D8B | Setup | **DONE** 2026-04-08 | Hero + form with animations |
-| D8C | Register | **NOT STARTED** | Needs emerald theme |
-| D8D | Reset Password | **NOT STARTED** | Needs emerald theme |
+| D8C | Register | **DONE** 2026-04-09 | Hero + animated form, emerald accents |
+| D8D | Reset Password | **DONE** 2026-04-09 | Centered card, emerald gradient |
 
 ## Integration Status
 
