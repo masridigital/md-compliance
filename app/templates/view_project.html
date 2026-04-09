@@ -4,9 +4,53 @@
 {{ super() }}
 {% import "helpers/src_macros.html" as macro %}
 {{ macro.filehelper(grid=True, editor=True, driver=True, tags=True, confetti=True, files=True, apex=True, markdown=True, report=True) }}
-<style xmlns="http://www.w3.org/1999/html">
-	.breadcrumbs>ul>li+:before {
-	  margin-top: 5px;
+<style>
+	.breadcrumbs>ul>li+:before { margin-top: 5px; }
+
+	/* D5 Apple-inspired overrides */
+	.proj-header { padding: 1.5rem 1.5rem 0; max-width: 1400px; margin: 0 auto; }
+	.proj-tab-bar {
+		display: flex; align-items: center; gap: 0.5rem;
+		border-bottom: 1px solid oklch(var(--bc) / .06);
+		padding: 0.5rem 0; margin-bottom: 0;
+	}
+	.proj-tab {
+		font-size: 0.75rem; font-weight: 600; padding: 0.35rem 0.75rem;
+		border-radius: 8px; cursor: pointer; transition: all 0.15s;
+		color: oklch(var(--bc) / .5); text-transform: capitalize;
+		border: 1px solid transparent;
+	}
+	.proj-tab:hover { color: oklch(var(--bc) / .8); background: oklch(var(--bc) / .04); }
+	.proj-tab.active {
+		color: #10b981; background: rgba(16,185,129,0.08);
+		border-color: rgba(16,185,129,0.2);
+	}
+	.proj-stat-card {
+		background: oklch(var(--b2));
+		border: 1px solid oklch(var(--bc) / .06);
+		border-radius: 12px; padding: 1.25rem;
+		transition: border-color 0.15s;
+	}
+	.proj-stat-card:hover { border-color: oklch(var(--bc) / .12); }
+	.proj-stat-label {
+		font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+		text-transform: uppercase; color: oklch(var(--bc) / .35);
+	}
+	.proj-meta {
+		display: flex; align-items: center; gap: 0.5rem;
+		font-size: 0.75rem; color: oklch(var(--bc) / .5);
+	}
+	.proj-meta-divider {
+		width: 1px; height: 16px; background: oklch(var(--bc) / .1);
+	}
+	.ag-theme-quartz {
+		--ag-background-color: transparent;
+		--ag-header-background-color: oklch(var(--b2));
+		--ag-odd-row-background-color: transparent;
+		--ag-row-hover-color: oklch(var(--p) / 0.04);
+		--ag-border-color: oklch(var(--bc) / .06);
+		--ag-header-foreground-color: oklch(var(--bc) / .5);
+		--ag-foreground-color: oklch(var(--bc) / .8);
 	}
 </style>
 
@@ -1210,85 +1254,81 @@
 	</div>
 
 
-	<div :class="{'mb-5': !simpleInterface}" class="grid grid-cols-9 gap-8">
-		<div class="col-span-9">
-			<div class="lg:flex lg:items-center lg:justify-between">
-				<div class="min-w-0 flex-1">
-					<div class="breadcrumbs text-lg font-bold sm:tracking-tight py-0">
-						<ul>
-							<li><a href="{{url_for('main.projects')}}">Home</a></li>
-							<li><a href="{{url_for('main.projects')}}">Projects</a></li>
-							<li><a class="capitalize" href="{{url_for('main.view_project', pid=project.id)}}">{{project.name}}</a></li>
-							<li class="capitalize" x-text="selectedTab"></li>
-						</ul>
-					</div>
-
+	<div :class="{'mb-5': !simpleInterface}" class="proj-header">
+		<div>
+			<!-- Header row: breadcrumb + actions -->
+			<div class="flex items-center justify-between mb-2">
+				<div class="breadcrumbs text-sm py-0">
+					<ul>
+						<li><a href="{{url_for('main.projects')}}" class="text-gray-400 hover:text-emerald-400">Projects</a></li>
+						<li><a class="capitalize text-white font-semibold" href="{{url_for('main.view_project', pid=project.id)}}">{{project.name}}</a></li>
+						<li class="capitalize text-gray-400" x-text="selectedTab"></li>
+					</ul>
 				</div>
-				<div class="flex space-x-2">
-					<span class="hidden sm:block">
-						<button @click="showAuditHelp=true" x-show="isAuditor" class="btn btn-xs mx-2">Auditor<i class="ti ti-spy text-error text-lg"></i></button>
+				<div class="flex items-center gap-2">
+					<button @click="showAuditHelp=true" x-show="isAuditor" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Auditor Mode">
+						<i class="ti ti-spy text-amber-400"></i>
+					</button>
+					<span x-show="selectedTab==='controls'">
+						<button @click="toggleDashboard" :class="{'border-emerald-500/30': showDashboard}" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Toggle Analytics">
+							<i class="ti ti-chart-bar" :class="showDashboard ? 'text-emerald-400' : 'text-gray-400'"></i>
+						</button>
 					</span>
-					<span x-show="selectedTab==='controls'" class="hidden sm:block">
-						<div class="tooltip tooltip-left" data-tip="Toggle Analytics">
-							<button @click="toggleDashboard" :class="{'btn-warning': showDashboard}" class="btn btn-xs" x-text="showDashboard ? 'Hide Analytics' : 'Show Analytics'"></button>
-						</div>
-					</span>					
-					<span x-show="selectedTab==='controls'" class="hidden sm:block">
-					  <div class="tooltip tooltip-left" data-tip="Refresh data from Server">
-						  <button @click="refreshData" :class="{'btn-disabled': disableRefreshBtn}" class="btn btn-xs"><span x-show="disableRefreshBtn" class="loading loading-infinity loading-sm"></span>Refresh Data</button>
-					  </div>
+					<span x-show="selectedTab==='controls'">
+						<button @click="refreshData" :class="{'btn-disabled': disableRefreshBtn}" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Refresh">
+							<span x-show="disableRefreshBtn" class="loading loading-infinity loading-xs"></span>
+							<i x-show="!disableRefreshBtn" class="ti ti-refresh text-gray-400"></i>
+						</button>
 					</span>
-					<span x-show="selectedTab==='controls'" class="hidden sm:block">
-						<button @click="showCreateCustomControlModal=true" class="btn btn-xs btn-primary">Create Control</button>
+					<span x-show="selectedTab==='controls'">
+						<button @click="showCreateCustomControlModal=true" class="btn btn-xs btn-primary">
+							<i class="ti ti-plus mr-1"></i> Control
+						</button>
 					</span>
 				</div>
 			</div>
-			<div x-cloak x-show="!simpleInterface" x-transition
-				 class="flex flex-row border-b border-base-300 py-1 cursor-pointer">
-				<div @click="showMetadataModal=true" class="flex gap-x-1 py-2 pr-2 tooltip" data-tip="Framework">
-					<i class="ti ti-frame text-md"></i>
-					<span x-transition
-					  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-medium text-xs uppercase'"
-					  x-text="loadingProjectData ? '' : projectData.framework">
+
+			<!-- Meta bar + tabs -->
+			<div x-cloak x-show="!simpleInterface" x-transition class="proj-tab-bar">
+				<!-- Framework + completion meta -->
+				<div class="proj-meta mr-2">
+					<span @click="showMetadataModal=true" class="cursor-pointer hover:text-white flex items-center gap-1">
+						<i class="ti ti-frame"></i>
+						<span x-transition
+						  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold uppercase'"
+						  x-text="loadingProjectData ? '' : projectData.framework">
+						</span>
 					</span>
-				</div>
-				<div class="divider divider-horizontal mx-0 my-1"></div>
-				<div @click="showMetadataModal=true" class="flex gap-x-1 py-2 px-2 tooltip hover:opacity-75" data-tip="Completion">
-					<span x-transition
-					  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-medium text-xs'"
-					  x-text="loadingProjectData ? '' : projectData.completion_progress + '%'">
+					<div class="proj-meta-divider"></div>
+					<span @click="showMetadataModal=true" class="cursor-pointer hover:text-white flex items-center gap-1.5">
+						<span x-transition
+						  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold'"
+						  x-text="loadingProjectData ? '' : projectData.completion_progress + '%'">
+						</span>
+						<progress
+						  :class="{
+							'progress-error': projectData.completion_progress < 30,
+							'progress-warning': projectData.completion_progress >= 30 && projectData.completion_progress < 75,
+							'progress-success': projectData.completion_progress >= 75
+						  }"
+						  class="progress w-28 my-auto"
+						  :value="projectData.completion_progress+2"
+						  max="100">
+						</progress>
 					</span>
-					<progress
-					  :class="{
-						'progress-error': projectData.completion_progress < 30,
-						'progress-warning': projectData.completion_progress >= 30 && projectData.completion_progress < 75,
-						'progress-success': projectData.completion_progress >= 75
-					  }"
-					  class="progress w-40 my-auto"
-					  :value="projectData.completion_progress+2"
-					  max="100">
-					</progress>
-					<i
-					  :class="{
-						'text-error': projectData.completion_progress < 30,
-						'text-warning': projectData.completion_progress >= 30 && projectData.completion_progress < 75,
-						'text-success': projectData.completion_progress >= 75
-					  }"
-					  class="ti ti-progress-check text-md">
-					</i>
+					<div class="proj-meta-divider"></div>
 				</div>
-				<div class="divider divider-horizontal mx-0 py-1"></div>
-				<div class="flex space-x-3 tabs my-auto">
-					<template x-for="tab in tabs" :key="tab">
-					  <span
-							  @click="switchTab({tab: tab})"
-							  x-bind:id="'tab-' + tab"
-							  class="cursor-pointer rounded-md btn btn-xs bg-base-100 btn-ghost font-medium capitalize px-2"
-							  x-bind:class="{ 'bg-base-300': selectedTab === tab }"
-							  x-text="tab"
-					  ></span>
-					</template>
-				</div>
+
+				<!-- Tabs as pills -->
+				<template x-for="tab in tabs" :key="tab">
+				  <span
+						  @click="switchTab({tab: tab})"
+						  x-bind:id="'tab-' + tab"
+						  class="proj-tab"
+						  x-bind:class="{ 'active': selectedTab === tab }"
+						  x-text="tab"
+				  ></span>
+				</template>
 			</div>
 
 		</div>
@@ -1301,75 +1341,46 @@
 					<span class="text-xs">Project statistics are out of date. Please click the refresh button.</span>
 					<button class="btn btn-xs btn-success" @click="getProject;projectRefreshRequired=false">Refresh Stats</button>
 				</div>
-				<div class="grid grid-cols-8 gap-4">
-					<div class="flex flex-col col-span-2 border bg-base-200 border-base-200 rounded-lg">
-					  <div class="p-6">
-						<div class="flex items-center gap-x-2 tooltip" data-tip="Status of project">
-						  <p class="text-sm font-semibold">
-							Project Status
-						  </p>
-						  <i :class="{'ti-check text-success':projectData.status === 'complete', 'ti-x text-error':projectData.status === 'not started', 'ti-progress text-warning':projectData.status === 'in progress'}" class="ti"></i>
-						</div>
-						<h3 class="mt-2 text-xl capitalize">
+				<div class="grid grid-cols-4 gap-4">
+					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Project Status</div>
+						<div class="flex items-center gap-2">
+						  <i :class="{'ti-check text-emerald-400':projectData.status === 'complete', 'ti-x text-red-400':projectData.status === 'not started', 'ti-progress text-amber-400':projectData.status === 'in progress'}" class="ti text-lg"></i>
 						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold'"
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-lg font-bold text-white capitalize'"
 							  x-text="loadingProjectData ? '' : projectData.status">
 						  </span>
-						  <button @click="switchTab({'tab':'controls'})" class="btn btn-sm btn-ghost"><i class="ti ti-external-link my-auto"></i></button>
-						</h3>
-					  </div>
-					</div>
-					<div class="flex flex-col col-span-2 border bg-base-200 border-base-200 rounded-lg">
-					  <div class="p-6">
-						<div class="flex items-center gap-x-2 tooltip" data-tip="% of controls completed">
-						  <p class="text-sm font-semibold">
-							Project Completion
-						  </p>
-						  <i :class="{'text-error':projectData.completion_progress===0, 'text-warning':projectData.completion_progress>0 && projectData.completion_progress<100, 'text-success':projectData.completion_progress===100}" class="ti ti-progress-check"></i>
 						</div>
-						<h3 class="mt-2 text-2xl">
+					</div>
+					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Completion</div>
+						<div class="flex items-center gap-2">
 						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold'"
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
 							  x-text="loadingProjectData ? '' : projectData.completion_progress">
 						  </span>
-						  <span class="text-sm opacity-75">/100</span>
-						  <button @click="switchTab({'tab':'controls'})" class="btn btn-sm btn-ghost"><i class="ti ti-external-link my-auto"></i></button>
-						</h3>
-					  </div>
-					</div>
-					<div class="flex flex-col col-span-2 border bg-base-200 border-base-200 rounded-lg">
-					  <div class="p-6">
-						<div class="flex items-center gap-x-2 tooltip" data-tip="% of controls implemented">
-						  <p class="text-sm font-semibold">
-							Controls Implemented
-						  </p>
-						  <i :class="{'text-error':projectData.implemented_progress===0, 'text-warning':projectData.implemented_progress>0 && projectData.implemented_progress<100, 'text-success':projectData.implemented_progress===100}" class="ti ti-progress-check"></i>
+						  <span class="text-sm text-gray-500">/100</span>
 						</div>
-						<h3 class="mt-2 text-2xl">
+					</div>
+					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Controls Implemented</div>
+						<div class="flex items-center gap-2">
 						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold'"
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
 							  x-text="loadingProjectData ? '' : projectData.implemented_progress">
 						  </span>
-						  <span class="text-sm opacity-75">/100</span>
-						  <button @click="switchTab({'tab':'controls'})" class="btn btn-sm btn-ghost"><i class="ti ti-external-link my-auto"></i></button>
-						</h3>
-					  </div>
-					</div>
-					<div class="flex flex-col col-span-2 border bg-base-200 border-base-200 rounded-lg">
-					  <div class="p-6">
-						<div class="flex items-center gap-x-2 tooltip" data-tip="% of evidence collected">
-						  <p class="text-sm font-semibold">
-							Evidence Collected
-						  </p>
-						  <i :class="{'text-error':projectData.evidence_progress===0, 'text-warning':projectData.evidence_progress>0 && projectData.evidence_progress<100, 'text-success':projectData.evidence_progress===100}" class="ti ti-progress-check"></i>
+						  <span class="text-sm text-gray-500">/100</span>
 						</div>
-						<h3 class="mt-2 text-2xl">
+					</div>
+					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Evidence Collected</div>
+						<div class="flex items-center gap-2">
 						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'font-semibold'"
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
 							  x-text="loadingProjectData ? '' : projectData.evidence_progress">
 						  </span>
-						  <span class="text-sm opacity-75">/100</span>
-						  <button @click="switchTab({'tab':'controls'})" class="btn btn-sm btn-ghost"><i class="ti ti-external-link my-auto"></i></button>
+						  <span class="text-sm text-gray-500">/100</span>
+						</div>
 						</h3>
 					  </div>
 					</div>
