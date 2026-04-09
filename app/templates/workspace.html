@@ -1,19 +1,18 @@
 {% extends "layouts/sidebar-nav.html" %}
 
-{%block page_header_title%}Clients{%endblock%}
-{%block page_header_title_border%}{%endblock%}
-{%block page_header_buttons%}{%endblock%}
+{%block page_header%}{%endblock%}
 
 {%block head%}
 <style>
   .ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-  .ws-card { border: 1px solid oklch(var(--bc) / .12); border-radius: .75rem; padding: 1.25rem; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
-  .ws-card:hover { border-color: oklch(var(--p)); box-shadow: 0 0 0 1px oklch(var(--p) / .3); }
-  .ws-card.is-active { border-color: oklch(var(--su)); }
+  .ws-card { border: 1px solid oklch(var(--bc) / .08); border-radius: 14px; padding: 1.25rem; cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .15s; background: oklch(var(--b2)); }
+  .ws-card:hover { border-color: oklch(var(--p) / .25); box-shadow: 0 8px 32px oklch(var(--p) / .06); transform: translateY(-2px); }
+  .ws-card.is-active { border-color: rgba(16,185,129,0.3); }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .status-dot.green { background: oklch(var(--su)); }
-  .status-dot.amber { background: oklch(var(--wa)); }
+  .status-dot.green { background: #10b981; }
+  .status-dot.amber { background: #f59e0b; }
   .status-dot.gray  { background: oklch(var(--bc) / .25); }
+  .meta-label { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(var(--bc) / .35); }
   .drawer-panel { position: fixed; top: 0; right: 0; width: 520px; max-width: 100vw; height: 100vh; background: oklch(var(--b1)); border-left: 1px solid oklch(var(--bc) / .12); z-index: 50; overflow-y: auto; transform: translateX(100%); transition: transform .2s ease; }
   .drawer-panel.open { transform: translateX(0); }
   .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 49; }
@@ -23,25 +22,31 @@
 {%endblock%}
 
 {%block content%}
-<div x-data="workspaceHub()" x-init="init()">
+<div x-data="workspaceHub()" x-init="init()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
 
-  <!-- Search + New -->
-  <div class="flex items-center gap-3 mb-6 flex-wrap">
-    <input type="text" x-model="search" placeholder="Search clients..." class="input input-bordered input-sm flex-1 min-w-[200px] max-w-sm" />
-    <label class="flex items-center gap-1 text-xs cursor-pointer">
-      <input type="checkbox" class="checkbox checkbox-xs" x-model="showArchived">
-      Show Archived
-    </label>
-    <div class="flex-1"></div>
-    <span class="text-xs opacity-40" x-text="filtered.length + ' client(s)'"></span>
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Clients</h1>
+      <p class="text-sm text-gray-400 mt-1" x-text="loaded ? filtered.length + ' client' + (filtered.length !== 1 ? 's' : '') : 'Loading...'"></p>
+    </div>
     <button class="btn btn-sm btn-primary" @click="showCreateModal = true">
       <i class="ti ti-plus mr-1"></i> New Client
     </button>
   </div>
 
+  <!-- Search + filter -->
+  <div class="flex items-center gap-3 mb-6 flex-wrap">
+    <input type="text" x-model="search" placeholder="Search clients..." class="input input-bordered input-sm flex-1 min-w-[200px] max-w-sm" />
+    <label class="flex items-center gap-1 text-xs cursor-pointer text-gray-400">
+      <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" x-model="showArchived">
+      Show Archived
+    </label>
+  </div>
+
   <!-- Loading -->
   <div x-show="!loaded" class="flex justify-center py-12">
-    <span class="loading loading-spinner loading-lg"></span>
+    <span class="loading loading-spinner loading-lg text-emerald-500"></span>
   </div>
 
   <!-- ═══ Clients Section ═══ -->

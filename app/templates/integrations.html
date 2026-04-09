@@ -1,8 +1,6 @@
 {% extends "layouts/sidebar-nav.html" %}
 
-{%block page_header_title%}Integrations{%endblock%}
-{%block page_header_title_border%}{%endblock%}
-{%block page_header_buttons%}{%endblock%}
+{%block page_header%}{%endblock%}
 
 {%block head%}
 <style>
@@ -18,7 +16,7 @@
 
   /* Cards */
   .int-card {
-    border: 1px solid oklch(var(--bc) / .10); border-radius: .75rem;
+    border: 1px solid oklch(var(--bc) / .08); border-radius: 14px;
     padding: 1.25rem; cursor: pointer;
     transition: border-color .15s, box-shadow .15s, transform .1s;
     display: flex; flex-direction: column;
@@ -59,7 +57,15 @@
 {%endblock%}
 
 {%block content%}
-<div x-data="integrationsHub()" x-init="init()">
+<div x-data="integrationsHub()" x-init="init()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Integrations</h1>
+      <p class="text-sm text-gray-400 mt-1">Connect your security tools to automate compliance evidence collection</p>
+    </div>
+  </div>
 
   <!-- Toolbar: Search + Category Filter -->
   <div class="flex items-center gap-3 mb-6 flex-wrap">
