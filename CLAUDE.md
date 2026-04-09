@@ -642,6 +642,14 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | C2 | Continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices) | 2026-04-07 |
 | C3 | Employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation) | 2026-04-07 |
 | C6 | Trust portal (public /trust/<slug>, compliance bars, certifications, JSON API, config) | 2026-04-07 |
+| D1 | Sidebar + Top Bar (80px/224px, tooltips, emerald accent, collapse on hover) | 2026-04-08 |
+| D2 | Home Dashboard (two-column, feature cards, risk table, stat row) | 2026-04-08 |
+| D8A | Login page redesign (hero + animated form + emerald accent) | 2026-04-08 |
+| D8B | Setup page redesign (hero + form + animations) | 2026-04-08 |
+| D4 | Projects List (progress rings, framework badges, card grid) | 2026-04-09 |
+| D7 | Users + Activity Logs (AG Grid dark theme, emerald styling) | 2026-04-09 |
+| D8C | Register page redesign (hero + animated form) | 2026-04-09 |
+| D8D | Reset Password redesign (centered card + emerald gradient) | 2026-04-09 |
 
 ---
 
@@ -729,16 +737,19 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 - Consistent hero + floating card pattern
 
 ### Implementation Order
-| Step | What | Priority | Depends On |
-|------|------|----------|------------|
-| D1 | Sidebar + Top Bar | **NOW** | — |
-| D2 | Home Dashboard | **NOW** | D1 |
-| D3 | Clients/Workspace | High | D1 |
-| D4 | Projects List | High | D1 |
-| D5 | Project Detail | High | D1 |
-| D6 | Integrations/Settings | Medium | D1 |
-| D7 | Users + Logs | Medium | D1 |
-| D8 | Auth Pages | Low | Already partially done |
+| Step | What | Status | Depends On |
+|------|------|--------|------------|
+| D1 | Sidebar + Top Bar | **DONE** 2026-04-08 | — |
+| D2 | Home Dashboard | **DONE** 2026-04-08 | D1 |
+| D3 | Clients/Workspace | **PARTIAL** | D1 |
+| D4 | Projects List | **DONE** 2026-04-09 | D1 |
+| D5 | Project Detail | **NOT STARTED** | D1 |
+| D6 | Integrations/Settings | **PARTIAL** | D1 |
+| D7 | Users + Logs | **DONE** 2026-04-09 | D1 |
+| D8A | Login | **DONE** 2026-04-08 | — |
+| D8B | Setup | **DONE** 2026-04-08 | — |
+| D8C | Register | **DONE** 2026-04-09 | — |
+| D8D | Reset Password | **DONE** 2026-04-09 | — |
 
 ---
 
