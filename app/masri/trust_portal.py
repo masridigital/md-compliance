@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, render_template, abort
+from flask_login import login_required
 from app import db, limiter
 
 logger = logging.getLogger(__name__)
@@ -72,13 +73,10 @@ def trust_page(tenant_slug):
 
 @trust_bp.route("/config", methods=["GET"])
 @limiter.limit("60 per minute")
+@login_required
 def get_trust_config():
     """GET /trust/config — Get trust portal config for current tenant (requires auth)."""
-    from flask_login import current_user
     from app.utils.authorizer import Authorizer
-
-    if not current_user or not current_user.is_authenticated:
-        return jsonify({"error": "Authentication required"}), 401
 
     tenant_id = Authorizer.get_tenant_id()
     config = _get_trust_config(tenant_id)
@@ -87,13 +85,12 @@ def get_trust_config():
 
 @trust_bp.route("/config", methods=["PUT"])
 @limiter.limit("10 per minute")
+@login_required
 def update_trust_config():
     """PUT /trust/config — Update trust portal configuration."""
     from flask_login import current_user
     from app.utils.authorizer import Authorizer
 
-    if not current_user or not current_user.is_authenticated:
-        return jsonify({"error": "Authentication required"}), 401
     if not current_user.super:
         return jsonify({"error": "Admin access required"}), 403
 

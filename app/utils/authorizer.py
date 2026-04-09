@@ -15,6 +15,25 @@ class Authorizer:
         # Not implemented
         self.ds = ds
 
+    @staticmethod
+    def get_tenant_id():
+        """Get the current user's primary tenant_id.
+
+        Returns the first tenant the user owns, or the first tenant they
+        are a member of.  Returns None when unauthenticated or tenant-less.
+        """
+        from flask_login import current_user
+
+        if not current_user or not current_user.is_authenticated:
+            return None
+        tenants = current_user.get_tenants(own=True)
+        if tenants:
+            return tenants[0].id
+        tenants = current_user.get_tenants()
+        if tenants:
+            return tenants[0].id
+        return None
+
     def return_response(self, ok, msg, code=200, **kwargs):
         data = {**{"ok": ok, "message": msg, "code": code}, "extra": {**kwargs}}
         if self.bubble_errors or ok:

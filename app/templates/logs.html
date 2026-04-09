@@ -9,103 +9,140 @@
 
 {%block page_header%}{%endblock%}
 
+{%block head%}
+<style>
+  .meta-label {
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: oklch(var(--bc) / .35);
+  }
+  .log-card {
+    background: oklch(var(--b2));
+    border: 1px solid oklch(var(--bc) / .06);
+    border-radius: 14px;
+    padding: 1.5rem;
+  }
+  .log-stat {
+    background: oklch(var(--b2));
+    border: 1px solid oklch(var(--bc) / .06);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+  .ag-theme-quartz {
+    --ag-background-color: transparent;
+    --ag-header-background-color: oklch(var(--b2));
+    --ag-odd-row-background-color: transparent;
+    --ag-row-hover-color: oklch(var(--p) / 0.04);
+    --ag-border-color: oklch(var(--bc) / .06);
+    --ag-header-foreground-color: oklch(var(--bc) / .5);
+    --ag-foreground-color: oklch(var(--bc) / .8);
+  }
+</style>
+{%endblock%}
+
 {%block content%}
-<div x-data="logViewer()">
-    <div class="flex justify-between items-center mb-4">
-        <h1 class="text-2xl font-semibold">Activity Logs</h1>
-        <div class="flex gap-2">
-            <button class="btn btn-sm btn-ghost border border-base-300 tooltip" @click="exportCSV()" data-tip="CSV Export"><i class="ti ti-download"></i></button>
-            <button class="btn btn-sm btn-ghost border border-base-300 tooltip" @click="getItems()" data-tip="Refresh"><i class="ti ti-refresh"></i></button>
-        </div>
-    </div>
+<div x-data="logViewer()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
 
-    <!-- Filters -->
-    <div class="card bg-base-200 border border-base-300 mb-4">
-        <div class="card-body p-4">
-            <div class="flex gap-3 flex-wrap items-end">
-                <div>
-                    <label class="text-xs font-medium block mb-1">Event Type</label>
-                    <select class="select select-sm select-bordered w-40" x-model="filters.action" @change="getItems()">
-                        <option value="">All Events</option>
-                        <option value="LOGIN">Login</option>
-                        <option value="LOGOUT">Logout</option>
-                        <option value="GET">View</option>
-                        <option value="POST">Create</option>
-                        <option value="PUT">Update</option>
-                        <option value="DELETE">Delete</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-medium block mb-1">Namespace</label>
-                    <select class="select select-sm select-bordered w-40" x-model="filters.namespace" @change="getItems()">
-                        <option value="">All</option>
-                        <option value="auth">Authentication</option>
-                        <option value="general">General</option>
-                        <option value="system">System</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-medium block mb-1">Severity</label>
-                    <select class="select select-sm select-bordered w-32" x-model="filters.level" @change="getItems()">
-                        <option value="">All</option>
-                        <option value="INFO">Info</option>
-                        <option value="WARNING">Warning</option>
-                        <option value="ERROR">Error</option>
-                        <option value="CRITICAL">Critical</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-medium block mb-1">Tenant</label>
-                    <select class="select select-sm select-bordered w-44 capitalize" x-model="filters.tenant_id" @change="getItems()">
-                        <option value="">All Tenants</option>
-                        <template x-for="t in tenants" :key="t.id">
-                            <option :value="t.id" x-text="t.name" class="capitalize"></option>
-                        </template>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-medium block mb-1">Rows</label>
-                    <select class="select select-sm select-bordered w-24" x-model="filters.limit" @change="getItems()">
-                        <option value="100">100</option>
-                        <option value="500" selected>500</option>
-                        <option value="1000">1000</option>
-                        <option value="5000">5000</option>
-                    </select>
-                </div>
-                <button class="btn btn-sm btn-ghost" @click="clearFilters()">
-                    <i class="ti ti-x mr-1"></i> Clear
-                </button>
-            </div>
-        </div>
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Activity Logs</h1>
+      <p class="text-sm text-gray-400 mt-1" x-text="items.length ? items.length + ' events' : 'Loading...'"></p>
     </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-sm btn-ghost border border-white/10 hover:border-emerald-500/30 tooltip" @click="exportCSV()" data-tip="CSV Export">
+        <i class="ti ti-download text-gray-400"></i>
+      </button>
+      <button class="btn btn-sm btn-ghost border border-white/10 hover:border-emerald-500/30 tooltip" @click="getItems()" data-tip="Refresh">
+        <i class="ti ti-refresh text-gray-400"></i>
+      </button>
+    </div>
+  </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-4 gap-3 mb-4">
-        <div class="stat bg-base-200 rounded-lg p-3">
-            <div class="stat-title text-xs">Total Events</div>
-            <div class="stat-value text-lg" x-text="items.length"></div>
-        </div>
-        <div class="stat bg-base-200 rounded-lg p-3">
-            <div class="stat-title text-xs">Errors</div>
-            <div class="stat-value text-lg text-error" x-text="items.filter(i => i.level === 'ERROR' || i.level === 'CRITICAL').length"></div>
-        </div>
-        <div class="stat bg-base-200 rounded-lg p-3">
-            <div class="stat-title text-xs">Logins</div>
-            <div class="stat-value text-lg text-success" x-text="items.filter(i => i.action === 'LOGIN').length"></div>
-        </div>
-        <div class="stat bg-base-200 rounded-lg p-3">
-            <div class="stat-title text-xs">Warnings</div>
-            <div class="stat-value text-lg text-warning" x-text="items.filter(i => i.level === 'WARNING').length"></div>
-        </div>
+  <!-- Filters -->
+  <div class="log-card mb-4">
+    <div class="flex gap-3 flex-wrap items-end">
+      <div>
+        <label class="meta-label block mb-1.5">Event Type</label>
+        <select class="select select-sm select-bordered w-36" x-model="filters.action" @change="getItems()">
+          <option value="">All Events</option>
+          <option value="LOGIN">Login</option>
+          <option value="LOGOUT">Logout</option>
+          <option value="GET">View</option>
+          <option value="POST">Create</option>
+          <option value="PUT">Update</option>
+          <option value="DELETE">Delete</option>
+        </select>
+      </div>
+      <div>
+        <label class="meta-label block mb-1.5">Namespace</label>
+        <select class="select select-sm select-bordered w-36" x-model="filters.namespace" @change="getItems()">
+          <option value="">All</option>
+          <option value="auth">Authentication</option>
+          <option value="general">General</option>
+          <option value="system">System</option>
+        </select>
+      </div>
+      <div>
+        <label class="meta-label block mb-1.5">Severity</label>
+        <select class="select select-sm select-bordered w-28" x-model="filters.level" @change="getItems()">
+          <option value="">All</option>
+          <option value="INFO">Info</option>
+          <option value="WARNING">Warning</option>
+          <option value="ERROR">Error</option>
+          <option value="CRITICAL">Critical</option>
+        </select>
+      </div>
+      <div>
+        <label class="meta-label block mb-1.5">Tenant</label>
+        <select class="select select-sm select-bordered w-40 capitalize" x-model="filters.tenant_id" @change="getItems()">
+          <option value="">All Tenants</option>
+          <template x-for="t in tenants" :key="t.id">
+            <option :value="t.id" x-text="t.name" class="capitalize"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="meta-label block mb-1.5">Rows</label>
+        <select class="select select-sm select-bordered w-20" x-model="filters.limit" @change="getItems()">
+          <option value="100">100</option>
+          <option value="500" selected>500</option>
+          <option value="1000">1000</option>
+          <option value="5000">5000</option>
+        </select>
+      </div>
+      <button class="btn btn-sm btn-ghost text-gray-400 hover:text-white" @click="clearFilters()">
+        <i class="ti ti-x mr-1"></i> Clear
+      </button>
     </div>
+  </div>
 
-    <!-- Table -->
-    <div class="card bg-base-200 border border-base-300">
-        <div class="card-body">
-            <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms x-transition:leave.duration.100ms><span class="loading loading-dots loading-lg"></span></div>
-            <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms x-transition:leave.duration.500ms></div>
-        </div>
+  <!-- Stats row -->
+  <div class="grid grid-cols-4 gap-3 mb-4">
+    <div class="log-stat">
+      <div class="meta-label mb-1">Total Events</div>
+      <div class="text-xl font-bold text-white" x-text="items.length"></div>
     </div>
+    <div class="log-stat">
+      <div class="meta-label mb-1">Errors</div>
+      <div class="text-xl font-bold text-red-400" x-text="items.filter(i => i.level === 'ERROR' || i.level === 'CRITICAL').length"></div>
+    </div>
+    <div class="log-stat">
+      <div class="meta-label mb-1">Logins</div>
+      <div class="text-xl font-bold text-emerald-400" x-text="items.filter(i => i.action === 'LOGIN').length"></div>
+    </div>
+    <div class="log-stat">
+      <div class="meta-label mb-1">Warnings</div>
+      <div class="text-xl font-bold text-amber-400" x-text="items.filter(i => i.level === 'WARNING').length"></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="log-card">
+    <div x-show="loading" class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg text-emerald-500"></span>
+    </div>
+    <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms x-transition:leave.duration.500ms></div>
+  </div>
 </div>
 {%endblock%}
 

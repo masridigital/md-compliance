@@ -7,299 +7,317 @@
 {{ macro.filehelper(grid=True, apex=True) }}
 {% endblock %}
 
+{%block head%}
+<style>
+  .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+  .proj-card {
+    border: 1px solid oklch(var(--bc) / .08);
+    border-radius: 14px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s, transform .15s;
+    background: oklch(var(--b2));
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .proj-card:hover {
+    border-color: oklch(var(--p) / .25);
+    box-shadow: 0 8px 32px oklch(var(--p) / .06);
+    transform: translateY(-2px);
+  }
+  .prog-ring {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: conic-gradient(#10b981 calc(var(--pct) * 1%), oklch(var(--bc) / .08) 0);
+    flex-shrink: 0;
+  }
+  .prog-ring-inner {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: oklch(var(--b2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; font-weight: 600; color: white;
+  }
+  .meta-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: oklch(var(--bc) / .35);
+  }
+  .stat-pill {
+    display: flex; align-items: center; gap: 0.35rem;
+    font-size: 0.75rem; color: oklch(var(--bc) / .6);
+  }
+  .status-badge {
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem; border-radius: 999px;
+  }
+  .status-complete { background: rgba(16,185,129,0.12); color: #10b981; }
+  .status-in-progress { background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .status-not-started { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .fw-badge {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.2rem 0.6rem; border-radius: 6px;
+    background: oklch(var(--p) / .1); color: oklch(var(--p));
+  }
+  .empty-state {
+    text-align: center; padding: 4rem 2rem;
+    border: 1px dashed oklch(var(--bc) / .12); border-radius: 14px;
+    background: oklch(var(--b2) / .5);
+  }
+</style>
+{%endblock%}
+
 {%block page_header%}{%endblock%}
 
 {%block content%}
-<div x-data="table()">
-    <div class="flex justify-between pb-6">
-        <h1 class="text-2xl font-semibold whitespace-nowrap capitalize">Projects</h1>
-        <div x-show="hasProjects">
-            <button x-show="cardView" class="btn btn-sm btn-ghost border border-base-300 capitalize tooltip"
-                    @click="getItems" data-tip="Refresh"><i class="ti ti-refresh"></i></button>
-<!--            <button class="btn btn-sm btn-ghost border border-base-300" x-text="cardView ? 'Table View' : 'Card View'"-->
-<!--                    @click="cardView = !cardView; table.sizeColumnsToFit()"></button>-->
-            <button class="btn btn-sm btn-primary" @click="openCreateModal">Create Project</button>
-        </div>
-    </div>
+<div x-data="table()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
 
-    <div class="mt-2">
-        <div class="mx-auto col-span-6 text-center mt-10" x-show="loading && cardView" x-transition:enter.duration.500ms
-             x-transition:leave.duration.100ms x-html="loadingSkeleton"></div>
-        <div x-show="!hasProjects" x-transition class="mx-auto">
-            <div>
-                <div class="hero mt-16">
-                  <div class="hero-content text-center">
-                    <div class="max-w-md">
-                      <h1 class="text-3xl font-bold">Get Started</h1>
-                      <p class="py-6">Your tenant (<b class="capitalize" x-text="$store.currentUser.selectedTenant.name"></b>) does not contain any projects or you lack access. Projects allow you to start working with compliance frameworks.</p>
-                      <button @click="openCreateModal" class="btn btn-primary">Get Started</button>
-                    </div>
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Projects</h1>
+      <p class="text-sm text-gray-400 mt-1" x-show="hasProjects" x-text="items.length + ' project' + (items.length !== 1 ? 's' : '') + ' across your clients'"></p>
+    </div>
+    <div class="flex items-center gap-2" x-show="hasProjects">
+      <button class="btn btn-sm btn-ghost border border-white/10 hover:border-emerald-500/30 tooltip" @click="getItems" data-tip="Refresh">
+        <i class="ti ti-refresh text-gray-400"></i>
+      </button>
+      <button class="btn btn-sm btn-primary" @click="openCreateModal">
+        <i class="ti ti-plus mr-1"></i> New Project
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div x-show="loading" class="flex justify-center py-16">
+    <span class="loading loading-spinner loading-lg text-emerald-500"></span>
+  </div>
+
+  <!-- Empty state -->
+  <div x-show="!hasProjects && !loading" x-transition class="empty-state">
+    <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+      <i class="ti ti-folder-plus text-emerald-400 text-3xl"></i>
+    </div>
+    <h2 class="text-xl font-bold text-white mb-2">No Projects Yet</h2>
+    <p class="text-sm text-gray-400 max-w-md mx-auto mb-6">
+      Your tenant (<b class="capitalize" x-text="$store.currentUser.selectedTenant.name"></b>) does not have any projects.
+      Create one to start working with a compliance framework.
+    </p>
+    <button @click="openCreateModal" class="btn btn-primary btn-sm">
+      <i class="ti ti-plus mr-1"></i> Create Project
+    </button>
+  </div>
+
+  <!-- Project cards grid -->
+  <div x-show="!loading && hasProjects" x-transition class="proj-grid">
+    <template x-for="project in items" :key="project.id">
+      <a :href="'/projects/' + project.id" class="proj-card group">
+        <!-- Top: Framework badge + status -->
+        <div class="flex items-center justify-between mb-4">
+          <span class="fw-badge" x-text="project.framework || 'Custom'"></span>
+          <span class="status-badge"
+                :class="{
+                  'status-complete': project.status === 'complete',
+                  'status-in-progress': project.status === 'in progress',
+                  'status-not-started': project.status === 'not started'
+                }"
+                x-text="project.status"></span>
+        </div>
+
+        <!-- Middle: Name + ring -->
+        <div class="flex items-center gap-4 mb-4">
+          <div class="prog-ring" :style="'--pct:' + (project.completion_progress || 0)">
+            <div class="prog-ring-inner" x-text="project.completion_progress + '%'"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs text-gray-500 capitalize mb-0.5" x-text="project.tenant || ''"></div>
+            <h3 class="text-sm font-semibold text-white uppercase truncate" x-text="project.framework || project.name"></h3>
+            <div class="text-xs text-gray-500 mt-1" x-text="project.date_added"></div>
+          </div>
+        </div>
+
+        <!-- Bottom: Stats row -->
+        <div class="flex items-center gap-4 pt-3 border-t border-white/5">
+          <div class="stat-pill tooltip" data-tip="Controls">
+            <i class="ti ti-checklist text-emerald-400"></i>
+            <span x-text="project.total_controls"></span>
+          </div>
+          <div class="stat-pill tooltip" data-tip="Policies">
+            <i class="ti ti-notebook text-blue-400"></i>
+            <span x-text="project.total_policies"></span>
+          </div>
+          <div class="stat-pill tooltip" data-tip="Members">
+            <i class="ti ti-users text-purple-400"></i>
+            <span x-text="project.members.length"></span>
+          </div>
+          <div class="stat-pill tooltip" data-tip="Auditors">
+            <i class="ti ti-spy text-amber-400"></i>
+            <span x-text="project.auditors.length"></span>
+          </div>
+          <div class="flex-1"></div>
+          <div class="text-emerald-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            Open <i class="ti ti-arrow-right text-sm"></i>
+          </div>
+        </div>
+      </a>
+    </template>
+  </div>
+
+  <!-- Delete modal -->
+  <div class="modal" x-bind:class="{ 'modal-open': showDeleteModal }">
+    <div class="modal-box" style="border: 1px solid oklch(var(--bc) / .1); border-radius: 14px;">
+      <form method="dialog">
+        <button @click="showDeleteModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&times;</button>
+      </form>
+      <h3 class="font-bold text-lg text-white" x-text="'Delete project: ' + selectedItem.name + '?'"></h3>
+      <p class="text-sm text-gray-400 mt-2">This action cannot be undone. All controls, evidence, and risks will be permanently removed.</p>
+      <div class="modal-action">
+        <button class="btn btn-sm btn-ghost" @click="showDeleteModal = false">Cancel</button>
+        <button :class="{'btn-disabled': buttonDisabled}" class="btn btn-sm btn-error" @click="deleteProject(selectedItem)">Delete Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create modal -->
+  <div class="modal" x-bind:class="{ 'modal-open': showCreateModal }">
+    <div class="modal-box w-11/12 max-w-4xl" style="border: 1px solid oklch(var(--bc) / .1); border-radius: 14px;">
+      <form method="dialog">
+        <button @click="showCreateModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&times;</button>
+      </form>
+      <h3 class="font-bold text-xl text-white px-2 mb-1">Create Project</h3>
+      <p class="text-sm text-gray-400 px-2 mb-6">Select a client and compliance framework to begin.</p>
+
+      <div class="px-2">
+        <!-- Client selector -->
+        <div class="mb-6">
+          <label class="meta-label block mb-2">Client</label>
+          <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full max-w-xs capitalize">
+            <template x-for="t in availableTenants" :key="t.id">
+              <option :value="t.id" x-text="t.name" :selected="t.id === formData.tenant_id" class="capitalize"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- Frameworks grid -->
+        <label class="meta-label block mb-3">Framework</label>
+
+        <!-- Custom framework option -->
+        <template x-for="framework in frameworks" :key="'custom-'+framework.id">
+          <template x-if="framework.name.toLowerCase() === 'custom'">
+            <div class="mb-4">
+              <div @click="selectedFramework=framework"
+                   :class="{'border-emerald-500/40 bg-emerald-500/5': selectedFramework===framework}"
+                   class="border border-white/8 rounded-xl p-4 hover:border-white/15 cursor-pointer transition-all">
+                <div class="flex items-center gap-2">
+                  <i x-show="selectedFramework===framework" class="ti ti-check text-emerald-400"></i>
+                  <span class="font-semibold text-sm text-white">Start from scratch</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Create a project with an empty set of controls. You can import controls later.</p>
+                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-sm btn-primary mt-3">Get Started</button>
+              </div>
+            </div>
+          </template>
+        </template>
+
+        <div class="grid grid-cols-3 gap-3">
+          <template x-for="framework in [...frameworks].filter(f=>f.name.toLowerCase()!=='custom').sort((a,b)=>(a.deprecated?1:0)-(b.deprecated?1:0))" :key="framework.id">
+            <template x-if="framework.name.toLowerCase() !== 'custom'">
+              <div @click="selectedFramework=framework"
+                   :class="{
+                     'border-emerald-500/40 bg-emerald-500/5': selectedFramework===framework,
+                     'opacity-40': framework.deprecated
+                   }"
+                   class="border border-white/8 rounded-xl p-4 hover:border-white/15 cursor-pointer transition-all">
+                <div class="flex items-center gap-2 mb-1">
+                  <i x-show="selectedFramework===framework" class="ti ti-check text-emerald-400 text-sm"></i>
+                  <span class="font-semibold text-sm text-white" x-text="framework.name"></span>
+                  <span x-show="framework.deprecated" class="text-[0.6rem] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-semibold">Deprecated</span>
+                </div>
+                <p class="text-xs text-gray-400 leading-relaxed" x-text="framework.deprecated_message || framework.description"></p>
+                <template x-if="framework._subtypes && framework._subtypes.length > 1">
+                  <div class="mt-2" @click.stop>
+                    <select class="select select-xs select-bordered w-full" x-model="framework._selectedSubtype">
+                      <template x-for="st in framework._subtypes" :key="st.value">
+                        <option :value="st.value" x-text="st.label"></option>
+                      </template>
+                    </select>
                   </div>
-                </div>
-            </div>
-        </div>
-        <div x-show="cardView && !loading" x-transition>
-            <div class="grid grid-cols-6 gap-4">
-                <template x-for="project in items" :key="project.id">
-                    <div class="col-span-2">
-                        <a :href="'/projects/' + project.id" class="block border border-base-300 rounded-lg p-8 bg-base-200 capitalize hover:border-primary hover:shadow-lg transition-all cursor-pointer" style="text-decoration: none; color: inherit;">
-                            <div class="w-full h-full block">
-                                <div class="flex justify-between">
-                                    <div class="my-auto">
-                                        <div class="text-xs opacity-50 mb-1 capitalize" x-text="project.tenant || ''"></div>
-                                        <h3 class="text-lg font-semibold uppercase" x-text="project.framework || project.name"></h3>
-                                    </div>
-
-                                    <details class="dropdown" @click.stop>
-                                      <summary class="btn btn-sm m-1"><i class="ti ti-dots-vertical text-lg"></i></summary>
-                                      <ul class="menu dropdown-content bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
-                                          <li><button class="text-sm text-error" @click.prevent="openDeleteModal(project)">Delete</button></li>
-                                      </ul>
-                                    </details>
-                                </div>
-                                <div class="flex justify-center gap-16 m-8 my-4 items-center">
-                                     <div
-                                      class="radial-progress text-sm font-semibold my-2 border-base-100 border-2"
-                                      :style="'--value:' + project.completion_progress + '; --size: 12rem; --thickness: 2px;'"
-                                      role="progressbar" x-text="project.completion_progress+'%'">
-                                    </div>
-                                </div>
-                                <div class="flex flex-row bg-base-100 justify-center rounded-lg px-4 py-2 mb-2">
-                                    <i :class="{'ti-check text-success':project.status === 'complete', 'ti-x text-error':project.status === 'not started', 'ti-progress text-warning':project.status === 'in progress'}" class="ti text-lg my-auto"></i>
-                                    <p class="capitalize my-auto ml-1 text-xs" x-text="project.status"></p>
-                                </div>
-                                <div class="bg-base-100 rounded-lg p-4">
-                                    <div class="grid grid-cols-8 mb-4">
-                                        <div class="col-span-2 flex tooltip m-auto" data-tip="Total Controls">
-                                            <span><i class="ti ti-checklist text-lg mr-1"></i></span>
-                                            <span class="text-sm font-semibold m-auto" x-text="project.total_controls"></span>
-                                        </div>
-                                        <div class="col-span-2 flex tooltip m-auto" data-tip="Total Policies">
-                                            <span><i class="ti ti-notebook text-lg mr-1"></i></span>
-                                            <span class="text-sm font-semibold m-auto" x-text="project.total_policies"></span>
-                                        </div>
-                                        <div class="col-span-2 flex tooltip m-auto" data-tip="Members">
-                                            <span><i class="ti ti-user text-lg mr-1"></i></span>
-                                            <span class="text-sm font-semibold m-auto" x-text="project.members.length"></span>
-                                        </div>
-                                        <div class="col-span-2 flex tooltip m-auto" data-tip="Auditors">
-                                            <span><i class="ti ti-spy text-lg mr-1"></i></span>
-                                            <span class="text-sm font-semibold m-auto" x-text="project.auditors.length"></span>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center mb-2">
-                                        <div class="tooltip avatar placeholder" :data-tip="project.tenant">
-                                            <div class="bg-base-200 rounded-full w-8"><span class="text-xs uppercase"
-                                                                                            x-text="project.tenant[0]"></span>
-                                            </div>
-                                        </div>
-                                        <div class="pl-3">
-                                            <div class="text-sm font-medium uppercase cursor-pointer hover:underline" @click="openModal(project)" x-text="project.framework"></div>
-                                            <div class="text-xs" x-text="project.date_added"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
                 </template>
-            </div>
-
+                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-xs btn-primary mt-3">Get Started</button>
+              </div>
+            </template>
+          </template>
         </div>
+      </div>
 
-        <div x-show="!cardView" x-transition>
-            <div class="grid grid-cols-6 gap-4">
-                <div class="card bg-base-100 border border-base-300 col-span-6">
-                    <div class="card-body">
-                        <div class="flex justify-between align-items-center">
-                            <h2 class="card-title mb-4">Projects</h2>
-                            <div class="space-x-2 flex">
-                                <button class="btn btn-sm btn-ghost border border-base-300 capitalize tooltip text-blue-500"
-                                        @click="exportCSV" data-tip="CSV Export"><i class="ti ti-download"></i></button>
-                                <button class="btn btn-sm btn-ghost border border-base-300 capitalize tooltip text-red-500"
-                                        @click="removeControlFilters" data-tip="Remove filter"><i class="ti ti-x"></i>
-                                </button>
-                                <button class="btn btn-sm btn-ghost border border-base-300 capitalize tooltip text-green-500"
-                                        @click="getItems" data-tip="Refresh table"><i class="ti ti-refresh"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mx-auto text-center mt-5" x-show="loading" x-transition:enter.duration.500ms
-                             x-transition:leave.duration.100ms x-html="loadingSkeleton"></div>
-                        <div x-show="!loading" class="ag-theme-quartz" id="table_1" x-transition:enter.duration.500ms
-                             x-transition:leave.duration.500ms></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div>
-            <div class="modal" x-bind:class="{ 'modal-open': showDeleteModal }">
-                <div class="modal-box">
-                    <form method="dialog">
-                        <button @click="showDeleteModal = false"
-                                class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕
-                        </button>
-                    </form>
-                    <h3 class="font-bold text-lg"
-                        x-text="'Are you sure you want to delete the project: ' + selectedItem.name + '? This action will not be reversible.'"></h3>
-                    <div class="modal-action">
-                        <button class="btn" @click="showDeleteModal = false">Close</button>
-                        <button :class='{"btn-disabled": buttonDisabled}' class="btn btn-error"
-                                @click="deleteProject(selectedItem)">Delete Project
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div>
-            <div class="modal" x-bind:class="{ 'modal-open': showCreateModal }">
-                <div class="modal-box w-11/12 max-w-4xl">
-                    <form method="dialog">
-                        <button @click="showCreateModal = false"
-                                class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕
-                        </button>
-                    </form>
-                    <h3 class="font-bold text-2xl px-8">Create Project</h3>
-                    <div class="card card-body">
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium mb-2">Client</label>
-                            <select x-model="formData.tenant_id" class="select select-sm select-bordered w-full max-w-xs capitalize">
-                              <template x-for="t in availableTenants" :key="t.id">
-                                <option :value="t.id" x-text="t.name" :selected="t.id === formData.tenant_id" class="capitalize"></option>
-                              </template>
-                            </select>
-                        </div>
-                        <p class="text-sm opacity-60 mb-4">Select a compliance framework to start. The project will be named after the framework.</p>
-                        <div class="grid grid-cols-9 gap-4">
-                            <template x-for="framework in frameworks" :key="'custom-'+framework.id">
-                                <template x-if="framework.name.toLowerCase() === 'custom'">
-                                    <div class="col-span-full">
-                                        <div @click="selectedFramework=framework"
-                                             :class="{'border border-primary': selectedFramework===framework}"
-                                             class="card hover:opacity-75 bg-base-300">
-                                            <div class="card-body hover:cursor-pointer">
-                                                <div class="flex flex-row">
-                                                    <i x-show="selectedFramework===framework" class="ti text-success ti-check mr-2 my-auto"></i>
-                                                    <div class="card-title">Start from scratch</div>
-                                                </div>
-                                                <p>Create a project with an empty set of controls and policies. You can import a set of controls if you wish.</p>
-                                                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-sm btn-success">Get Started</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </template>
-                            </template>
-<!--                            haaa-->
-                            <template x-for="framework in [...frameworks].filter(f=>f.name.toLowerCase()!=='custom').sort((a,b)=>(a.deprecated?1:0)-(b.deprecated?1:0))" :key="framework.id">
-                                <template x-if="framework.name.toLowerCase() !== 'custom'">
-                                    <div class="col-span-3">
-                                        <div @click="selectedFramework=framework" :class="{'border border-primary': selectedFramework===framework, 'opacity-50': framework.deprecated}" class="card hover:opacity-75 bg-base-300">
-                                            <div class="card-body hover:cursor-pointer">
-                                                <div class="flex flex-row items-center gap-2">
-                                                    <i x-show="selectedFramework===framework" class="ti text-success ti-check mr-2 my-auto"></i>
-                                                    <div class="card-title" x-text="framework.name"></div>
-                                                    <span x-show="framework.deprecated" class="badge badge-warning badge-xs">Deprecated</span>
-                                                </div>
-                                                <p x-text="framework.deprecated_message || framework.description"></p>
-                                                <template x-if="framework._subtypes && framework._subtypes.length > 1">
-                                                    <div class="mt-2" @click.stop>
-                                                        <select class="select select-xs select-bordered w-full" x-model="framework._selectedSubtype">
-                                                            <template x-for="st in framework._subtypes" :key="st.value">
-                                                                <option :value="st.value" x-text="st.label"></option>
-                                                            </template>
-                                                        </select>
-                                                    </div>
-                                                </template>
-                                                <button x-show="selectedFramework===framework" @click="createProject" class="btn btn-sm btn-success mt-2">Get Started</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </template>
-                            </template>
-
-                        </div>
-                    </div>
-                    <div class="modal-action">
-                        <button class="btn" @click="showCreateModal = false">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div>
-            <div class="modal" :class="{ 'modal-open': showModal }">
-                <div class="modal-box w-11/12 max-w-5xl">
-                    <form method="dialog">
-                        <button @click="showModal = false"
-                                class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">
-                            ✕
-                        </button>
-                    </form>
-                 <h2 class="py-2 text-xl font-semibold px-6 capitalize" x-text="'Project: '+selectedItem.name"></h2>
-                <div class="grid grid-cols-10 gap-6 card-body">
-                    <div class="col-span-4">
-                        <div class="card w-full bg-base-200 shadow-xl h-full">
-                          <h2 class="text-lg font-semibold p-6">Completion Percentage</h2>
-                          <div class="col-span-full mx-auto my-5">
-                             <div
-                              class="radial-progress text-sm font-semibold my-2 border-base-100 border-2"
-                              :style="'--value:' + selectedItem.completion_progress + '; --size: 12rem; --thickness: 2px;'"
-                              role="progressbar" x-text="selectedItem.completion_progress+'%'">
-                            </div>
-                          </div>
-                        </div>
-                    </div>
-                    <div class="col-span-6 px-8 prose text-sm font-semibold">
-                        <h2 class="capitalize" x-text="selectedItem.name"></h2>
-                        <p x-text="selectedItem.description"></p>
-                        <div class="grid grid-cols-12">
-                            <div class="col-span-4">
-                                <h4>Status</h4>
-                                <div class="flex flex-row">
-                                    <i :class="{'ti-check text-success':selectedItem.status === 'complete', 'ti-x text-error':selectedItem.status === 'not started', 'ti-progress text-warning':selectedItem.status === 'in progress'}" class="ti text-lg my-auto"></i>
-                                    <p class="capitalize my-auto ml-2" x-text="selectedItem.status"></p>
-                                </div>
-                            </div>
-                            <div class="col-span-4">
-                                <h4>Framework</h4>
-                                <p class="uppercase" x-text="selectedItem.framework||'Unknown'"></p>
-                            </div>
-                            <div class="col-span-4">
-                                <h4>Owner</h4>
-                                <p class="" x-text="selectedItem.owner"></p>
-                            </div>
-                            <div class="col-span-4">
-                                <h4>Total Controls</h4>
-                                <p class="" x-text="selectedItem.total_controls"></p>
-                            </div>
-                            <div class="col-span-4">
-                                <h4>Total Policies</h4>
-                                <p class="" x-text="selectedItem.total_policies"></p>
-                            </div>
-                            <div class="col-span-4">
-                                <h4>Auditor Enabled</h4>
-                                <div x-show="selectedItem.auditor_enabled" class="badge badge-success">True</div>
-                                <div x-show="!selectedItem.auditor_enabled" class="badge badge-error">False</div>
-                            </div>
-                            <div class="col-span-3">
-                                <h4>Created at</h4>
-                                <p class="capitalize" x-text="selectedItem.date_added"></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                    <div class="modal-action">
-                        <button class="btn" @click="showModal = false">Close</button>
-                        <button class="btn text-error" @click="openDeleteModal(selectedItem)">Delete</button>
-                        <a :href="'/projects/'+selectedItem.id" class="btn text-primary">Open Project</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
+      <div class="modal-action">
+        <button class="btn btn-sm btn-ghost" @click="showCreateModal = false">Cancel</button>
+      </div>
     </div>
+  </div>
+
+  <!-- Detail modal -->
+  <div class="modal" :class="{ 'modal-open': showModal }">
+    <div class="modal-box w-11/12 max-w-3xl" style="border: 1px solid oklch(var(--bc) / .1); border-radius: 14px;">
+      <form method="dialog">
+        <button @click="showModal = false" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&times;</button>
+      </form>
+
+      <div class="flex items-center gap-4 mb-6">
+        <div class="prog-ring" :style="'--pct:' + (selectedItem.completion_progress || 0)" style="width:64px;height:64px;">
+          <div class="prog-ring-inner" style="width:50px;height:50px;font-size:0.75rem;" x-text="selectedItem.completion_progress+'%'"></div>
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white uppercase" x-text="selectedItem.name"></h2>
+          <p class="text-xs text-gray-400" x-text="selectedItem.description"></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Status</div>
+          <span class="status-badge"
+                :class="{
+                  'status-complete': selectedItem.status === 'complete',
+                  'status-in-progress': selectedItem.status === 'in progress',
+                  'status-not-started': selectedItem.status === 'not started'
+                }"
+                x-text="selectedItem.status"></span>
+        </div>
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Framework</div>
+          <span class="text-sm font-semibold text-white uppercase" x-text="selectedItem.framework || 'Unknown'"></span>
+        </div>
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Owner</div>
+          <span class="text-sm text-white" x-text="selectedItem.owner"></span>
+        </div>
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Controls</div>
+          <span class="text-sm font-semibold text-white" x-text="selectedItem.total_controls"></span>
+        </div>
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Policies</div>
+          <span class="text-sm font-semibold text-white" x-text="selectedItem.total_policies"></span>
+        </div>
+        <div class="p-3 rounded-lg" style="background: oklch(var(--b2));">
+          <div class="meta-label mb-1">Created</div>
+          <span class="text-sm text-white" x-text="selectedItem.date_added"></span>
+        </div>
+      </div>
+
+      <div class="modal-action">
+        <button class="btn btn-sm btn-ghost" @click="showModal = false">Close</button>
+        <button class="btn btn-sm btn-ghost text-error" @click="openDeleteModal(selectedItem)">Delete</button>
+        <a :href="'/projects/'+selectedItem.id" class="btn btn-sm btn-primary">Open Project</a>
+      </div>
+    </div>
+  </div>
+
 </div>
 {%endblock%}
 
@@ -309,7 +327,6 @@ function table(){
     return {
         availableTenants: [],
         _tenantId() {
-          // Safe tenant ID accessor — never throws
           try {
             if (this.formData.tenant_id) return this.formData.tenant_id;
             if (this.$store.currentUser && this.$store.currentUser.selectedTenant) return this.$store.currentUser.selectedTenant.id;
@@ -319,25 +336,17 @@ function table(){
         },
         init() {
           this.isSidebarOpen = true;
-          this.$watch(
-            "items", (newValue, oldValue) => {
-                this.drawTable({"selector": "#table_1", "tableData":newValue})
-          })
-
-          // Load tenants first, then items and frameworks once we have a tenant ID
-          this.loadTenants()
+          this.loadTenants();
         },
         loadTenants() {
           request("GET", "/api/v1/tenants",
             data => {
               this.availableTenants = data || [];
-              // Default to currently selected tenant
               if (this.$store.currentUser && this.$store.currentUser.selectedTenant) {
                 this.formData.tenant_id = this.$store.currentUser.selectedTenant.id;
               } else if (this.availableTenants.length > 0) {
                 this.formData.tenant_id = this.availableTenants[0].id;
               }
-              // Now safe to load items
               if (this._tenantId()) {
                 this.getItems();
                 this.getFrameworks();
@@ -353,36 +362,23 @@ function table(){
             }
           );
         },
-        loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
         loading: true,
-        cardView: true,
-        step:"one",
         selectedFramework:{},
         showDeleteModal: false,
         showModal: false,
         buttonDisabled: false,
-        chartLoading: true,
         hasProjects: true,
         frameworks: [],
         selectedItem: {},
-        modalFields: [],
-        tableHeaders: [
-          {"field": "name", "headerName": "Name", "filter": "agTextColumnFilter"},
-          {"field": "description", "headerName": "Description", "filter": "agTextColumnFilter"},
-          {"field": "completion_progress", "headerName": "Completion", "filter": "agNumberColumnFilter", "cellRenderer": numberAndProgressBar, "modal": {"disable": true, "hide": true}},
-          {"field": "date_added", "headerName": "Created At", "filter": "agTextColumnFilter", "modal": {"disable": true}},
-          {"field": "id", "headerName": "#", "width": 100, "filter": "agTextColumnFilter", "cellRenderer": idToButton, "cellRendererParams": {"link": "/projects/{value}"}, "hide": false, "modal": {"disable": true}},
-        ],
+        showCreateModal: false,
+
         openModal(item) {
           this.selectedItem = item;
-          this.modalFields = getModalFields(this.tableHeaders)
           this.showModal = true;
           this.buttonDisabled = false;
         },
-        showCreateModal: false,
         openCreateModal() {
           this.showCreateModal = true;
-          this.step = "one";
         },
         openDeleteModal(item) {
           this.selectedItem = item;
@@ -408,7 +404,6 @@ function table(){
             toast("Framework is required", "error")
             return
           }
-          // Auto-name project from framework (use subtype if available)
           const fwName = this.selectedFramework._selectedSubtype || this.selectedFramework.name;
           this.formData.name = fwName;
           this.formData.framework = fwName;
@@ -446,32 +441,6 @@ function table(){
             jsonData = this.formData
           );
         },
-        updateProject() {
-          if (!this.selectedItem.name) {
-            toast("Name is required", "error")
-            return
-          }
-          if (!this.selectedItem.description) {
-            toast("Description is required", "error")
-            return
-          }
-          toast("Please wait...")
-          this.buttonDisabled = true;
-          request("PUT",
-            "/api/v1/projects/"+this.selectedItem.id,
-            data => {
-              toast("Updated project")
-              this.showModal = false;
-              this.buttonDisabled = false;
-              this.loading = true;
-              this.getItems()
-            },
-            error => {
-              toast(error.message, "error");
-            },
-            jsonData = {"name": this.selectedItem.name, "description": this.selectedItem.description}
-          );
-        },
         deleteProject(item) {
           toast("Please wait...")
           this.buttonDisabled = true;
@@ -491,86 +460,16 @@ function table(){
             },
           );
         },
-        exportCSV: function() {
-          this.table.exportDataAsCsv();
-        },
-        removeControlFilters: function() {
-          this.table.setFilterModel(null);
-        },
-        drawTable: function({ selector = null, tableData = null, formatter = null }) {
-          var data = tableData;
-          var columns = [];
-          gridOptions = {
-            pagination: true,
-            paginationPageSize: 25,
-            domLayout: "autoHeight",
-            suppressMenuHide: true,
-            suppressHorizontalScroll: true,
-            enableCellTextSelection:true,
-            suppressFieldDotNotation: true,
-            onGridReady: (params) => {
-              params.api.sizeColumnsToFit();
-              this.loading = false;
-              window.onresize = () => {
-                this.loading = true;
-                params.api.sizeColumnsToFit();
-                this.loading = false;
-              }
-            },
-            autoSizeStrategy: {
-              type: 'fitGridWidth',
-              defaultMinWidth: 50,
-            }
-          }
-          const gridElement = document.querySelector(selector);
-          if (this.table) {
-            this.table.destroy();
-          }
-
-          gridOptions.rowData = this.formattedTable(tableData);
-          gridOptions.columnDefs = this.tableHeaders
-
-          gridOptions.onRowDoubleClicked = (row) => {
-            selectedItem = this.items.find(obj => obj.id === row.data.id);
-            this.openModal(selectedItem)
-          },
-
-          this.table = agGrid.createGrid(gridElement, gridOptions);
-
-        },
-        formattedTable: function(data) {
-          var filteredData = [];
-          var keysToExtract = this.tableHeaders.map(header => header.field)
-
-          data.forEach((row) => {
-            var filteredRow = {};
-            keysToExtract.forEach(key => {
-              /*
-              if (row.name === "Limit unsuccessful logon") {
-                row.name = `<button class='btn btn-sm' @click='alert(1)' x-text='${this.controls.length}'></button>`
-              }*/
-
-              filteredRow[key] = row[key];
-            });
-            filteredData.push(filteredRow);
-          });
-
-          return filteredData
-        },
         getItems: function() {
           const tid = this._tenantId();
           if (!tid) { this.loading = false; this.hasProjects = false; return; }
-          this.loading = true,
+          this.loading = true;
           request("GET",
             `/api/v1/tenants/${tid}/projects?exclude-timely=true`,
             data => {
               this.items = data;
               this.loading = false;
-              if (data.length === 0) {
-                this.hasProjects = false;
-              } else {
-                this.hasProjects = true;
-              }
+              this.hasProjects = data.length > 0;
             },
             error => {
               toast(error.message, "error");
@@ -584,7 +483,6 @@ function table(){
             `/api/v1/tenants/${tid}/frameworks`,
             data => {
                 const raw = data.map(item => ({ ...item, name: item.name.toUpperCase() }));
-                // Merge FTC_SAFEGUARDS variants
                 const ftc = raw.filter(f => f.name.startsWith('FTC_SAFEGUARDS'));
                 const others = raw.filter(f => !f.name.startsWith('FTC_SAFEGUARDS'));
                 if (ftc.length > 0) {

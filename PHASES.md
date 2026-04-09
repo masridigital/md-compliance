@@ -12,7 +12,7 @@
 | 6 | Redis-backed log viewer (LPUSH/LTRIM + fallback) | **DONE** 2026-04-06 |
 | 7 | Storage provider hardening | **DONE** 2026-04-05 |
 
-## Phase B: Technical Debt
+## Phase B: Technical Debt — COMPLETE
 
 | Item | Description | Status |
 |------|-------------|--------|
@@ -21,7 +21,7 @@
 | B3 | CI/CD pipeline (.github/workflows) | **DONE** 2026-04-06 |
 | B4 | PCI DSS v3.1 → v4.0 upgrade (43 controls, 223 subcontrols) | **DONE** 2026-04-07 |
 
-## Phase C: Product Roadmap
+## Phase C: Product Roadmap — COMPLETE
 
 | Item | Description | Status |
 |------|-------------|--------|
@@ -31,6 +31,24 @@
 | C4 | Missing compliance frameworks (GDPR, CCPA, ABA, HITRUST) | **DONE** 2026-04-07 |
 | C5 | Cross-framework control mapping (50+ NIST controls, bidirectional) | **DONE** 2026-04-07 |
 | C6 | Trust portal (public compliance status page) | **DONE** 2026-04-07 |
+
+## Phase D: UI/UX Redesign — IN PROGRESS
+
+Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal surfaces, 12px card radius.
+
+| Step | Component | Status | Notes |
+|------|-----------|--------|-------|
+| D1 | Sidebar + Top Bar | **DONE** 2026-04-08 | 80px/224px, tooltips, emerald accent, collapse on hover |
+| D2 | Home Dashboard | **DONE** 2026-04-08 | Two-column, feature cards, risk table, stat row |
+| D3 | Clients/Workspace | **PARTIAL** | Grid cards + drawer, needs final polish |
+| D4 | Projects List | **NOT STARTED** | Needs gradient borders, progress rings |
+| D5 | Project Detail | **NOT STARTED** | Complex — tabs, controls, evidence, risks |
+| D6 | Integrations/Settings | **PARTIAL** | 4-column grid + status dots + drawer |
+| D7 | Users + Activity Logs | **NOT STARTED** | AG Grid tables need dark theme styling |
+| D8A | Login | **DONE** 2026-04-08 | Full redesign with animations |
+| D8B | Setup | **DONE** 2026-04-08 | Hero + form with animations |
+| D8C | Register | **NOT STARTED** | Needs emerald theme |
+| D8D | Reset Password | **NOT STARTED** | Needs emerald theme |
 
 ## Integration Status
 
@@ -43,3 +61,11 @@
 | Blackpoint Cyber | - | - | - | - | Tile only | Coming Soon |
 | Keeper Security | - | - | - | - | Tile only | Coming Soon |
 | SentinelOne | - | - | - | - | Tile only | Coming Soon |
+
+## Security Hardening
+
+| Round | What | Date |
+|-------|------|------|
+| 1 | CSRF (Flask-WTF + fetch auto-inject), error sanitization, bare except fixes | 2026-04-07 |
+| 2 | Setup advisory lock, tenant isolation, stored XSS fix, open redirect fix | 2026-04-07 |
+| 3 | Missing `Authorizer.get_tenant_id()` — 17+ routes affected | 2026-04-09 |
