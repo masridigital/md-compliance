@@ -521,6 +521,23 @@
 								<p class="text-xs text-gray-500" x-show="!selectedControl.guidance">No guidance available. Review the subcontrols for details.</p>
 							</div>
 						</div>
+						<!-- Related Controls (Cross-Framework Mappings) -->
+						<div class="col-span-12" x-show="selectedControl.mapping && Object.keys(selectedControl.mapping || {}).length > 0">
+							<div class="d5-card">
+								<span class="d5-info-label block mb-2"><i class="ti ti-link mr-1"></i>Related Controls</span>
+								<div class="flex flex-wrap gap-2">
+									<template x-for="(refs, framework) in (selectedControl.mapping || {})" :key="framework">
+										<div class="flex flex-wrap items-center gap-1">
+											<span class="text-[10px] font-semibold uppercase text-gray-500 mr-0.5" x-text="framework.replace(/_/g, ' ')"></span>
+											<template x-for="ref in (Array.isArray(refs) ? refs : [refs])" :key="ref">
+												<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/8 text-emerald-400 border border-emerald-500/15 font-mono" x-text="ref"></span>
+											</template>
+										</div>
+									</template>
+								</div>
+								<p class="text-xs text-gray-500 mt-2">Compliance with this control may satisfy equivalent requirements in the frameworks above.</p>
+							</div>
+						</div>
 					</div>
 					</div>
 					<div x-show="activeSideTab==='subcontrols'" class="px-6 py-4">
