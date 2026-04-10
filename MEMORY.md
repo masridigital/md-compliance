@@ -29,7 +29,7 @@ Last updated: 2026-04-09
 - C5: Cross-framework control mapping (50+ NIST 800-53 controls) — DONE 2026-04-07
 - C6: Trust portal (public compliance status page) — DONE 2026-04-07
 
-**Phase D (UI/UX Redesign) — NEARLY COMPLETE:**
+**Phase D (UI/UX Redesign) — COMPLETE:**
 - D1: Sidebar + Top Bar — **DONE** (80px/224px, tooltips, emerald accent, DM Sans, collapse on mouse leave)
 - D2: Home Dashboard — **DONE** (two-column, clean greeting, 3 feature cards, risk table, stat row)
 - D3: Clients/Workspace — **DONE** (grid cards + drawer, consistent header, emerald hover/status dots)
@@ -134,9 +134,16 @@ Last updated: 2026-04-09
   - Detail drawer with assignment table, inline assign form, completion tracking
   - Uses consistent Apple-inspired design tokens
 
+- **Drift alerts banner on home dashboard (C2 UI):**
+  - Loads from /api/v1/settings/monitoring/drift
+  - Collapsible amber banner with severity icons, detection dates
+  - Hidden when no drift detected
+- **Related Controls panel (C5 UI):**
+  - Added `mapping` to ControlMixin parent_fields (flows to frontend)
+  - Cross-framework badge display in control drawer Details tab
+  - Shows equivalent controls from NIST, SOC 2, ISO, PCI, HIPAA, CMMC, CSF
+
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
-2. Continuous monitoring UI: drift alerts dashboard widget on home page
-3. Trust portal: NDA gate implementation, custom domain CNAME support
-4. UI polish: Related Controls panel on control detail view (C5 data is ready)
-5. Minor D5 polish: modal dialogs, toast styles
+2. Trust portal: NDA gate implementation, custom domain CNAME support
+3. Minor D5 polish: modal dialogs, toast styles

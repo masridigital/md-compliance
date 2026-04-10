@@ -345,6 +345,7 @@ app/
     integrations.html      # Unified integrations page
     view_project.html      # Project detail (controls, risks, integrations, risk profiles)
     workspace.html         # Client/tenant management
+    training.html          # Training management (modules, assignments, completion)
     system_info.html       # System page with log viewer
 ```
 
