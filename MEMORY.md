@@ -154,6 +154,8 @@ Last updated: 2026-04-09
   - Client-side localStorage persistence
   - Apple-inspired styling matching trust portal design
 
+- **Security fix:** Training update endpoint now validates content_url (http/https) and sanitizes framework_requirements (same as create)
+
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
 2. Trust portal: custom domain CNAME support
