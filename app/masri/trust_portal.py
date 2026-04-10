@@ -68,6 +68,55 @@ def trust_page(tenant_slug):
 
 
 # ===========================================================================
+# NDA Acceptance Logging
+# ===========================================================================
+
+@trust_bp.route("/<string:tenant_slug>/nda-accept", methods=["POST"])
+@limiter.limit("10 per minute; 30 per hour")
+def accept_nda(tenant_slug):
+    """POST /trust/<slug>/nda-accept — Log NDA acceptance (public, rate-limited)."""
+    tenant, config = _resolve_tenant(tenant_slug)
+    if not tenant or not config or not config.get("enabled") or not config.get("nda_required"):
+        return jsonify({"error": "Not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+
+    # Basic email validation
+    if not email or "@" not in email or len(email) > 255:
+        return jsonify({"error": "Valid email required"}), 400
+
+    # Log acceptance in ConfigStore
+    from app.models import ConfigStore
+    key = f"nda_acceptances_{tenant.id}"
+    record = ConfigStore.find(key)
+    acceptances = []
+    if record and record.value:
+        try:
+            acceptances = json.loads(record.value)
+        except (json.JSONDecodeError, TypeError):
+            acceptances = []
+
+    # Prevent duplicate entries from same email (keep latest)
+    acceptances = [a for a in acceptances if a.get("email") != email]
+    acceptances.append({
+        "email": email,
+        "accepted_at": datetime.utcnow().isoformat(),
+        "ip": request.remote_addr,
+    })
+
+    # Cap at 1000 entries to prevent unbounded growth
+    if len(acceptances) > 1000:
+        acceptances = acceptances[-1000:]
+
+    ConfigStore.upsert(key, json.dumps(acceptances))
+    db.session.commit()
+
+    logger.info("NDA accepted for tenant %s by %s", tenant.id, email)
+    return jsonify({"accepted": True})
+
+
+# ===========================================================================
 # Configuration API (authenticated)
 # ===========================================================================
 

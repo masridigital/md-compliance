@@ -59,7 +59,45 @@
     .accent-line { width: 32px; height: 2px; background: var(--accent); }
   </style>
 </head>
-<body class="trust-grid min-h-screen">
+<body class="trust-grid min-h-screen" x-data="trustGate()" x-cloak>
+
+  {% if config.nda_required %}
+  <!-- NDA Gate Overlay -->
+  <div x-show="!ndaAccepted" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: var(--surface);">
+    <div class="w-full max-w-md text-center">
+      <div class="anim">
+        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
+          <i class="ti ti-shield-lock text-emerald-400 text-2xl"></i>
+        </div>
+        <h2 class="text-xl font-bold mb-2">{{ trust_data.organization }}</h2>
+        <p class="text-sm mb-6" style="color: var(--text-muted);">This trust portal requires NDA acceptance before viewing compliance information.</p>
+
+        <div class="trust-card p-6 text-left mb-4">
+          <div class="mb-4">
+            <label class="mono text-emerald-400/60 block mb-1.5">Your Email</label>
+            <input x-model="ndaEmail" type="email" placeholder="you@company.com"
+              class="w-full px-3 py-2 rounded-lg text-sm bg-white/5 border border-white/10 focus:border-emerald-500 focus:outline-none text-white placeholder-white/30" />
+          </div>
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input x-model="ndaChecked" type="checkbox" class="mt-0.5 w-4 h-4 accent-emerald-500" />
+            <span class="text-xs leading-relaxed" style="color: var(--text-muted);">
+              I acknowledge that the information presented in this trust portal is confidential
+              and proprietary to <strong class="text-white">{{ trust_data.organization }}</strong>.
+              I agree not to disclose, distribute, or reproduce any information without
+              prior written consent.
+            </span>
+          </label>
+        </div>
+
+        <button @click="acceptNda()" :disabled="!ndaChecked || !ndaEmail || !ndaEmail.includes('@')"
+          class="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
+          :class="ndaChecked && ndaEmail && ndaEmail.includes('@') ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-white/5 text-white/30 cursor-not-allowed'">
+          <i class="ti ti-lock-open mr-1"></i> Accept &amp; Continue
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Header -->
   <header class="border-b border-white/5">
@@ -191,5 +229,28 @@
     </div>
   </footer>
 
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script>
+  function trustGate() {
+    const slug = window.location.pathname.split('/trust/')[1]?.split('/')[0] || '';
+    const storageKey = 'nda_accepted_' + slug;
+    return {
+      ndaAccepted: localStorage.getItem(storageKey) === 'true',
+      ndaEmail: '',
+      ndaChecked: false,
+      acceptNda() {
+        if (!this.ndaChecked || !this.ndaEmail || !this.ndaEmail.includes('@')) return;
+        localStorage.setItem(storageKey, 'true');
+        this.ndaAccepted = true;
+        // Log acceptance server-side (best-effort, non-blocking)
+        fetch('/trust/' + slug + '/nda-accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.ndaEmail })
+        }).catch(function() {});
+      }
+    };
+  }
+  </script>
 </body>
 </html>
