@@ -142,8 +142,12 @@ Last updated: 2026-04-09
   - Added `mapping` to ControlMixin parent_fields (flows to frontend)
   - Cross-framework badge display in control drawer Details tab
   - Shows equivalent controls from NIST, SOC 2, ISO, PCI, HIPAA, CMMC, CSF
+- **ALL auth pages now restyled (10/10):**
+  - login, register, setup, reset_password (already done)
+  - verify_totp, confirm_email, set_password (done this session)
+  - reset_password_request, magic-login, accept, get_started (done this session)
 
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
 2. Trust portal: NDA gate implementation, custom domain CNAME support
-3. Minor D5 polish: modal dialogs, toast styles
+3. Minor UI polish: modal dialogs, toast styles
