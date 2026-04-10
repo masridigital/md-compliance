@@ -125,11 +125,29 @@ def update_training(training_id):
         return jsonify({"error": "Training not found"}), 404
 
     data = request.get_json(silent=True) or {}
+
+    # Validate content_url if provided
+    if "content_url" in data:
+        content_url = (data["content_url"] or "").strip()
+        if content_url and not content_url.startswith(("https://", "http://")):
+            return jsonify({"error": "Content URL must be an http:// or https:// URL"}), 400
+        data["content_url"] = content_url
+
+    # Sanitize framework_requirements if provided
+    if "framework_requirements" in data:
+        raw_reqs = data.get("framework_requirements", [])
+        framework_reqs = []
+        if isinstance(raw_reqs, list):
+            for req in raw_reqs:
+                if isinstance(req, str) and len(req) <= 100:
+                    clean = req.replace("%", "").replace("_", " ").strip()
+                    if clean:
+                        framework_reqs.append(clean)
+        training.framework_requirements = framework_reqs
+
     for field in ("title", "description", "content_type", "content_url", "frequency", "is_active"):
         if field in data:
             setattr(training, field, data[field])
-    if "framework_requirements" in data:
-        training.framework_requirements = data["framework_requirements"]
     db.session.commit()
     return jsonify(training.as_dict())
 
