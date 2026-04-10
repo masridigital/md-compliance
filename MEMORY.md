@@ -147,7 +147,14 @@ Last updated: 2026-04-09
   - verify_totp, confirm_email, set_password (done this session)
   - reset_password_request, magic-login, accept, get_started (done this session)
 
+- **Trust portal NDA gate (C6 enhancement):**
+  - Alpine.js overlay when `nda_required=true` in config
+  - Email + NDA checkbox acceptance form
+  - Server-side logging at `/trust/<slug>/nda-accept` (rate-limited, capped at 1000 entries)
+  - Client-side localStorage persistence
+  - Apple-inspired styling matching trust portal design
+
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
-2. Trust portal: NDA gate implementation, custom domain CNAME support
+2. Trust portal: custom domain CNAME support
 3. Minor UI polish: modal dialogs, toast styles
