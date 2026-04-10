@@ -344,13 +344,18 @@ function trainingHub() {
 
     assignTraining() {
       if (!this.selected) return;
+      const email = this.assignForm.user_email.trim();
+      const name = this.assignForm.user_name.trim();
+      if (!email) return;
       const payload = {
-        user_email: this.assignForm.user_email.trim(),
-        user_name: this.assignForm.user_name.trim(),
+        emails: [{ email: email, name: name }],
       };
       request("POST", "/api/v1/training/" + this.selected.id + "/assign", data => {
         toast("Training assigned");
-        this.assignments.unshift(data);
+        // Reload assignments to get the new entry
+        request("GET", "/api/v1/training/" + this.selected.id + "/assignments", assignments => {
+          this.assignments = assignments;
+        });
         this.selected.assignment_count = (this.selected.assignment_count || 0) + 1;
         this.showAssign = false;
         this.assignForm = { user_email: '', user_name: '' };

@@ -56,16 +56,19 @@ def create_training():
     tenant_id = Authorizer.get_tenant_id()
     data = request.get_json(silent=True) or {}
 
-    title = (data.get("title") or "").strip()
+    title = (data.get("title") or "").strip()[:255]
     if not title:
         return jsonify({"error": "Title is required"}), 400
 
     from app.masri.new_models import Training
 
-    # Validate content_url: only allow http/https URLs
-    content_url = (data.get("content_url") or "").strip()
+    # Validate content_url: only allow http/https URLs, cap length
+    content_url = (data.get("content_url") or "").strip()[:2048]
     if content_url and not content_url.startswith(("https://", "http://")):
         return jsonify({"error": "Content URL must be an http:// or https:// URL"}), 400
+
+    # Cap description length
+    description = (data.get("description") or "").strip()[:5000]
 
     # Sanitize framework_requirements: only allow simple alphanumeric strings
     raw_reqs = data.get("framework_requirements", [])
@@ -81,7 +84,7 @@ def create_training():
     training = Training(
         tenant_id=tenant_id,
         title=title,
-        description=(data.get("description") or "").strip(),
+        description=description,
         content_type=data.get("content_type", "document"),
         content_url=content_url,
         frequency=data.get("frequency", "annual"),
