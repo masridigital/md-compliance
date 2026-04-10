@@ -1,68 +1,84 @@
 {% extends "layouts/basic.html" %}
 
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  .acc-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .acc-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
+  .acc-panel .input:focus { border-color: #10b981 !important; }
+  .acc-bg {
+    background: #0a0f0d;
+    background-image: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(16,185,129,0.10) 0%, transparent 60%);
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.1s; }
+  .anim-d2 { animation-delay: 0.2s; }
+</style>
+{%endblock%}
+
 {%block body%}
-<div x-data="standup()" class="min-h-screen">
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
-    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary"></div>
-    <div class="lg:col-span-2 max-w-lg w-full p-4 mx-auto">
-      <div class="mb-5">
-        <h3 class="text-4xl font-extrabold mt-10">Accept Invite</h3>
-        <p class="text-sm my-2" x-text="'You have been invited to the tenant: '+tokenData.tenant"></p>
+<div x-data="standup()" class="acc-panel acc-bg min-h-screen flex items-center justify-center p-4" data-theme="dark">
+  <div class="w-full max-w-md bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 border border-emerald-500/10">
+
+    <div class="anim-up text-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+        <i class="ti ti-user-plus text-emerald-400 text-2xl"></i>
       </div>
+      <h2 class="text-xl font-bold text-white">Accept Invite</h2>
+      <p class="text-sm text-gray-400 mt-1" x-text="'You have been invited to ' + tokenData.tenant"></p>
+    </div>
+
+    <form action="{{url_for('auth.post_accept', token=token)}}" method="POST" class="anim-up anim-d1 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
-        <form action="{{url_for("auth.post_accept", token=token)}}" method="POST">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="mb-4">
-            <label class="text-sm block mb-1">Email</label>
-            <label class="input input-sm input-bordered flex items-center gap-2 bg-base-300 border-base-300">
-              <i class="ti ti-mail"></i>
-              <input name="email" readonly :value="payload.email" type="text" class="grow opacity-50" placeholder="Email" />
-            </label>
-          </div>
-          <div class="mb-4">
-            <label class="text-sm block mb-1">First Name</label>
-            <label class="input input-sm input-bordered flex items-center gap-2">
-              <i class="ti ti-label"></i>
-              <input name="first_name" x-model="payload.first_name" type="text" class="grow" placeholder="First Name" />
-            </label>
-          </div>
-          <div class="mb-4">
-            <label class="text-sm block mb-1">Last Name</label>
-            <label class="input input-sm input-bordered flex items-center gap-2">
-              <i class="ti ti-label"></i>
-              <input name="last_name" x-model="payload.last_name" type="text" class="grow" placeholder="Last Name" />
-            </label>
-          </div>
-          <div class="mb-4">
-            <div class="flex justify-between">
-                <label class="text-sm block mb-1"><i x-show="showPasswordWarning" class="ti ti-alert-triangle text-error mr-1 my-auto"></i>Password</label>
-            </div>
-            <div class="flex flex-row gap-x-4">
-              <input name="password" x-model="payload.password" placeholder="Create password" class="input input-sm grow input-bordered" type="password"/>
-              <input name="password2" x-model="payload.password2" placeholder="Verify password" class="input input-sm grow input-bordered" type="password"/>
-            </div>
-            <p x-show="payload.password !== payload.password2" class="mt-2 text-xs text-error">Passwords do not match.</p>
-            <p x-show="payload.password === payload.password2 && payload.password.length < 12" class="mt-2 text-xs text-error">Passwords must be at least 12 characters.</p>
-          </div>
-          <div class="mt-4">
-            <button @click="register" :disabled="!readyToContinue" class="btn btn-primary btn-block">
-              Accept
-            </button>
-          </div>
-        {%if config.ENABLE_GOOGLE_AUTH or config.ENABLE_MICROSOFT_AUTH%}
-        <div class="divider text-xs font-semibold">OR</div>
-        <div class="flex flex-row gap-x-4 justify-between">
-          {%if config.ENABLE_GOOGLE_AUTH%}
-          <a href="{{url_for('auth.google_auth', flow='accept', token=token)}}" class="btn grow"><i class="ti ti-brand-google text-error text-2xl"></i>Continue with Google</a>
-          {%endif%}
-          {%if config.ENABLE_MICROSOFT_AUTH%}
-          <a href="{{url_for('auth.microsoft_auth', flow='accept', token=token)}}" class="btn grow"><i class="ti ti-brand-azure text-info text-2xl"></i>Continue with Microsoft</a>
-          {%endif%}
+        <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Email</label>
+        <input name="email" readonly :value="payload.email" type="email" class="input input-bordered w-full opacity-60" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">First Name</label>
+          <input name="first_name" x-model="payload.first_name" type="text" class="input input-bordered w-full" placeholder="First name" />
         </div>
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Last Name</label>
+          <input name="last_name" x-model="payload.last_name" type="text" class="input input-bordered w-full" placeholder="Last name" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Password</label>
+          <input name="password" x-model="payload.password" type="password" class="input input-bordered w-full" placeholder="Min 12 chars" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Confirm</label>
+          <input name="password2" x-model="payload.password2" type="password" class="input input-bordered w-full" placeholder="Repeat" />
+        </div>
+      </div>
+      <p x-show="payload.password !== payload.password2 && payload.password2" class="text-xs text-red-400"><i class="ti ti-alert-circle mr-1"></i>Passwords do not match.</p>
+      <p x-show="payload.password === payload.password2 && payload.password && payload.password.length < 12" class="text-xs text-amber-400"><i class="ti ti-alert-circle mr-1"></i>Minimum 12 characters.</p>
+
+      <button :disabled="!readyToContinue" class="btn btn-primary w-full font-semibold mt-2">
+        <i class="ti ti-check mr-1"></i> Accept Invite
+      </button>
+
+      {%if config.ENABLE_GOOGLE_AUTH or config.ENABLE_MICROSOFT_AUTH%}
+      <div class="divider text-xs text-gray-500">OR</div>
+      <div class="flex gap-3">
+        {%if config.ENABLE_GOOGLE_AUTH%}
+        <a href="{{url_for('auth.google_auth', flow='accept', token=token)}}" class="btn btn-sm flex-1 btn-outline" style="border-color: rgba(255,255,255,0.15) !important; color: rgba(255,255,255,0.8) !important;">
+          <i class="ti ti-brand-google text-red-400 mr-1"></i>Google
+        </a>
+        {%endif%}
+        {%if config.ENABLE_MICROSOFT_AUTH%}
+        <a href="{{url_for('auth.microsoft_auth', flow='accept', token=token)}}" class="btn btn-sm flex-1 btn-outline" style="border-color: rgba(255,255,255,0.15) !important; color: rgba(255,255,255,0.8) !important;">
+          <i class="ti ti-brand-azure text-blue-400 mr-1"></i>Microsoft
+        </a>
         {%endif%}
       </div>
-        </form>
-    </div>
+      {%endif%}
+    </form>
   </div>
 </div>
 {%endblock%}

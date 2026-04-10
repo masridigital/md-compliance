@@ -1,31 +1,49 @@
 {% extends "layouts/basic.html" %}
+
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  .ml-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .ml-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
+  .ml-panel .input:focus { border-color: #10b981 !important; }
+  .ml-bg {
+    background: #0a0f0d;
+    background-image: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(16,185,129,0.10) 0%, transparent 60%);
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.15s; }
+</style>
+{%endblock%}
+
 {%block body%}
-<div class="hero min-h-screen bg-base-200">
-  <div class="hero-content flex-col lg:flex-row-reverse p-16">
-    <div class="card flex-shrink-0 w-96 shadow-2xl bg-base-100">
-      <div class="card-body">
-      <h2 class="text-4xl font-bold text-center mb-2">{{config.APP_NAME}}</h2>
-      {%if config.APP_SUBTITLE%}
-      <p class="text-xs font-medium text-gray-500 text-center">{{config.APP_SUBTITLE}}</p>
-      {%endif%}
-      <form action="{{url_for("auth.login_with_magic_link", tid=tid)}}" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text font-semibold">Email</span>
-          </label>
-          <input type="text" id="email" name="email" placeholder="{{ _('Email') }}" class="input input-bordered" required/>
-        </div>
-        <div class="form-control">
-          <label class="label">
-            <a href="{{url_for("auth.get_login")}}" class="label-text-alt link link-hover">Go Back</a>
-          </label>
-        </div>
-        <div class="form-control mt-6">
-          <button class="btn btn-primary">Request Email</button>
-        </div>
-      </form>
+<div class="ml-panel ml-bg min-h-screen flex items-center justify-center p-4" data-theme="dark">
+  <div class="w-full max-w-sm bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 border border-emerald-500/10">
+
+    <div class="anim-up text-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+        <i class="ti ti-wand text-emerald-400 text-2xl"></i>
       </div>
+      <h2 class="text-xl font-bold text-white">Magic Login</h2>
+      <p class="text-sm text-gray-400 mt-1">Enter your email to receive a login link</p>
+    </div>
+
+    <form action="{{url_for('auth.login_with_magic_link', tid=tid)}}" method="POST" class="anim-up anim-d1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-4">
+        <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Email</label>
+        <input type="email" name="email" placeholder="you@company.com" class="input input-bordered w-full" required />
+      </div>
+      <button class="btn btn-primary w-full font-semibold">
+        <i class="ti ti-send mr-1"></i> Request Login Link
+      </button>
+    </form>
+
+    <div class="mt-5 text-center">
+      <a href="{{url_for('auth.get_login')}}" class="text-sm text-gray-400 hover:text-emerald-400 transition-colors">
+        <i class="ti ti-arrow-left mr-1"></i> Back to Login
+      </a>
     </div>
   </div>
 </div>
