@@ -128,11 +128,15 @@ Last updated: 2026-04-09
   - Audit Review tab: d5-card status cards with metrics (InfoSec/Auditor/Complete)
   - Controls tab: analytics dashboard (d5-card charts), bulk actions, AI bar
 - Phase D is now effectively COMPLETE — all 11 major components restyled
+- **Training management UI page (C3 UI):**
+  - New `/training` route + sidebar nav link
+  - Grid card layout with progress rings, stat row, create modal
+  - Detail drawer with assignment table, inline assign form, completion tracking
+  - Uses consistent Apple-inspired design tokens
 
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
-2. Training management UI page and employee completion dashboard
-3. Continuous monitoring UI: drift alerts dashboard widget
-4. Trust portal: NDA gate implementation, custom domain CNAME support
-5. UI polish: Related Controls panel on control detail view (C5 data is ready)
-6. Minor D5 polish: modal dialogs, toast styles
+2. Continuous monitoring UI: drift alerts dashboard widget on home page
+3. Trust portal: NDA gate implementation, custom domain CNAME support
+4. UI polish: Related Controls panel on control detail view (C5 data is ready)
+5. Minor D5 polish: modal dialogs, toast styles

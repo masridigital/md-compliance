@@ -98,6 +98,42 @@
     </a>
   </div>
 
+  <!-- Drift Alerts Banner -->
+  <div x-show="driftAlerts.length > 0" x-cloak class="mb-6">
+    <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+      <div class="flex items-center justify-between mb-3 cursor-pointer" @click="showDriftDetail = !showDriftDetail">
+        <div class="flex items-center gap-2">
+          <i class="ti ti-shield-exclamation text-amber-400"></i>
+          <span class="text-sm font-semibold text-white">Configuration Changes Detected</span>
+          <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-semibold" x-text="driftAlerts.length"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500" x-text="driftLastChecked"></span>
+          <i class="ti text-gray-500 text-xs" :class="showDriftDetail ? 'ti-chevron-up' : 'ti-chevron-down'"></i>
+        </div>
+      </div>
+      <div x-show="showDriftDetail" x-collapse class="space-y-2">
+        <template x-for="(alert, idx) in driftAlerts.slice(0, 10)" :key="idx">
+          <div class="flex items-start gap-2 text-xs">
+            <i class="ti text-sm mt-0.5" :class="{
+              'ti-shield-minus text-red-400': alert.severity === 'high',
+              'ti-shield-exclamation text-amber-400': alert.severity === 'medium',
+              'ti-info-circle text-blue-400': alert.severity === 'low' || !alert.severity
+            }"></i>
+            <div class="flex-1 min-w-0">
+              <span class="text-white font-medium" x-text="alert.title || alert.type"></span>
+              <p class="text-gray-500 mt-0.5" x-text="alert.detail || alert.description || ''"></p>
+            </div>
+            <span class="text-gray-600 shrink-0" x-text="alert.detected ? new Date(alert.detected).toLocaleDateString() : ''"></span>
+          </div>
+        </template>
+        <div x-show="driftAlerts.length > 10" class="text-xs text-gray-500 text-center pt-1">
+          <span x-text="'+ ' + (driftAlerts.length - 10) + ' more alerts'"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Risk Overview -->
   <div class="mb-4 flex items-center justify-between">
     <h2 class="text-lg font-semibold text-white tracking-tight">Risk Overview</h2>
@@ -229,6 +265,7 @@ function welcome(){
             this.setWelcomeMessage()
             this.getTenantInfo()
             this.loadRiskDashboard()
+            this.loadDriftAlerts()
             this.userName = this.$store.currentUser?.name || this.$store.currentUser?.email?.split('@')[0] || ''
         },
         welcomeMessage: "",
@@ -240,6 +277,9 @@ function welcome(){
         riskSort: { key: "risk", asc: false },
         riskSearch: "",
         selectedTenantId: "",
+        driftAlerts: [],
+        driftLastChecked: "",
+        showDriftDetail: false,
         setWelcomeMessage: function() {
             const h = new Date().getHours();
             this.welcomeMessage = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -250,6 +290,17 @@ function welcome(){
           if (!tid) return;
           request("GET", `/api/v1/tenants/${tid}/info`,
             data => { this.tenantInfo = data; },
+            error => {}
+          );
+        },
+        loadDriftAlerts: function() {
+          request("GET", "/api/v1/settings/monitoring/drift",
+            data => {
+              this.driftAlerts = data.alerts || [];
+              if (data.last_checked) {
+                this.driftLastChecked = "Last checked: " + new Date(data.last_checked).toLocaleDateString();
+              }
+            },
             error => {}
           );
         },
