@@ -1,0 +1,370 @@
+{% extends "layouts/sidebar-nav.html" %}
+{%block page_header%}{%endblock%}
+
+{%block head%}
+<style>
+  .tr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+  .tr-card {
+    background: oklch(var(--b2)); border: 1px solid oklch(var(--bc) / .06);
+    border-radius: 12px; padding: 1.25rem; transition: all 0.15s; cursor: pointer;
+  }
+  .tr-card:hover { border-color: oklch(var(--bc) / .12); transform: translateY(-1px); }
+  .tr-meta { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: oklch(var(--bc) / .35); }
+  .tr-badge {
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 0.2rem 0.5rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;
+  }
+  .tr-badge-success { background: rgba(16,185,129,0.1); color: #10b981; }
+  .tr-badge-warning { background: rgba(245,158,11,0.1); color: #f59e0b; }
+  .tr-badge-info { background: rgba(59,130,246,0.1); color: #3b82f6; }
+  .tr-badge-gray { background: oklch(var(--bc) / .06); color: oklch(var(--bc) / .5); }
+  .tr-progress-ring {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700;
+  }
+  .tr-table th {
+    background: oklch(var(--b2)); font-size: 0.6rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: oklch(var(--bc) / .4);
+    padding: 0.5rem 0.75rem; border-bottom: 1px solid oklch(var(--bc) / .06);
+  }
+  .tr-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid oklch(var(--bc) / .03); font-size: 0.8rem; }
+  .tr-table tr:hover td { background: oklch(var(--bc) / .02); }
+  .drawer-panel {
+    position: fixed; top: 0; right: 0; width: 560px; max-width: 100vw; height: 100vh;
+    background: oklch(var(--b1)); border-left: 1px solid oklch(var(--bc) / .08);
+    z-index: 50; overflow-y: auto; transform: translateX(100%); transition: transform .2s ease;
+  }
+  .drawer-panel.open { transform: translateX(0); }
+  .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 49; }
+</style>
+{%endblock%}
+
+{%block content%}
+<div x-data="trainingHub()" x-init="init()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Training</h1>
+      <p class="text-sm text-gray-400 mt-1" x-text="loaded ? trainings.length + ' training module' + (trainings.length !== 1 ? 's' : '') : 'Loading...'"></p>
+    </div>
+    <button class="btn btn-sm btn-primary" @click="showCreate = true">
+      <i class="ti ti-plus mr-1"></i> New Training
+    </button>
+  </div>
+
+  <!-- Stats Row -->
+  <div x-show="loaded && trainings.length > 0" class="grid grid-cols-4 gap-4 mb-6">
+    <div class="tr-card !cursor-default">
+      <span class="tr-meta block mb-1">Total Modules</span>
+      <span class="text-2xl font-bold text-white" x-text="trainings.length"></span>
+    </div>
+    <div class="tr-card !cursor-default">
+      <span class="tr-meta block mb-1">Total Assignments</span>
+      <span class="text-2xl font-bold text-white" x-text="totalAssignments"></span>
+    </div>
+    <div class="tr-card !cursor-default">
+      <span class="tr-meta block mb-1">Completed</span>
+      <span class="text-2xl font-bold text-emerald-400" x-text="totalCompleted"></span>
+    </div>
+    <div class="tr-card !cursor-default">
+      <span class="tr-meta block mb-1">Completion Rate</span>
+      <span class="text-2xl font-bold text-white" x-text="completionRate + '%'"></span>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div x-show="!loaded" class="flex justify-center py-16">
+    <span class="loading loading-spinner loading-lg text-emerald-500"></span>
+  </div>
+
+  <!-- Empty state -->
+  <div x-show="loaded && trainings.length === 0" class="flex flex-col items-center py-20">
+    <i class="ti ti-school text-4xl text-gray-600 mb-4"></i>
+    <p class="text-lg font-semibold text-white mb-1">No Training Modules</p>
+    <p class="text-sm text-gray-500 mb-4 max-w-sm text-center">Create training modules to track employee security awareness and compliance training.</p>
+    <button @click="showCreate = true" class="btn btn-sm btn-primary"><i class="ti ti-plus mr-1"></i> Create Training</button>
+  </div>
+
+  <!-- Training Cards Grid -->
+  <div x-show="loaded && trainings.length > 0" class="tr-grid">
+    <template x-for="t in trainings" :key="t.id">
+      <div class="tr-card" @click="openDrawer(t)">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1 min-w-0">
+            <h3 class="text-sm font-semibold text-white truncate" x-text="t.title"></h3>
+            <p class="text-xs text-gray-500 mt-0.5 truncate" x-text="t.description || 'No description'"></p>
+          </div>
+          <div class="tr-progress-ring ml-3" :style="'background: conic-gradient(#10b981 ' + (t.assignment_count > 0 ? Math.round(t.completed_count / t.assignment_count * 360) : 0) + 'deg, rgba(255,255,255,0.06) 0deg)'" x-text="t.assignment_count > 0 ? Math.round(t.completed_count / t.assignment_count * 100) + '%' : '0%'">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="tr-badge tr-badge-info" x-text="t.content_type.replace('_', ' ')"></span>
+          <span class="tr-badge tr-badge-gray" x-text="t.frequency"></span>
+          <span x-show="t.is_active" class="tr-badge tr-badge-success">Active</span>
+          <span x-show="!t.is_active" class="tr-badge tr-badge-warning">Inactive</span>
+        </div>
+        <div class="flex items-center gap-4 mt-3 text-xs text-gray-500">
+          <span><i class="ti ti-users mr-1"></i><span x-text="t.assignment_count"></span> assigned</span>
+          <span><i class="ti ti-check mr-1 text-emerald-400"></i><span x-text="t.completed_count"></span> complete</span>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ═══ Create Modal ═══ -->
+  <div x-show="showCreate" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="showCreate = false">
+    <div class="fixed inset-0 bg-black/50" @click="showCreate = false"></div>
+    <div class="relative bg-base-200 rounded-2xl shadow-2xl shadow-black/50 border border-emerald-500/10 p-6 w-full max-w-lg" @click.stop>
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-white">New Training Module</h3>
+        <button @click="showCreate = false" class="btn btn-xs btn-ghost"><i class="ti ti-x text-gray-400"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="tr-meta block mb-1.5">Title</label>
+          <input x-model="form.title" type="text" class="input input-sm input-bordered w-full" placeholder="e.g. Security Awareness Training" />
+        </div>
+        <div>
+          <label class="tr-meta block mb-1.5">Description</label>
+          <textarea x-model="form.description" class="textarea textarea-bordered w-full text-sm" rows="2" placeholder="Training module description"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="tr-meta block mb-1.5">Content Type</label>
+            <select x-model="form.content_type" class="select select-sm select-bordered w-full">
+              <option value="document">Document</option>
+              <option value="video_url">Video URL</option>
+              <option value="quiz">Quiz</option>
+              <option value="external_link">External Link</option>
+            </select>
+          </div>
+          <div>
+            <label class="tr-meta block mb-1.5">Frequency</label>
+            <select x-model="form.frequency" class="select select-sm select-bordered w-full">
+              <option value="onboarding">Onboarding</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="semi_annual">Semi-Annual</option>
+              <option value="annual">Annual</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="tr-meta block mb-1.5">Content URL (optional)</label>
+          <input x-model="form.content_url" type="url" class="input input-sm input-bordered w-full" placeholder="https://..." />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button @click="showCreate = false" class="btn btn-sm btn-ghost">Cancel</button>
+        <button @click="createTraining()" :disabled="!form.title.trim()" class="btn btn-sm btn-primary"><i class="ti ti-plus mr-1"></i>Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Detail Drawer ═══ -->
+  <div x-show="drawerOpen" x-cloak>
+    <div class="drawer-overlay" @click="closeDrawer()"></div>
+    <div class="drawer-panel" :class="drawerOpen ? 'open' : ''">
+      <div class="p-6" x-show="selected">
+        <!-- Drawer Header -->
+        <div class="flex items-center justify-between mb-6">
+          <div class="min-w-0">
+            <h2 class="text-lg font-bold text-white truncate" x-text="selected?.title"></h2>
+            <p class="text-xs text-gray-500 mt-0.5" x-text="selected?.description || 'No description'"></p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 ml-3">
+            <button @click="editMode = !editMode" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Edit"><i class="ti ti-edit text-gray-400"></i></button>
+            <button @click="deleteTraining()" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Delete"><i class="ti ti-trash text-red-400"></i></button>
+            <button @click="closeDrawer()" class="btn btn-xs btn-ghost border border-white/10"><i class="ti ti-x text-gray-400"></i></button>
+          </div>
+        </div>
+
+        <!-- Info cards -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <div class="tr-card !cursor-default !p-3">
+            <span class="tr-meta block mb-1">Type</span>
+            <span class="text-sm text-white capitalize" x-text="selected?.content_type?.replace('_', ' ')"></span>
+          </div>
+          <div class="tr-card !cursor-default !p-3">
+            <span class="tr-meta block mb-1">Frequency</span>
+            <span class="text-sm text-white capitalize" x-text="selected?.frequency?.replace('_', ' ')"></span>
+          </div>
+          <div class="tr-card !cursor-default !p-3">
+            <span class="tr-meta block mb-1">Status</span>
+            <span x-show="selected?.is_active" class="tr-badge tr-badge-success">Active</span>
+            <span x-show="!selected?.is_active" class="tr-badge tr-badge-warning">Inactive</span>
+          </div>
+        </div>
+
+        <!-- Assignments Section -->
+        <div class="flex items-center justify-between mb-4">
+          <span class="tr-meta">Assignments (<span x-text="assignments.length"></span>)</span>
+          <button @click="showAssign = true" class="btn btn-xs btn-primary"><i class="ti ti-plus mr-1"></i>Assign</button>
+        </div>
+
+        <div x-show="assignments.length === 0" class="flex flex-col items-center py-8">
+          <i class="ti ti-users text-2xl text-gray-600 mb-2"></i>
+          <p class="text-xs text-gray-500">No assignments yet. Assign this training to users.</p>
+        </div>
+
+        <div x-show="assignments.length > 0">
+          <table class="table table-xs tr-table w-full">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Assigned</th>
+                <th class="text-center">Status</th>
+                <th class="text-center">Score</th>
+                <th class="w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="a in assignments" :key="a.id">
+                <tr>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center">
+                        <span class="text-[9px] font-bold uppercase text-gray-400" x-text="a.user_email[0]"></span>
+                      </div>
+                      <span class="text-sm text-white" x-text="a.user_name || a.user_email"></span>
+                    </div>
+                  </td>
+                  <td class="text-xs text-gray-400" x-text="a.assigned_date ? new Date(a.assigned_date).toLocaleDateString() : '-'"></td>
+                  <td class="text-center">
+                    <span x-show="a.completed_date" class="tr-badge tr-badge-success">Done</span>
+                    <span x-show="!a.completed_date" class="tr-badge tr-badge-warning">Pending</span>
+                  </td>
+                  <td class="text-center text-sm" x-text="a.score ?? '-'"></td>
+                  <td>
+                    <button x-show="!a.completed_date" @click="completeAssignment(a)" class="btn btn-xs btn-ghost tooltip" data-tip="Mark complete"><i class="ti ti-check text-emerald-400"></i></button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Assign Modal (inline) -->
+        <div x-show="showAssign" x-cloak class="tr-card mt-4 border-emerald-500/10">
+          <span class="tr-meta block mb-3">Assign Training</span>
+          <div class="space-y-3">
+            <div>
+              <label class="tr-meta block mb-1">Email</label>
+              <input x-model="assignForm.user_email" type="email" class="input input-sm input-bordered w-full" placeholder="user@company.com" />
+            </div>
+            <div>
+              <label class="tr-meta block mb-1">Name (optional)</label>
+              <input x-model="assignForm.user_name" type="text" class="input input-sm input-bordered w-full" placeholder="John Doe" />
+            </div>
+            <div class="flex justify-end gap-2">
+              <button @click="showAssign = false" class="btn btn-xs btn-ghost">Cancel</button>
+              <button @click="assignTraining()" :disabled="!assignForm.user_email.trim()" class="btn btn-xs btn-primary">Assign</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{%endblock%}
+
+{%block extrajs%}
+<script>
+function trainingHub() {
+  return {
+    loaded: false,
+    trainings: [],
+    selected: null,
+    assignments: [],
+    drawerOpen: false,
+    showCreate: false,
+    showAssign: false,
+    editMode: false,
+    form: { title: '', description: '', content_type: 'document', frequency: 'annual', content_url: '' },
+    assignForm: { user_email: '', user_name: '' },
+
+    get totalAssignments() { return this.trainings.reduce((s, t) => s + (t.assignment_count || 0), 0); },
+    get totalCompleted() { return this.trainings.reduce((s, t) => s + (t.completed_count || 0), 0); },
+    get completionRate() {
+      const total = this.totalAssignments;
+      return total > 0 ? Math.round(this.totalCompleted / total * 100) : 0;
+    },
+
+    init() { this.loadTrainings(); },
+
+    loadTrainings() {
+      request("GET", "/api/v1/training/", data => {
+        this.trainings = data;
+        this.loaded = true;
+      }, err => { toast(err.message, "error"); this.loaded = true; });
+    },
+
+    createTraining() {
+      const payload = {
+        title: this.form.title.trim(),
+        description: this.form.description.trim(),
+        content_type: this.form.content_type,
+        frequency: this.form.frequency,
+        content_url: this.form.content_url.trim(),
+      };
+      request("POST", "/api/v1/training/", data => {
+        toast("Training created");
+        this.trainings.unshift(data);
+        this.showCreate = false;
+        this.form = { title: '', description: '', content_type: 'document', frequency: 'annual', content_url: '' };
+      }, err => { toast(err.message, "error"); }, payload);
+    },
+
+    openDrawer(t) {
+      this.selected = t;
+      this.drawerOpen = true;
+      this.assignments = [];
+      this.showAssign = false;
+      request("GET", "/api/v1/training/" + t.id + "/assignments", data => {
+        this.assignments = data;
+      });
+    },
+
+    closeDrawer() {
+      this.drawerOpen = false;
+      this.selected = null;
+      this.editMode = false;
+    },
+
+    deleteTraining() {
+      if (!this.selected) return;
+      if (!confirm("Delete this training module and all assignments?")) return;
+      request("DELETE", "/api/v1/training/" + this.selected.id, () => {
+        toast("Training deleted");
+        this.trainings = this.trainings.filter(t => t.id !== this.selected.id);
+        this.closeDrawer();
+      }, err => { toast(err.message, "error"); });
+    },
+
+    assignTraining() {
+      if (!this.selected) return;
+      const payload = {
+        user_email: this.assignForm.user_email.trim(),
+        user_name: this.assignForm.user_name.trim(),
+      };
+      request("POST", "/api/v1/training/" + this.selected.id + "/assign", data => {
+        toast("Training assigned");
+        this.assignments.unshift(data);
+        this.selected.assignment_count = (this.selected.assignment_count || 0) + 1;
+        this.showAssign = false;
+        this.assignForm = { user_email: '', user_name: '' };
+      }, err => { toast(err.message, "error"); }, payload);
+    },
+
+    completeAssignment(a) {
+      request("POST", "/api/v1/training/assignments/" + a.id + "/complete", data => {
+        toast("Marked as complete");
+        a.completed_date = data.completed_date || new Date().toISOString();
+        this.selected.completed_count = (this.selected.completed_count || 0) + 1;
+      }, err => { toast(err.message, "error"); });
+    }
+  };
+}
+</script>
+{%endblock%}

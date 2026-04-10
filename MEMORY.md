@@ -120,6 +120,14 @@ Last updated: 2026-04-09
   - `set_password.html`: centered card with emerald icon, validation feedback
 - Security review: CSRF tokens verified on all forms, no x-html in auth, formatComment sanitizes properly
 - Updated CLAUDE.md completed steps table with D3, D5 partial, D6
+- **D5 second pass — remaining tabs restyled:**
+  - Policies tab: d5-table with Draft/Published badges
+  - Comments tab: emerald header, clean empty state
+  - Users tab: d5-table with role badges, compact edit/delete
+  - Report tab: d5-overview-card sidebar selector with emerald active states
+  - Audit Review tab: d5-card status cards with metrics (InfoSec/Auditor/Complete)
+  - Controls tab: analytics dashboard (d5-card charts), bulk actions, AI bar
+- Phase D is now effectively COMPLETE — all 11 major components restyled
 
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
@@ -127,4 +135,4 @@ Last updated: 2026-04-09
 3. Continuous monitoring UI: drift alerts dashboard widget
 4. Trust portal: NDA gate implementation, custom domain CNAME support
 5. UI polish: Related Controls panel on control detail view (C5 data is ready)
-6. D5 remaining polish: policies tab, comments tab styling, modal dialogs
+6. Minor D5 polish: modal dialogs, toast styles

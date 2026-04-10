@@ -21,6 +21,12 @@ def home():
 def integrations():
     return render_template("integrations.html")
 
+
+@main.route("/training", methods=["GET"])
+@login_required
+def training():
+    return render_template("training.html")
+
 @main.route("/projects/<string:pid>/reports/<path:filename>", methods=["GET"])
 @login_required
 def download_report(pid, filename):
