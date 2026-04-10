@@ -1,32 +1,44 @@
 {% extends "layouts/basic.html" %}
 
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  .gs-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .gs-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
+  .gs-panel .input:focus { border-color: #10b981 !important; }
+  .gs-bg {
+    background: #0a0f0d;
+    background-image: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(16,185,129,0.10) 0%, transparent 60%);
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.15s; }
+</style>
+{%endblock%}
+
 {%block body%}
-<div x-data="standup()" class="min-h-screen">
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 items-center lg:gap-10 gap-4">
-    <div class="max-md:order-1 h-screen min-h-full min-w-full bg-primary"></div>
-    <div class="lg:col-span-2 max-w-lg w-full p-4 mx-auto">
-      <div class="mb-5">
-        <h3 class="text-4xl font-extrabold mt-10">Create Tenant</h3>
-        <p class="text-sm my-2">Welcome! Let's get started by creating a tenant.</p>
+<div x-data="standup()" class="gs-panel gs-bg min-h-screen flex items-center justify-center p-4" data-theme="dark">
+  <div class="w-full max-w-sm bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 border border-emerald-500/10">
+
+    <div class="anim-up text-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+        <i class="ti ti-building text-emerald-400 text-2xl"></i>
       </div>
-      <div>
-        <form action="{{url_for('auth.post_get_started')}}" method="POST">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="mb-4">
-            <label class="text-sm block mb-1">Tenant Name</label>
-            <label class="input input-sm input-bordered flex items-center gap-2">
-              <i class="ti ti-buildings"></i>
-              <input name="tenant" x-model="payload.tenant" type="text" class="grow" placeholder="Tenant / Org Name" />
-            </label>
-          </div>
-          <div class="mt-4">
-            <button :disabled="!readyToSubmit || isCreating" class="btn btn-primary btn-block">
-              Begin
-            </button>
-          </div>
-        </form>
-      </div>
+      <h2 class="text-xl font-bold text-white">Create Tenant</h2>
+      <p class="text-sm text-gray-400 mt-1">Let's get started by setting up your organization</p>
     </div>
+
+    <form action="{{url_for('auth.post_get_started')}}" method="POST" class="anim-up anim-d1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-5">
+        <label class="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-1.5">Organization Name</label>
+        <input name="tenant" x-model="payload.tenant" type="text" class="input input-bordered w-full" placeholder="Acme Corp" />
+      </div>
+      <button :disabled="!readyToSubmit || isCreating" class="btn btn-primary w-full font-semibold">
+        <i class="ti ti-rocket mr-1"></i> Get Started
+      </button>
+    </form>
   </div>
 </div>
 {%endblock%}
