@@ -1403,18 +1403,18 @@
 					</div>
 
 					<!-- ═══ AI Actions Bar ═══ -->
-					<div class="col-span-8 flex items-center gap-3 bg-base-200 rounded-lg p-3 border border-base-300">
-						<i class="ti ti-brain text-xl text-primary"></i>
-						<span class="text-sm font-semibold">AI Assistant</span>
+					<div class="col-span-8 d5-card flex items-center gap-3 !p-3">
+						<i class="ti ti-brain text-lg text-emerald-400"></i>
+						<span class="text-xs font-semibold text-white">AI Assistant</span>
 						<div class="flex gap-2 ml-auto">
-							<button class="btn btn-sm btn-primary gap-1" @click="runAutoMap()" :disabled="autoMapRunning">
+							<button class="btn btn-xs btn-primary gap-1" @click="runAutoMap()" :disabled="autoMapRunning">
 								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
 								<i class="ti ti-refresh" x-show="!autoMapRunning"></i>
 								Auto-Map
 							</button>
-							<button class="btn btn-sm btn-secondary gap-1" @click="runAssistGaps()" :disabled="assistGapsRunning">
+							<button class="btn btn-xs btn-ghost border border-white/10 gap-1" @click="runAssistGaps()" :disabled="assistGapsRunning">
 								<span class="loading loading-spinner loading-xs" x-show="assistGapsRunning"></span>
-								<i class="ti ti-bulb" x-show="!assistGapsRunning"></i>
+								<i class="ti ti-bulb text-amber-400" x-show="!assistGapsRunning"></i>
 								Suggest Fixes
 							</button>
 						</div>
@@ -1697,63 +1697,56 @@
 			</div>
 
 			<div class="col-span-full" x-show="selectedTab === 'controls' && !tabLoading">
-				<div x-transition x-show="rowsSelected.length>0" class="grid grid-cols-12 mb-2">
-					<div class="col-span-12 gap-x-2 flex justify-end">
-						<span class="my-auto" x-text="'Rows selected: '+rowsSelected.length"></span>
-						<div class="my-auto">
-						  <details class="dropdown dropdown-bottom dropdown-end">
-							  <summary class="btn btn-sm"><i class="ti ti-dots text-lg"></i></summary>
-							  <ul class="menu dropdown-content bg-neutral text-neutral-content rounded-box z-[1] w-52 p-2 shadow">
-								  <li><a @click="toggleAllRows(true)"><i class="ti ti-checks mr-1 text-success"></i>Select all</a></li>
-								  <li><a @click="deselectedAllRows"><i class="ti ti-x mr-1 text-error"></i>Deselect all</a></li>
-								  <li><a @click="showUpdateAssigneeModal = true"><i class="ti ti-user mr-1"></i>Update Assignee</a></li>
-								  <li><a @click="showSetApplicableModal = true"><i class="ti ti-check mr-1"></i>Set Applicable</a></li>
-								  <li><a @click="showSetNotApplicableModal = true"><i class="ti ti-x mr-1"></i>Set Not Applicable</a></li>
-								  <li><a @click="showSetTagsModal = true"><i class="ti ti-tag mr-1"></i>Set Tags</a></li>
-							  </ul>
-						  </details>
-					  </div>						
-					</div>
+				<div x-transition x-show="rowsSelected.length>0" class="flex items-center justify-end gap-2 mb-2">
+					<span class="text-xs text-gray-400" x-text="rowsSelected.length + ' selected'"></span>
+					<details class="dropdown dropdown-bottom dropdown-end">
+						<summary class="btn btn-xs btn-ghost border border-white/10"><i class="ti ti-dots text-gray-400"></i></summary>
+						<ul class="menu dropdown-content bg-base-100 rounded-lg z-[1] w-48 p-1.5 shadow-lg border border-white/6">
+							<li><a @click="toggleAllRows(true)" class="text-xs"><i class="ti ti-checks mr-1 text-emerald-400"></i>Select all</a></li>
+							<li><a @click="deselectedAllRows" class="text-xs"><i class="ti ti-x mr-1 text-red-400"></i>Deselect all</a></li>
+							<li><a @click="showUpdateAssigneeModal = true" class="text-xs"><i class="ti ti-user mr-1"></i>Update Assignee</a></li>
+							<li><a @click="showSetApplicableModal = true" class="text-xs"><i class="ti ti-check mr-1"></i>Set Applicable</a></li>
+							<li><a @click="showSetNotApplicableModal = true" class="text-xs"><i class="ti ti-x mr-1"></i>Set Not Applicable</a></li>
+							<li><a @click="showSetTagsModal = true" class="text-xs"><i class="ti ti-tag mr-1"></i>Set Tags</a></li>
+						</ul>
+					</details>
 				</div>
 
-				<div class="hero bg-base-200 rounded-lg min-h-screen" x-show="loadingControls">
-				  <div class="hero-content text-center mb-20">
-					<div class="max-w-md">
-						<span class="loading loading-dots loading-lg"></span>
-						<p class="py-6 font-semibold" x-text="loadingControlsMessage"></p>
-					</div>
-				  </div>
+				<div x-show="loadingControls" class="flex flex-col items-center justify-center py-24">
+					<span class="loading loading-spinner loading-lg text-emerald-500 mb-4"></span>
+					<p class="text-sm font-semibold text-white" x-text="loadingControlsMessage"></p>
 				</div>
-				<div x-show="showDashboard" class="grid grid-cols-12">
+				<div x-show="showDashboard" class="grid grid-cols-12 gap-4">
 					<div class="col-span-12">
-						<div class="card bg-base-200 rounded-lg">
-							<div class="card-body">
-								<h2 class="card-title">Analytics for Controls</h2>
-								<div class="grid grid-cols-12 gap-4">
-									<div class="col-span-6">
-										<div class="card-body bg-base-100 rounded-lg">
-											<h2 class="card-title">Controls Status</h2>
-											<div id="statusChart" x-ref="statusChart"></div>
-										</div>
+						<div class="d5-overview-card">
+							<div class="flex items-center gap-2 mb-4">
+								<i class="ti ti-chart-bar text-emerald-400"></i>
+								<span class="text-sm font-semibold text-white">Analytics</span>
+							</div>
+							<div class="grid grid-cols-12 gap-4">
+								<div class="col-span-6">
+									<div class="d5-card p-4">
+										<span class="d5-section-title block mb-2">Controls Status</span>
+										<div id="statusChart" x-ref="statusChart"></div>
 									</div>
-									<div class="col-span-6">
-										<div class="card-body bg-base-100 rounded-lg">
-											<h2 class="card-title">Subcontrols Complete</h2>
-											<div id="subcontrolsCompleteChart" x-ref="subcontrolsCompleteChart"></div>
-										</div>
+								</div>
+								<div class="col-span-6">
+									<div class="d5-card p-4">
+										<span class="d5-section-title block mb-2">Subcontrols Complete</span>
+										<div id="subcontrolsCompleteChart" x-ref="subcontrolsCompleteChart"></div>
 									</div>
-									<div class="col-span-6">
-										<div class="card-body bg-base-100 rounded-lg">
-											<h2 class="card-title">Implementation Status</h2>
-											<div id="implementationStatusChart" x-ref="implementationStatusChart"></div>
-										</div>
+								</div>
+								<div class="col-span-6">
+									<div class="d5-card p-4">
+										<span class="d5-section-title block mb-2">Implementation Status</span>
+										<div id="implementationStatusChart" x-ref="implementationStatusChart"></div>
 									</div>
-									<div class="col-span-6">
-										<div class="card-body bg-base-100 rounded-lg">
-											<h2 class="card-title">Evidence Status</h2>
-											<div id="evidenceStatusChart" x-ref="evidenceStatusChart"></div>
-										</div>
-									</div>									
+								</div>
+								<div class="col-span-6">
+									<div class="d5-card p-4">
+										<span class="d5-section-title block mb-2">Evidence Status</span>
+										<div id="evidenceStatusChart" x-ref="evidenceStatusChart"></div>
+									</div>
 								</div>
 							</div>
 						</div>
