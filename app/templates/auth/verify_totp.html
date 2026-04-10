@@ -1,35 +1,57 @@
 {% extends "layouts/empty.html" %}
 
+{%block head%}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  .totp-panel { font-family: 'DM Sans', system-ui, sans-serif; }
+  .totp-mono { font-family: monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+  .totp-panel .input { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: #fff !important; }
+  .totp-panel .input:focus { border-color: #10b981 !important; }
+  .totp-bg {
+    background: #0a0f0d;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(16,185,129,0.10) 0%, transparent 60%);
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-up { animation: fadeUp 0.5s ease-out both; }
+  .anim-d1 { animation-delay: 0.15s; }
+  .anim-d2 { animation-delay: 0.3s; }
+</style>
+{%endblock%}
+
 {%block body%}
-<body class="flex items-center justify-center min-h-screen bg-base-200">
-  <div class="card w-full max-w-md bg-base-100 shadow-xl">
-    <div class="card-body">
-      <h2 class="card-title text-center justify-center mb-2">
-        <i class="ti ti-shield-lock text-2xl text-primary mr-2"></i>
-        Two-Factor Authentication
-      </h2>
-      <p class="text-sm text-center opacity-60 mb-4">Enter the 6-digit code from your authenticator app</p>
+<body class="totp-panel totp-bg min-h-screen flex items-center justify-center p-4" data-theme="dark">
+  <div class="w-full max-w-sm bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 border border-emerald-500/10">
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-      <div role="alert" class="alert alert-{{ 'error' if category == 'error' else 'warning' }} mb-4">
-        <span class="text-sm">{{ message }}</span>
+    <div class="anim-up text-center mb-6">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+        <i class="ti ti-shield-lock text-emerald-400 text-2xl"></i>
       </div>
-      {% endfor %}
-      {% endwith %}
+      <h2 class="text-xl font-bold text-white">Two-Factor Authentication</h2>
+      <p class="text-sm text-gray-400 mt-1">Enter the 6-digit code from your authenticator app</p>
+    </div>
 
-      <form method="POST" action="{{ url_for('auth.verify_totp') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-control mb-4">
-          <input type="text" name="code" class="input input-bordered text-center text-2xl tracking-widest"
-                 placeholder="000000" maxlength="6" pattern="[0-9]{6}" autofocus
-                 inputmode="numeric" autocomplete="one-time-code" required>
-        </div>
-        <button type="submit" class="btn btn-primary w-full">Verify</button>
-      </form>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div role="alert" class="alert alert-{{ 'error' if category == 'error' else 'warning' }} mb-4 text-sm">
+      <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+    {% endwith %}
 
-      <div class="divider text-xs">or</div>
-      <a href="{{ url_for('auth.get_login') }}" class="btn btn-ghost btn-sm w-full">
+    <form method="POST" action="{{ url_for('auth.verify_totp') }}" class="anim-up anim-d1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-control mb-5">
+        <input type="text" name="code" class="input input-bordered text-center text-2xl tracking-[0.3em] font-bold"
+               placeholder="000000" maxlength="6" pattern="[0-9]{6}" autofocus
+               inputmode="numeric" autocomplete="one-time-code" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-full font-semibold">Verify</button>
+    </form>
+
+    <div class="anim-up anim-d2 mt-5 text-center">
+      <a href="{{ url_for('auth.get_login') }}" class="text-sm text-gray-400 hover:text-emerald-400 transition-colors">
         <i class="ti ti-arrow-left mr-1"></i> Back to Login
       </a>
     </div>

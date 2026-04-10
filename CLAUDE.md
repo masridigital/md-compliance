@@ -650,6 +650,12 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | D7 | Users + Activity Logs (AG Grid dark theme, emerald styling) | 2026-04-09 |
 | D8C | Register page redesign (hero + animated form) | 2026-04-09 |
 | D8D | Reset Password redesign (centered card + emerald gradient) | 2026-04-09 |
+| D3 | Clients/Workspace (grid cards, drawer, consistent header, emerald hover) | 2026-04-09 |
+| D5 | Project Detail full restyle (drawer, evidence, risk register, settings, summary) | 2026-04-10 |
+| D6 | Integrations/Settings (4-column grid, status dots, drawer, consistent header) | 2026-04-09 |
+| D8E | Verify TOTP redesign (centered card + emerald gradient bg) | 2026-04-10 |
+| D8F | Confirm Email redesign (icon header + inline code entry) | 2026-04-10 |
+| D8G | Set Password redesign (centered card + password validation) | 2026-04-10 |
 
 ---
 
@@ -741,10 +747,10 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 |------|------|--------|------------|
 | D1 | Sidebar + Top Bar | **DONE** 2026-04-08 | — |
 | D2 | Home Dashboard | **DONE** 2026-04-08 | D1 |
-| D3 | Clients/Workspace | **PARTIAL** | D1 |
+| D3 | Clients/Workspace | **DONE** 2026-04-09 | D1 |
 | D4 | Projects List | **DONE** 2026-04-09 | D1 |
-| D5 | Project Detail | **NOT STARTED** | D1 |
-| D6 | Integrations/Settings | **PARTIAL** | D1 |
+| D5 | Project Detail | **DONE** 2026-04-10 | D1 |
+| D6 | Integrations/Settings | **DONE** 2026-04-09 | D1 |
 | D7 | Users + Logs | **DONE** 2026-04-09 | D1 |
 | D8A | Login | **DONE** 2026-04-08 | — |
 | D8B | Setup | **DONE** 2026-04-08 | — |

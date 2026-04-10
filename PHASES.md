@@ -42,7 +42,7 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 | D2 | Home Dashboard | **DONE** 2026-04-08 | Two-column, feature cards, risk table, stat row |
 | D3 | Clients/Workspace | **DONE** 2026-04-09 | Grid cards, drawer, consistent header, emerald hover |
 | D4 | Projects List | **DONE** 2026-04-09 | Progress rings, framework badges, stat pills |
-| D5 | Project Detail | **PARTIAL** 2026-04-09 | Header, tab pills, stat cards done; drawers still old |
+| D5 | Project Detail | **DONE** 2026-04-10 | Full restyle: drawer, tabs, evidence, risk register, settings, summary |
 | D6 | Integrations/Settings | **DONE** 2026-04-09 | 4-column grid, status dots, drawer, consistent header |
 | D7 | Users + Activity Logs | **DONE** 2026-04-09 | AG Grid dark theme, emerald styling, meta-labels |
 | D8A | Login | **DONE** 2026-04-08 | Full redesign with animations |
