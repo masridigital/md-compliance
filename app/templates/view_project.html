@@ -2095,101 +2095,80 @@
 			</div>
 
 			<div class="col-span-6" x-show="selectedTab === 'policies' && !tabLoading">
-
-				<div class="card border border-base-200 bg-base-200">
-					<div class="card-body">
-						<div class="flex justify-between align-items-center">
-							<h2 class="card-title" x-text="'Project Policies ('+policies.length+')'"></h2>
-							<div class="flex flex-row gap-x-2">
-								<div class="space-x-2 flex">
-									<a :href="'/projects/'+projectId+'/policy-center?create=true'" class="btn btn-xs capitalize btn-ghost text-success bg-base-100 text-xs"
-											 >Add Policy</a>
-									<a :href="'/projects/'+projectId+'/policy-center'" class="btn btn-xs capitalize btn-ghost bg-base-100 text-xs"
-											 >Policy Center</a>
-								</div>
-							</div>
+				<div class="d5-overview-card">
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-file-text text-emerald-400"></i>
+							<span class="text-sm font-semibold text-white" x-text="'Policies (' + policies.length + ')'"></span>
 						</div>
-						<div x-show="!policies.length" class="grid grid-cols-4 text-center">
-						  <div class="col-span-full hero-content text-center">
-							<div class="max-w-md">
-							  <h1 class="text-2xl font-bold">No Policies</h1>
-							  <p class="py-6">
-								You have not added any policies to you project. Let's add some, make edits and publish them.
-							  </p>
-							  <a :href="'/projects/'+projectId+'/policy-center?create=true'" class="btn btn-sm capitalize btn-primary text-xs"
-											 >Add Policy</a>
-							</div>
-						  </div>
+						<div class="flex items-center gap-2">
+							<a :href="'/projects/'+projectId+'/policy-center'" class="btn btn-xs btn-ghost border border-white/10">Policy Center</a>
+							<a :href="'/projects/'+projectId+'/policy-center?create=true'" class="btn btn-xs btn-primary"><i class="ti ti-plus mr-1"></i>Policy</a>
 						</div>
-						<div x-show="policies.length" class="grid grid-cols-4">
-							<div class="col-span-4">
-								<table class="table">
-								<!-- Table Header -->
-								<thead class="border-b">
-								  <tr>
-									<th class="bg-base-200 rounded-tl-md p-2 text-xs border-b border-base-100 w-1">View</th>
-									<th class="bg-base-200 p-2 text-xs border-b border-base-100">Policy Title</th>
-									<th class="bg-base-200 p-2 text-xs border-b border-base-100 w-2/12">Published</th>
-									<th class="bg-base-200 p-2 text-xs border-b border-base-100 w-2/12">Reviewer</th>
-									<th class="bg-base-200 p-2 text-xs border-b border-base-100 w-1">Versions</th>
-									<th class="bg-base-200 p-2 rounded-tr-md text-xs border-b border-base-100 w-1">Remove</th>
-								  </tr>
-								</thead>
-								<!-- Table Body -->
-								<tbody class="bg-base-200">
-								  <template x-for="item in policies" :key="item.id">
-									<tr>
-										<td>
-											<button @click="openPolicyDrawer(item)" class="btn btn-xs btn-ghost"><i class="ti ti-maximize text-lg"></i></button>
-										</td>
-										<td class="capitalize" x-text="item.name"></td>
-										<td>
-											<span x-show="!item.is_published" class="p-2 rounded-lg text-[10px] uppercase bg-base-100 text-warning">False</span>
-											<span x-show="item.is_published" class="p-2 rounded-lg text-[10px] uppercase bg-base-100 text-success">True</span>
-										</td>
-										<td x-text="item.reviewer ||  'No reviewer'"></td>
-										<td>
-											<span class="p-2 rounded-lg text-[10px] uppercase bg-base-100" x-text="item.versions.length"></span>
-										</td>
-										<td>
-											<button @click="selectedPolicy=item; showRemovePolicyModal=true" class="btn btn-xs btn-ghost text-error"><i class="ti ti-trash"></i></button>
-										</td>
-									</tr>
-								  </template>
-								</tbody>
-							</table>
-							</div>
-
-						</div>
-
-
+					</div>
+					<div x-show="!policies.length" class="flex flex-col items-center py-12">
+						<i class="ti ti-file-text text-3xl text-gray-600 mb-3"></i>
+						<p class="text-sm font-semibold text-white mb-1">No Policies</p>
+						<p class="text-xs text-gray-500 mb-3">Add policies to your project, edit and publish them.</p>
+						<a :href="'/projects/'+projectId+'/policy-center?create=true'" class="btn btn-xs btn-primary">Add Policy</a>
+					</div>
+					<div x-show="policies.length">
+						<table class="table table-xs d5-table w-full">
+							<thead>
+							  <tr>
+								<th class="w-8"></th>
+								<th>Title</th>
+								<th class="w-24 text-center">Published</th>
+								<th>Reviewer</th>
+								<th class="w-20 text-center">Versions</th>
+								<th class="w-16"></th>
+							  </tr>
+							</thead>
+							<tbody>
+							  <template x-for="item in policies" :key="item.id">
+								<tr class="cursor-pointer" @click="openPolicyDrawer(item)">
+									<td><i class="ti ti-chevron-right text-gray-500"></i></td>
+									<td class="text-sm font-medium text-white capitalize hover:text-emerald-400 transition-colors" x-text="item.name"></td>
+									<td class="text-center">
+										<span x-show="!item.is_published" class="d5-badge d5-badge-warning">Draft</span>
+										<span x-show="item.is_published" class="d5-badge d5-badge-success">Published</span>
+									</td>
+									<td class="text-xs text-gray-400" x-text="item.reviewer || 'No reviewer'"></td>
+									<td class="text-center">
+										<span class="text-xs font-semibold text-white bg-white/5 px-2 py-0.5 rounded" x-text="item.versions.length"></span>
+									</td>
+									<td class="text-center" @click.stop>
+										<button @click="selectedPolicy=item; showRemovePolicyModal=true" class="btn btn-xs btn-ghost"><i class="ti ti-trash text-red-400/60 hover:text-red-400"></i></button>
+									</td>
+								</tr>
+							  </template>
+							</tbody>
+						</table>
 					</div>
 				</div>
-
 			</div>
 			<div class="col-span-6" x-show="selectedTab === 'comments' && !tabLoading">
-				<div class="card bg-base-200">
-					<div class="card-body">
-						<div class="flex justify-between align-items-center">
-							<h2 class="card-title" x-text="'Project Comments ('+messages.length+')'"></h2>
-							<div class="flex flex-row gap-x-2">
-								<div class="space-x-2 flex">
-									<button class="btn btn-sm text-success tooltip"
-											@click="loadComments" data-tip="Refresh comments"><i class="ti ti-refresh"></i>
-									</button>
-								</div>
-							</div>
+				<div class="d5-overview-card">
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-messages text-emerald-400"></i>
+							<span class="text-sm font-semibold text-white" x-text="'Comments (' + messages.length + ')'"></span>
 						</div>
-					   <div id="messageDiv" class="flex flex-col py-6 pt-4 px-10 overflow-y-auto h-96 bg-base-200 rounded-lg">
+						<button class="btn btn-xs btn-ghost border border-white/10 tooltip" @click="loadComments" data-tip="Refresh">
+							<i class="ti ti-refresh text-gray-400"></i>
+						</button>
+					</div>
+					<div id="messageDiv" class="flex flex-col py-4 px-4 overflow-y-auto h-96 rounded-lg">
 
-						 <div x-transition x-show="loadingProjectData" class="flex flex-col gap-4 w-full">
-							  <div class="skeleton h-32 w-full"></div>
-							  <div class="skeleton h-4 w-28"></div>
-							  <div class="skeleton h-4 w-full"></div>
-							  <div class="skeleton h-4 w-full"></div>
-						 </div>
+						<div x-transition x-show="loadingProjectData" class="flex justify-center py-12">
+							<span class="loading loading-spinner loading-lg text-emerald-500"></span>
+						</div>
 
-						 <div class="text-xl font-semibold mx-auto my-auto" x-show="!loadingProjectData && messages.length === 0">No comments!</div>
+						<div class="flex flex-col items-center justify-center py-12" x-show="!loadingProjectData && messages.length === 0">
+							<i class="ti ti-messages text-3xl text-gray-600 mb-3"></i>
+							<p class="text-sm font-semibold text-white mb-1">No Comments</p>
+							<p class="text-xs text-gray-500">Start a conversation with your team.</p>
+						</div>
 						 <template x-for="message in messages" :key="message.id">
 							<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
 							  <div @click="deleteMessage(message)" @mouseenter="showDeleteMessage=true" @mouseleave="showDeleteMessage=false" class="chat-image avatar placeholder cursor-pointer">
@@ -2356,89 +2335,76 @@
 				</div>
 			</div>
 			<div class="col-span-6" x-show="selectedTab === 'users' && !tabLoading">
-				<div class="card border border-base-200 bg-base-200">
-					<div class="card-body">
-						<div class="flex justify-between align-items-center">
-							<h2 class="card-title mb-4">Project Users</h2>
-							<div class="flex flex-row gap-x-2">
-								<div class="space-x-2 flex">
-									<button :disabled="isAuditor" class="btn btn-xs text-xs bg-base-100 tooltip text-success"
-											@click="showAddUser=true" data-tip="Add User">Add User
-									</button>
-								</div>
-							</div>
+				<div class="d5-overview-card">
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-users text-emerald-400"></i>
+							<span class="text-sm font-semibold text-white">Project Users</span>
 						</div>
-						<div x-show="!projectUsers.some(obj => obj.member === true)" class="grid grid-cols-4 text-center">
-						  <div class="col-span-full hero-content text-center">
-							<div class="max-w-md">
-							  <h1 class="text-2xl font-bold">No users</h1>
-							  <p class="py-6">
-								You have not added any users to your project. Users in your tenant do not automatically get access to projects. Provision users/auditors below.
-							  </p>
-							  <button @click="showAddUser=true" class="btn btn-sm btn-primary">Add User</button>
-							</div>
-						  </div>
-						</div>
-
-						<div x-show="projectUsers.some(obj => obj.member === true)" class="overflow-x-auto">
-						  <table class="table">
-							<thead>
-							  <tr>
-								<th>Email</th>
-								<th class="w-1/5">Role</th>
-								<th class="w-1/5">Edit</th>
+						<button :disabled="isAuditor" class="btn btn-xs btn-primary" @click="showAddUser=true">
+							<i class="ti ti-plus mr-1"></i> User
+						</button>
+					</div>
+					<div x-show="!projectUsers.some(obj => obj.member === true)" class="flex flex-col items-center py-12">
+						<i class="ti ti-users text-3xl text-gray-600 mb-3"></i>
+						<p class="text-sm font-semibold text-white mb-1">No Users</p>
+						<p class="text-xs text-gray-500 mb-3 max-w-xs text-center">Users in your tenant don't auto-access projects. Add users or auditors below.</p>
+						<button @click="showAddUser=true" class="btn btn-xs btn-primary">Add User</button>
+					</div>
+					<div x-show="projectUsers.some(obj => obj.member === true)">
+					  <table class="table table-xs d5-table w-full">
+						<thead>
+						  <tr>
+							<th>Email</th>
+							<th class="w-1/5">Role</th>
+							<th class="w-24"></th>
+						  </tr>
+						</thead>
+						<tbody>
+						  <template x-for="user in projectUsers">
+							  <tr x-show="user.member">
+								<td class="text-sm text-white" x-text="user.email"></td>
+								<td><span class="d5-badge bg-white/5 text-gray-300 capitalize" x-text="user.access_level"></span></td>
+								<td>
+									<div class="flex items-center gap-1">
+										<button :disabled="isAuditor" @click="selectedUser=user;showEditUserModal=true" class="btn btn-xs btn-ghost"><i class="ti ti-edit text-amber-400/60 hover:text-amber-400"></i></button>
+										<button :disabled="isAuditor" @click="selectedUser=user;showRemoveUserModal=true" class="btn btn-xs btn-ghost"><i class="ti ti-trash text-red-400/60 hover:text-red-400"></i></button>
+									</div>
+								</td>
 							  </tr>
-							</thead>
-							<tbody>
-							  <template x-for="user in projectUsers">
-								  <tr x-show="user.member">
-									<td x-text="user.email"></td>
-									<td class="capitalize font-semibold" x-text="user.access_level"></td>
-									<td><div class="gap-x-4"><button :disabled="isAuditor" @click="selectedUser=user;showEditUserModal=true" class="btn btn-xs btn-ghost text-warning mr-2"><i class="ti ti-edit"></i></button><button :disabled="isAuditor" @click="selectedUser=user;showRemoveUserModal=true" class="btn btn-xs btn-ghost text-error"><i class="ti ti-trash"></i></button></div></td>
-								  </tr>
-							  </template>
-							</tbody>
-						  </table>
-						</div>
+						  </template>
+						</tbody>
+					  </table>
 					</div>
 				</div>
 			</div>
-			<div class="col-span-6 text-center" x-show="selectedTab === 'report' && !tabLoading">
-				<div class="grid grid-cols-10 gap-x-2">
-					<div class="col-span-2">
-						<ul class="menu bg-base-200 rounded-box p-4 py-6">
-						  <li>
-							<h2 class="menu-title">Available Reports</h2>
-							<ul>
-							  <li><a :class="{'text-primary': report==='executive'}" @click="report='executive'">Executive</a></li>
-							  <li><a :class="{'text-primary': report==='technical'}" @click="report='technical'">Technical (Recommended)</a></li>
-							</ul>
-						  </li>
-						</ul>
+			<div class="col-span-6" x-show="selectedTab === 'report' && !tabLoading">
+				<div class="grid grid-cols-10 gap-4">
+					<div class="col-span-2 d5-overview-card h-fit">
+						<span class="d5-section-title block"><i class="ti ti-file-analytics mr-1"></i>Reports</span>
+						<div class="space-y-1 mt-3">
+						  <button @click="report='executive'" :class="report==='executive' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'border-transparent text-gray-400 hover:text-white'" class="w-full text-left text-xs font-medium px-3 py-2 rounded-lg border transition-all">Executive</button>
+						  <button @click="report='technical'" :class="report==='technical' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'border-transparent text-gray-400 hover:text-white'" class="w-full text-left text-xs font-medium px-3 py-2 rounded-lg border transition-all">Technical</button>
+						</div>
 					</div>
-					<div class="col-span-8">
-						<div class="hero rounded bg-base-200 py-20">
-							<div x-show="!report" class="max-w-md">
-							  <h1 class="text-2xl font-bold">Select a Report</h1>
-							  <p class="py-6">
-								On the left side panel, please select a report to get started.
-							  </p>
-							</div>
-							<div x-show="report==='executive'" class="max-w-md">
-							  <h1 class="text-2xl font-bold">Executive Report</h1>
-							  <p class="py-6">
-								The executive report provides a breakdown of the current status of the compliance project.
-							  </p>
-							  <button @click="generateExecReport" class="btn btn-primary">Download</button>
-							</div>
-							<div x-show="report==='technical'" class="max-w-md">
-							  <h1 class="text-2xl font-bold">Technical Report</h1>
-							  <p class="py-6">
-								The technical report includes everything from the Executive report (summaries, etc), along with a list of all controls in the project and the progress.
-							  </p>
-							  <button @click="generateTechReport" class="btn btn-primary">Download</button>
-							</div>
-					    </div>
+					<div class="col-span-8 d5-overview-card">
+						<div x-show="!report" class="flex flex-col items-center py-16">
+							<i class="ti ti-file-analytics text-3xl text-gray-600 mb-3"></i>
+							<p class="text-sm font-semibold text-white mb-1">Select a Report</p>
+							<p class="text-xs text-gray-500">Choose a report type from the left panel.</p>
+						</div>
+						<div x-show="report==='executive'" class="flex flex-col items-center py-16">
+							<i class="ti ti-report text-3xl text-emerald-400 mb-3"></i>
+							<p class="text-lg font-bold text-white mb-1">Executive Report</p>
+							<p class="text-sm text-gray-400 mb-5 max-w-sm text-center">A high-level breakdown of the current compliance project status.</p>
+							<button @click="generateExecReport" class="btn btn-sm btn-primary"><i class="ti ti-download mr-1"></i>Download</button>
+						</div>
+						<div x-show="report==='technical'" class="flex flex-col items-center py-16">
+							<i class="ti ti-report-analytics text-3xl text-emerald-400 mb-3"></i>
+							<p class="text-lg font-bold text-white mb-1">Technical Report</p>
+							<p class="text-sm text-gray-400 mb-5 max-w-sm text-center">Full technical report including all controls, progress, and evidence status.</p>
+							<button @click="generateTechReport" class="btn btn-sm btn-primary"><i class="ti ti-download mr-1"></i>Download</button>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -2689,98 +2655,65 @@
 				</div>
 			</div>	
 
-			<div class="col-span-6 text-center" x-show="selectedTab === 'audit review' && !tabLoading">
-				<div class="grid grid-cols-12 gap-4">
-					<div x-show="projectData.auditors.length" class="col-span-12">
-						<div role="alert" class="alert bg-base-200">
-							<i class="ti ti-alert-triangle text-md"></i>
-							<span class="text-xs">Each control will have a review status to guide the review process. The three (3) possible review statuses are shown below with the number of controls for each one.</span>
-						</div>
+			<div class="col-span-6" x-show="selectedTab === 'audit review' && !tabLoading">
+				<div class="d5-overview-card">
+					<!-- Info banner -->
+					<div x-show="projectData.auditors.length" class="d5-card border-emerald-500/10 mb-4 flex items-center gap-2">
+						<i class="ti ti-info-circle text-emerald-400 text-sm"></i>
+						<span class="text-xs text-gray-400">Controls have review statuses to guide the audit process. Click a card to view matching controls.</span>
 					</div>
-					<div x-show="!projectData.auditors.length" class="col-span-12">
-						<div role="alert" class="alert bg-base-200">
-							<i class="ti ti-alert-triangle text-warning text-md"></i>
-							<span class="text-xs">Please add a Auditor to your project! The Auditor will have access to change the review status.</span>
-							<div>
-								<button class="btn btn-sm" @click="switchTab({'tab': 'users'})">Add Auditor</button>
-							</div>
+					<div x-show="!projectData.auditors.length" class="d5-card border-amber-500/15 mb-4 flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-alert-triangle text-amber-400 text-sm"></i>
+							<span class="text-xs text-amber-300">No auditor assigned. Add one to enable reviews.</span>
 						</div>
+						<button class="btn btn-xs btn-primary" @click="switchTab({'tab': 'users'})">Add Auditor</button>
 					</div>
 
-					<div class="col-span-3">
-						<div class="card bg-base-200">
-							<div class="card-body">
-								<div class="card-title text-lg">Auditor Details</div>
-								<div role="alert" class="alert bg-base-300">
-									<i class="ti ti-alert-triangle text-md"></i>
-									<span class="text-xs">If you would like to add/edit the Auditors in the project, see the "Users" tab.</span>
-								</div>
-								<div class="flex flex-col text-left mt-2">
-									<span class="font-bold">Auditors:</span>
+					<div class="grid grid-cols-12 gap-4">
+						<!-- Auditor details -->
+						<div class="col-span-3">
+							<div class="d5-card h-full">
+								<span class="d5-section-title block"><i class="ti ti-spy mr-1"></i>Auditors</span>
+								<div class="mt-3 space-y-1">
 									<template x-for="user in projectUsers">
-										<span x-show="user.access_level==='auditor'" x-text="user.email"></span>
+										<div x-show="user.access_level==='auditor'" class="text-xs text-gray-300 flex items-center gap-1.5">
+											<div class="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center">
+												<span class="text-[9px] uppercase font-bold text-gray-400" x-text="user.email[0]"></span>
+											</div>
+											<span x-text="user.email"></span>
+										</div>
 									</template>
 								</div>
+								<p class="text-xs text-gray-500 mt-3">Manage auditors in the Users tab.</p>
 							</div>
 						</div>
-					</div>
 
-					<div class="col-span-9">
-						<div class="grid grid-cols-12 gap-4">
-							<div class="col-span-4">
-								<div class="card border border-base-200 bg-base-200">
-									<div class="card-body">
-										<div class="flex justify-between align-items-center">
-											<h2 class="card-title mb-4"><i class="ti ti-shield-pause my-auto text-warning text-lg mr-2"></i>Waiting on InfoSec</h2>
-										</div>
-										<div class="grid grid-cols-12">
-											<div class="col-span-4 my-auto">
-												<span x-text="controlReviewStatuses['infosec action']" class="text-4xl"></span>
-											</div>
-											<div class="col-span-8">
-												<span class="text-xs" x-text="'There are '+controlReviewStatuses['infosec action']+' controls waiting on the InfoSec team. Please select below to see the specific controls.'"></span>
-											</div>
-										</div>
-										<button @click="switchTab({tab: 'controls'});controlFilter.review_status='infosec action'" class="btn btn-block bg-base-300">View Controls</button>
-									</div>
+						<!-- Review status cards -->
+						<div class="col-span-9 grid grid-cols-3 gap-3">
+							<div class="d5-card cursor-pointer hover:border-amber-500/20" @click="switchTab({tab: 'controls'});controlFilter.review_status='infosec action'">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-shield-pause text-amber-400"></i>
+									<span class="text-xs font-semibold text-gray-300">Infosec Action</span>
 								</div>
+								<span class="text-3xl font-bold text-white" x-text="controlReviewStatuses['infosec action']"></span>
+								<p class="text-xs text-gray-500 mt-2">Controls waiting on InfoSec team</p>
 							</div>
-							<div class="col-span-4">
-								<div class="card border border-base-200 bg-base-200">
-									<div class="card-body">
-										<div class="flex justify-between align-items-center">
-											<h2 class="card-title mb-4"><i class="ti ti-spy my-auto text-error text-lg mr-2"></i>Ready for Auditor</h2>
-										</div>
-										<div class="grid grid-cols-12">
-											<div class="col-span-4 my-auto">
-												<span class="text-4xl" x-text="controlReviewStatuses['ready for auditor']"></span>
-											</div>
-											<div class="col-span-8">
-												<span class="text-xs" x-text="'There are '+controlReviewStatuses['ready for auditor']+' controls waiting on the Auditor to review. Please select below to see the specific controls.'"></span>
-											</div>
-										</div>
-										<button @click="switchTab({tab: 'controls'});controlFilter.review_status='ready for auditor'" class="btn btn-block bg-base-300">View Controls</button>
-
-									</div>
+							<div class="d5-card cursor-pointer hover:border-amber-500/20" @click="switchTab({tab: 'controls'});controlFilter.review_status='ready for auditor'">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-spy text-amber-400"></i>
+									<span class="text-xs font-semibold text-gray-300">Ready for Auditor</span>
 								</div>
+								<span class="text-3xl font-bold text-white" x-text="controlReviewStatuses['ready for auditor']"></span>
+								<p class="text-xs text-gray-500 mt-2">Awaiting auditor review</p>
 							</div>
-							<div class="col-span-4">
-								<div class="card border border-base-200 bg-base-200">
-									<div class="card-body">
-										<div class="flex justify-between align-items-center">
-											<h2 class="card-title mb-4"><i class="ti ti-check my-auto text-success text-lg mr-2"></i>Complete</h2>
-										</div>
-										<div class="grid grid-cols-12">
-											<div class="col-span-4 my-auto">
-												<span class="text-4xl" x-text="controlReviewStatuses['complete']"></span>
-											</div>
-											<div class="col-span-8">
-												<span class="text-xs" x-text="'There are '+controlReviewStatuses['complete']+' controls where the Auditor review is complete. Please select below to see the specific controls.'"></span>
-											</div>
-										</div>
-										<button @click="switchTab({tab: 'controls'});controlFilter.review_status='complete'" class="btn btn-block bg-base-300">View Controls</button>
-									</div>
+							<div class="d5-card cursor-pointer hover:border-emerald-500/20" @click="switchTab({tab: 'controls'});controlFilter.review_status='complete'">
+								<div class="flex items-center gap-2 mb-3">
+									<i class="ti ti-check text-emerald-400"></i>
+									<span class="text-xs font-semibold text-gray-300">Complete</span>
 								</div>
+								<span class="text-3xl font-bold text-white" x-text="controlReviewStatuses['complete']"></span>
+								<p class="text-xs text-gray-500 mt-2">Review complete, no actions</p>
 							</div>
 						</div>
 					</div>
