@@ -29,6 +29,10 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 | `ninjaone_bp` | `/api/v1/ninjaone` | `app/masri/ninjaone_routes.py` |
 | `defensx_bp` | `/api/v1/defensx` | `app/masri/defensx_routes.py` |
 | `mcp_bp` | `/mcp` | `app/masri/mcp_server.py` |
+| `notification_bp` | `/api/v1/notifications` | `app/masri/notification_routes.py` |
+| `training_bp` | `/api/v1/training` | `app/masri/training_routes.py` |
+| `wisp_bp` | `/api/v1/wisp` | `app/masri/wisp_routes.py` |
+| `trust_bp` | `/trust` | `app/masri/trust_portal.py` |
 
 ### Key Models
 - **`SettingsLLM`** (`app/masri/new_models.py`): LLM provider config, single-row, encrypted API key
@@ -39,6 +43,8 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 - **`ProjectControl`** (`app/models.py`): Uses `ControlMixin`, review_status valid values: `["infosec action", "ready for auditor", "complete"]`, default: `"infosec action"`
 - **`ProjectSubControl`** (`app/models.py`): `implemented` field (0-100) drives the progress bar
 - **`RiskRegister`** (`app/models.py`): `title` is Fernet-encrypted, `title_hash` for dedup, `risk` field valid values: `["unknown", "low", "moderate", "high", "critical"]`
+- **`Training`** (`app/masri/new_models.py`): Training module definition (title, content_type, frequency, framework_requirements)
+- **`TrainingAssignment`** (`app/masri/new_models.py`): Per-user training assignment with completion tracking
 
 ### Primary Key Convention
 All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower()`

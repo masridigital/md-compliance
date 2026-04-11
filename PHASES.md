@@ -69,3 +69,4 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 | 1 | CSRF (Flask-WTF + fetch auto-inject), error sanitization, bare except fixes | 2026-04-07 |
 | 2 | Setup advisory lock, tenant isolation, stored XSS fix, open redirect fix | 2026-04-07 |
 | 3 | Missing `Authorizer.get_tenant_id()` — 17+ routes affected | 2026-04-09 |
+| 4 | Open redirect fix in `is_logged_in`, XSS fix in policy center TOC | 2026-04-11 |

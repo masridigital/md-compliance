@@ -1,7 +1,23 @@
 from functools import wraps
+from urllib.parse import urlparse
 from flask import request, jsonify, redirect, url_for, flash
 from app.models import *
 from flask_login import current_user, login_user, logout_user
+
+
+def _safe_next(next_url):
+    """Return next_url only if it is a safe relative path (no external redirect)."""
+    if not next_url:
+        return url_for("main.home")
+    stripped = next_url.strip()
+    if stripped.startswith(("//", "\\", "/\\")):
+        return url_for("main.home")
+    parsed = urlparse(stripped)
+    if parsed.scheme or parsed.netloc:
+        return url_for("main.home")
+    if not stripped.startswith("/"):
+        return url_for("main.home")
+    return stripped
 
 
 def custom_login(user):
@@ -34,7 +50,7 @@ def is_logged_in(f):
         next_page = request.args.get("next")
         if current_user.is_authenticated:
             flash("You are already logged in", "success")
-            return redirect(next_page or url_for("main.home"))
+            return redirect(_safe_next(next_page))
         return f(*args, **kws)
 
     return decorated_function

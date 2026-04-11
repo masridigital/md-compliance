@@ -1,6 +1,6 @@
 # MD Compliance — Session Memory
 
-Last updated: 2026-04-09
+Last updated: 2026-04-11
 
 ## Current Phase: D (UI/UX Redesign)
 
@@ -56,6 +56,7 @@ Last updated: 2026-04-09
 - Round 1: CSRF protection (Flask-WTF + auto-inject in fetch), error message sanitization, bare except fixes
 - Round 2: Setup race condition (advisory lock), tenant isolation (notifications, WISP), stored XSS fix, open redirect fix, Telivy admin check
 - Round 3 (2026-04-09): Added missing `Authorizer.get_tenant_id()` static method (was causing runtime errors on 17+ routes)
+- Round 4 (2026-04-11): Open redirect fix in `is_logged_in` decorator, XSS fix in policy center TOC `generateHTML()`
 
 **Bug Fixes Applied (2026-04-07 to 2026-04-09):**
 - CRITICAL: Fix 'Unsupported LLM provider: together_ai' — added alias in `_PROVIDERS`
@@ -156,7 +157,19 @@ Last updated: 2026-04-09
 
 - **Security fix:** Training update endpoint now validates content_url (http/https) and sanitizes framework_requirements (same as create)
 
+### Session 2026-04-11
+- **Doc audit**: Verified all models, methods, integrations against CLAUDE.md
+- **CLAUDE.md fixes**: Added 4 missing blueprints (notification, training, trust, wisp), added Training/TrainingAssignment models to Key Models section
+- **Security review (Round 4)**:
+  - Ran comprehensive security audit covering XSS, CSRF, SQL injection, open redirect, secrets, auth/authz
+  - **H1 FIXED**: Open redirect in `is_logged_in` decorator — added `_safe_next()` validation to `app/utils/decorators.py`
+  - **H2 FIXED**: XSS in policy center TOC — added `escapeHtml()` sanitization to `generateHTML()` in `policy_center.html`
+  - H3 (SSRF in storage test endpoints) — noted, admin-only, lower priority
+  - Verified: CSRF globally enabled, all raw SQL parameterized, Jinja2 auto-escaping on, all routes auth-protected
+- Updated PHASES.md security hardening table
+
 ### Remaining Work (Priority Order)
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
 2. Trust portal: custom domain CNAME support
 3. Minor UI polish: modal dialogs, toast styles
+4. H3 security: SSRF mitigation in storage provider test endpoints (admin-only, low urgency)
