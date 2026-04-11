@@ -214,7 +214,8 @@ function profilePage() {
           this.$nextTick(() => {
             const el = document.getElementById('qr-code');
             if (el && this.mfaSetupData.uri) {
-              el.innerHTML = '<div class="text-center text-xs opacity-60 py-8">Scan with authenticator app<br><br><code class="text-xxs break-all">' + this.mfaSetupData.uri + '</code></div>';
+              const safeUri = (this.mfaSetupData.uri || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+              el.innerHTML = '<div class="text-center text-xs opacity-60 py-8">Scan with authenticator app<br><br><code class="text-xxs break-all">' + safeUri + '</code></div>';
             }
           });
         } else {

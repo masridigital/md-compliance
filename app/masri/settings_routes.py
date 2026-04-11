@@ -266,11 +266,40 @@ def test_storage_provider(provider):
     """POST /api/v1/settings/storage/<provider>/test — test connectivity."""
     _require_admin()
     data = request.get_json(silent=True) or {}
+
+    def _validate_domain(domain):
+        """Validate domain: no slashes, no ports, no @, alphanumeric + dots + hyphens only."""
+        import re
+        if not domain or not isinstance(domain, str):
+            return False
+        return bool(re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain))
+
+    def _validate_s3_endpoint(url):
+        """Validate S3 endpoint URL: must be https, no private IPs."""
+        from urllib.parse import urlparse
+        if not url or not isinstance(url, str):
+            return False
+        parsed = urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            return False
+        host = parsed.hostname or ""
+        # Block private/loopback ranges
+        if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return False
+        if host.startswith(("10.", "172.16.", "172.17.", "172.18.", "172.19.",
+                           "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
+                           "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
+                           "172.30.", "172.31.", "192.168.")):
+            return False
+        return True
+
     try:
         if provider == "s3":
             import boto3
             kwargs = {"aws_access_key_id": data.get("access_key"), "aws_secret_access_key": data.get("secret_key"), "region_name": data.get("region", "us-east-1")}
             if data.get("endpoint_url"):
+                if not _validate_s3_endpoint(data["endpoint_url"]):
+                    return jsonify({"error": "Invalid S3 endpoint URL"}), 400
                 kwargs["endpoint_url"] = data["endpoint_url"]
             s3 = boto3.client("s3", **kwargs)
             s3.head_bucket(Bucket=data.get("bucket", "test"))
@@ -285,8 +314,12 @@ def test_storage_provider(provider):
 
         elif provider == "sharepoint":
             import requests as _requests
-            # Test by getting a Graph API token
-            token_url = f"https://login.microsoftonline.com/{data.get('tenant_id')}/oauth2/v2.0/token"
+            tenant_id = data.get("tenant_id", "")
+            # Validate tenant_id is a UUID (no path traversal)
+            import re
+            if not re.match(r'^[a-f0-9\-]{36}$', tenant_id):
+                return jsonify({"error": "Invalid tenant ID format"}), 400
+            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
             resp = _requests.post(token_url, data={
                 "grant_type": "client_credentials",
                 "client_id": data.get("client_id"),
@@ -299,13 +332,16 @@ def test_storage_provider(provider):
 
         elif provider == "egnyte":
             import requests as _requests
+            domain = data.get("domain", "")
+            if not _validate_domain(domain):
+                return jsonify({"error": "Invalid Egnyte domain"}), 400
             resp = _requests.get(
-                f"https://{data.get('domain')}/pubapi/v1/userinfo",
+                f"https://{domain}/pubapi/v1/userinfo",
                 headers={"Authorization": f"Bearer {data.get('api_token')}"},
                 timeout=10,
             )
             if resp.ok:
-                return jsonify({"message": f"Connected to Egnyte: {data.get('domain')}"})
+                return jsonify({"message": f"Connected to Egnyte: {domain}"})
             return jsonify({"error": f"Egnyte auth failed: {resp.status_code}"}), 400
 
         else:
