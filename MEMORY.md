@@ -164,7 +164,8 @@ Last updated: 2026-04-11
   - Ran comprehensive security audit covering XSS, CSRF, SQL injection, open redirect, secrets, auth/authz
   - **H1 FIXED**: Open redirect in `is_logged_in` decorator — added `_safe_next()` validation to `app/utils/decorators.py`
   - **H2 FIXED**: XSS in policy center TOC — added `escapeHtml()` sanitization to `generateHTML()` in `policy_center.html`
-  - H3 (SSRF in storage test endpoints) — noted, admin-only, lower priority
+  - **H3 FIXED**: SSRF in storage test endpoints — added domain validation (Egnyte), private IP blocking (S3), UUID format check (SharePoint tenant_id)
+  - **M5 FIXED**: MFA TOTP URI self-XSS — added HTML escaping before innerHTML in `profile.html`
   - Verified: CSRF globally enabled, all raw SQL parameterized, Jinja2 auto-escaping on, all routes auth-protected
 - Updated PHASES.md security hardening table
 
@@ -172,4 +173,3 @@ Last updated: 2026-04-11
 1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
 2. Trust portal: custom domain CNAME support
 3. Minor UI polish: modal dialogs, toast styles
-4. H3 security: SSRF mitigation in storage provider test endpoints (admin-only, low urgency)
