@@ -4,7 +4,7 @@ Masri Digital Compliance Platform — LLM Service Layer
 Multi-provider LLM abstraction supporting OpenAI, Anthropic, Azure OpenAI,
 and Ollama.  All calls go through a single ``LLMService`` façade that reads
 configuration from the database (``SettingsLLM``) and enforces per-tenant
-token budgets and rate limits.
+token budgets and rate limits.  Tracks per-provider cost estimates.
 """
 
 import json
@@ -13,6 +13,101 @@ import time
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cache():
+    """Get the Flask-Caching instance, or None if unavailable."""
+    try:
+        from app import cache
+        return cache
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Pricing table — per 1M tokens (input / output)
+# Update these when providers change pricing.
+# ---------------------------------------------------------------------------
+
+MODEL_PRICING = {
+    # Anthropic
+    "claude-opus-4-20250514": {"input": 15.0, "output": 75.0},
+    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
+    "claude-haiku-4-20250506": {"input": 0.80, "output": 4.0},
+    # Aliases
+    "claude-3-5-sonnet": {"input": 3.0, "output": 15.0},
+    "claude-3-5-haiku": {"input": 0.80, "output": 4.0},
+    "claude-3-opus": {"input": 15.0, "output": 75.0},
+
+    # OpenAI
+    "gpt-4o": {"input": 2.50, "output": 10.0},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4-turbo": {"input": 10.0, "output": 30.0},
+    "gpt-4": {"input": 30.0, "output": 60.0},
+    "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
+    "o1": {"input": 15.0, "output": 60.0},
+    "o1-mini": {"input": 3.0, "output": 12.0},
+    "o3-mini": {"input": 1.10, "output": 4.40},
+
+    # Together AI (representative models — prices vary by model size)
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": {"input": 0.18, "output": 0.18},
+    "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": {"input": 0.88, "output": 0.88},
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": {"input": 3.50, "output": 3.50},
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo": {"input": 0.88, "output": 0.88},
+    "deepseek-ai/DeepSeek-R1": {"input": 3.00, "output": 3.00},
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B": {"input": 0.88, "output": 0.88},
+    "deepseek-ai/DeepSeek-V3": {"input": 0.90, "output": 0.90},
+    "Qwen/Qwen2.5-72B-Instruct-Turbo": {"input": 0.90, "output": 0.90},
+    "Qwen/Qwen2.5-7B-Instruct-Turbo": {"input": 0.20, "output": 0.20},
+    "google/gemma-2-27b-it": {"input": 0.80, "output": 0.80},
+    "google/gemma-2-9b-it": {"input": 0.30, "output": 0.30},
+    "mistralai/Mixtral-8x7B-Instruct-v0.1": {"input": 0.60, "output": 0.60},
+    "mistralai/Mistral-7B-Instruct-v0.3": {"input": 0.20, "output": 0.20},
+}
+
+# Provider-level fallback pricing (when exact model not in table)
+PROVIDER_DEFAULT_PRICING = {
+    "anthropic": {"input": 3.0, "output": 15.0},      # Sonnet-tier default
+    "openai": {"input": 2.50, "output": 10.0},         # GPT-4o default
+    "azure_openai": {"input": 2.50, "output": 10.0},   # Same as OpenAI
+    "together": {"input": 0.88, "output": 0.88},       # 70B-tier default
+    "together_ai": {"input": 0.88, "output": 0.88},
+}
+
+
+_together_pricing_loaded = False
+
+
+def _get_model_pricing(model: str, provider: str = "") -> dict:
+    """Look up per-1M-token pricing for a model, with provider fallback."""
+    global _together_pricing_loaded
+    # Exact match
+    if model in MODEL_PRICING:
+        return MODEL_PRICING[model]
+    # Prefix match (handles versioned model IDs like claude-sonnet-4-20250514)
+    for key in MODEL_PRICING:
+        if model.startswith(key) or key.startswith(model):
+            return MODEL_PRICING[key]
+    # Lazy-load Together AI cached pricing on first miss for a together model
+    if not _together_pricing_loaded and provider in ("together", "together_ai"):
+        _together_pricing_loaded = True
+        try:
+            TogetherAIPricingClient.get_cached_pricing()
+            # Retry exact match after loading
+            if model in MODEL_PRICING:
+                return MODEL_PRICING[model]
+        except Exception:
+            pass
+    # Provider fallback
+    return PROVIDER_DEFAULT_PRICING.get(provider, {"input": 1.0, "output": 1.0})
+
+
+def _calculate_cost(prompt_tokens: int, completion_tokens: int, model: str, provider: str) -> float:
+    """Calculate cost in USD for a single API call."""
+    pricing = _get_model_pricing(model, provider)
+    input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
+    output_cost = (completion_tokens / 1_000_000) * pricing["output"]
+    return round(input_cost + output_cost, 6)
 
 
 # ---------------------------------------------------------------------------
@@ -375,38 +470,56 @@ class LLMService:
         2. Tier-based routing (recommended)
         3. Default primary config
 
+        Redis-cached for 5 minutes.
+
         Returns:
             dict with 'provider' and 'model' keys, or None for default.
         """
+        # Check Redis cache for the full routing config
+        c = _get_cache()
+        data = None
+        if c:
+            try:
+                data = c.get("llm_feature_models")
+            except Exception:
+                pass
+        if data is None:
+            try:
+                from app.models import ConfigStore
+                import json
+                record = ConfigStore.find("llm_feature_models")
+                if record and record.value:
+                    data = json.loads(record.value)
+                    if c:
+                        try:
+                            c.set("llm_feature_models", data, timeout=300)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        if not data:
+            return None
         try:
-            from app.models import ConfigStore
-            import json
-            record = ConfigStore.find("llm_feature_models")
-            if record and record.value:
-                data = json.loads(record.value)
-                if data.get("sameForAll", True):
-                    # Check if a specific "same for all" provider+model is set
-                    tiers = data.get("tiers", {})
-                    same_provider = tiers.get("_sameProvider")
-                    same_model = tiers.get("_sameModel")
-                    if same_provider:
-                        return {"provider": same_provider, "model": same_model or ""}
-                    return None
-
-                # Check tier-based routing first
+            if data.get("sameForAll", True):
                 tiers = data.get("tiers", {})
-                if tiers:
-                    tier = LLMService.FEATURE_TIERS.get(feature, "standard")
-                    tier_config = tiers.get(tier)
-                    if tier_config and isinstance(tier_config, dict) and tier_config.get("provider"):
-                        return tier_config
+                same_provider = tiers.get("_sameProvider")
+                same_model = tiers.get("_sameModel")
+                if same_provider:
+                    return {"provider": same_provider, "model": same_model or ""}
+                return None
 
-                # Fallback: direct per-feature override (legacy)
-                routing = data.get("models", {}).get(feature)
-                if routing and isinstance(routing, dict):
-                    return routing
-                if routing and isinstance(routing, str):
-                    return {"model": routing}
+            tiers = data.get("tiers", {})
+            if tiers:
+                tier = LLMService.FEATURE_TIERS.get(feature, "standard")
+                tier_config = tiers.get(tier)
+                if tier_config and isinstance(tier_config, dict) and tier_config.get("provider"):
+                    return tier_config
+
+            routing = data.get("models", {}).get(feature)
+            if routing and isinstance(routing, dict):
+                return routing
+            if routing and isinstance(routing, str):
+                return {"model": routing}
         except Exception:
             pass
         return None
@@ -448,6 +561,170 @@ class LLMService:
         return []
 
     @staticmethod
+    def _record_cost(provider: str, model: str, prompt_tokens: int,
+                     completion_tokens: int, cost: float, feature: str = None,
+                     tenant_id: str = None):
+        """Persist cost data to ConfigStore for usage tracking.
+
+        Structure in ConfigStore("llm_cost_tracker"):
+        {
+            "totals": {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0},
+            "by_provider": {
+                "anthropic": {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0},
+                ...
+            },
+            "by_model": {
+                "claude-sonnet-4-20250514": {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0},
+                ...
+            },
+            "daily": {
+                "2026-04-12": {"cost": 0.0, "calls": 0},
+                ...
+            },
+            "recent": [  # last 200 calls
+                {"ts": "...", "provider": "...", "model": "...", "cost": 0.001, ...},
+            ]
+        }
+        """
+        try:
+            from app.models import ConfigStore
+            from app import db
+
+            key = "llm_cost_tracker"
+            rec = ConfigStore.find(key)
+            data = {}
+            if rec and rec.value:
+                try:
+                    data = json.loads(rec.value)
+                except Exception:
+                    data = {}
+
+            # Initialize structure
+            if "totals" not in data:
+                data["totals"] = {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
+            if "by_provider" not in data:
+                data["by_provider"] = {}
+            if "by_model" not in data:
+                data["by_model"] = {}
+            if "daily" not in data:
+                data["daily"] = {}
+            if "recent" not in data:
+                data["recent"] = []
+
+            # Update totals
+            data["totals"]["cost"] = round(data["totals"]["cost"] + cost, 6)
+            data["totals"]["prompt_tokens"] += prompt_tokens
+            data["totals"]["completion_tokens"] += completion_tokens
+            data["totals"]["calls"] += 1
+
+            # Update per-provider
+            if provider not in data["by_provider"]:
+                data["by_provider"][provider] = {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
+            prov = data["by_provider"][provider]
+            prov["cost"] = round(prov["cost"] + cost, 6)
+            prov["prompt_tokens"] += prompt_tokens
+            prov["completion_tokens"] += completion_tokens
+            prov["calls"] += 1
+
+            # Update per-model
+            if model not in data["by_model"]:
+                data["by_model"][model] = {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
+            mdl = data["by_model"][model]
+            mdl["cost"] = round(mdl["cost"] + cost, 6)
+            mdl["prompt_tokens"] += prompt_tokens
+            mdl["completion_tokens"] += completion_tokens
+            mdl["calls"] += 1
+
+            # Update daily
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            if today not in data["daily"]:
+                data["daily"][today] = {"cost": 0.0, "calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+            data["daily"][today]["cost"] = round(data["daily"][today]["cost"] + cost, 6)
+            data["daily"][today]["calls"] += 1
+            data["daily"][today]["prompt_tokens"] += prompt_tokens
+            data["daily"][today]["completion_tokens"] += completion_tokens
+
+            # Prune daily entries older than 90 days
+            cutoff = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+            data["daily"] = {d: v for d, v in data["daily"].items() if d >= cutoff}
+
+            # Add to recent calls (ring buffer, max 200)
+            data["recent"].insert(0, {
+                "ts": datetime.utcnow().isoformat(),
+                "provider": provider,
+                "model": model,
+                "feature": feature,
+                "tenant_id": tenant_id,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cost": cost,
+            })
+            data["recent"] = data["recent"][:200]
+
+            ConfigStore.upsert(key, json.dumps(data, default=str))
+            db.session.commit()
+            # Invalidate Redis cache so next read gets fresh data
+            c = _get_cache()
+            if c:
+                try:
+                    c.delete("llm_cost_data")
+                except Exception:
+                    pass
+        except Exception:
+            pass  # Never crash the LLM call for cost tracking
+
+    @staticmethod
+    def get_cost_data() -> dict:
+        """Retrieve the full cost tracking data (Redis-cached, 30s TTL)."""
+        _empty = {"totals": {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0},
+                  "by_provider": {}, "by_model": {}, "daily": {}, "recent": []}
+        # Try Redis cache first
+        c = _get_cache()
+        if c:
+            try:
+                cached = c.get("llm_cost_data")
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+        try:
+            from app.models import ConfigStore
+            rec = ConfigStore.find("llm_cost_tracker")
+            if rec and rec.value:
+                data = json.loads(rec.value)
+                # Store in Redis cache (30s TTL)
+                if c:
+                    try:
+                        c.set("llm_cost_data", data, timeout=30)
+                    except Exception:
+                        pass
+                return data
+        except Exception:
+            pass
+        return _empty
+
+    @staticmethod
+    def reset_cost_data():
+        """Reset all cost tracking data (admin action)."""
+        try:
+            from app.models import ConfigStore
+            from app import db
+            ConfigStore.upsert("llm_cost_tracker", json.dumps({
+                "totals": {"cost": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "calls": 0},
+                "by_provider": {}, "by_model": {}, "daily": {}, "recent": [],
+            }))
+            db.session.commit()
+            # Invalidate Redis cache
+            c = _get_cache()
+            if c:
+                try:
+                    c.delete("llm_cost_data")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    @staticmethod
     def get_feature_model(feature: str) -> str:
         """Get the model name for a feature (backward compat)."""
         routing = LLMService.get_feature_routing(feature)
@@ -484,7 +761,17 @@ class LLMService:
         """Load a named provider config from ConfigStore.
 
         Single source of truth: ConfigStore("llm_additional_providers").
+        Redis-cached for 5 minutes to avoid hitting Postgres on every LLM call.
         """
+        cache_key = f"llm_provider_cfg:{provider_key}"
+        c = _get_cache()
+        if c:
+            try:
+                cached = c.get(cache_key)
+                if cached is not None:
+                    return cached if cached != "__none__" else None
+            except Exception:
+                pass
         try:
             from app.models import ConfigStore
             import json
@@ -493,12 +780,22 @@ class LLMService:
                 extras = json.loads(record.value)
                 config = extras.get(provider_key, {})
                 if not config:
+                    if c:
+                        try:
+                            c.set(cache_key, "__none__", timeout=300)
+                        except Exception:
+                            pass
                     return None
                 # Decrypt API key if present
                 if config.get("api_key_enc"):
                     from app.masri.settings_service import decrypt_value
                     config["api_key"] = decrypt_value(config["api_key_enc"])
                     del config["api_key_enc"]
+                if c:
+                    try:
+                        c.set(cache_key, config, timeout=300)
+                    except Exception:
+                        pass
                 return config
         except Exception:
             pass
@@ -622,6 +919,27 @@ class LLMService:
                     result["original_provider"] = config.get("provider")
                     if tenant_id:
                         _usage.record(tenant_id, result["usage"]["total_tokens"])
+                    # Track fallback cost
+                    try:
+                        fb_usage = result.get("usage", {})
+                        fb_cost = _calculate_cost(
+                            fb_usage.get("prompt_tokens", 0),
+                            fb_usage.get("completion_tokens", 0),
+                            result.get("model", ""),
+                            result.get("provider", fallback.get("provider", "")),
+                        )
+                        result["cost"] = fb_cost
+                        LLMService._record_cost(
+                            provider=result.get("provider", fallback.get("provider", "")),
+                            model=result.get("model", ""),
+                            prompt_tokens=fb_usage.get("prompt_tokens", 0),
+                            completion_tokens=fb_usage.get("completion_tokens", 0),
+                            cost=fb_cost,
+                            feature=feature,
+                            tenant_id=tenant_id,
+                        )
+                    except Exception:
+                        pass
                     return result
                 except Exception as e2:
                     logger.error("Fallback also failed (%s): %s", fallback.get("provider"), e2)
@@ -630,6 +948,28 @@ class LLMService:
         # Track usage
         if tenant_id:
             _usage.record(tenant_id, result["usage"]["total_tokens"])
+
+        # Track cost
+        try:
+            usage = result.get("usage", {})
+            cost = _calculate_cost(
+                usage.get("prompt_tokens", 0),
+                usage.get("completion_tokens", 0),
+                result.get("model", kwargs.get("model", config.get("model_name", ""))),
+                result.get("provider", config.get("provider", "")),
+            )
+            result["cost"] = cost
+            LLMService._record_cost(
+                provider=result.get("provider", config.get("provider", "")),
+                model=result.get("model", ""),
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                cost=cost,
+                feature=feature,
+                tenant_id=tenant_id,
+            )
+        except Exception:
+            pass  # Never fail the main call for cost tracking
 
         return result
 
@@ -755,3 +1095,288 @@ class LLMService:
             "tokens_used": _usage.tokens_used(tenant_id),
             "calls_last_hour": _usage.calls_in_last_hour(tenant_id),
         }
+
+
+# ---------------------------------------------------------------------------
+# Provider billing API clients
+# ---------------------------------------------------------------------------
+
+class AnthropicBillingClient:
+    """Fetch real usage & cost data from Anthropic's Admin API.
+
+    Requires an Admin API key (sk-ant-admin...) stored in ConfigStore
+    or the regular Anthropic API key if it happens to be an admin key.
+    """
+
+    BASE_URL = "https://api.anthropic.com"
+
+    @staticmethod
+    def _get_admin_key() -> str:
+        """Retrieve the Anthropic admin API key.
+
+        Priority: ConfigStore("anthropic_admin_key") > regular Anthropic provider key.
+        """
+        try:
+            from app.models import ConfigStore
+            from app.masri.settings_service import decrypt_value
+            rec = ConfigStore.find("anthropic_admin_key")
+            if rec and rec.value:
+                return decrypt_value(rec.value)
+        except Exception:
+            pass
+        # Fallback: try the regular Anthropic provider key
+        try:
+            config = LLMService._get_provider_config("anthropic")
+            if config and config.get("api_key", "").startswith("sk-ant-admin"):
+                return config["api_key"]
+        except Exception:
+            pass
+        return ""
+
+    @staticmethod
+    def fetch_cost_report(starting_at: str, ending_at: str = None,
+                          group_by: list = None) -> dict:
+        """Fetch cost report from Anthropic Admin API.
+
+        Args:
+            starting_at: RFC 3339 timestamp (e.g. "2026-04-01T00:00:00Z")
+            ending_at: RFC 3339 timestamp (optional, defaults to now)
+            group_by: list of "workspace_id" and/or "description"
+
+        Returns:
+            dict with cost report data or error
+        """
+        import requests as req
+
+        admin_key = AnthropicBillingClient._get_admin_key()
+        if not admin_key:
+            return {"error": "No Anthropic admin API key configured"}
+
+        params = {"starting_at": starting_at, "bucket_width": "1d"}
+        if ending_at:
+            params["ending_at"] = ending_at
+        if group_by:
+            for g in group_by:
+                params.setdefault("group_by[]", [])
+                if isinstance(params["group_by[]"], list):
+                    params["group_by[]"].append(g)
+                else:
+                    params["group_by[]"] = [params["group_by[]"], g]
+
+        headers = {
+            "x-api-key": admin_key,
+            "anthropic-version": "2023-06-01",
+        }
+
+        try:
+            resp = req.get(
+                f"{AnthropicBillingClient.BASE_URL}/v1/organizations/cost_report",
+                params=params, headers=headers, timeout=30,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return {"error": f"Anthropic API returned {resp.status_code}", "detail": resp.text[:500]}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def save_admin_key(admin_key: str):
+        """Save the Anthropic admin API key (encrypted)."""
+        from app.models import ConfigStore
+        from app.masri.settings_service import encrypt_value
+        from app import db
+        ConfigStore.upsert("anthropic_admin_key", encrypt_value(admin_key))
+        db.session.commit()
+
+    @staticmethod
+    def fetch_usage_report(starting_at: str, ending_at: str = None,
+                           group_by: list = None, bucket_width: str = "1d") -> dict:
+        """Fetch usage report from Anthropic Admin API.
+
+        Args:
+            starting_at: RFC 3339 timestamp
+            ending_at: RFC 3339 timestamp (optional)
+            group_by: list of grouping dimensions (model, workspace_id, etc.)
+            bucket_width: "1m", "1h", or "1d"
+
+        Returns:
+            dict with usage report data or error
+        """
+        import requests as req
+
+        admin_key = AnthropicBillingClient._get_admin_key()
+        if not admin_key:
+            return {"error": "No Anthropic admin API key configured"}
+
+        params = {"starting_at": starting_at, "bucket_width": bucket_width}
+        if ending_at:
+            params["ending_at"] = ending_at
+        if group_by:
+            for g in group_by:
+                params.setdefault("group_by[]", [])
+                if isinstance(params["group_by[]"], list):
+                    params["group_by[]"].append(g)
+                else:
+                    params["group_by[]"] = [params["group_by[]"], g]
+
+        headers = {
+            "x-api-key": admin_key,
+            "anthropic-version": "2023-06-01",
+        }
+
+        try:
+            resp = req.get(
+                f"{AnthropicBillingClient.BASE_URL}/v1/organizations/usage_report/messages",
+                params=params, headers=headers, timeout=30,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            return {"error": f"Anthropic API returned {resp.status_code}", "detail": resp.text[:500]}
+        except Exception as e:
+            return {"error": str(e)}
+
+
+class TogetherAIPricingClient:
+    """Fetch live model pricing from Together AI's /v1/models endpoint.
+
+    Together AI's models endpoint returns pricing data per model.
+    We cache this in ConfigStore and refresh daily.
+    """
+
+    MODELS_URL = "https://api.together.xyz/v1/models"
+    CACHE_KEY = "together_model_pricing"
+    CACHE_TTL_HOURS = 24
+
+    @staticmethod
+    def _get_api_key() -> str:
+        """Get the Together AI API key from config."""
+        try:
+            config = LLMService._get_provider_config("together")
+            if config and config.get("api_key"):
+                return config["api_key"]
+            config = LLMService._get_provider_config("together_ai")
+            if config and config.get("api_key"):
+                return config["api_key"]
+        except Exception:
+            pass
+        import os
+        return os.environ.get("TOGETHER_API_KEY", "")
+
+    @staticmethod
+    def fetch_and_cache_pricing() -> dict:
+        """Fetch model pricing from Together AI API and cache it.
+
+        Returns dict of {model_id: {"input": price_per_1M, "output": price_per_1M}}
+        """
+        import requests as req
+
+        api_key = TogetherAIPricingClient._get_api_key()
+        if not api_key:
+            return {"error": "No Together AI API key configured"}
+
+        try:
+            resp = req.get(
+                TogetherAIPricingClient.MODELS_URL,
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                return {"error": f"Together API returned {resp.status_code}"}
+
+            models = resp.json()
+            pricing = {}
+
+            for model in models:
+                model_id = model.get("id", "")
+                if not model_id:
+                    continue
+                # Together AI returns pricing in different formats:
+                # Some have "pricing" dict, some have separate fields
+                price_data = model.get("pricing", {})
+                if isinstance(price_data, dict):
+                    input_price = price_data.get("input", price_data.get("base", 0))
+                    output_price = price_data.get("output", price_data.get("base", input_price))
+                    if input_price or output_price:
+                        pricing[model_id] = {
+                            "input": float(input_price),
+                            "output": float(output_price),
+                        }
+
+            # Cache to Redis (primary, 24h TTL) + ConfigStore (persistent fallback)
+            if pricing:
+                cache_data = {
+                    "pricing": pricing,
+                    "_fetched": datetime.utcnow().isoformat(),
+                    "_model_count": len(pricing),
+                }
+                # Redis cache — 24 hours
+                c = _get_cache()
+                if c:
+                    try:
+                        c.set("together_pricing", cache_data,
+                              timeout=TogetherAIPricingClient.CACHE_TTL_HOURS * 3600)
+                    except Exception:
+                        pass
+                # ConfigStore — persistent fallback
+                try:
+                    from app.models import ConfigStore
+                    from app import db
+                    ConfigStore.upsert(TogetherAIPricingClient.CACHE_KEY,
+                                       json.dumps(cache_data, default=str))
+                    db.session.commit()
+                except Exception:
+                    pass
+
+                # Also update the in-memory MODEL_PRICING dict
+                for model_id, prices in pricing.items():
+                    MODEL_PRICING[model_id] = prices
+
+                logger.info("Cached Together AI pricing for %d models", len(pricing))
+
+            return {"models": len(pricing), "pricing": pricing}
+        except Exception as e:
+            return {"error": str(e)}
+
+    @staticmethod
+    def get_cached_pricing() -> dict:
+        """Get cached pricing from Redis → ConfigStore → fresh fetch."""
+        # 1. Try Redis cache (fastest)
+        c = _get_cache()
+        if c:
+            try:
+                cached = c.get("together_pricing")
+                if cached is not None:
+                    for model_id, prices in cached.get("pricing", {}).items():
+                        MODEL_PRICING[model_id] = prices
+                    return cached
+            except Exception:
+                pass
+        # 2. Try ConfigStore (persistent)
+        try:
+            from app.models import ConfigStore
+            rec = ConfigStore.find(TogetherAIPricingClient.CACHE_KEY)
+            if rec and rec.value:
+                data = json.loads(rec.value)
+                fetched = data.get("_fetched", "")
+                if fetched:
+                    fetched_dt = datetime.fromisoformat(fetched)
+                    age_hours = (datetime.utcnow() - fetched_dt).total_seconds() / 3600
+                    if age_hours < TogetherAIPricingClient.CACHE_TTL_HOURS:
+                        # Load into memory + backfill Redis
+                        for model_id, prices in data.get("pricing", {}).items():
+                            MODEL_PRICING[model_id] = prices
+                        if c:
+                            try:
+                                remaining_s = int((TogetherAIPricingClient.CACHE_TTL_HOURS - age_hours) * 3600)
+                                c.set("together_pricing", data, timeout=max(remaining_s, 60))
+                            except Exception:
+                                pass
+                        return data
+                    logger.info("Together AI pricing cache stale (%.1fh), refreshing", age_hours)
+        except Exception:
+            pass
+        # 3. No cache or stale — fetch fresh
+        result = TogetherAIPricingClient.fetch_and_cache_pricing()
+        if "error" not in result:
+            return {"pricing": result.get("pricing", {}), "_fetched": datetime.utcnow().isoformat(), "_model_count": result.get("models", 0)}
+        return result

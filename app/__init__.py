@@ -7,6 +7,7 @@ from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
+from flask_caching import Cache
 from authlib.integrations.flask_client import OAuth
 from sqlalchemy import exc
 import logging
@@ -18,6 +19,7 @@ mail = Mail()
 login = LoginManager()
 login.login_view = "auth.get_login"
 csrf = CSRFProtect()
+cache = Cache()
 import os as _os
 
 limiter = Limiter(
@@ -335,6 +337,17 @@ def configure_extensions(app):
     login.init_app(app)
     limiter.init_app(app)
     csrf.init_app(app)
+    # Redis-backed cache (DB 2) — falls back to SimpleCache if Redis unavailable
+    try:
+        cache.init_app(app)
+        # Verify Redis connectivity
+        cache.set("_healthcheck", "ok", timeout=5)
+        cache.delete("_healthcheck")
+        app.logger.info("Flask-Caching initialized with Redis backend")
+    except Exception as e:
+        app.logger.warning("Redis cache unavailable, falling back to SimpleCache: %s", e)
+        app.config["CACHE_TYPE"] = "SimpleCache"
+        cache.init_app(app)
     return
 
 
