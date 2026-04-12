@@ -7057,13 +7057,16 @@ function project(){
 			"/api/v1/projects/" + this.projectId+"?summary=yes",
 			data => {
 			  this.projectData = data;
-			  if (data.auditors.length > 0) {
-				this.tabs.splice(2, 0, "audit review");
+			  if (data.auditors && data.auditors.length > 0) {
+				if (!this.tabs.includes("audit review")) {
+				  this.tabs.splice(2, 0, "audit review");
+				}
 			  }
 			  this.loadingProjectData = false;
 			},
 			error => {
 			  toast(error.message, "error");
+			  this.loadingProjectData = false;
 			}
 		  );
 		},
