@@ -5029,7 +5029,6 @@ function project(){
 		showNAModalDisable:false,
 		showNAModalEnable:false,
 		showDeleteEvidenceModal: false,
-		selectedControl: null,
 		activeSideTab: "details",
 		activeSubSideTab: "details",
 		selectedSubControl:null,
@@ -6901,7 +6900,7 @@ function project(){
 		switchTab: function({tab = null, view = null, useCache = true, controlsFilter = null}) {
 		  this.tabLoading = true;
 		  this.tableLoading = true;
-		  var tab = tab ?? this.selectedTab
+		  var tab = (tab ?? this.selectedTab).replace(/-/g, ' ')
 		  var view = view ?? this.view
 		  var queryParams = new URLSearchParams(window.location.search);
 
