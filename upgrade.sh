@@ -37,9 +37,13 @@ cd "$SCRIPT_DIR"
 
 # ── Load .env if present ─────────────────────────────────────────────────────
 if [ -f .env ]; then
-    set -a
-    source .env
-    set +a
+    while IFS='=' read -r key value; do
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        key=$(echo "$key" | xargs)
+        value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")
+        [ -n "$key" ] && export "$key=$value" 2>/dev/null || true
+    done < .env
 fi
 
 POSTGRES_USER="${POSTGRES_USER:-postgres}"

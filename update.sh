@@ -46,7 +46,15 @@ cd "$SCRIPT_DIR"
 
 # ── Load .env ────────────────────────────────────────────────────────────────
 if [ -f .env ]; then
-    set -a; source .env; set +a
+    # Safe parse: only export lines matching KEY=VALUE, skip comments/blanks
+    while IFS='=' read -r key value; do
+        # Skip comments and blank lines
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "$key" ]] && continue
+        key=$(echo "$key" | xargs)  # trim whitespace
+        value=$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")  # strip quotes
+        [ -n "$key" ] && export "$key=$value" 2>/dev/null || true
+    done < .env
 fi
 
 BRANCH="${GIT_BRANCH:-main}"
