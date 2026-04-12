@@ -65,8 +65,8 @@ def compute_risk_profiles(microsoft_data):
     user_profiles = _compute_user_profiles(microsoft_data)
     device_profiles = _compute_device_profiles(microsoft_data)
 
-    # Cross-link: if a user is high-risk, their devices inherit risk
-    high_risk_users = {u["upn"] for u in user_profiles if u["score"] >= 60}
+    # Cross-link: if a user is high-risk (score >= 50), their devices inherit risk
+    high_risk_users = {u["upn"] for u in user_profiles if u["score"] >= 50}
     for d in device_profiles:
         if d.get("user") in high_risk_users:
             d["risk_factors"].append("Assigned to high-risk user")
@@ -78,8 +78,8 @@ def compute_risk_profiles(microsoft_data):
     # Summary
     total_users = len(user_profiles)
     total_devices = len(device_profiles)
-    high_risk_users_count = sum(1 for u in user_profiles if u["score"] >= 60)
-    high_risk_devices_count = sum(1 for d in device_profiles if d["score"] >= 60)
+    high_risk_users_count = sum(1 for u in user_profiles if u["score"] >= 50)
+    high_risk_devices_count = sum(1 for d in device_profiles if d["score"] >= 50)
     avg_user_score = round(sum(u["score"] for u in user_profiles) / total_users, 1) if total_users else 0
     avg_device_score = round(sum(d["score"] for d in device_profiles) / total_devices, 1) if total_devices else 0
 

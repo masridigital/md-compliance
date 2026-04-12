@@ -122,7 +122,7 @@ class Authorizer:
             self.user.super
             or self.user.id == tenant.owner_id
             or self.user.has_any_role_for_tenant(
-                tenant, ["admin", "viewer", "riskmanager"]
+                tenant, ["admin", "riskmanager"]
             )
         ):
             return True
@@ -278,7 +278,11 @@ class Authorizer:
         return False
 
     def _can_user_audit_project(self, project):
-        if project.has_member_with_access(self.user, ["auditor"]):
+        if (
+            self.user.super
+            or self._can_user_admin_tenant(project.tenant)
+            or project.has_member_with_access(self.user, ["auditor"])
+        ):
             return True
         return False
 

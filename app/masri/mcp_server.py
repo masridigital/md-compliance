@@ -906,6 +906,11 @@ def _authenticate():
         key_record = _validate_oauth_token(token)
         if key_record is None:
             abort(401, description="Invalid or expired OAuth access token. Request a new one via POST /mcp/token.")
+        # Verify the underlying API key is still enabled and not expired
+        if not key_record.enabled:
+            abort(401, description="API key is disabled")
+        if key_record.expires_at and datetime.utcnow() > key_record.expires_at:
+            abort(401, description="API key has expired")
         return key_record
 
     # Fall back to raw API key

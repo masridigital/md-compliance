@@ -107,8 +107,35 @@ def get_verify_totp():
 @limiter.limit("10 per minute")
 def verify_totp():
     from flask import session
+    from datetime import datetime, timezone
+
     user_id = session.get("_totp_user_id")
     if not user_id:
+        return redirect(url_for("auth.get_login"))
+
+    # Enforce 5-minute expiration on TOTP challenge
+    totp_created = session.get("_totp_created_at")
+    if totp_created:
+        try:
+            created_dt = datetime.fromisoformat(totp_created)
+            if (datetime.now(timezone.utc) - created_dt).total_seconds() > 300:
+                session.pop("_totp_user_id", None)
+                session.pop("_totp_next", None)
+                session.pop("_totp_created_at", None)
+                session.pop("_totp_attempts", None)
+                flash("Verification session expired. Please log in again.", "error")
+                return redirect(url_for("auth.get_login"))
+        except (ValueError, TypeError):
+            pass
+
+    # Enforce max 5 attempts
+    attempts = session.get("_totp_attempts", 0)
+    if attempts >= 5:
+        session.pop("_totp_user_id", None)
+        session.pop("_totp_next", None)
+        session.pop("_totp_created_at", None)
+        session.pop("_totp_attempts", None)
+        flash("Too many failed attempts. Please log in again.", "error")
         return redirect(url_for("auth.get_login"))
 
     user = db.session.get(User, user_id)
@@ -119,12 +146,15 @@ def verify_totp():
 
     code = request.form.get("code", "").strip()
     if not code or not user.verify_totp(code):
+        session["_totp_attempts"] = attempts + 1
         flash("Invalid verification code", "error")
         return redirect(url_for("auth.get_verify_totp"))
 
     # TOTP verified — complete login
-    next_page = session.pop("_totp_next", url_for("main.home"))
+    next_page = _safe_next(session.pop("_totp_next", None))
     session.pop("_totp_user_id", None)
+    session.pop("_totp_created_at", None)
+    session.pop("_totp_attempts", None)
     custom_login(user)
     return redirect(next_page)
 
@@ -209,8 +239,16 @@ def validate_magic_link(token):
         flash("Invalid tenant id", "warning")
         return redirect(url_for("auth.get_login"))
     if user.id == tenant.owner_id or user.has_tenant(tenant):
-        flash("Welcome")
         Logs.add(message=f"{user.email} logged in via magic link", user_id=user.id)
+        # If user has TOTP 2FA enabled, require verification before full login
+        if getattr(user, 'totp_enabled', False):
+            from datetime import datetime, timezone
+            session["_totp_user_id"] = user.id
+            session["_totp_next"] = next_page
+            session["_totp_created_at"] = datetime.now(timezone.utc).isoformat()
+            session["_totp_attempts"] = 0
+            return redirect(url_for("auth.verify_totp"))
+        flash("Welcome")
         custom_login(user)
         return redirect(next_page)
     flash("User can not access tenant", "warning")
@@ -438,8 +476,8 @@ def post_setup():
     if not email or "@" not in email:
         flash("Please enter a valid email address.", "error")
         return render_template("auth/setup.html")
-    if len(password) < 8:
-        flash("Password must be at least 8 characters.", "error")
+    if not misc.perform_pwd_checks(password):
+        flash("Password must be at least 12 characters.", "error")
         return render_template("auth/setup.html")
 
     try:

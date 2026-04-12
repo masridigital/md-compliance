@@ -11,7 +11,7 @@ Graph API permissions (User.Read.All, Policy.Read.All, etc.).
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,18 @@ class EntraIntegration:
         self.tenant_id = tenant_id
         self.client_id = client_id
         self.client_secret = client_secret
-        self._token_cache = None
+        self._msal_app = None
+        self._access_token = None
+        self._token_expires_at = 0
 
     def _get_access_token(self) -> str:
-        """Acquire an access token using client credentials flow."""
+        """Acquire an access token using client credentials flow (cached)."""
+        import time
+
+        # Return cached token if still valid (with 60s buffer)
+        if self._access_token and time.time() < self._token_expires_at - 60:
+            return self._access_token
+
         try:
             import msal
         except ImportError:
@@ -45,21 +53,25 @@ class EntraIntegration:
                 "Install with: pip install msal"
             )
 
-        authority = f"{self.AUTHORITY_BASE}/{self.tenant_id}"
-        app = msal.ConfidentialClientApplication(
-            self.client_id,
-            authority=authority,
-            client_credential=self.client_secret,
-        )
+        # Reuse MSAL app across calls
+        if not self._msal_app:
+            authority = f"{self.AUTHORITY_BASE}/{self.tenant_id}"
+            self._msal_app = msal.ConfidentialClientApplication(
+                self.client_id,
+                authority=authority,
+                client_credential=self.client_secret,
+            )
 
         scopes = ["https://graph.microsoft.com/.default"]
-        result = app.acquire_token_for_client(scopes=scopes)
+        result = self._msal_app.acquire_token_for_client(scopes=scopes)
 
         if "access_token" not in result:
             error = result.get("error_description", result.get("error", "Unknown"))
             raise RuntimeError(f"Failed to acquire token: {error}")
 
-        return result["access_token"]
+        self._access_token = result["access_token"]
+        self._token_expires_at = time.time() + result.get("expires_in", 3600)
+        return self._access_token
 
     def _graph_request(self, endpoint: str, method: str = "GET", **kwargs) -> dict:
         """Make an authenticated request to the Microsoft Graph API."""
@@ -581,7 +593,7 @@ class EntraIntegration:
             dict with total_signins, failed, risky, locations.
         """
         try:
-            from_date = (datetime.utcnow() - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
+            from_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
             data = self._graph_request(
                 f"/auditLogs/signIns?$top=500"
                 f"&$filter=createdDateTime ge {from_date}"

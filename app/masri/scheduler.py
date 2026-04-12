@@ -542,14 +542,16 @@ class MasriScheduler:
                                             org_id = oid
                                             break
                                 if org_id:
-                                    from app.masri.ninjaone_integration import NinjaOneIntegration
+                                    from app.masri.ninjaone_integration import NinjaOneIntegration, NINJAONE_REGIONS
                                     from app.masri.settings_service import decrypt_value
                                     n_config = json.loads(decrypt_value(ninja_cfg.config_enc)) if ninja_cfg.config_enc else {}
                                     if n_config.get("client_id") and n_config.get("client_secret"):
+                                        _n_region = n_config.get("region", "us")
+                                        _n_url = NINJAONE_REGIONS.get(_n_region, NINJAONE_REGIONS["us"])
                                         ninja = NinjaOneIntegration(
                                             client_id=n_config["client_id"],
                                             client_secret=n_config["client_secret"],
-                                            region=n_config.get("region", "us"),
+                                            instance_url=_n_url,
                                         )
                                         ninja_data = ninja.collect_all_data(org_id=org_id)
                                         if ninja_data:

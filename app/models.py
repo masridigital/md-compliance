@@ -1959,7 +1959,7 @@ class Control(db.Model):
     # HIPAA
     dti = db.Column(db.String(), default="easy")
     dtc = db.Column(db.String(), default="easy")
-    meta = db.Column(db.JSON(), default="{}")
+    meta = db.Column(db.JSON(), default=dict)
     subcontrols = db.relationship(
         "SubControl", backref="control", lazy="dynamic", cascade="all, delete"
     )
@@ -3269,10 +3269,12 @@ class RiskRegister(db.Model):
         data["created_at"] = parsed_date.format("MMM D, YYYY")
         if self.project_id:
             data["scope"] = "project"
-            data["project"] = db.session.get(Project, self.project_id).name
+            _proj = db.session.get(Project, self.project_id)
+            data["project"] = _proj.name if _proj else "(deleted)"
 
         if self.vendor_id:
-            data["vendor"] = db.session.get(Vendor, self.vendor_id).name
+            _vendor = db.session.get(Vendor, self.vendor_id)
+            data["vendor"] = _vendor.name if _vendor else "(deleted)"
 
         data["comments"] = [comment.as_dict() for comment in self.comments.all()]
         data["tags"] = []
@@ -4981,9 +4983,11 @@ class Logs(db.Model):
     def as_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if self.user_id:
-            data["user_email"] = db.session.get(User, self.user_id).email
+            _user = db.session.get(User, self.user_id)
+            data["user_email"] = _user.email if _user else "(deleted)"
         if self.tenant_id:
-            data["tenant_name"] = db.session.get(Tenant, self.tenant_id).name
+            _tenant = db.session.get(Tenant, self.tenant_id)
+            data["tenant_name"] = _tenant.name if _tenant else "(deleted)"
         return data
 
     def as_readable(self):

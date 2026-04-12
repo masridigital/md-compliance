@@ -878,10 +878,10 @@ def get_integration_data(project_id):
     # DefensX data (from ConfigStore cache)
     dx_cached = {}
     try:
-        if not _rec3:
-            _rec3 = _CS3.find(f"tenant_integration_data_{tenant_id}")
-        if _rec3 and _rec3.value:
-            dx_cached = _json_local.loads(_rec3.value).get("defensx", {})
+        from app.models import ConfigStore as _CS4
+        _rec4 = _CS4.find(f"tenant_integration_data_{tenant_id}")
+        if _rec4 and _rec4.value:
+            dx_cached = _json_local.loads(_rec4.value).get("defensx", {})
     except Exception:
         pass
     if dx_cached:
@@ -1097,14 +1097,16 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                 org_id = oid
                                 break
                     if org_id:
-                        from app.masri.ninjaone_integration import NinjaOneIntegration
+                        from app.masri.ninjaone_integration import NinjaOneIntegration, NINJAONE_REGIONS
                         from app.masri.settings_service import decrypt_value
                         config = json.loads(decrypt_value(ninja_cfg.config_enc)) if ninja_cfg.config_enc else {}
                         if config.get("client_id") and config.get("client_secret"):
+                            _ninja_region = config.get("region", "us")
+                            _ninja_url = NINJAONE_REGIONS.get(_ninja_region, NINJAONE_REGIONS["us"])
                             ninja_client = NinjaOneIntegration(
                                 client_id=config["client_id"],
                                 client_secret=config["client_secret"],
-                                region=config.get("region", "us"),
+                                instance_url=_ninja_url,
                             )
                             ninja_data = ninja_client.collect_all_data(org_id=org_id)
                             if ninja_data:
@@ -1165,7 +1167,8 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     existing["ninjaone"] = integration_data["ninjaone"]
                 if integration_data.get("defensx"):
                     existing["defensx"] = integration_data["defensx"]
-                existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+                from datetime import datetime, timezone
+                existing["_updated"] = datetime.now(timezone.utc).isoformat()
                 ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
             except Exception:
                 pass
@@ -1501,12 +1504,13 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                                         evidence_id=ev.id,
                                                     )
                                                     db.session.add(assoc)
-                                        except Exception:
-                                            pass  # Duplicate name or other DB issue
+                                        except Exception as _ev_err:
+                                            logger.debug("Evidence association failed: %s", _ev_err)
 
                                     total_mapped += 1
-                        except Exception:
-                            pass
+                        except Exception as _map_err:
+                            logger.warning("Control mapping failed for control %s: %s",
+                                           m.get("control_id", "?"), _map_err)
 
                     # Add risks
                     _SEV = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
@@ -1533,8 +1537,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                 )
                                 db.session.add(risk)
                                 total_risks += 1
-                        except Exception:
-                            pass
+                        except Exception as _risk_err:
+                            logger.warning("Risk creation failed for '%s': %s",
+                                           r.get("title", "?")[:50], _risk_err)
                     _update_job_status(tenant_id, "syncing_progress", f"Syncing progress for {project.name if hasattr(project, 'name') else project.id}")
                     # Sync ALL subcontrol progress for this project
                     _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
@@ -1578,7 +1583,11 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
             if not llm_available:
                 msg = "LLM not configured. Add an AI provider in Settings → Integrations → AI/LLM Providers, then re-run."
             elif total_mapped == 0 and total_risks == 0:
-                msg = f"LLM ran but produced no mappings. {len(projects)} project(s) with {sum(len(p.controls.all()) for p in projects)} controls checked."
+                try:
+                    _ctrl_count = sum(len(list(p.controls)) for p in projects)
+                except Exception:
+                    _ctrl_count = "?"
+                msg = f"LLM ran but produced no mappings. {len(projects)} project(s) with {_ctrl_count} controls checked."
             ConfigStore.upsert(f"auto_process_result_{tenant_id}", json.dumps({
                 "success": total_mapped > 0 or total_risks > 0,
                 "controls_mapped": total_mapped,
@@ -1600,6 +1609,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
         except Exception:
             pass
 
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         try:
             db.session.remove()
         except Exception:
@@ -1723,7 +1736,8 @@ def refresh_microsoft_data(tenant_id):
             except Exception:
                 pass
         existing["microsoft"] = ms_data
-        existing["_updated"] = __import__("datetime").datetime.utcnow().isoformat()
+        from datetime import datetime, timezone
+        existing["_updated"] = datetime.now(timezone.utc).isoformat()
         ConfigStore.upsert(f"tenant_integration_data_{tenant_id}", json.dumps(existing, default=str)[:35000000])
     except Exception as e:
         logger.exception("Failed to store Microsoft data for tenant %s", tenant_id)

@@ -42,12 +42,12 @@ class DefensXIntegration:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         })
-        self.session.timeout = 30
+        self.timeout = 30
 
     def _get(self, path: str, params: dict = None) -> requests.Response:
         """Make an authenticated GET request to the DefensX API."""
         url = f"{self.base_url}{path}"
-        resp = self.session.get(url, params=params)
+        resp = self.session.get(url, params=params, timeout=self.timeout)
         if not resp.ok:
             logger.error(
                 "DefensX API GET %s returned %s: %s",

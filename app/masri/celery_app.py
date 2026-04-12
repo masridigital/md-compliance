@@ -72,6 +72,15 @@ def init_celery(app):
         return
 
     _flask_app = app
+
+    # Ensure the scheduler singleton has the app reference in Celery worker processes
+    try:
+        from app.masri.scheduler import masri_scheduler
+        if not masri_scheduler._app:
+            masri_scheduler._app = app
+    except Exception:
+        pass
+
     broker = app.config.get("CELERY_BROKER_URL", "redis://redis:6379/1")
     backend = app.config.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 
