@@ -289,7 +289,8 @@ def test_storage_provider(provider):
         if host.startswith(("10.", "172.16.", "172.17.", "172.18.", "172.19.",
                            "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
                            "172.25.", "172.26.", "172.27.", "172.28.", "172.29.",
-                           "172.30.", "172.31.", "192.168.")):
+                           "172.30.", "172.31.", "192.168.",
+                           "169.254.", "100.64.")):
             return False
         return True
 
@@ -1624,20 +1625,9 @@ def reset_integration(integration_type):
     try:
         if category == "llm":
             from app.masri.new_models import SettingsLLM
-            if sub:
-                slot = int(sub)
-                rows = db.session.execute(
-                    db.select(SettingsLLM).filter_by(slot=slot)
-                ).scalars().all()
-                if not rows:
-                    # Try NULL slot for slot 1
-                    rows = db.session.execute(db.select(SettingsLLM)).scalars().all()
-                    rows = [r for r in rows if (getattr(r, 'slot', None) or 1) == slot]
-                for r in rows:
-                    db.session.delete(r)
-            else:
-                for r in db.session.execute(db.select(SettingsLLM)).scalars().all():
-                    db.session.delete(r)
+            # SettingsLLM is a singleton — delete all rows to reset
+            for r in db.session.execute(db.select(SettingsLLM)).scalars().all():
+                db.session.delete(r)
 
         elif category == "storage":
             from app.masri.new_models import SettingsStorage
@@ -2106,6 +2096,7 @@ def integration_health_check():
     Lightweight check: verifies credentials EXIST (not live API calls).
     Live API testing is done via the Test buttons in each integration drawer.
     """
+    _require_admin()
     results = {}
 
     # LLM providers — check if keys are configured

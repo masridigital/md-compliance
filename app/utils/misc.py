@@ -36,13 +36,13 @@ def perform_pwd_checks(password, password_two=None):
     return True
 
 
-def verify_jwt(token):
+def verify_jwt(token, max_age=None):
     if not token:
         current_app.logger.warning("Empty token when verifying JWT")
         return False
     s = Serializer(current_app.config["SECRET_KEY"])
     try:
-        data = s.loads(token, max_age=86400, salt="jwt")
+        data = s.loads(token, max_age=max_age or 6000, salt="jwt")
     except SignatureExpired:
         current_app.logger.warning("SignatureExpired while verifying JWT")
         return False
@@ -52,7 +52,9 @@ def verify_jwt(token):
     return data
 
 
-def generate_jwt(data={}, expiration=6000):
+def generate_jwt(data=None, expiration=6000):
+    if data is None:
+        data = {}
     s = Serializer(current_app.config["SECRET_KEY"])
     return s.dumps(data, salt="jwt")
 

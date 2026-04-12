@@ -834,3 +834,78 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes` for code review.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
+
+---
+
+## Security Audit — 2026-04-12
+
+### Fixed Bugs (25+ bugs across 14 files)
+
+#### Critical/High (Fixed)
+
+| Bug | File(s) | Impact |
+|-----|---------|--------|
+| JWT expiration param ignored | `misc.py` | Password reset tokens valid 24h instead of 10min |
+| Magic link bypasses TOTP 2FA | `views.py` | Full 2FA bypass via magic link login |
+| No TOTP brute-force protection | `views.py`, `flows.py` | Unlimited attempts, no session timeout |
+| MCP OAuth token bypass | `mcp_server.py` | Disabled/expired keys still grant access via cached OAuth token |
+| Viewer role can manage risks | `authorizer.py` | Viewers could edit/delete risk register entries |
+| Auditor check excludes admins | `authorizer.py` | Super users & tenant owners locked out of audit functions |
+| NinjaOne integration broken | `llm_routes.py`, `scheduler.py` | `region` param passed to constructor that only accepts `instance_url` |
+| SettingsLLM `slot` column crash | `settings_routes.py` | References non-existent column, crashes on LLM reset |
+| Health-check info leak | `settings_routes.py` | Any auth user could see integration config status |
+| SSRF gap in S3 validation | `settings_routes.py` | Missing 169.254.x.x (AWS metadata endpoint) block |
+| Weak admin password policy | `views.py` | Setup page accepted 8-char passwords (now 12) |
+| Entra token not cached | `entra_integration.py` | New OAuth token per API call (10+ redundant per collection) |
+| DefensX timeout no-op | `defensx_integration.py` | `session.timeout` attribute ignored by requests library |
+| Celery workers silently no-op | `celery_app.py` | `masri_scheduler._app` never set in worker process |
+
+#### Medium/Low (Fixed)
+
+| Bug | File(s) |
+|-----|---------|
+| `_rec3` NameError in DefensX data | `llm_routes.py` |
+| `__import__("datetime")` hacks | `llm_routes.py`, `entra_integration.py` |
+| Deprecated `datetime.utcnow()` | Multiple files |
+| Missing `db.session.rollback()` in bg thread | `llm_routes.py` |
+| Silent `except Exception: pass` in critical paths | `llm_routes.py` |
+| N+1 query in auto-process result | `llm_routes.py` |
+| `Control.meta` default is string not dict | `models.py` |
+| `RiskRegister.as_dict()` NoneType crash | `models.py` |
+| `Logs.as_dict()` crash on deleted user/tenant | `models.py` |
+| Secure Score zero-check fails | `continuous_monitor.py` |
+| Risk profile cross-link threshold mismatch | `risk_profiles.py` |
+
+### Known Remaining Issues (Not Yet Fixed)
+
+These were identified but deferred as lower priority or requiring architectural changes:
+
+| Issue | File | Severity | Notes |
+|-------|------|----------|-------|
+| Mutable default args in model columns (`default={}`) | `models.py` | Medium | Change `default={}` to `default=dict` across ~10 columns |
+| No `@validates("review_status")` on ProjectControl | `models.py` | Medium | Valid values list exists but never enforced |
+| Missing `ondelete` on foreign keys | `models.py` | Medium | Direct SQL deletes leave orphans |
+| `email_confirm_code` has no expiry | `models.py` | Low | Code valid forever once generated |
+| `PlatformSettings`/`SettingsLLM` singleton not enforced | `new_models.py` | Medium | No DB constraint preventing multiple rows |
+| Training validators silently coerce invalid values | `new_models.py` | Low | Should raise ValueError like other validators |
+| MCP rate limiting is in-memory only | `mcp_server.py` | Medium | Resets on restart, doubled with 2 workers |
+| Thread-unsafe `_running`/`_timers` in scheduler | `scheduler.py` | Medium | No `threading.Lock` on shared state |
+| No concurrent execution guard for scheduler tasks | `scheduler.py` | Medium | Overlapping runs possible if task exceeds interval |
+| Missing `db.session.remove()` in threading.Timer tasks | `scheduler.py` | High | Session leaks in background timer threads |
+| Drift detection baselines never auto-created | `continuous_monitor.py` | Medium | Drift checks are silently disabled until manual baseline |
+| MFA false positives: new users flagged as "MFA disabled" | `continuous_monitor.py` | Medium | Should exclude users not in baseline |
+| Drift alerts accumulate without deduplication | `continuous_monitor.py` | Low | Same drift re-alerted daily |
+| Profile input (first/last name) not sanitized | `settings_routes.py` | Medium | No length limit or HTML stripping |
+| SMTP TLS setting stored as string (always truthy) | `settings_routes.py` | High | TLS can never be disabled via settings |
+| `_quick_test_provider` is dead code | `settings_routes.py` | Low | Function defined but never called |
+| Entra `collect_all_security_data()` silently swallows all errors | `entra_integration.py` | Medium | 10 collection steps fail with no logging |
+| Token refresh race condition (latent) | `ninjaone_integration.py` | Low | Not exploitable today, becomes problem if instances shared |
+| `list_organizations` parses `resp.json()` up to 3 times | `ninjaone_integration.py` | Low | Performance: parse once |
+
+### Key Security Rules (from audit)
+
+16. **NEVER** allow magic link login to bypass TOTP 2FA — always redirect to verify-2fa
+17. **NEVER** trust `session.timeout` on a requests.Session object — pass `timeout=` explicitly to each request call
+18. **NEVER** use `__import__()` for standard library modules — use proper `from X import Y`
+19. **NEVER** assume an API key check passes for OAuth tokens — always validate `enabled` and `expires_at` on the underlying key record
+20. **NEVER** pass `region` string to NinjaOneIntegration — resolve to URL via `NINJAONE_REGIONS` first

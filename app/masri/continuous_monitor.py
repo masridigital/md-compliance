@@ -302,7 +302,7 @@ def _check_microsoft_drift(baseline, current, timestamp):
         if isinstance(cur_latest, dict):
             bl_val = bl_score.get("current", 0)
             cur_val = cur_latest.get("currentScore", 0)
-            if bl_val and cur_val and (bl_val - cur_val) > 5:
+            if isinstance(bl_val, (int, float)) and isinstance(cur_val, (int, float)) and (bl_val - cur_val) > 5:
                 alerts.append({
                     "type": "secure_score_drop",
                     "severity": "high",

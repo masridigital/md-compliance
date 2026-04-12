@@ -107,8 +107,11 @@ class UserFlow:
 
         # Check if TOTP 2FA is enabled — require verification before full login
         if getattr(user, 'totp_enabled', False) and self.provider == "local":
+            from datetime import datetime, timezone
             session["_totp_user_id"] = user.id
             session["_totp_next"] = self.next_page or url_for("main.home")
+            session["_totp_created_at"] = datetime.now(timezone.utc).isoformat()
+            session["_totp_attempts"] = 0
             return redirect(url_for("auth.verify_totp"))
 
         custom_login(user)
