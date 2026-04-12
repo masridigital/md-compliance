@@ -2262,7 +2262,9 @@ class Project(db.Model, DateMixin):
             controls = self.controls.all()
             data["completion_progress"] = self.completion_progress(controls=controls)
             data["total_controls"] = len(controls)
+            data["applicable_controls"] = self.get_applicable_control_count()
             data["total_policies"] = self.policies.count()
+            data["total_risks"] = self.risks.count()
             if with_controls:
                 data["controls"] = [control.as_dict() for control in controls]
             data["status"] = "not started"
@@ -2559,16 +2561,22 @@ class Project(db.Model, DateMixin):
 
     def evidence_progress(self, controls=None):
         total = 0
+        applicable_count = 0
         if controls is None:
             controls = self.controls.all()
         if not controls:
             return total
         for control in controls:
-            total += control.progress("with_evidence")
-        return round((total / len(controls)), 0)
+            if control.is_applicable():
+                total += control.progress("with_evidence")
+                applicable_count += 1
+        if not applicable_count:
+            return 0
+        return round((total / applicable_count), 0)
 
     def implemented_progress(self, controls=None):
         total = 0
+        applicable_count = 0
         if not controls:
             controls = self.controls.all()
         if not controls:
@@ -2576,7 +2584,10 @@ class Project(db.Model, DateMixin):
         for control in controls:
             if control.is_applicable():
                 total += control.implemented_progress()
-        return round((total / len(controls)), 0)
+                applicable_count += 1
+        if not applicable_count:
+            return 0
+        return round((total / applicable_count), 0)
 
     def has_control(self, control_id):
         return self.controls.filter(ProjectControl.control_id == control_id).first()
