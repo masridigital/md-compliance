@@ -116,23 +116,25 @@ fi
 
 # Step 2: Rebuild containers
 log "Step 2/3: Rebuilding containers..."
-if command -v docker-compose &>/dev/null; then
-    docker-compose build --no-cache app
-elif command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
-    docker compose build --no-cache app
+# Prefer v2 plugin over v1 (v1.29.2 has ContainerConfig recreate bug)
+DC=""
+if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+    DC="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    DC="docker-compose"
 else
     warn "Docker not found — if running without Docker, restart the app manually"
     log "For non-Docker: pip install -r requirements.txt && flask db upgrade"
     exit 0
 fi
 
+$DC build --no-cache app
+
 # Step 3: Restart (run.sh handles migrations automatically)
+# Use down + up (not just up) to avoid docker-compose v1 recreate bug
 log "Step 3/3: Restarting..."
-if command -v docker-compose &>/dev/null; then
-    docker-compose up -d app
-elif command -v docker &>/dev/null; then
-    docker compose up -d app
-fi
+$DC down 2>/dev/null || true
+$DC up -d
 
 log "═══════════════════════════════════════════════════"
 log "  Upgrade complete!"

@@ -30,7 +30,7 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 | `defensx_bp` | `/api/v1/defensx` | `app/masri/defensx_routes.py` |
 | `mcp_bp` | `/mcp` | `app/masri/mcp_server.py` |
 | `notification_bp` | `/api/v1/notifications` | `app/masri/notification_routes.py` |
-| `training_bp` | `/api/v1/training` | `app/masri/training_routes.py` |
+| ~~`training_bp`~~ | ~~`/api/v1/training`~~ | ~~`app/masri/training_routes.py`~~ *(removed — SAT via Phin Security/DefensX)* |
 | `wisp_bp` | `/api/v1/wisp` | `app/masri/wisp_routes.py` |
 | `trust_bp` | `/trust` | `app/masri/trust_portal.py` |
 
@@ -231,6 +231,7 @@ Register an Azure AD App with these **Application** permissions:
 - **Blackpoint Cyber** (`ti-shield-bolt`): MDR/SOC detections, endpoint inventory, vulnerability scanning, dark web monitoring, NIST-aligned security posture rating. CompassOne HTTP Export API.
 - **Keeper Security** (`ti-lock`): Password health audits, 2FA enrollment, BreachWatch dark web monitoring, PAM session logs. Admin REST API + MSP Account Management API.
 - **SentinelOne** (`ti-sword`): EDR agent coverage, threat detection/mitigation, policy enforcement, endpoint compliance. Management Console REST API v2.1 with `ApiToken` auth.
+- **Phin Security** (`ti-school`): Security awareness training, phishing simulations, compliance training modules, employee risk scoring. Training completion data feeds into evidence generation for applicable controls.
 
 ---
 
@@ -344,7 +345,7 @@ app/
     schemas.py             # Marshmallow validation schemas
     control_mappings.py    # Cross-framework control mapping utility
     continuous_monitor.py  # Baseline + drift detection engine
-    training_routes.py     # Employee training module CRUD + assignments
+    training_routes.py     # (DISABLED) Employee training — SAT via Phin Security/DefensX instead
     evidence_generators.py # Automated evidence from integration data
     trust_portal.py        # Public trust portal (compliance status page)
   templates/
@@ -563,17 +564,14 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 
 **Files**: New `app/masri/continuous_monitor.py`, extend `scheduler.py`, new webhook blueprint
 
-#### C3: Employee Training Module
-**Problem**: 7 of 14 competitors include training. FTC Safeguards explicitly requires training documentation. Currently only a `"training"` type in `DueDate.VALID_ENTITY_TYPES` — no actual module.
+#### C3: Security Awareness Training (via Integration)
+**Decision**: Built-in training module removed. Security awareness training (SAT) will come from dedicated providers via integration, not a built-in module.
 
-**Implementation**:
-- **Training model**: `Training` — id, tenant_id, title, description, content_type (video_url, document, quiz), frequency (annual, quarterly, onboarding), framework_requirements (which controls need this)
-- **TrainingAssignment model**: tenant_id, training_id, user_email, assigned_date, completed_date, score, certificate_url
-- **Training blueprint**: `app/masri/training_routes.py` with CRUD + assignment + completion tracking
-- **Built-in content**: FTC Safeguards training template, HIPAA security awareness template, general security awareness template
-- **Evidence integration**: Training completion auto-generates evidence for applicable controls
-- **Reminders**: Extend scheduler with training due reminders
-- **UI**: Training management page, employee completion dashboard, training assignment from control gap view
+**Planned integrations**:
+- **Phin Security** (coming soon tile added): Phishing simulations, compliance training, employee risk scoring. API-driven training completion data feeds into evidence generation.
+- **DefensX**: Already integrated — browser security training and awareness features available through DefensX platform.
+
+**What was removed**: `training_bp` blueprint unregistered, `/training` page route removed, sidebar link removed. Models (`Training`, `TrainingAssignment` in `new_models.py`) and routes file (`training_routes.py`) kept in codebase but inactive.
 
 #### C4: Missing Compliance Frameworks
 **Current**: 18 frameworks. **Missing high-value frameworks**:
@@ -647,7 +645,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | B2 | Celery/Redis scheduler (worker + beat in docker-compose, threading.Timer fallback) | 2026-04-07 |
 | C5 | Cross-framework control mapping (50+ NIST 800-53 controls → SOC 2, ISO, PCI, HIPAA, CMMC, CSF) | 2026-04-07 |
 | C2 | Continuous monitoring (baseline creation, drift detection: CA policies, MFA, admins, Secure Score, devices) | 2026-04-07 |
-| C3 | Employee training module (Training + TrainingAssignment models, CRUD, 4 built-in templates, evidence generation) | 2026-04-07 |
+| C3 | ~~Employee training module~~ → Removed built-in module; SAT via Phin Security/DefensX integration | 2026-04-12 |
 | C6 | Trust portal (public /trust/<slug>, compliance bars, certifications, JSON API, config) | 2026-04-07 |
 | D1 | Sidebar + Top Bar (80px/224px, tooltips, emerald accent, collapse on hover) | 2026-04-08 |
 | D2 | Home Dashboard (two-column, feature cards, risk table, stat row) | 2026-04-08 |

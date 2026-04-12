@@ -385,8 +385,8 @@ def registering_blueprints(app):
     from app.masri.defensx_routes import defensx_bp
     app.register_blueprint(defensx_bp)
 
-    from app.masri.training_routes import training_bp
-    app.register_blueprint(training_bp)
+    # Training module removed — security awareness training will come from
+    # Phin Security or DefensX integrations instead of a built-in module
 
     from app.masri.trust_portal import trust_bp
     app.register_blueprint(trust_bp)

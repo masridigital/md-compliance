@@ -64,11 +64,14 @@ POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-gapps}"
 
 # ── Docker Compose command ───────────────────────────────────────────────────
+# Prefer v2 plugin ("docker compose") over v1 ("docker-compose")
+# v1.29.2 has a ContainerConfig KeyError bug when recreating containers
 DC=""
-if command -v docker-compose &>/dev/null; then
-    DC="docker-compose"
-elif command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
     DC="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    DC="docker-compose"
+    warn "Using docker-compose v1 — consider upgrading to v2 (apt-get install docker-compose-plugin)"
 else
     err "Docker Compose not found. Install Docker first."
     exit 1
@@ -246,23 +249,15 @@ fi
 # ── Step 7: Restart services ────────────────────────────────────────────────
 step "Step 7/7: Restarting services"
 
-# Restart core services (app handles migrations on startup via run.sh)
-log "Restarting app + redis..."
-$DC up -d app redis
+# Stop and remove all containers first to avoid docker-compose v1 recreate bug
+# (ContainerConfig KeyError). Data is safe in Docker volumes.
+log "Stopping all containers..."
+$DC down 2>/dev/null || true
 
-# Restart nginx if it's in the active profile
-if $DC ps nginx 2>/dev/null | grep -q "Up\|running"; then
-    log "Restarting nginx..."
-    $DC restart nginx
-    ok "Nginx restarted"
-fi
-
-# Restart celery if active
-if $DC ps celery-worker 2>/dev/null | grep -q "Up\|running"; then
-    log "Restarting celery worker + beat..."
-    $DC up -d celery-worker celery-beat
-    ok "Celery restarted"
-fi
+# Start everything fresh
+log "Starting all services..."
+$DC up -d
+ok "All services started"
 
 # ── Health check ─────────────────────────────────────────────────────────────
 step "Health Check"
