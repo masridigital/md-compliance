@@ -1375,8 +1375,8 @@
 					<span class="text-xs">Project statistics are out of date. Please click the refresh button.</span>
 					<button class="btn btn-xs btn-success" @click="getProject;projectRefreshRequired=false">Refresh Stats</button>
 				</div>
-				<div class="grid grid-cols-4 gap-4">
-					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+				<div class="grid grid-cols-8 gap-4">
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
 						<div class="proj-stat-label mb-2">Project Status</div>
 						<div class="flex items-center gap-2">
 						  <i :class="{'ti-check text-emerald-400':projectData.status === 'complete', 'ti-x text-red-400':projectData.status === 'not started', 'ti-progress text-amber-400':projectData.status === 'in progress'}" class="ti text-lg"></i>
@@ -1386,37 +1386,62 @@
 						  </span>
 						</div>
 					</div>
-					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
 						<div class="proj-stat-label mb-2">Completion</div>
-						<div class="flex items-center gap-2">
+						<div class="flex items-center gap-3">
 						  <span x-transition
 							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : projectData.completion_progress">
+							  x-text="loadingProjectData ? '' : (projectData.completion_progress || 0) + '%'">
 						  </span>
-						  <span class="text-sm text-gray-500">/100</span>
+						  <progress
+							:class="{
+								'progress-error': projectData.completion_progress < 30,
+								'progress-warning': projectData.completion_progress >= 30 && projectData.completion_progress < 75,
+								'progress-success': projectData.completion_progress >= 75
+							}"
+							class="progress flex-1 h-2"
+							:value="projectData.completion_progress || 0"
+							max="100">
+						  </progress>
 						</div>
 					</div>
-					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Controls Implemented</div>
-						<div class="flex items-center gap-2">
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Implemented</div>
+						<div class="flex items-center gap-3">
 						  <span x-transition
 							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : projectData.implemented_progress">
+							  x-text="loadingProjectData ? '' : (projectData.implemented_progress || 0) + '%'">
 						  </span>
-						  <span class="text-sm text-gray-500">/100</span>
+						  <progress
+							:class="{
+								'progress-error': projectData.implemented_progress < 30,
+								'progress-warning': projectData.implemented_progress >= 30 && projectData.implemented_progress < 75,
+								'progress-success': projectData.implemented_progress >= 75
+							}"
+							class="progress flex-1 h-2"
+							:value="projectData.implemented_progress || 0"
+							max="100">
+						  </progress>
 						</div>
 					</div>
-					<div class="proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Evidence Collected</div>
-						<div class="flex items-center gap-2">
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-2">Evidence</div>
+						<div class="flex items-center gap-3">
 						  <span x-transition
 							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : projectData.evidence_progress">
+							  x-text="loadingProjectData ? '' : (projectData.evidence_progress || 0) + '%'">
 						  </span>
-						  <span class="text-sm text-gray-500">/100</span>
+						  <progress
+							:class="{
+								'progress-error': projectData.evidence_progress < 30,
+								'progress-warning': projectData.evidence_progress >= 30 && projectData.evidence_progress < 75,
+								'progress-success': projectData.evidence_progress >= 75
+							}"
+							class="progress flex-1 h-2"
+							:value="projectData.evidence_progress || 0"
+							max="100">
+						  </progress>
 						</div>
-						</h3>
-					  </div>
 					</div>
 
 					<!-- ═══ AI Actions Bar ═══ -->
