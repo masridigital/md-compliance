@@ -219,6 +219,12 @@
               <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">System</span>
             </a>
           </li>
+          <li class="mb-4">
+            <a :class="{'justify-center': !isSidebarOpen}" class="flex items-center p-2 space-x-2 rounded-md justify-center capitalize hover:bg-base-100" href="/code-graph">
+              <span><i class="ti ti-graph text-2xl"></i></span>
+              <span :class="{ 'lg:hidden': !isSidebarOpen }" class="lg:hidden">Code Graph</span>
+            </a>
+          </li>
           {%endif%}
           {%endif%}
         </ul>

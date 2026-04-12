@@ -1,0 +1,527 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{%block page_header%}{%endblock%}
+
+{%block content%}
+<div x-data="codeGraph()" x-init="init()" class="w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold">Code Review Graph</h1>
+      <p class="text-sm opacity-60 mt-1">Interactive codebase knowledge graph &mdash; <span x-text="stats.nodes"></span> nodes, <span x-text="stats.edges"></span> edges, <span x-text="stats.files"></span> files</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <select x-model="viewMode" @change="switchView()" class="select select-sm select-bordered bg-base-200">
+        <option value="graph">Force Graph</option>
+        <option value="dependencies">Dependencies</option>
+        <option value="communities">Communities</option>
+        <option value="risks">Risk Analysis</option>
+        <option value="flows">Execution Flows</option>
+        <option value="coverage">Test Coverage</option>
+      </select>
+      <div class="join">
+        <button class="btn btn-sm join-item" :class="graphLayout === 'force' ? 'btn-primary' : 'btn-ghost'" @click="graphLayout='force'; rebuildGraph()">Force</button>
+        <button class="btn btn-sm join-item" :class="graphLayout === 'radial' ? 'btn-primary' : 'btn-ghost'" @click="graphLayout='radial'; rebuildGraph()">Radial</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Functions</div>
+      <div class="stat-value text-lg" x-text="stats.functions">0</div>
+    </div>
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Classes</div>
+      <div class="stat-value text-lg" x-text="stats.classes">0</div>
+    </div>
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Tests</div>
+      <div class="stat-value text-lg" x-text="stats.tests">0</div>
+    </div>
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Communities</div>
+      <div class="stat-value text-lg" x-text="stats.communities">0</div>
+    </div>
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Flows</div>
+      <div class="stat-value text-lg" x-text="stats.flows">0</div>
+    </div>
+    <div class="stat bg-base-200 rounded-xl p-3">
+      <div class="stat-title text-xs">Languages</div>
+      <div class="stat-value text-lg" x-text="stats.languages">0</div>
+    </div>
+  </div>
+
+  <!-- Search + Filter Bar -->
+  <div class="flex items-center gap-3 mb-4">
+    <div class="relative flex-1">
+      <i class="ti ti-search absolute left-3 top-1/2 -translate-y-1/2 opacity-40"></i>
+      <input type="text" x-model="searchQuery" @input.debounce.300ms="filterGraph()"
+             placeholder="Search functions, classes, files..."
+             class="input input-sm input-bordered w-full pl-9 bg-base-200" />
+    </div>
+    <div class="flex gap-1">
+      <template x-for="kind in ['Function','Class','Test','File']" :key="kind">
+        <button class="btn btn-xs" :class="activeFilters.includes(kind) ? 'btn-primary' : 'btn-ghost border-base-300'"
+                @click="toggleFilter(kind)" x-text="kind"></button>
+      </template>
+    </div>
+    <div class="flex gap-1">
+      <template x-for="ek in ['CALLS','IMPORTS_FROM','INHERITS','TESTED_BY']" :key="ek">
+        <button class="btn btn-xs" :class="activeEdgeFilters.includes(ek) ? 'btn-accent' : 'btn-ghost border-base-300'"
+                @click="toggleEdgeFilter(ek)" x-text="ek.replace('_',' ')"></button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex gap-4" style="height: calc(100vh - 320px); min-height: 500px;">
+    <!-- Graph Canvas -->
+    <div class="flex-1 bg-base-200 rounded-xl border border-base-300 overflow-hidden relative" id="graph-container">
+      <!-- Force Graph View -->
+      <div x-show="viewMode === 'graph'" class="w-full h-full">
+        <svg id="graph-svg" class="w-full h-full"></svg>
+      </div>
+
+      <!-- Dependencies View -->
+      <div x-show="viewMode === 'dependencies'" class="w-full h-full overflow-auto p-4">
+        <h3 class="text-sm font-semibold mb-3 opacity-70">Cross-File Dependencies (top calls)</h3>
+        <div class="space-y-1">
+          <template x-for="dep in dependencies" :key="dep.source + dep.target">
+            <div class="flex items-center gap-2 text-xs bg-base-300/40 rounded-lg px-3 py-2 hover:bg-base-300 transition-colors cursor-pointer"
+                 @click="highlightFile(dep.source)">
+              <span class="badge badge-xs badge-primary" x-text="dep.count"></span>
+              <span class="font-mono opacity-80 truncate flex-1" x-text="dep.source"></span>
+              <i class="ti ti-arrow-right opacity-40"></i>
+              <span class="font-mono opacity-80 truncate flex-1" x-text="dep.target"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Communities View -->
+      <div x-show="viewMode === 'communities'" class="w-full h-full overflow-auto p-4">
+        <h3 class="text-sm font-semibold mb-3 opacity-70">Code Communities (<span x-text="communities.length"></span> clusters)</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <template x-for="c in communities" :key="c.name">
+            <div class="bg-base-300/40 rounded-xl p-3 hover:bg-base-300 transition-colors cursor-pointer border border-base-300"
+                 @click="focusCommunity(c.name)">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-semibold text-sm" x-text="c.name"></span>
+                <span class="badge badge-sm" :class="c.size > 50 ? 'badge-warning' : c.size > 20 ? 'badge-info' : 'badge-ghost'"
+                      x-text="c.size + ' nodes'"></span>
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="badge badge-xs" :style="'background:' + communityColor(c.name)" x-text="c.language || 'mixed'"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Risk Analysis View -->
+      <div x-show="viewMode === 'risks'" class="w-full h-full overflow-auto p-4">
+        <h3 class="text-sm font-semibold mb-3 opacity-70">Highest-Risk Nodes</h3>
+        <div class="overflow-x-auto">
+          <table class="table table-xs table-zebra">
+            <thead>
+              <tr>
+                <th>Node</th>
+                <th>Risk</th>
+                <th>Callers</th>
+                <th>Tests</th>
+                <th>Security</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="r in risks" :key="r.name">
+                <tr class="hover cursor-pointer" @click="focusNode(r.name)">
+                  <td class="font-mono text-xs max-w-xs truncate" x-text="r.name"></td>
+                  <td>
+                    <div class="flex items-center gap-1">
+                      <div class="radial-progress text-xs"
+                           :class="r.risk >= 0.8 ? 'text-error' : r.risk >= 0.5 ? 'text-warning' : 'text-success'"
+                           :style="'--value:' + Math.round(r.risk * 100) + '; --size:1.5rem; --thickness:2px;'">
+                      </div>
+                      <span class="text-xs" x-text="(r.risk * 100).toFixed(0) + '%'"></span>
+                    </div>
+                  </td>
+                  <td class="text-xs" x-text="r.callers"></td>
+                  <td><span class="badge badge-xs" :class="r.coverage === 'tested' ? 'badge-success' : 'badge-error'" x-text="r.coverage"></span></td>
+                  <td><span x-show="r.security" class="badge badge-xs badge-warning">SEC</span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Flows View -->
+      <div x-show="viewMode === 'flows'" class="w-full h-full overflow-auto p-4">
+        <h3 class="text-sm font-semibold mb-3 opacity-70">Execution Flows (by criticality)</h3>
+        <div class="space-y-2">
+          <template x-for="f in flows" :key="f.name">
+            <div class="bg-base-300/40 rounded-xl p-3 hover:bg-base-300 transition-colors cursor-pointer border border-base-300"
+                 @click="focusFlow(f.name)">
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-sm" x-text="f.name"></span>
+                <div class="flex gap-2">
+                  <span class="badge badge-xs badge-outline" x-text="f.nodes + ' nodes'"></span>
+                  <span class="badge badge-xs badge-outline" x-text="f.files + ' files'"></span>
+                  <span class="badge badge-xs" :class="f.criticality >= 0.7 ? 'badge-error' : f.criticality >= 0.5 ? 'badge-warning' : 'badge-info'"
+                        x-text="'crit: ' + f.criticality.toFixed(2)"></span>
+                </div>
+              </div>
+              <div class="w-full bg-base-100 rounded-full h-1.5 mt-2">
+                <div class="h-1.5 rounded-full" :class="f.criticality >= 0.7 ? 'bg-error' : f.criticality >= 0.5 ? 'bg-warning' : 'bg-info'"
+                     :style="'width:' + (f.criticality * 100) + '%'"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Test Coverage View -->
+      <div x-show="viewMode === 'coverage'" class="w-full h-full overflow-auto p-4">
+        <h3 class="text-sm font-semibold mb-3 opacity-70">Test Coverage by File</h3>
+        <div class="space-y-1">
+          <template x-for="cov in coverage" :key="cov.file">
+            <div class="flex items-center gap-3 text-xs bg-base-300/40 rounded-lg px-3 py-2">
+              <div class="flex-1 font-mono truncate" x-text="cov.file"></div>
+              <span class="badge badge-xs" :class="cov.tested > 0 ? 'badge-success' : 'badge-error'"
+                    x-text="cov.tested + '/' + cov.total + ' tested'"></span>
+              <div class="w-24 bg-base-100 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full" :class="cov.pct > 50 ? 'bg-success' : cov.pct > 0 ? 'bg-warning' : 'bg-error'"
+                     :style="'width:' + cov.pct + '%'"></div>
+              </div>
+              <span class="w-8 text-right" x-text="cov.pct + '%'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Tooltip -->
+      <div x-show="tooltip.show" x-transition
+           class="absolute z-50 bg-base-300 border border-base-100 rounded-lg shadow-xl p-3 pointer-events-none max-w-sm"
+           :style="'left:' + tooltip.x + 'px; top:' + tooltip.y + 'px'">
+        <div class="text-xs font-semibold" x-text="tooltip.name"></div>
+        <div class="text-xs opacity-60 mt-1" x-text="tooltip.file"></div>
+        <div class="flex gap-2 mt-1">
+          <span class="badge badge-xs" x-text="tooltip.kind"></span>
+          <span x-show="tooltip.community" class="badge badge-xs badge-outline" x-text="tooltip.community"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div class="w-72 bg-base-200 rounded-xl border border-base-300 overflow-auto p-4 flex-shrink-0"
+         x-show="selectedNode" x-transition>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm truncate" x-text="selectedNode?.name"></h3>
+        <button class="btn btn-ghost btn-xs" @click="selectedNode = null"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <div>
+          <span class="opacity-50">Kind:</span>
+          <span class="badge badge-sm ml-1" x-text="selectedNode?.kind"></span>
+        </div>
+        <div>
+          <span class="opacity-50">File:</span>
+          <div class="font-mono opacity-80 mt-0.5 break-all" x-text="selectedNode?.file"></div>
+        </div>
+        <div x-show="selectedNode?.lines">
+          <span class="opacity-50">Lines:</span>
+          <span class="font-mono" x-text="selectedNode?.lines"></span>
+        </div>
+        <div x-show="selectedNode?.community">
+          <span class="opacity-50">Community:</span>
+          <span class="badge badge-sm badge-outline ml-1" x-text="selectedNode?.community"></span>
+        </div>
+        <div x-show="selectedNode?.callers?.length > 0">
+          <span class="opacity-50">Called by (<span x-text="selectedNode?.callers?.length"></span>):</span>
+          <div class="mt-1 space-y-1 max-h-32 overflow-auto">
+            <template x-for="c in (selectedNode?.callers || [])" :key="c">
+              <div class="font-mono text-xs opacity-70 truncate cursor-pointer hover:opacity-100" @click="focusNode(c)" x-text="c"></div>
+            </template>
+          </div>
+        </div>
+        <div x-show="selectedNode?.callees?.length > 0">
+          <span class="opacity-50">Calls (<span x-text="selectedNode?.callees?.length"></span>):</span>
+          <div class="mt-1 space-y-1 max-h-32 overflow-auto">
+            <template x-for="c in (selectedNode?.callees || [])" :key="c">
+              <div class="font-mono text-xs opacity-70 truncate cursor-pointer hover:opacity-100" @click="focusNode(c)" x-text="c"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+function codeGraph() {
+  return {
+    viewMode: 'graph',
+    graphLayout: 'force',
+    searchQuery: '',
+    activeFilters: ['Function', 'Class', 'Test', 'File'],
+    activeEdgeFilters: ['CALLS', 'IMPORTS_FROM', 'INHERITS', 'TESTED_BY'],
+    stats: { nodes: 0, edges: 0, files: 0, functions: 0, classes: 0, tests: 0, communities: 0, flows: 0, languages: 0 },
+    tooltip: { show: false, x: 0, y: 0, name: '', file: '', kind: '', community: '' },
+    selectedNode: null,
+    graphData: { nodes: [], edges: [] },
+    communities: [],
+    dependencies: [],
+    risks: [],
+    flows: [],
+    coverage: [],
+    simulation: null,
+
+    async init() {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+      const headers = csrf ? { 'X-CSRFToken': csrf } : {};
+      try {
+        const res = await fetch('/api/v1/code-graph/data', { headers });
+        if (!res.ok) throw new Error('Failed to load graph data');
+        const data = await res.json();
+        this.stats = data.stats;
+        this.graphData = { nodes: data.nodes, edges: data.edges };
+        this.communities = data.communities;
+        this.dependencies = data.dependencies;
+        this.risks = data.risks;
+        this.flows = data.flows;
+        this.coverage = data.coverage;
+        this.$nextTick(() => this.buildGraph());
+      } catch (e) {
+        console.error('Code graph load error:', e);
+      }
+    },
+
+    communityColor(name) {
+      const colors = [
+        '#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#ec4899',
+        '#06b6d4','#84cc16','#f97316','#14b8a6','#6366f1','#e11d48',
+        '#22d3ee','#a3e635','#fb923c','#2dd4bf','#818cf8','#fb7185'
+      ];
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      return colors[Math.abs(hash) % colors.length];
+    },
+
+    toggleFilter(kind) {
+      const idx = this.activeFilters.indexOf(kind);
+      if (idx >= 0) this.activeFilters.splice(idx, 1);
+      else this.activeFilters.push(kind);
+      this.rebuildGraph();
+    },
+
+    toggleEdgeFilter(kind) {
+      const idx = this.activeEdgeFilters.indexOf(kind);
+      if (idx >= 0) this.activeEdgeFilters.splice(idx, 1);
+      else this.activeEdgeFilters.push(kind);
+      this.rebuildGraph();
+    },
+
+    filterGraph() {
+      this.rebuildGraph();
+    },
+
+    switchView() {
+      if (this.viewMode === 'graph') this.$nextTick(() => this.buildGraph());
+    },
+
+    focusCommunity(name) {
+      this.viewMode = 'graph';
+      this.searchQuery = '';
+      this.$nextTick(() => {
+        this.buildGraph(name);
+      });
+    },
+
+    focusNode(qn) {
+      const node = this.graphData.nodes.find(n => n.qn === qn || n.name === qn);
+      if (node) this.selectNode(node);
+    },
+
+    focusFlow(name) {
+      // Highlight the flow in the graph
+      this.viewMode = 'graph';
+      this.searchQuery = name;
+      this.$nextTick(() => this.rebuildGraph());
+    },
+
+    highlightFile(file) {
+      this.viewMode = 'graph';
+      this.searchQuery = file.split('/').pop().replace('.py', '');
+      this.$nextTick(() => this.rebuildGraph());
+    },
+
+    selectNode(d) {
+      const callers = this.graphData.edges
+        .filter(e => e.target_qn === d.qn && e.kind === 'CALLS')
+        .map(e => e.source_name).slice(0, 20);
+      const callees = this.graphData.edges
+        .filter(e => e.source_qn === d.qn && e.kind === 'CALLS')
+        .map(e => e.target_name).slice(0, 20);
+      this.selectedNode = {
+        name: d.name,
+        kind: d.kind,
+        file: d.file,
+        lines: d.line_start && d.line_end ? d.line_start + '-' + d.line_end : null,
+        community: d.community,
+        callers,
+        callees
+      };
+    },
+
+    rebuildGraph() {
+      if (this.viewMode === 'graph') this.buildGraph();
+    },
+
+    buildGraph(focusCommunity) {
+      const container = document.getElementById('graph-container');
+      const svg = d3.select('#graph-svg');
+      svg.selectAll('*').remove();
+      if (!container) return;
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      svg.attr('viewBox', [0, 0, width, height]);
+
+      // Filter nodes
+      let nodes = this.graphData.nodes.filter(n => {
+        if (!this.activeFilters.includes(n.kind)) return false;
+        if (focusCommunity && n.community !== focusCommunity) return false;
+        if (this.searchQuery) {
+          const q = this.searchQuery.toLowerCase();
+          return n.name.toLowerCase().includes(q) ||
+                 (n.file && n.file.toLowerCase().includes(q)) ||
+                 (n.community && n.community.toLowerCase().includes(q));
+        }
+        return true;
+      });
+
+      // Limit nodes for performance
+      const MAX_NODES = 300;
+      if (nodes.length > MAX_NODES) nodes = nodes.slice(0, MAX_NODES);
+
+      const nodeIds = new Set(nodes.map(n => n.qn));
+
+      // Filter edges
+      let edges = this.graphData.edges.filter(e =>
+        this.activeEdgeFilters.includes(e.kind) &&
+        nodeIds.has(e.source_qn) &&
+        nodeIds.has(e.target_qn)
+      );
+
+      const MAX_EDGES = 1000;
+      if (edges.length > MAX_EDGES) edges = edges.slice(0, MAX_EDGES);
+
+      // Build D3 links
+      const nodeMap = {};
+      nodes.forEach((n, i) => { nodeMap[n.qn] = i; });
+      const links = edges
+        .filter(e => nodeMap[e.source_qn] !== undefined && nodeMap[e.target_qn] !== undefined)
+        .map(e => ({ source: nodeMap[e.source_qn], target: nodeMap[e.target_qn], kind: e.kind }));
+
+      const kindColor = {
+        'Function': '#10b981',
+        'Class': '#3b82f6',
+        'Test': '#f59e0b',
+        'File': '#8b5cf6'
+      };
+      const edgeColor = {
+        'CALLS': 'rgba(16,185,129,0.15)',
+        'IMPORTS_FROM': 'rgba(59,130,246,0.25)',
+        'INHERITS': 'rgba(239,68,68,0.3)',
+        'TESTED_BY': 'rgba(245,158,11,0.3)',
+        'CONTAINS': 'rgba(255,255,255,0.05)',
+        'REFERENCES': 'rgba(255,255,255,0.1)'
+      };
+
+      const g = svg.append('g');
+
+      // Zoom
+      svg.call(d3.zoom()
+        .scaleExtent([0.1, 8])
+        .on('zoom', (event) => g.attr('transform', event.transform))
+      );
+
+      // Links
+      const link = g.append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke', d => edgeColor[d.kind] || 'rgba(255,255,255,0.08)')
+        .attr('stroke-width', d => d.kind === 'INHERITS' ? 1.5 : 0.5);
+
+      // Nodes
+      const self = this;
+      const node = g.append('g')
+        .selectAll('circle')
+        .data(nodes)
+        .join('circle')
+        .attr('r', d => d.kind === 'File' ? 8 : d.kind === 'Class' ? 6 : 4)
+        .attr('fill', d => kindColor[d.kind] || '#666')
+        .attr('stroke', 'rgba(0,0,0,0.3)')
+        .attr('stroke-width', 0.5)
+        .attr('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+          d3.select(this).attr('r', d.kind === 'File' ? 12 : d.kind === 'Class' ? 10 : 7).attr('stroke', '#fff').attr('stroke-width', 1.5);
+          const rect = container.getBoundingClientRect();
+          self.tooltip = { show: true, x: event.clientX - rect.left + 12, y: event.clientY - rect.top - 10, name: d.name, file: d.file, kind: d.kind, community: d.community };
+        })
+        .on('mouseout', function(event, d) {
+          d3.select(this).attr('r', d.kind === 'File' ? 8 : d.kind === 'Class' ? 6 : 4).attr('stroke', 'rgba(0,0,0,0.3)').attr('stroke-width', 0.5);
+          self.tooltip.show = false;
+        })
+        .on('click', (event, d) => this.selectNode(d))
+        .call(d3.drag()
+          .on('start', (event, d) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+          .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+          .on('end', (event, d) => { if (!event.active) this.simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+        );
+
+      // Labels for classes and large nodes
+      const label = g.append('g')
+        .selectAll('text')
+        .data(nodes.filter(n => n.kind === 'Class' || n.kind === 'File'))
+        .join('text')
+        .text(d => d.name.length > 25 ? d.name.substring(0, 22) + '...' : d.name)
+        .attr('font-size', d => d.kind === 'File' ? '7px' : '6px')
+        .attr('fill', 'rgba(255,255,255,0.6)')
+        .attr('dx', 10)
+        .attr('dy', 3)
+        .style('pointer-events', 'none');
+
+      // Simulation
+      if (this.graphLayout === 'radial') {
+        this.simulation = d3.forceSimulation(nodes)
+          .force('link', d3.forceLink(links).id((d, i) => i).distance(60))
+          .force('charge', d3.forceManyBody().strength(-30))
+          .force('r', d3.forceRadial(Math.min(width, height) / 3, width / 2, height / 2))
+          .on('tick', ticked);
+      } else {
+        this.simulation = d3.forceSimulation(nodes)
+          .force('link', d3.forceLink(links).id((d, i) => i).distance(40))
+          .force('charge', d3.forceManyBody().strength(-60).distanceMax(300))
+          .force('center', d3.forceCenter(width / 2, height / 2))
+          .force('collision', d3.forceCollide().radius(8))
+          .on('tick', ticked);
+      }
+
+      function ticked() {
+        link
+          .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        node.attr('cx', d => d.x).attr('cy', d => d.y);
+        label.attr('x', d => d.x).attr('y', d => d.y);
+      }
+    }
+  };
+}
+</script>
+{%endblock%}
