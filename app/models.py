@@ -2267,10 +2267,19 @@ class Project(db.Model, DateMixin):
             data["total_risks"] = self.risks.count()
             if with_controls:
                 data["controls"] = [control.as_dict() for control in controls]
+
+            # Policy acceptance progress
+            policy_stats = self.policy_acceptance_summary()
+            data["policy_progress"] = policy_stats["progress"]
+            data["policies_accepted"] = policy_stats["accepted"]
+            data["policies_current"] = policy_stats["current"]
+            data["policies_expired"] = policy_stats["expired"]
+
+            # Status factors in both control completion and policy acceptance
             data["status"] = "not started"
-            if data["completion_progress"] > 0 and data["completion_progress"] < 100:
+            if data["completion_progress"] > 0 or policy_stats["accepted"] > 0:
                 data["status"] = "in progress"
-            if data["completion_progress"] == 100:
+            if data["completion_progress"] == 100 and policy_stats["progress"] == 100:
                 data["status"] = "complete"
 
             if not exclude_timely:
@@ -2589,6 +2598,28 @@ class Project(db.Model, DateMixin):
             return 0
         return round((total / applicable_count), 0)
 
+    def policy_acceptance_summary(self):
+        """Returns policy acceptance stats: total, accepted, current (within 12 months), expired."""
+        policies = self.policies.all()
+        total = len(policies)
+        if not total:
+            return {"total": 0, "accepted": 0, "current": 0, "expired": 0, "progress": 100}
+        accepted = 0
+        current = 0
+        expired = 0
+        now = datetime.utcnow()
+        for policy in policies:
+            published = policy.get_published_version()
+            if published:
+                accepted += 1
+                accepted_dt = published.date_updated or published.date_added
+                if accepted_dt and (now - accepted_dt).days <= 365:
+                    current += 1
+                else:
+                    expired += 1
+        progress = round((current / total) * 100, 0) if total else 100
+        return {"total": total, "accepted": accepted, "current": current, "expired": expired, "progress": progress}
+
     def has_control(self, control_id):
         return self.controls.filter(ProjectControl.control_id == control_id).first()
 
@@ -2705,10 +2736,11 @@ class ProjectPolicy(db.Model):
         data["version_id"] = 1
 
         """
-        By default, load the published version and then the 
+        By default, load the published version and then the
         latest version (if there is not a published version)
         """
-        if not (version := self.get_published_version()):
+        published_version = self.get_published_version()
+        if not (version := published_version):
             version = self.get_latest_version()
 
         if version:
@@ -2723,6 +2755,17 @@ class ProjectPolicy(db.Model):
             if record["published"]:
                 data["is_published"] = True
                 break
+
+        # Policy acceptance tracking
+        data["accepted"] = published_version is not None
+        data["accepted_date"] = None
+        data["acceptance_current"] = False
+        if published_version:
+            accepted_dt = published_version.date_updated or published_version.date_added
+            data["accepted_date"] = accepted_dt.isoformat() if accepted_dt else None
+            if accepted_dt:
+                data["acceptance_current"] = (datetime.utcnow() - accepted_dt).days <= 365
+
         return data
 
     def get_published_version(self):
