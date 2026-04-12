@@ -1418,7 +1418,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         "non_compliant": "infosec action", "unknown": "infosec action",
                     }
                     _IMPL_MAP = {
-                        "compliant": 100, "partial": 50, "non_compliant": 25,
+                        "compliant": 100, "partial": 50, "non_compliant": 0,
                     }
                     from app.models import ProjectSubControl, ProjectEvidence, EvidenceAssociation
                     for m in all_mappings:
@@ -1436,10 +1436,9 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                         pc.review_status = new_status
                                     # Update subcontrol progress
                                     impl_pct = _IMPL_MAP.get(llm_status, 0)
-                                    if impl_pct > 0:
-                                        for sc in pc.subcontrols.all():
-                                            if sc.is_applicable and (sc.implemented or 0) < impl_pct:
-                                                sc.implemented = impl_pct
+                                    for sc in pc.subcontrols.all():
+                                        if sc.is_applicable and (sc.implemented or 0) != impl_pct:
+                                            sc.implemented = impl_pct
 
                                     # Auto-generate evidence from the finding
                                     ctrl = pc.control
@@ -1891,14 +1890,15 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
     _IMPL = {"complete": 100, "ready for auditor": 50, "infosec action": 0}
     try:
         for pc in project.controls.all():
+            is_auto = "[Auto-Mapped]" in (pc.notes or "")
             impl_pct = _IMPL.get(pc.review_status, 0)
-            if impl_pct > 0:
+            if is_auto:
                 for sc in pc.subcontrols.all():
-                    if sc.is_applicable and (sc.implemented or 0) < impl_pct:
+                    if sc.is_applicable and (sc.implemented or 0) != impl_pct:
                         sc.implemented = impl_pct
 
             # Backfill evidence for mapped controls that don't have auto-evidence yet
-            if pc.notes and "[Auto-Mapped]" in (pc.notes or ""):
+            if is_auto:
                 ctrl = pc.control
                 ref_code = ctrl.ref_code if ctrl else pc.id
                 ev_name = f"[Auto] {ref_code} - Integration Scan Evidence"
