@@ -1129,7 +1129,8 @@
 				<div class="flex items-center justify-between px-3">
 				  <h2 class="text-xl font-bold capitalize" x-text="selectedPolicy.name"></h2>
 				  <div class="flex items-center space-x-2">
-					  <span x-show="selectedPolicy.is_published" class="p-2 rounded-lg text-[10px] bg-base-100 text-success">Published</span>
+					  <span x-show="selectedPolicy.is_published && selectedPolicy.acceptance_current" class="p-2 rounded-lg text-[10px] bg-base-100 text-success">Current</span>
+					  <span x-show="selectedPolicy.is_published && !selectedPolicy.acceptance_current" class="p-2 rounded-lg text-[10px] bg-amber-500/10 text-amber-400">Expired — Republish Required</span>
 					  <span x-show="!selectedPolicy.is_published" class="p-2 rounded-lg text-[10px] bg-base-100 text-error">Not Published</span>
 				  </div>
 				</div>
@@ -1375,7 +1376,7 @@
 					<span class="text-xs">Project statistics are out of date. Please click the refresh button.</span>
 					<button class="btn btn-xs btn-success" @click="getProject;projectRefreshRequired=false">Refresh Stats</button>
 				</div>
-				<div class="grid grid-cols-8 gap-4">
+				<div class="grid grid-cols-10 gap-4">
 					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
 						<div class="proj-stat-label mb-2">Project Status</div>
 						<div class="flex items-center gap-2">
@@ -1443,9 +1444,32 @@
 						  </progress>
 						</div>
 					</div>
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'policies'})">
+						<div class="proj-stat-label mb-2">Policies</div>
+						<div class="flex items-center gap-3">
+						  <span x-transition
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
+							  x-text="loadingProjectData ? '' : (projectData.policy_progress || 0) + '%'">
+						  </span>
+						  <progress
+							:class="{
+								'progress-error': (projectData.policy_progress || 0) < 30,
+								'progress-warning': (projectData.policy_progress || 0) >= 30 && (projectData.policy_progress || 0) < 75,
+								'progress-success': (projectData.policy_progress || 0) >= 75
+							}"
+							class="progress flex-1 h-2"
+							:value="projectData.policy_progress || 0"
+							max="100">
+						  </progress>
+						</div>
+						<div class="text-xs text-gray-500 mt-1" x-show="projectData.policies_expired > 0">
+						  <i class="ti ti-alert-triangle text-amber-400"></i>
+						  <span x-text="projectData.policies_expired"></span> expired
+						</div>
+					</div>
 
 					<!-- ═══ AI Actions Bar ═══ -->
-					<div class="col-span-8 d5-card flex items-center gap-3 !p-3">
+					<div class="col-span-10 d5-card flex items-center gap-3 !p-3">
 						<i class="ti ti-brain text-lg text-emerald-400"></i>
 						<span class="text-xs font-semibold text-white">AI Assistant</span>
 						<div class="flex gap-2 ml-auto">
@@ -1463,7 +1487,7 @@
 					</div>
 
 					<!-- ═══ AI Recommendations (shows after Suggest Fixes) ═══ -->
-					<div class="col-span-8" x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0" x-cloak id="assist-gaps-results-top">
+					<div class="col-span-10" x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0" x-cloak id="assist-gaps-results-top">
 						<div class="card bg-base-200 border border-base-300">
 							<div class="card-body p-4">
 								<div class="flex justify-between items-center mb-3">
@@ -1502,7 +1526,7 @@
 							</div>
 						</div>
 					</div>
-					<div class="col-span-8" x-show="aiError" x-cloak>
+					<div class="col-span-10" x-show="aiError" x-cloak>
 						<div class="text-xs text-error p-2" x-text="aiError"></div>
 					</div>
 
@@ -1594,12 +1618,14 @@
 							<div class="d5-checklist-row" @click="switchTab({'tab': 'policies'})">
 								<span class="d5-checklist-num">3</span>
 								<div class="flex-1 min-w-0">
-									<span class="text-sm font-medium text-white">Policy Review</span>
-									<span class="text-xs text-gray-500 ml-2">Review and accept policies</span>
+									<span class="text-sm font-medium text-white">Policy Acceptance</span>
+									<span class="text-xs text-gray-500 ml-2" x-show="policyAcceptance === 'not started'">Publish and accept policies</span>
+									<span class="text-xs text-emerald-400 ml-2" x-show="policyAcceptance === 'complete'">All policies current</span>
+									<span class="text-xs text-amber-400 ml-2" x-show="policyAcceptance === 'in progress'" x-text="(projectData.policies_expired || 0) + ' expired — republish required'"></span>
 								</div>
 								<i x-show="policyAcceptance === 'complete'" class="ti ti-check text-emerald-400"></i>
 								<i x-show="policyAcceptance === 'not started'" class="ti ti-minus text-gray-600"></i>
-								<i x-show="policyAcceptance === 'in progress'" class="ti ti-progress text-amber-400"></i>
+								<i x-show="policyAcceptance === 'in progress'" class="ti ti-alert-triangle text-amber-400"></i>
 							</div>
 							<div class="d5-checklist-row" @click="switchTab({'tab': 'users'})">
 								<span class="d5-checklist-num">4</span>
@@ -2153,7 +2179,7 @@
 							  <tr>
 								<th class="w-8"></th>
 								<th>Title</th>
-								<th class="w-24 text-center">Published</th>
+								<th class="w-24 text-center">Status</th>
 								<th>Reviewer</th>
 								<th class="w-20 text-center">Versions</th>
 								<th class="w-16"></th>
@@ -2166,7 +2192,8 @@
 									<td class="text-sm font-medium text-white capitalize hover:text-emerald-400 transition-colors" x-text="item.name"></td>
 									<td class="text-center">
 										<span x-show="!item.is_published" class="d5-badge d5-badge-warning">Draft</span>
-										<span x-show="item.is_published" class="d5-badge d5-badge-success">Published</span>
+										<span x-show="item.is_published && item.acceptance_current" class="d5-badge d5-badge-success">Current</span>
+										<span x-show="item.is_published && !item.acceptance_current" class="d5-badge bg-amber-500/10 text-amber-400 border border-amber-500/20">Expired</span>
 									</td>
 									<td class="text-xs text-gray-400" x-text="item.reviewer || 'No reviewer'"></td>
 									<td class="text-center">
@@ -7029,13 +7056,16 @@ function project(){
 			"/api/v1/projects/" + this.projectId+"?summary=yes",
 			data => {
 			  this.projectData = data;
-			  if (data.auditors.length > 0) {
-				this.tabs.splice(2, 0, "audit review");
+			  if (data.auditors && data.auditors.length > 0) {
+				if (!this.tabs.includes("audit review")) {
+				  this.tabs.splice(2, 0, "audit review");
+				}
 			  }
 			  this.loadingProjectData = false;
 			},
 			error => {
 			  toast(error.message, "error");
+			  this.loadingProjectData = false;
 			}
 		  );
 		},
@@ -7116,16 +7146,16 @@ function project(){
 			  this.policies = data;
 			  this.tabLoading = false;
 			  this.tableLoading = false;
-			  let acceptedPolicies = 0
+			  let currentPolicies = 0
 			  let totalPolicies = data.length
-			  for (var policy in this.policies) {
-				if (this.policies[policy].accepted) {
-					acceptedPolicies+=1
+			  for (var i = 0; i < data.length; i++) {
+				if (data[i].acceptance_current) {
+					currentPolicies += 1
 				}
 			  }
-			  if (acceptedPolicies === 0) {
+			  if (currentPolicies === 0) {
 				this.policyAcceptance = "not started"
-			  } else if (acceptedPolicies === totalPolicies) {
+			  } else if (currentPolicies === totalPolicies) {
 				this.policyAcceptance = "complete"
 			  } else {
 				this.policyAcceptance = "in progress"

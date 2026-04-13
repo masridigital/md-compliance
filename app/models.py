@@ -2259,25 +2259,34 @@ class Project(db.Model, DateMixin):
             data["framework"] = self.framework.name
 
         if with_summary:
-            controls = self.controls.all()
-            data["completion_progress"] = self.completion_progress(controls=controls)
-            data["total_controls"] = len(controls)
-            data["applicable_controls"] = self.get_applicable_control_count()
-            data["total_policies"] = self.policies.count()
-            data["total_risks"] = self.risks.count()
+            summary = self._fast_summary()
+            data["completion_progress"] = summary["completion_progress"]
+            data["total_controls"] = summary["total_controls"]
+            data["applicable_controls"] = summary["applicable_controls"]
+            data["total_policies"] = summary["total_policies"]
+            data["total_risks"] = summary["total_risks"]
+
             if with_controls:
+                controls = self.controls.all()
                 data["controls"] = [control.as_dict() for control in controls]
+
+            # Policy acceptance progress
+            policy_stats = summary["policy_stats"]
+            data["policy_progress"] = policy_stats["progress"]
+            data["policies_accepted"] = policy_stats["accepted"]
+            data["policies_current"] = policy_stats["current"]
+            data["policies_expired"] = policy_stats["expired"]
+
+            # Status factors in both control completion and policy acceptance
             data["status"] = "not started"
-            if data["completion_progress"] > 0 and data["completion_progress"] < 100:
+            if data["completion_progress"] > 0 or policy_stats["accepted"] > 0:
                 data["status"] = "in progress"
-            if data["completion_progress"] == 100:
+            if data["completion_progress"] == 100 and policy_stats["progress"] == 100:
                 data["status"] = "complete"
 
             if not exclude_timely:
-                data["implemented_progress"] = self.implemented_progress(
-                    controls=controls
-                )
-                data["evidence_progress"] = self.evidence_progress(controls=controls)
+                data["implemented_progress"] = summary["implemented_progress"]
+                data["evidence_progress"] = summary["evidence_progress"]
                 data["review_summary"] = self.review_summary()
 
         return data
@@ -2548,16 +2557,180 @@ class Project(db.Model, DateMixin):
                     data[evidence.id]["count"] += 1
         return data
 
+    def _fast_summary(self):
+        """Compute project summary stats with bulk SQL — avoids N+1 queries.
+
+        Returns dict with: completion_progress, implemented_progress,
+        evidence_progress, applicable_controls, total_controls,
+        total_policies, total_risks, policy_stats.
+        """
+
+        # ── 1. Per-control aggregate in ONE query ──
+        # For each control: count applicable subs, sum implemented, avg completion
+        sub_stats = (
+            db.session.execute(
+                db.select(
+                    ProjectSubControl.project_control_id,
+                    func.count(ProjectSubControl.id).label("total_subs"),
+                    func.sum(
+                        case((ProjectSubControl.is_applicable == True, 1), else_=0)
+                    ).label("applicable_subs"),
+                    func.sum(
+                        case(
+                            (ProjectSubControl.is_applicable == True, ProjectSubControl.implemented),
+                            else_=0,
+                        )
+                    ).label("impl_sum"),
+                )
+                .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
+                .where(ProjectControl.project_id == self.id)
+                .group_by(ProjectSubControl.project_control_id)
+            ).all()
+        )
+
+        # ── 2. Subcontrol IDs that have evidence ──
+        subs_with_evidence = set()
+        ev_rows = db.session.execute(
+            db.select(distinct(EvidenceAssociation.control_id))
+            .join(ProjectSubControl, ProjectSubControl.id == EvidenceAssociation.control_id)
+            .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
+            .where(
+                ProjectControl.project_id == self.id,
+                ProjectSubControl.is_applicable == True,
+            )
+        ).all()
+        for row in ev_rows:
+            subs_with_evidence.add(row[0])
+
+        # ── 3. All applicable subcontrol IDs (for evidence % calc) ──
+        applicable_sub_rows = db.session.execute(
+            db.select(ProjectSubControl.id, ProjectSubControl.project_control_id, ProjectSubControl.implemented)
+            .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
+            .where(
+                ProjectControl.project_id == self.id,
+                ProjectSubControl.is_applicable == True,
+            )
+        ).all()
+
+        # Build per-control evidence counts
+        evidence_by_control = {}
+        applicable_by_control = {}
+        for sub_id, ctrl_id, impl in applicable_sub_rows:
+            applicable_by_control.setdefault(ctrl_id, 0)
+            applicable_by_control[ctrl_id] += 1
+            if sub_id in subs_with_evidence:
+                evidence_by_control.setdefault(ctrl_id, 0)
+                evidence_by_control[ctrl_id] += 1
+
+        # ── 4. Compute per-control completion (matching mixin logic) ──
+        total_controls = len(sub_stats)
+        applicable_controls = 0
+        completion_total = 0.0
+        implemented_total = 0.0
+        evidence_total = 0.0
+
+        for ctrl_id, total_subs, applicable_subs, impl_sum in sub_stats:
+            if not applicable_subs:
+                continue
+            applicable_controls += 1
+
+            # Implemented progress = avg implemented across applicable subs
+            avg_impl = (impl_sum or 0) / applicable_subs
+            implemented_total += avg_impl
+
+            # Evidence progress = % of applicable subs with evidence
+            ev_count = evidence_by_control.get(ctrl_id, 0)
+            if applicable_subs:
+                ev_pct = (ev_count / applicable_subs) * 100
+            else:
+                ev_pct = 0
+            evidence_total += ev_pct
+
+            # Completion progress per subcontrol (matching get_completion_progress):
+            # For each applicable sub: base = implemented, reduce by 25% if no evidence,
+            # but at least 25 if has evidence.
+            # Approximate with aggregate: use per-sub detail from applicable_sub_rows
+            ctrl_completion = 0.0
+            ctrl_applicable = 0
+            for sub_id, sc_ctrl_id, sub_impl in applicable_sub_rows:
+                if sc_ctrl_id != ctrl_id:
+                    continue
+                ctrl_applicable += 1
+                has_ev = sub_id in subs_with_evidence
+                impl_val = sub_impl or 0
+                if has_ev:
+                    sub_progress = max(impl_val, 25.0)
+                else:
+                    sub_progress = impl_val * 0.75
+                ctrl_completion += sub_progress
+            if ctrl_applicable:
+                completion_total += round(ctrl_completion / ctrl_applicable, 0)
+
+        # ── 5. Policy acceptance (bulk) ──
+        policies = self.policies.all()
+        total_policies = len(policies)
+        policy_accepted = 0
+        policy_current = 0
+        policy_expired = 0
+        if total_policies:
+            # Batch-load published versions
+            policy_ids = [p.id for p in policies]
+            published_versions = {}
+            if policy_ids:
+                pv_rows = db.session.execute(
+                    db.select(PolicyVersion.policy_id, PolicyVersion.date_updated, PolicyVersion.date_added)
+                    .where(
+                        PolicyVersion.policy_id.in_(policy_ids),
+                        PolicyVersion.published == True,
+                    )
+                ).all()
+                for pv_pid, pv_updated, pv_added in pv_rows:
+                    published_versions[pv_pid] = pv_updated or pv_added
+            now = datetime.utcnow()
+            for policy in policies:
+                accepted_dt = published_versions.get(policy.id)
+                if accepted_dt:
+                    policy_accepted += 1
+                    if (now - accepted_dt).days <= 365:
+                        policy_current += 1
+                    else:
+                        policy_expired += 1
+        policy_progress = round((policy_current / total_policies) * 100, 0) if total_policies else 100
+
+        # ── 6. Counts ──
+        total_risks = db.session.execute(
+            db.select(func.count(RiskRegister.id)).where(RiskRegister.project_id == self.id)
+        ).scalar() or 0
+
+        return {
+            "total_controls": total_controls,
+            "applicable_controls": applicable_controls,
+            "completion_progress": round(completion_total / applicable_controls, 0) if applicable_controls else 100,
+            "implemented_progress": round(implemented_total / applicable_controls, 0) if applicable_controls else 0,
+            "evidence_progress": round(evidence_total / applicable_controls, 0) if applicable_controls else 0,
+            "total_policies": total_policies,
+            "total_risks": total_risks,
+            "policy_stats": {
+                "total": total_policies,
+                "accepted": policy_accepted,
+                "current": policy_current,
+                "expired": policy_expired,
+                "progress": policy_progress,
+            },
+        }
+
     def completion_progress(self, controls=None, default=100):
         total = 0
-        total_applicable_controls = self.get_applicable_control_count()
-        if not total_applicable_controls:
-            return default
+        applicable_count = 0
         if controls is None:
             controls = self.controls.all()
         for control in controls:
-            total += control.completed_progress()
-        return round((total / total_applicable_controls), 0)
+            if control.is_applicable():
+                total += control.completed_progress()
+                applicable_count += 1
+        if not applicable_count:
+            return default
+        return round((total / applicable_count), 0)
 
     def evidence_progress(self, controls=None):
         total = 0
@@ -2588,6 +2761,28 @@ class Project(db.Model, DateMixin):
         if not applicable_count:
             return 0
         return round((total / applicable_count), 0)
+
+    def policy_acceptance_summary(self):
+        """Returns policy acceptance stats: total, accepted, current (within 12 months), expired."""
+        policies = self.policies.all()
+        total = len(policies)
+        if not total:
+            return {"total": 0, "accepted": 0, "current": 0, "expired": 0, "progress": 100}
+        accepted = 0
+        current = 0
+        expired = 0
+        now = datetime.utcnow()
+        for policy in policies:
+            published = policy.get_published_version()
+            if published:
+                accepted += 1
+                accepted_dt = published.date_updated or published.date_added
+                if accepted_dt and (now - accepted_dt).days <= 365:
+                    current += 1
+                else:
+                    expired += 1
+        progress = round((current / total) * 100, 0) if total else 100
+        return {"total": total, "accepted": accepted, "current": current, "expired": expired, "progress": progress}
 
     def has_control(self, control_id):
         return self.controls.filter(ProjectControl.control_id == control_id).first()
@@ -2705,10 +2900,11 @@ class ProjectPolicy(db.Model):
         data["version_id"] = 1
 
         """
-        By default, load the published version and then the 
+        By default, load the published version and then the
         latest version (if there is not a published version)
         """
-        if not (version := self.get_published_version()):
+        published_version = self.get_published_version()
+        if not (version := published_version):
             version = self.get_latest_version()
 
         if version:
@@ -2723,6 +2919,17 @@ class ProjectPolicy(db.Model):
             if record["published"]:
                 data["is_published"] = True
                 break
+
+        # Policy acceptance tracking
+        data["accepted"] = published_version is not None
+        data["accepted_date"] = None
+        data["acceptance_current"] = False
+        if published_version:
+            accepted_dt = published_version.date_updated or published_version.date_added
+            data["accepted_date"] = accepted_dt.isoformat() if accepted_dt else None
+            if accepted_dt:
+                data["acceptance_current"] = (datetime.utcnow() - accepted_dt).days <= 365
+
         return data
 
     def get_published_version(self):

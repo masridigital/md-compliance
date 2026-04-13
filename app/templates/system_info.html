@@ -88,6 +88,216 @@
         </div>
     </div>
 
+    <!-- Redis Cache Status -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="card-title text-md"><i class="ti ti-database mr-1"></i> Redis Cache</h3>
+                <div class="flex gap-1">
+                    <button class="btn btn-xs btn-ghost gap-1" @click="loadCacheStatus()" :disabled="cacheLoading">
+                        <i class="ti ti-refresh" :class="cacheLoading && 'animate-spin'"></i> Refresh
+                    </button>
+                    <button class="btn btn-xs btn-error btn-ghost gap-1" @click="clearCache()" :disabled="cacheLoading">
+                        <i class="ti ti-trash"></i> Clear
+                    </button>
+                </div>
+            </div>
+            <div x-show="cacheLoading" class="text-center py-4"><span class="loading loading-dots loading-sm"></span></div>
+            <div x-show="!cacheLoading" class="grid grid-cols-4 gap-4">
+                <div class="bg-base-300 rounded-lg p-3 text-center">
+                    <div class="text-lg font-bold" :class="cacheStatus.connected ? 'text-success' : 'text-error'" x-text="cacheStatus.connected ? 'Connected' : 'Disconnected'"></div>
+                    <div class="text-xs opacity-60">Status</div>
+                </div>
+                <div class="bg-base-300 rounded-lg p-3 text-center">
+                    <div class="text-lg font-bold" x-text="cacheStatus.backend || 'N/A'"></div>
+                    <div class="text-xs opacity-60">Backend</div>
+                </div>
+                <div class="bg-base-300 rounded-lg p-3 text-center">
+                    <div class="text-lg font-bold" x-text="cacheStatus.info?.used_memory_human || 'N/A'"></div>
+                    <div class="text-xs opacity-60">Memory Used</div>
+                </div>
+                <div class="bg-base-300 rounded-lg p-3 text-center">
+                    <div class="text-lg font-bold" x-text="cacheStatus.info?.keys ?? 'N/A'"></div>
+                    <div class="text-xs opacity-60">Cached Keys</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Usage & Costs -->
+    <div class="card bg-base-200 border border-base-300 mb-4">
+        <div class="card-body">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="card-title text-md"><i class="ti ti-brain mr-1"></i> AI Usage & Costs</h3>
+                <div class="flex gap-2">
+                    <button class="btn btn-xs btn-ghost gap-1" @click="loadCosts()" :disabled="costsLoading">
+                        <i class="ti ti-refresh"></i>
+                    </button>
+                    <button class="btn btn-xs btn-ghost text-error gap-1" @click="resetCosts()">
+                        <i class="ti ti-trash"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div x-show="costsLoading" class="text-center py-6"><span class="loading loading-dots loading-sm"></span></div>
+
+            <!-- Totals Row -->
+            <div x-show="!costsLoading" class="grid grid-cols-4 gap-4 mb-4">
+                <div class="text-center bg-base-300 rounded-lg p-3">
+                    <div class="text-2xl font-bold text-emerald-400" x-text="'$' + (costs.totals?.cost || 0).toFixed(4)"></div>
+                    <div class="text-xs opacity-60">Total Cost</div>
+                </div>
+                <div class="text-center bg-base-300 rounded-lg p-3">
+                    <div class="text-2xl font-bold" x-text="(costs.totals?.calls || 0).toLocaleString()"></div>
+                    <div class="text-xs opacity-60">API Calls</div>
+                </div>
+                <div class="text-center bg-base-300 rounded-lg p-3">
+                    <div class="text-2xl font-bold" x-text="((costs.totals?.prompt_tokens || 0) / 1000).toFixed(1) + 'K'"></div>
+                    <div class="text-xs opacity-60">Input Tokens</div>
+                </div>
+                <div class="text-center bg-base-300 rounded-lg p-3">
+                    <div class="text-2xl font-bold" x-text="((costs.totals?.completion_tokens || 0) / 1000).toFixed(1) + 'K'"></div>
+                    <div class="text-xs opacity-60">Output Tokens</div>
+                </div>
+            </div>
+
+            <!-- Per-Provider Breakdown -->
+            <div x-show="!costsLoading && Object.keys(costs.by_provider || {}).length > 0">
+                <h4 class="text-xs font-semibold uppercase opacity-60 mb-2">By Provider</h4>
+                <div class="overflow-x-auto">
+                    <table class="table table-xs w-full">
+                        <thead><tr><th>Provider</th><th class="text-right">Cost</th><th class="text-right">Calls</th><th class="text-right">Input Tokens</th><th class="text-right">Output Tokens</th></tr></thead>
+                        <tbody>
+                            <template x-for="[prov, data] in Object.entries(costs.by_provider || {})" :key="prov">
+                                <tr>
+                                    <td class="capitalize font-medium" x-text="prov.replace('_', ' ')"></td>
+                                    <td class="text-right font-mono text-emerald-400" x-text="'$' + data.cost.toFixed(4)"></td>
+                                    <td class="text-right" x-text="data.calls.toLocaleString()"></td>
+                                    <td class="text-right text-xs opacity-60" x-text="data.prompt_tokens.toLocaleString()"></td>
+                                    <td class="text-right text-xs opacity-60" x-text="data.completion_tokens.toLocaleString()"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Per-Model Breakdown -->
+            <div x-show="!costsLoading && Object.keys(costs.by_model || {}).length > 0" class="mt-4">
+                <h4 class="text-xs font-semibold uppercase opacity-60 mb-2">By Model</h4>
+                <div class="overflow-x-auto">
+                    <table class="table table-xs w-full">
+                        <thead><tr><th>Model</th><th class="text-right">Cost</th><th class="text-right">Calls</th><th class="text-right">Input Tokens</th><th class="text-right">Output Tokens</th></tr></thead>
+                        <tbody>
+                            <template x-for="[model, data] in Object.entries(costs.by_model || {}).sort((a,b) => b[1].cost - a[1].cost)" :key="model">
+                                <tr>
+                                    <td class="font-mono text-xs" x-text="model"></td>
+                                    <td class="text-right font-mono text-emerald-400" x-text="'$' + data.cost.toFixed(4)"></td>
+                                    <td class="text-right" x-text="data.calls.toLocaleString()"></td>
+                                    <td class="text-right text-xs opacity-60" x-text="data.prompt_tokens.toLocaleString()"></td>
+                                    <td class="text-right text-xs opacity-60" x-text="data.completion_tokens.toLocaleString()"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Daily Spend (last 14 days) -->
+            <div x-show="!costsLoading && Object.keys(costs.daily || {}).length > 0" class="mt-4">
+                <h4 class="text-xs font-semibold uppercase opacity-60 mb-2">Daily Spend (last 14 days)</h4>
+                <div class="overflow-x-auto">
+                    <table class="table table-xs w-full">
+                        <thead><tr><th>Date</th><th class="text-right">Cost</th><th class="text-right">Calls</th><th class="text-right">Tokens</th></tr></thead>
+                        <tbody>
+                            <template x-for="[date, data] in Object.entries(costs.daily || {}).sort((a,b) => b[0].localeCompare(a[0])).slice(0, 14)" :key="date">
+                                <tr>
+                                    <td class="font-mono text-xs" x-text="date"></td>
+                                    <td class="text-right font-mono text-emerald-400" x-text="'$' + data.cost.toFixed(4)"></td>
+                                    <td class="text-right" x-text="data.calls"></td>
+                                    <td class="text-right text-xs opacity-60" x-text="((data.prompt_tokens || 0) + (data.completion_tokens || 0)).toLocaleString()"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- No data state -->
+            <div x-show="!costsLoading && (!costs.totals || costs.totals.calls === 0)" class="text-center py-6 opacity-40">
+                <i class="ti ti-brain text-2xl block mb-2"></i>
+                <p class="text-sm">No AI usage recorded yet. Costs will appear here after LLM calls are made.</p>
+            </div>
+
+            <!-- Provider Billing APIs -->
+            <div class="divider text-xs mt-4">Provider Billing</div>
+
+            <!-- Anthropic Admin API -->
+            <div class="bg-base-300 rounded-lg p-3 mb-3">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold uppercase">Anthropic Billing API</span>
+                        <span x-show="anthropicAdminKey" class="badge badge-xs badge-success">Connected</span>
+                        <span x-show="!anthropicAdminKey" class="badge badge-xs badge-ghost">Not configured</span>
+                    </div>
+                    <button x-show="anthropicAdminKey" class="btn btn-xs btn-ghost gap-1" @click="fetchAnthropicBilling()" :disabled="anthropicBillingLoading">
+                        <span class="loading loading-spinner loading-xs" x-show="anthropicBillingLoading"></span>
+                        <i class="ti ti-refresh" x-show="!anthropicBillingLoading"></i> Fetch
+                    </button>
+                </div>
+                <!-- Admin key input -->
+                <div x-show="!anthropicAdminKey" class="flex gap-2 items-end">
+                    <div class="flex-1">
+                        <label class="text-xs opacity-60 block mb-1">Admin API Key (sk-ant-admin...)</label>
+                        <input type="password" class="input input-xs input-bordered w-full font-mono" x-model="anthropicAdminKeyInput" placeholder="sk-ant-admin...">
+                    </div>
+                    <button class="btn btn-xs btn-primary" @click="saveAnthropicAdminKey()">Save</button>
+                </div>
+                <!-- Billing data -->
+                <div x-show="anthropicBilling && !anthropicBilling.error" class="mt-2">
+                    <div x-show="anthropicBilling.cost_report && anthropicBilling.cost_report.data" class="overflow-x-auto">
+                        <table class="table table-xs w-full">
+                            <thead><tr><th>Date</th><th class="text-right">Amount (USD)</th><th>Type</th><th>Model</th></tr></thead>
+                            <tbody>
+                                <template x-for="bucket in (anthropicBilling.cost_report?.data || []).slice(0, 14)" :key="bucket.starting_at">
+                                    <template x-for="item in bucket.results" :key="item.description || bucket.starting_at">
+                                        <tr>
+                                            <td class="font-mono text-xs" x-text="bucket.starting_at?.split('T')[0]"></td>
+                                            <td class="text-right font-mono text-emerald-400" x-text="'$' + (parseFloat(item.amount || 0) / 100).toFixed(4)"></td>
+                                            <td class="text-xs" x-text="item.cost_type || '-'"></td>
+                                            <td class="text-xs font-mono opacity-60" x-text="item.model || '-'"></td>
+                                        </tr>
+                                    </template>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div x-show="anthropicBilling.cost_report?.error" class="text-xs text-error" x-text="anthropicBilling.cost_report?.error"></div>
+                </div>
+            </div>
+
+            <!-- Together AI Pricing -->
+            <div class="bg-base-300 rounded-lg p-3">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold uppercase">Together AI Model Pricing</span>
+                        <span x-show="togetherPricing._model_count" class="badge badge-xs badge-success" x-text="togetherPricing._model_count + ' models'"></span>
+                    </div>
+                    <div class="flex gap-1">
+                        <span x-show="togetherPricing._fetched" class="text-[10px] opacity-40" x-text="'Last: ' + (togetherPricing._fetched?.split('T')[0] || '')"></span>
+                        <button class="btn btn-xs btn-ghost gap-1" @click="refreshTogetherPricing()" :disabled="togetherPricingLoading">
+                            <span class="loading loading-spinner loading-xs" x-show="togetherPricingLoading"></span>
+                            <i class="ti ti-refresh" x-show="!togetherPricingLoading"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs opacity-50">Model pricing is fetched from Together AI's API and cached for 24 hours. Click refresh to pull latest prices.</p>
+                <div x-show="togetherPricing.error" class="text-xs text-error mt-1" x-text="togetherPricing.error"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Platform Updates -->
     <div class="card bg-base-200 border border-base-300 mb-4">
         <div class="card-body">
@@ -298,12 +508,30 @@ function systemInfo() {
     smtpMsg: '',
     smtpMsgType: '',
 
+    // Redis Cache
+    cacheStatus: { connected: false, backend: 'unknown', info: {} },
+    cacheLoading: false,
+
+    // AI Costs
+    costs: { totals: { cost: 0, calls: 0, prompt_tokens: 0, completion_tokens: 0 }, by_provider: {}, by_model: {}, daily: {} },
+    costsLoading: false,
+    anthropicAdminKey: false,
+    anthropicAdminKeyInput: '',
+    anthropicBilling: null,
+    anthropicBillingLoading: false,
+    togetherPricing: {},
+    togetherPricingLoading: false,
+
     init() {
       this.loadStats();
       this.loadMcpKeys();
       this.loadAutoUpdate();
       this.loadSmtp();
       this.loadLogs();
+      this.loadCacheStatus();
+      this.loadCosts();
+      this.checkAnthropicKey();
+      this.loadTogetherPricing();
     },
 
     async loadStats() {
@@ -456,6 +684,103 @@ function systemInfo() {
         this.smtpMsgType = resp.ok ? 'success' : 'error';
       } catch(e) { this.smtpMsg = 'Failed to send test'; this.smtpMsgType = 'error'; }
       this.smtpTesting = false;
+    },
+
+    // ── Redis Cache ──
+    async loadCacheStatus() {
+      this.cacheLoading = true;
+      try {
+        const resp = await fetch('/api/v1/settings/cache-status');
+        if (resp.ok) this.cacheStatus = await resp.json();
+      } catch(e) { console.warn('Failed to load cache status:', e); }
+      this.cacheLoading = false;
+    },
+    async clearCache() {
+      if (!confirm('Clear the entire application cache?')) return;
+      this.cacheLoading = true;
+      try {
+        const resp = await fetch('/api/v1/settings/cache-clear', { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content } });
+        if (resp.ok) { this.loadCacheStatus(); }
+      } catch(e) { console.warn('Failed to clear cache:', e); }
+      this.cacheLoading = false;
+    },
+
+    // ── AI Costs ──
+    async loadCosts() {
+      this.costsLoading = true;
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs');
+        if (resp.ok) this.costs = await resp.json();
+      } catch(e) { console.warn('Failed to load AI costs:', e); }
+      this.costsLoading = false;
+    },
+
+    async resetCosts() {
+      if (!confirm('Reset all AI cost tracking data? This cannot be undone.')) return;
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/reset', { method: 'POST' });
+        if (resp.ok) {
+          toast('Cost tracking data reset', 'success');
+          this.loadCosts();
+        } else { toast('Failed to reset', 'error'); }
+      } catch(e) { toast('Error resetting costs', 'error'); }
+    },
+
+    // ── Anthropic Billing ──
+    async checkAnthropicKey() {
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/admin-key');
+        if (resp.ok) { const data = await resp.json(); this.anthropicAdminKey = data.configured; }
+      } catch(e) {}
+    },
+
+    async saveAnthropicAdminKey() {
+      if (!this.anthropicAdminKeyInput) return;
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/admin-key', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_key: this.anthropicAdminKeyInput }),
+        });
+        if (resp.ok) {
+          toast('Anthropic admin key saved', 'success');
+          this.anthropicAdminKey = true;
+          this.anthropicAdminKeyInput = '';
+        } else {
+          const data = await resp.json();
+          toast(data.error || 'Failed to save', 'error');
+        }
+      } catch(e) { toast('Error saving key', 'error'); }
+    },
+
+    async fetchAnthropicBilling() {
+      this.anthropicBillingLoading = true;
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/anthropic-billing?days=30');
+        if (resp.ok) this.anthropicBilling = await resp.json();
+        else toast('Failed to fetch billing data', 'error');
+      } catch(e) { toast('Error fetching billing', 'error'); }
+      this.anthropicBillingLoading = false;
+    },
+
+    // ── Together AI Pricing ──
+    async loadTogetherPricing() {
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/together-pricing');
+        if (resp.ok) this.togetherPricing = await resp.json();
+      } catch(e) {}
+    },
+
+    async refreshTogetherPricing() {
+      this.togetherPricingLoading = true;
+      try {
+        const resp = await fetch('/api/v1/settings/llm-costs/together-pricing/refresh', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          toast('Refreshed pricing for ' + (data.models || 0) + ' models', 'success');
+          this.loadTogetherPricing();
+        } else { toast('Failed to refresh', 'error'); }
+      } catch(e) { toast('Error refreshing pricing', 'error'); }
+      this.togetherPricingLoading = false;
     },
   };
 }
