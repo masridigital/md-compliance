@@ -2335,6 +2335,28 @@
 				</div>
 			</div>
 
+			<!-- ═══════ NOTES TAB ═══════ -->
+			<div class="col-span-6" x-show="selectedTab === 'notes' && !tabLoading">
+				<div class="d5-overview-card">
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-notebook text-emerald-400"></i>
+							<span class="text-sm font-semibold text-white">Project Notes</span>
+						</div>
+						<div class="flex items-center gap-2">
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'saved'"><i class="ti ti-check text-emerald-400"></i> Saved</span>
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'saving'"><i class="ti ti-loader text-yellow-400 animate-spin"></i> Saving...</span>
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'unsaved'"><i class="ti ti-point-filled text-yellow-400"></i> Unsaved changes</span>
+							<button :disabled="isAuditor" class="btn btn-xs btn-primary" @click="saveProjectNotes()">
+								<i class="ti ti-device-floppy mr-1"></i> Save
+							</button>
+						</div>
+					</div>
+					<p class="text-[10px] text-gray-500 mb-3">Document your project build — architecture decisions, reference items, configuration notes, and anything your team needs to know from A to Z.</p>
+					<div id="projectNotesEditorDiv" class="min-h-[400px]"></div>
+				</div>
+			</div>
+
 			<div class="col-span-6" x-show="selectedTab === 'settings' && !tabLoading">
 				<div class="d5-overview-card mb-4">
 					<div class="flex items-center justify-between mb-5">
@@ -4955,7 +4977,7 @@ function project(){
 		riskMessages: [],
 		messagesForControl: [],
 		tenantPolicies: [],
-		tabs: ["summary", "controls", "policies", "evidence", "comments", "risk register", "users", "integrations", "report", "settings"],
+		tabs: ["summary", "controls", "policies", "evidence", "comments", "risk register", "users", "integrations", "notes", "report", "settings"],
 		loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
 		tabLoading: true,
 		tableLoading: true,
@@ -4967,6 +4989,8 @@ function project(){
 		respMatrixOperator: [],
 		policyAcceptance: "not started",
 		showHelpMenu: false,
+		notesSaveStatus: '',
+		notesEditor: null,
 
 		projectDeployments: [],
 		projectViolations: [],
@@ -6699,6 +6723,44 @@ function project(){
 				jsonData
 			);
 		},
+		initProjectNotesEditor: function() {
+			const selector = "projectNotesEditorDiv";
+			tinymce.EditorManager.execCommand('mceRemoveEditor', true, selector);
+			let readOnly = this.projectData.auditor_enabled && this.isAuditor;
+			let config = getEditorConfig("#" + selector, readOnly);
+			config.min_height = 400;
+			const self = this;
+			config.setup = (editor) => {
+				editor.on('init', () => {
+					editor.setContent(self.projectData.notes ?? "");
+					self.notesSaveStatus = '';
+				});
+				editor.on('Change KeyUp', () => {
+					self.notesSaveStatus = 'unsaved';
+				});
+			};
+			tinymce.init(config);
+			this.notesEditor = selector;
+		},
+		saveProjectNotes: function() {
+			const editor = tinymce.get(this.notesEditor || 'projectNotesEditorDiv');
+			if (!editor) return;
+			const content = editor.getContent();
+			this.notesSaveStatus = 'saving';
+			this.projectData.notes = content;
+			request("PUT",
+				`/api/v1/projects/${this.projectId}/settings`,
+				data => {
+					this.notesSaveStatus = 'saved';
+					toast("Notes saved", "success");
+				},
+				error => {
+					this.notesSaveStatus = 'unsaved';
+					toast(error.message, "error");
+				},
+				{ notes: content }
+			);
+		},
 		initControlNotesEditor: function() {
 			let selector = "controlNotesEditorDiv"
 			tinymce.EditorManager.execCommand('mceRemoveEditor', true, selector);
@@ -6952,7 +7014,10 @@ function project(){
 		  this.tableLoading = false;
 
 		  if (tab === 'integrations') {
-			this.loadProjectDeployments();  // ← add this
+			this.loadProjectDeployments();
+		  }
+		  if (tab === 'notes') {
+			this.$nextTick(() => this.initProjectNotesEditor());
 		  }
 		  if (tab === "controls" || tab === "summary") {
 			if (!useCache) {
