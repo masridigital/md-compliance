@@ -777,6 +777,12 @@ Admin account created via web UI at `/setup` instead of setup.sh prompts.
 
 ---
 
+## Scalability Refactoring
+
+See **PHASES.md** for the full refactoring plan (Phases E1-E5).
+
+---
+
 ## Things to NEVER Do
 1. **NEVER** push to main without running a security review first — use a security review agent in parallel during development, or run a full audit before the final push
 2. **NEVER** create isolated SQLAlchemy sessions in background threads (caused full site crash)
