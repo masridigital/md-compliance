@@ -88,7 +88,7 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 | Optimistic UI | Instant review status + subcontrol updates | `templates/view_project.html` |
 
 ### E1: Split `models.py` into Domain Modules
-**Status**: IN PROGRESS
+**Status**: **DONE** 2026-04-14
 **Risk**: Low (backwards-compatible re-exports)
 
 Split the 5,161-line `app/models.py` (47 classes, 57 `lazy="dynamic"`) into domain modules. `__init__.py` re-exports everything so 106 importing files don't break.
@@ -112,6 +112,22 @@ app/models/
 ```
 
 **Validation**: `python -c "from app.models import *"` + Docker build + health check.
+
+**Result (2026-04-14):** 5,161-line monolith split into 11 domain modules (48 classes). `__init__.py` re-exports all classes — 106 importing files unchanged. Event listeners + `login.user_loader` live in `__init__.py`. No module exceeds ~1,150 lines. Granularity is per-domain-aggregate, not per-class — modules only warrant further splitting if they exceed ~1,000 lines or contain unrelated concerns.
+
+| Module | Classes | Lines |
+|--------|---------|-------|
+| `project.py` | 8 | 1,155 |
+| `assessment.py` | 6 | 922 |
+| `tenant.py` | 2 | 795 |
+| `vendor.py` | 6 | 560 |
+| `auth.py` | 5 | 553 |
+| `framework.py` | 5 | 379 |
+| `policy.py` | 4 | 321 |
+| `config.py` | 2 | 238 |
+| `risk.py` | 3 | 203 |
+| `comments.py` | 4 | 123 |
+| `tags.py` | 3 | 83 |
 
 ### E2: Service Layer for Core Business Logic
 **Status**: NOT STARTED — depends on E1
