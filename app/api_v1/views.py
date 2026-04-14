@@ -13,6 +13,7 @@ from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.misc import project_creation, get_users_from_text
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from app.email import send_email
 from app.utils.reports import Report
 from app.utils.authorizer import Authorizer
@@ -580,8 +581,14 @@ def get_controls_for_project(pid):
     if stats:
         stats = True
 
-    # controls = result["extra"]["project"].get_controls()
-    for control in result["extra"]["project"].controls.all():
+    # Eager-load parent Control to avoid N+1 on control.name/ref_code/description
+    ProjectControl = current_app.models["ProjectControl"]
+    controls = ProjectControl.query.filter_by(
+        project_id=result["extra"]["project"].id
+    ).options(
+        selectinload(ProjectControl.control),
+    ).all()
+    for control in controls:
         record = control.as_dict()
         if view:
             if view == "with-evidence" and record["progress_evidence"] > 0:
