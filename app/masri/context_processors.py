@@ -30,6 +30,9 @@ def register_context_processors(app):
           1. Hard-coded safe defaults
           2. ``app.config`` values (from ``MASRI_CONFIG``)
           3. Database ``TenantBranding`` overrides (if tenant is active)
+
+        Tenant branding is cached in the session for 5 minutes to avoid
+        per-request database queries.
         """
         # --- Safe defaults ---
         branding = {
@@ -45,14 +48,22 @@ def register_context_processors(app):
             "support_email": app.config.get("SUPPORT_EMAIL", "inquiry@masridigital.com"),
         }
 
-        # --- Tenant-level overrides from database ---
+        # --- Tenant-level overrides (session-cached) ---
         try:
             tenant_id = _get_active_tenant_id()
             if tenant_id:
-                from app.masri.settings_service import SettingsService
-                tb = SettingsService.get_tenant_branding(tenant_id)
+                import time
+                cache_key = f"_branding_{tenant_id}"
+                cached = session.get(cache_key)
+                cache_ts = session.get(f"{cache_key}_ts", 0)
+                if cached and (time.time() - cache_ts) < 300:
+                    tb = cached
+                else:
+                    from app.masri.settings_service import SettingsService
+                    tb = SettingsService.get_tenant_branding(tenant_id)
+                    session[cache_key] = tb if isinstance(tb, dict) else {}
+                    session[f"{cache_key}_ts"] = time.time()
                 if tb:
-                    # tb is a dict returned by SettingsService.get_tenant_branding
                     for key in ("app_name", "logo_url", "favicon_url",
                                 "primary_color", "hover_color", "light_color",
                                 "login_headline", "login_subheadline", "login_bg_color"):
@@ -62,7 +73,7 @@ def register_context_processors(app):
         except Exception:
             logger.debug("Could not load tenant branding, using defaults", exc_info=True)
 
-        # Platform-level support_email (cached to avoid per-request DB query)
+        # Platform-level support_email (cached on app object — once per worker)
         if not hasattr(app, "_cached_support_email"):
             try:
                 from app.masri.new_models import PlatformSettings
@@ -80,6 +91,9 @@ def register_context_processors(app):
     def inject_current_tenant():
         """
         Provide ``current_tenant`` and ``tenants`` to every template.
+
+        Uses ``db.session.get()`` which hits SQLAlchemy's identity map first,
+        avoiding a DB round-trip when the tenant was already loaded this request.
         """
         tenants = []
         current_tenant = None
@@ -87,12 +101,13 @@ def register_context_processors(app):
             if current_user and current_user.is_authenticated:
                 from app import db
                 from app.models import Tenant
-                # Get tenants the user has access to
                 user_tenants = getattr(current_user, "tenants", [])
                 if user_tenants:
                     tenants = user_tenants
                     tenant_id = _get_active_tenant_id()
                     if tenant_id:
+                        # db.session.get() uses identity map — no query if
+                        # the tenant was already loaded in this request cycle.
                         current_tenant = db.session.get(Tenant, tenant_id)
                     if not current_tenant and tenants:
                         current_tenant = tenants[0] if hasattr(tenants[0], "id") else None
@@ -110,10 +125,13 @@ def register_context_processors(app):
 
         NOTE: Do NOT override ``config`` — Flask already injects its
         full config object as ``config``.  Use a separate key instead.
+        LLM check is cached on the app object to avoid a DB query per render.
         """
+        if not hasattr(app, "_cached_llm_enabled"):
+            app._cached_llm_enabled = app.config.get("LLM_ENABLED", False) or _check_llm_db()
         return {
             "feature_flags": {
-                "LLM_ENABLED": app.config.get("LLM_ENABLED", False) or _check_llm_db(),
+                "LLM_ENABLED": app._cached_llm_enabled,
                 "WISP_ENABLED": app.config.get("WISP_ENABLED", True),
                 "MCP_ENABLED": app.config.get("MCP_ENABLED", False),
             }

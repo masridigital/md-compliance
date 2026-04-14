@@ -13,6 +13,7 @@ from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.misc import project_creation, get_users_from_text
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from app.email import send_email
 from app.utils.reports import Report
 from app.utils.authorizer import Authorizer
@@ -569,18 +570,27 @@ def get_project_completion_history(pid):
 @limiter.limit("60 per minute")
 @login_required
 def get_controls_for_project(pid):
+    from collections import defaultdict
     result = Authorizer(current_user).can_user_access_project(pid)
+    project = result["extra"]["project"]
     data = []
     view = request.args.get("view")
     if view == "all":
         view = None
-    stats = request.args.get("stats", False)
-    if stats:
-        stats = True
 
-    # controls = result["extra"]["project"].get_controls()
-    for control in result["extra"]["project"].controls.all():
-        record = control.as_dict()
+    # Batch-fetch all subcontrols for this project in one query (N+1 fix)
+    ProjectSubControl = current_app.models["ProjectSubControl"]
+    all_subs = db.session.execute(
+        db.select(ProjectSubControl)
+        .where(ProjectSubControl.project_id == project.id)
+        .order_by(ProjectSubControl.date_added.desc())
+    ).scalars().all()
+    subs_by_control = defaultdict(list)
+    for sc in all_subs:
+        subs_by_control[sc.project_control_id].append(sc)
+
+    for control in project.controls.all():
+        record = control.as_dict(subcontrols=subs_by_control.get(control.id))
         if view:
             if view == "with-evidence" and record["progress_evidence"] > 0:
                 data.append(record)

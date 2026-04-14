@@ -18,7 +18,7 @@ class ControlMixin(object):
     def __tablename__(cls):
         return cls.__name__.lower()
 
-    def as_dict(self):
+    def as_dict(self, subcontrols=None):
         parent_fields = [
             "name",
             "ref_code",
@@ -32,7 +32,7 @@ class ControlMixin(object):
         for field in parent_fields:
             data[field] = getattr(self.control, field)
 
-        return {**self.generate_stats(), **data}
+        return {**self.generate_stats(subcontrols=subcontrols), **data}
 
     def review_complete(self):
         if self.review_status in ["complete"]:
