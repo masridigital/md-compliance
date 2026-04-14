@@ -149,6 +149,12 @@ class Config:
     APP_FAVICON_URL = os.environ.get("APP_FAVICON_URL", "/static/img/favicon.ico")
     SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "inquiry@masridigital.com")
 
+    # Redis cache — DB 2 (DB 0 = rate limiter, DB 1 = Celery)
+    CACHE_TYPE = "RedisCache"
+    CACHE_REDIS_URL = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/2")
+    CACHE_DEFAULT_TIMEOUT = int(os.environ.get("CACHE_DEFAULT_TIMEOUT", 300))  # 5 min default
+    CACHE_KEY_PREFIX = "mdc:"
+
     # Masri Scheduler
     MASRI_SCHEDULER_ENABLED = os.environ.get("MASRI_SCHEDULER_ENABLED", "true").lower() == "true"
 

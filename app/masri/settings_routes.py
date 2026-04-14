@@ -64,6 +64,24 @@ def _get_json_body():
     return data
 
 
+def _invalidate_llm_cache():
+    """Clear Redis-cached LLM configs after settings changes."""
+    try:
+        from app import cache
+        cache.delete_many(
+            "llm_feature_models",
+            "llm_cost_data",
+        )
+        # Clear provider config keys (prefix pattern)
+        # Flask-Caching with Redis supports delete by prefix via cache.clear()
+        # but that's too aggressive. Delete known provider keys individually.
+        for prov in ("anthropic", "openai", "azure_openai", "together",
+                     "together_ai", "ollama"):
+            cache.delete(f"llm_provider_cfg:{prov}")
+    except Exception:
+        pass
+
+
 # ===========================================================================
 # Platform Settings (admin only)
 # ===========================================================================
@@ -688,6 +706,12 @@ def set_llm_feature_models():
         "tiers": data.get("tiers", {}),
         "models": data.get("models", {}),
     }))
+    # Invalidate Redis cache
+    try:
+        from app import cache
+        cache.delete("llm_feature_models")
+    except Exception:
+        pass
     return jsonify({"message": "Feature routing saved"})
 
 
@@ -740,6 +764,7 @@ def get_llm_providers():
                     "api_key_enc": primary.api_key_enc or "",
                 }
                 ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+                _invalidate_llm_cache()
                 providers.append({
                     "key": primary.provider,
                     "provider": primary.provider,
@@ -790,6 +815,7 @@ def set_llm_provider(provider_key):
 
     extras[provider_key] = cfg
     ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+    _invalidate_llm_cache()
 
     return jsonify({"message": f"Provider '{provider_key}' saved"})
 
@@ -814,6 +840,7 @@ def delete_llm_provider(provider_key):
     if provider_key in extras:
         del extras[provider_key]
         ConfigStore.upsert("llm_additional_providers", json.dumps(extras))
+        _invalidate_llm_cache()
 
     # Remove individual config
     try:
@@ -2019,6 +2046,143 @@ def get_llm_debug_log():
 
 
 # ===========================================================================
+# LLM Cost Tracking
+# ===========================================================================
+
+@settings_bp.route("/llm-costs", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_llm_costs():
+    """GET /api/v1/settings/llm-costs — AI usage cost data."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import LLMService
+        data = LLMService.get_cost_data()
+        return jsonify(data)
+    except Exception as e:
+        logger.exception("Failed to get LLM cost data")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/reset", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def reset_llm_costs():
+    """POST /api/v1/settings/llm-costs/reset — reset all cost tracking data."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import LLMService
+        LLMService.reset_cost_data()
+        return jsonify({"status": "ok", "message": "Cost tracking data reset"})
+    except Exception as e:
+        logger.exception("Failed to reset LLM cost data")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/anthropic-billing", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def get_anthropic_billing():
+    """GET /api/v1/settings/llm-costs/anthropic-billing — real Anthropic cost data."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import AnthropicBillingClient
+        from datetime import datetime, timedelta
+
+        days = request.args.get("days", 30, type=int)
+        days = min(days, 90)
+        starting_at = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
+        ending_at = datetime.utcnow().strftime("%Y-%m-%dT23:59:59Z")
+
+        cost_data = AnthropicBillingClient.fetch_cost_report(
+            starting_at=starting_at,
+            ending_at=ending_at,
+            group_by=["description"],
+        )
+        usage_data = AnthropicBillingClient.fetch_usage_report(
+            starting_at=starting_at,
+            ending_at=ending_at,
+            group_by=["model"],
+            bucket_width="1d",
+        )
+        return jsonify({"cost_report": cost_data, "usage_report": usage_data})
+    except Exception as e:
+        logger.exception("Failed to fetch Anthropic billing data")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/admin-key", methods=["PUT"])
+@limiter.limit("10 per minute")
+@login_required
+def set_anthropic_admin_key():
+    """PUT /api/v1/settings/llm-costs/admin-key — store Anthropic admin API key."""
+    _require_admin()
+    try:
+        from app.models import ConfigStore
+        from app.masri.settings_service import encrypt_value
+        from app import db
+
+        data = request.get_json(force=True)
+        admin_key = data.get("admin_key", "").strip()
+        if not admin_key:
+            return jsonify({"error": "admin_key is required"}), 400
+        if not admin_key.startswith("sk-ant-admin"):
+            return jsonify({"error": "Key must start with sk-ant-admin"}), 400
+
+        encrypted = encrypt_value(admin_key)
+        ConfigStore.upsert("anthropic_admin_key", encrypted)
+        db.session.commit()
+        return jsonify({"status": "ok", "message": "Anthropic admin key saved"})
+    except Exception as e:
+        logger.exception("Failed to save Anthropic admin key")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/together-pricing", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def get_together_pricing():
+    """GET /api/v1/settings/llm-costs/together-pricing — cached Together AI model pricing."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import TogetherAIPricingClient
+        data = TogetherAIPricingClient.get_cached_pricing()
+        return jsonify(data)
+    except Exception as e:
+        logger.exception("Failed to get Together AI pricing")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/together-pricing/refresh", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def refresh_together_pricing():
+    """POST /api/v1/settings/llm-costs/together-pricing/refresh — force refresh."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import TogetherAIPricingClient
+        result = TogetherAIPricingClient.fetch_and_cache_pricing()
+        return jsonify(result)
+    except Exception as e:
+        logger.exception("Failed to refresh Together AI pricing")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/llm-costs/admin-key", methods=["GET"])
+@limiter.limit("10 per minute")
+@login_required
+def check_anthropic_admin_key():
+    """GET /api/v1/settings/llm-costs/admin-key — check if admin key is configured."""
+    _require_admin()
+    try:
+        from app.masri.llm_service import AnthropicBillingClient
+        key = AnthropicBillingClient._get_admin_key()
+        return jsonify({"configured": bool(key), "key_prefix": key[:16] + "..." if key else None})
+    except Exception:
+        return jsonify({"configured": False})
+
+
+# ===========================================================================
 # Debug Data (raw API + LLM output)
 # ===========================================================================
 
@@ -2167,3 +2331,67 @@ def integration_health_check():
         results["defensx"] = {"status": "not_configured"}
 
     return jsonify(results)
+
+
+# ===========================================================================
+# Cache Status (admin only)
+# ===========================================================================
+
+@settings_bp.route("/cache-status", methods=["GET"])
+@limiter.limit("30 per minute")
+@login_required
+def get_cache_status():
+    """GET /api/v1/settings/cache-status — Redis cache health and stats."""
+    _require_admin()
+    result = {
+        "backend": "unknown",
+        "connected": False,
+        "info": {},
+    }
+    try:
+        from app import cache
+        backend = current_app.config.get("CACHE_TYPE", "unknown")
+        result["backend"] = backend
+
+        # Test connectivity
+        cache.set("_cache_status_check", "ok", timeout=5)
+        val = cache.get("_cache_status_check")
+        cache.delete("_cache_status_check")
+        result["connected"] = val == "ok"
+
+        # Get Redis server info if using Redis backend
+        if backend == "RedisCache" and result["connected"]:
+            try:
+                redis_client = cache.cache._read_client
+                info = redis_client.info("memory")
+                result["info"] = {
+                    "used_memory_human": info.get("used_memory_human", "N/A"),
+                    "used_memory_peak_human": info.get("used_memory_peak_human", "N/A"),
+                    "maxmemory_human": info.get("maxmemory_human", "N/A"),
+                    "maxmemory_policy": info.get("maxmemory_policy", "N/A"),
+                }
+                db_info = redis_client.info("keyspace")
+                db_key = f"db{current_app.config.get('CACHE_REDIS_URL', '').split('/')[-1] or '2'}"
+                if db_key in db_info:
+                    result["info"]["keys"] = db_info[db_key].get("keys", 0)
+            except Exception:
+                pass
+    except Exception as e:
+        result["error"] = str(e)
+
+    return jsonify(result)
+
+
+@settings_bp.route("/cache-clear", methods=["POST"])
+@limiter.limit("5 per minute")
+@login_required
+def clear_cache():
+    """POST /api/v1/settings/cache-clear — flush the application cache."""
+    _require_admin()
+    try:
+        from app import cache
+        cache.clear()
+        return jsonify({"status": "ok", "message": "Cache cleared"})
+    except Exception as e:
+        logger.exception("Failed to clear cache")
+        return jsonify({"error": str(e)}), 500

@@ -172,6 +172,8 @@
 		<label for="right-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
 
 		<div class="d5-drawer flex flex-col h-screen w-3/4">
+			<template x-if="selectedControl">
+			<div class="flex flex-col h-full">
 
 			<!-- Top Section (Static) -->
 			<div class="d5-drawer-header">
@@ -681,7 +683,7 @@
 						<div x-show="messagesForControl.length>0" class="flex-grow overflow-y-auto">
 							 <template x-for="message in messagesForControl" :key="message.id">
 								<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
-								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteMessage=false" class="chat-image avatar placeholder cursor-pointer">
+								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteControlMessage=false" class="chat-image avatar placeholder cursor-pointer">
 									  <div class="bg-neutral text-neutral-content rounded-full w-8">
 										<span x-show="!showDeleteControlMessage" class="text-xs uppercase" x-text="message.author_email[0]"></span>
 										<span x-show="showDeleteControlMessage" class="text-xs uppercase"><i class='ti ti-trash text-error'></i></span>
@@ -864,7 +866,7 @@
 						<div x-show="messagesForControl.length>0" class="flex-grow min-h-full overflow-y-auto control-section">
 							 <template x-for="message in messagesForControl" :key="message.id">
 								<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
-								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteMessage=false" class="chat-image avatar placeholder cursor-pointer">
+								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteControlMessage=false" class="chat-image avatar placeholder cursor-pointer">
 									  <div class="bg-neutral text-neutral-content rounded-full w-8">
 										<span x-show="!showDeleteControlMessage" class="text-xs uppercase" x-text="message.author_email[0]"></span>
 										<span x-show="showDeleteControlMessage" class="text-xs uppercase"><i class='ti ti-trash text-error'></i></span>
@@ -913,6 +915,8 @@
 				</div>
 
 			</div>
+			</div><!-- /x-if wrapper div -->
+			</template><!-- /x-if selectedControl -->
 		</div>
 	</div>
 </div>
@@ -1129,7 +1133,8 @@
 				<div class="flex items-center justify-between px-3">
 				  <h2 class="text-xl font-bold capitalize" x-text="selectedPolicy.name"></h2>
 				  <div class="flex items-center space-x-2">
-					  <span x-show="selectedPolicy.is_published" class="p-2 rounded-lg text-[10px] bg-base-100 text-success">Published</span>
+					  <span x-show="selectedPolicy.is_published && selectedPolicy.acceptance_current" class="p-2 rounded-lg text-[10px] bg-base-100 text-success">Current</span>
+					  <span x-show="selectedPolicy.is_published && !selectedPolicy.acceptance_current" class="p-2 rounded-lg text-[10px] bg-amber-500/10 text-amber-400">Expired — Republish Required</span>
 					  <span x-show="!selectedPolicy.is_published" class="p-2 rounded-lg text-[10px] bg-base-100 text-error">Not Published</span>
 				  </div>
 				</div>
@@ -1375,7 +1380,7 @@
 					<span class="text-xs">Project statistics are out of date. Please click the refresh button.</span>
 					<button class="btn btn-xs btn-success" @click="getProject;projectRefreshRequired=false">Refresh Stats</button>
 				</div>
-				<div class="grid grid-cols-8 gap-4">
+				<div class="grid grid-cols-10 gap-4">
 					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
 						<div class="proj-stat-label mb-2">Project Status</div>
 						<div class="flex items-center gap-2">
@@ -1443,9 +1448,32 @@
 						  </progress>
 						</div>
 					</div>
+					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'policies'})">
+						<div class="proj-stat-label mb-2">Policies</div>
+						<div class="flex items-center gap-3">
+						  <span x-transition
+							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
+							  x-text="loadingProjectData ? '' : (projectData.policy_progress || 0) + '%'">
+						  </span>
+						  <progress
+							:class="{
+								'progress-error': (projectData.policy_progress || 0) < 30,
+								'progress-warning': (projectData.policy_progress || 0) >= 30 && (projectData.policy_progress || 0) < 75,
+								'progress-success': (projectData.policy_progress || 0) >= 75
+							}"
+							class="progress flex-1 h-2"
+							:value="projectData.policy_progress || 0"
+							max="100">
+						  </progress>
+						</div>
+						<div class="text-xs text-gray-500 mt-1" x-show="projectData.policies_expired > 0">
+						  <i class="ti ti-alert-triangle text-amber-400"></i>
+						  <span x-text="projectData.policies_expired"></span> expired
+						</div>
+					</div>
 
 					<!-- ═══ AI Actions Bar ═══ -->
-					<div class="col-span-8 d5-card flex items-center gap-3 !p-3">
+					<div class="col-span-10 d5-card flex items-center gap-3 !p-3">
 						<i class="ti ti-brain text-lg text-emerald-400"></i>
 						<span class="text-xs font-semibold text-white">AI Assistant</span>
 						<div class="flex gap-2 ml-auto">
@@ -1463,7 +1491,7 @@
 					</div>
 
 					<!-- ═══ AI Recommendations (shows after Suggest Fixes) ═══ -->
-					<div class="col-span-8" x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0" x-cloak id="assist-gaps-results-top">
+					<div class="col-span-10" x-show="assistGapsResults && assistGapsResults.recommendations && assistGapsResults.recommendations.length > 0" x-cloak id="assist-gaps-results-top">
 						<div class="card bg-base-200 border border-base-300">
 							<div class="card-body p-4">
 								<div class="flex justify-between items-center mb-3">
@@ -1502,7 +1530,7 @@
 							</div>
 						</div>
 					</div>
-					<div class="col-span-8" x-show="aiError" x-cloak>
+					<div class="col-span-10" x-show="aiError" x-cloak>
 						<div class="text-xs text-error p-2" x-text="aiError"></div>
 					</div>
 
@@ -1594,12 +1622,14 @@
 							<div class="d5-checklist-row" @click="switchTab({'tab': 'policies'})">
 								<span class="d5-checklist-num">3</span>
 								<div class="flex-1 min-w-0">
-									<span class="text-sm font-medium text-white">Policy Review</span>
-									<span class="text-xs text-gray-500 ml-2">Review and accept policies</span>
+									<span class="text-sm font-medium text-white">Policy Acceptance</span>
+									<span class="text-xs text-gray-500 ml-2" x-show="policyAcceptance === 'not started'">Publish and accept policies</span>
+									<span class="text-xs text-emerald-400 ml-2" x-show="policyAcceptance === 'complete'">All policies current</span>
+									<span class="text-xs text-amber-400 ml-2" x-show="policyAcceptance === 'in progress'" x-text="(projectData.policies_expired || 0) + ' expired — republish required'"></span>
 								</div>
 								<i x-show="policyAcceptance === 'complete'" class="ti ti-check text-emerald-400"></i>
 								<i x-show="policyAcceptance === 'not started'" class="ti ti-minus text-gray-600"></i>
-								<i x-show="policyAcceptance === 'in progress'" class="ti ti-progress text-amber-400"></i>
+								<i x-show="policyAcceptance === 'in progress'" class="ti ti-alert-triangle text-amber-400"></i>
 							</div>
 							<div class="d5-checklist-row" @click="switchTab({'tab': 'users'})">
 								<span class="d5-checklist-num">4</span>
@@ -2027,17 +2057,17 @@
 										<span class="text-xs" x-text="item.progress_completed"></span>
 										<div class="flex flex-row gap-x-0.5">
 										  <div class="flex space-x-1">
-											  <template x-for="n in idToProgressBarMapping[item.id].total">
+											  <template x-for="n in (idToProgressBarMapping[item.id] || {total:0}).total">
 												<div
 												  class="flex flex-col flex-nowrap justify-end w-0.5 h-3 bg-neutral-content opacity-90 rounded-full overflow-hidden relative"
 												  role="progressbar"
-												  :aria-valuenow="n <= idToProgressBarMapping[item.id].filledBars ? 100 : 0"
+												  :aria-valuenow="n <= (idToProgressBarMapping[item.id] || {}).filledBars ? 100 : 0"
 												  aria-valuemin="0"
 												  aria-valuemax="100">
 												  <div
 													class="rounded-full overflow-hidden"
-													:class="idToProgressBarMapping[item.id].color"
-													:style="`height: ${n <= idToProgressBarMapping[item.id].filledBars ? '100%' : '0%'}`">
+													:class="(idToProgressBarMapping[item.id] || {}).color"
+													:style="`height: ${n <= (idToProgressBarMapping[item.id] || {}).filledBars ? '100%' : '0%'}`">
 												  </div>
 												  <span class="text-xs absolute bottom-0 left-0 right-0 text-center"></span>
 												</div>
@@ -2153,7 +2183,7 @@
 							  <tr>
 								<th class="w-8"></th>
 								<th>Title</th>
-								<th class="w-24 text-center">Published</th>
+								<th class="w-24 text-center">Status</th>
 								<th>Reviewer</th>
 								<th class="w-20 text-center">Versions</th>
 								<th class="w-16"></th>
@@ -2166,7 +2196,8 @@
 									<td class="text-sm font-medium text-white capitalize hover:text-emerald-400 transition-colors" x-text="item.name"></td>
 									<td class="text-center">
 										<span x-show="!item.is_published" class="d5-badge d5-badge-warning">Draft</span>
-										<span x-show="item.is_published" class="d5-badge d5-badge-success">Published</span>
+										<span x-show="item.is_published && item.acceptance_current" class="d5-badge d5-badge-success">Current</span>
+										<span x-show="item.is_published && !item.acceptance_current" class="d5-badge bg-amber-500/10 text-amber-400 border border-amber-500/20">Expired</span>
 									</td>
 									<td class="text-xs text-gray-400" x-text="item.reviewer || 'No reviewer'"></td>
 									<td class="text-center">
@@ -2305,6 +2336,28 @@
 						  </template>
 						</tbody>
 					</table>
+				</div>
+			</div>
+
+			<!-- ═══════ NOTES TAB ═══════ -->
+			<div class="col-span-6" x-show="selectedTab === 'notes' && !tabLoading">
+				<div class="d5-overview-card">
+					<div class="flex items-center justify-between mb-4">
+						<div class="flex items-center gap-2">
+							<i class="ti ti-notebook text-emerald-400"></i>
+							<span class="text-sm font-semibold text-white">Project Notes</span>
+						</div>
+						<div class="flex items-center gap-2">
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'saved'"><i class="ti ti-check text-emerald-400"></i> Saved</span>
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'saving'"><i class="ti ti-loader text-yellow-400 animate-spin"></i> Saving...</span>
+							<span class="text-[10px] text-gray-500" x-show="notesSaveStatus === 'unsaved'"><i class="ti ti-point-filled text-yellow-400"></i> Unsaved changes</span>
+							<button :disabled="isAuditor" class="btn btn-xs btn-primary" @click="saveProjectNotes()">
+								<i class="ti ti-device-floppy mr-1"></i> Save
+							</button>
+						</div>
+					</div>
+					<p class="text-[10px] text-gray-500 mb-3">Document your project build — architecture decisions, reference items, configuration notes, and anything your team needs to know from A to Z.</p>
+					<div id="projectNotesEditorDiv" class="min-h-[400px]"></div>
 				</div>
 			</div>
 
@@ -2660,8 +2713,8 @@
 								</td>
 								<td>
 									<div x-data="{ expanded: false }" class="max-w-xs">
-									  <p class="text-xs text-gray-400" x-text="expanded ? report.description : (report.description.length > 120 ? report.description.slice(0, 120) + '...' : report.description)"></p>
-									  <button x-show="report.description.length > 120" @click="expanded = !expanded" class="text-emerald-400 text-xs hover:underline" x-text="expanded ? 'less' : 'more'"></button>
+									  <p class="text-xs text-gray-400" x-text="expanded ? (report.description || '') : ((report.description || '').length > 120 ? (report.description || '').slice(0, 120) + '...' : (report.description || ''))"></p>
+									  <button x-show="(report.description || '').length > 120" @click="expanded = !expanded" class="text-emerald-400 text-xs hover:underline" x-text="expanded ? 'less' : 'more'"></button>
 									</div>
 								</td>
 								<td>
@@ -4903,7 +4956,7 @@ function project(){
 		projectUsers: [],
 		controlTab: "overview",
 		subcontrolTab: "overview",
-		projectData: {},
+		projectData: {members: [], auditors: [], completion_progress: 0},
 		projectId: "{{project.id}}",
 		isAuditor: false,
 		showPolicyModal: false,
@@ -4928,11 +4981,10 @@ function project(){
 		riskMessages: [],
 		messagesForControl: [],
 		tenantPolicies: [],
-		tabs: ["summary", "controls", "policies", "evidence", "comments", "risk register", "users", "integrations", "report", "settings"],
+		tabs: ["summary", "controls", "policies", "evidence", "comments", "risk register", "users", "integrations", "notes", "report", "settings"],
 		loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
 		tabLoading: true,
 		tableLoading: true,
-		selectedControl: {},
 		selectedTab: "summary",
 		view: "default",
 		contextEditor: null,
@@ -4940,6 +4992,8 @@ function project(){
 		respMatrixOperator: [],
 		policyAcceptance: "not started",
 		showHelpMenu: false,
+		notesSaveStatus: '',
+		notesEditor: null,
 
 		projectDeployments: [],
 		projectViolations: [],
@@ -6101,7 +6155,7 @@ function project(){
 			toast("No help page registered", "warning")
 		},
 		addAssociation: function(subcontrol) {
-		  data = {
+		  let reqData = {
 			"evidence": this.associatedEvidence.id
 		  }
 		  request("PUT",
@@ -6115,12 +6169,11 @@ function project(){
 			error => {
 			  toast(error.message, "error");
 			},
-			data
+			reqData
 		  );
 		},
 		removeAssociation: function(subcontrol) {
-		  console.log(subcontrol)
-		  data = {
+		  let reqData = {
 			"evidence": this.associatedEvidence.id
 		  }
 		  request("DELETE",
@@ -6134,7 +6187,7 @@ function project(){
 			error => {
 			  toast(error.message, "error");
 			},
-			data
+			reqData
 		  );
 
 		},
@@ -6175,7 +6228,7 @@ function project(){
 			this.controlFilter.tags = this.controlFilter.tags.filter(tag => tag !== name);
 		},
 		addTagToControl: function(control) {
-			payload = {"tags": [this.tempTagName]}
+			let payload = {"tags": [this.tempTagName]}
 			request("PUT",
 				`/api/v1/controls/${control.id}/tags`,
 				data => {
@@ -6190,7 +6243,7 @@ function project(){
 			);
 		},
 		removeTagFromControl: function(control, tag_name) {
-			payload = {"tags": [tag_name]}
+			let payload = {"tags": [tag_name]}
 			request("DELETE",
 				`/api/v1/controls/${control.id}/tags`,
 				data => {
@@ -6672,6 +6725,44 @@ function project(){
 				jsonData
 			);
 		},
+		initProjectNotesEditor: function() {
+			const selector = "projectNotesEditorDiv";
+			tinymce.EditorManager.execCommand('mceRemoveEditor', true, selector);
+			let readOnly = this.projectData.auditor_enabled && this.isAuditor;
+			let config = getEditorConfig("#" + selector, readOnly);
+			config.min_height = 400;
+			const self = this;
+			config.setup = (editor) => {
+				editor.on('init', () => {
+					editor.setContent(self.projectData.notes ?? "");
+					self.notesSaveStatus = '';
+				});
+				editor.on('Change KeyUp', () => {
+					self.notesSaveStatus = 'unsaved';
+				});
+			};
+			tinymce.init(config);
+			this.notesEditor = selector;
+		},
+		saveProjectNotes: function() {
+			const editor = tinymce.get(this.notesEditor || 'projectNotesEditorDiv');
+			if (!editor) return;
+			const content = editor.getContent();
+			this.notesSaveStatus = 'saving';
+			this.projectData.notes = content;
+			request("PUT",
+				`/api/v1/projects/${this.projectId}/settings`,
+				data => {
+					this.notesSaveStatus = 'saved';
+					toast("Notes saved", "success");
+				},
+				error => {
+					this.notesSaveStatus = 'unsaved';
+					toast(error.message, "error");
+				},
+				{ notes: content }
+			);
+		},
 		initControlNotesEditor: function() {
 			let selector = "controlNotesEditorDiv"
 			tinymce.EditorManager.execCommand('mceRemoveEditor', true, selector);
@@ -6790,7 +6881,7 @@ function project(){
 		},
 		updateRisk: function(risk) {
 			//TODO
-		  data = {
+		  let data = {
 			"title": risk.title,
 			"description": risk.description,
 			"status":risk.status,
@@ -6810,7 +6901,7 @@ function project(){
 		  );
 		},
 		updatePolicy: function() {
-		  data = {
+		  let data = {
 			"description": this.selectedPolicy.description,
 			"reviewer": this.selectedPolicy.reviewer
 		  }
@@ -6925,7 +7016,10 @@ function project(){
 		  this.tableLoading = false;
 
 		  if (tab === 'integrations') {
-			this.loadProjectDeployments();  // ← add this
+			this.loadProjectDeployments();
+		  }
+		  if (tab === 'notes') {
+			this.$nextTick(() => this.initProjectNotesEditor());
 		  }
 		  if (tab === "controls" || tab === "summary") {
 			if (!useCache) {
@@ -6961,7 +7055,7 @@ function project(){
 		  var data = tableData;
 		  var columns = [];
 
-		  gridOptions = {
+		  let gridOptions = {
 			pagination: true,
 			paginationPageSize: 25,
 			domLayout: "autoHeight",
@@ -7030,13 +7124,16 @@ function project(){
 			"/api/v1/projects/" + this.projectId+"?summary=yes",
 			data => {
 			  this.projectData = data;
-			  if (data.auditors.length > 0) {
-				this.tabs.splice(2, 0, "audit review");
+			  if (data.auditors && data.auditors.length > 0) {
+				if (!this.tabs.includes("audit review")) {
+				  this.tabs.splice(2, 0, "audit review");
+				}
 			  }
 			  this.loadingProjectData = false;
 			},
 			error => {
 			  toast(error.message, "error");
+			  this.loadingProjectData = false;
 			}
 		  );
 		},
@@ -7065,7 +7162,7 @@ function project(){
 			let cacheControls = this.keyExistsInLocalStorage(`${this.projectId}_controls`, parse=true);
 			if (cacheControls !== false) {
 				console.log("Updating controls in cache")
-				patchedControls = cacheControls.map(control => {
+				let patchedControls = cacheControls.map(control => {
 				  if (Array.isArray(control.subcontrols)) {
 					// Map through subcontrols and patch the matching subcontrol by id
 					control = {
@@ -7106,6 +7203,7 @@ function project(){
 			},
 			error => {
 			  this.loadingControlsMessage = "Something went wrong"
+			  this.loadingControls = false;
 			  toast(error.message, "error");
 			}
 		  );
@@ -7117,22 +7215,24 @@ function project(){
 			  this.policies = data;
 			  this.tabLoading = false;
 			  this.tableLoading = false;
-			  let acceptedPolicies = 0
+			  let currentPolicies = 0
 			  let totalPolicies = data.length
-			  for (var policy in this.policies) {
-				if (this.policies[policy].accepted) {
-					acceptedPolicies+=1
+			  for (var i = 0; i < data.length; i++) {
+				if (data[i].acceptance_current) {
+					currentPolicies += 1
 				}
 			  }
-			  if (acceptedPolicies === 0) {
+			  if (currentPolicies === 0) {
 				this.policyAcceptance = "not started"
-			  } else if (acceptedPolicies === totalPolicies) {
+			  } else if (currentPolicies === totalPolicies) {
 				this.policyAcceptance = "complete"
 			  } else {
 				this.policyAcceptance = "in progress"
 			  }
 			},
 			error => {
+			  this.tabLoading = false;
+			  this.tableLoading = false;
 			  toast(error.message, "error");
 			}
 		  )
@@ -7153,6 +7253,9 @@ function project(){
 
 			},
 			error => {
+			  this.loadingReports = false;
+			  this.tabLoading = false;
+			  this.tableLoading = false;
 			  toast(error.message, "error");
 			}
 		  )
@@ -7179,17 +7282,19 @@ function project(){
 			this.controlFilter.owner = this.controlOwner
 		},
 		deleteRisk: function() {
+			let riskId = this.selectedRisk ? this.selectedRisk.id : null;
+			if (!riskId) return;
 			request("DELETE",
-				`/api/v1/projects/${this.projectId}/risks/${selectedRisk.id}`,
+				`/api/v1/projects/${this.projectId}/risks/${riskId}`,
 				data => {
-					this.risks.push(data)
-					this.showCreateRisk = false
-					this.riskPayload = {}
+					this.risks = this.risks.filter(r => r.id !== riskId);
+					this.filteredRisks = this.filteredRisks.filter(r => r.id !== riskId);
+					this.selectedRisk = {};
+					toast("Risk deleted", "success");
 				},
 				error => {
 				  toast(error.message, "error");
-				},
-				this.riskPayload
+				}
 			);
 		},
 		getTenantPolicies: function() {
@@ -7208,8 +7313,8 @@ function project(){
 		},
 		setControlData: function(options={}) {
 			console.log("Reloading the controls");
-			controls = options["controls"]
-			readURL = options["readURL"]
+			let controls = options["controls"]
+			let readURL = options["readURL"]
 
 			if (!controls) {
 				controls = this.controls;
@@ -7441,16 +7546,20 @@ function project(){
 			if (readURL) {
 				if (this.getURLParam("control-id")) {
 					let control = this.controls.find(obj => obj.id === this.getURLParam("control-id"));
-					this.openControlInDrawer(control)
+					if (control) {
+						this.openControlInDrawer(control)
 
-					if (this.getURLParam("subcontrol-id")) {
-						let subcontrol = this.subcontrols.find(obj => obj.id === this.getURLParam("subcontrol-id"));
-						this.selectedSubControl = subcontrol
-						this.changeSubControlTabInDrawer(this.getURLParam("drawer-subtab", defaultValue="details"))
+						if (this.getURLParam("subcontrol-id")) {
+							let subcontrol = this.subcontrols.find(obj => obj.id === this.getURLParam("subcontrol-id"));
+							if (subcontrol) {
+								this.selectedSubControl = subcontrol
+								this.changeSubControlTabInDrawer(this.getURLParam("drawer-subtab") || "details")
+							}
+						}
 					}
 				  } else if (this.getURLParam("evidence-id")) {
 					let evidence = this.projectEvidence.find(obj => obj.id === this.getURLParam("evidence-id"));
-					this.openEvidenceDrawer(evidence)
+					if (evidence) this.openEvidenceDrawer(evidence)
 				}
 		    }
 
@@ -7486,6 +7595,7 @@ function project(){
 		  }, 100);
 		},
 		loadCommentsForControl: function() {
+			if (!this.selectedControl) return;
 			request("GET",
 				`/api/v1/projects/${this.projectId}/controls/${this.selectedControl.id}/comments`,
 				data => {
@@ -7506,10 +7616,12 @@ function project(){
 				  this.tableLoading = false;
 				  setTimeout(function() {
 					var divElement = document.getElementById("messageDiv");
-					divElement.scrollTop = divElement.scrollHeight;
+					if (divElement) divElement.scrollTop = divElement.scrollHeight;
 				  }, 100);
 				},
 				error => {
+				  this.tabLoading = false;
+				  this.tableLoading = false;
 				  toast(error.message, "error");
 				}
 			);
@@ -7574,7 +7686,7 @@ function project(){
 
 		},
 		closeControlDrawer: function() {
-			this.previouslySelectedRowId = this.selectedControl.id;
+			this.previouslySelectedRowId = this.selectedControl ? this.selectedControl.id : '';
 			this.selectedControl = null;
 			this.isControlOpen = false
 			this.deleteURLParam("control-id")
@@ -7632,7 +7744,7 @@ function project(){
 			  toast("Not able to find evidence", "error")
 			  return
 			}
-			data = {
+			let data = {
 			  "evidence": evidence.id
 			}
 			request("DELETE",
@@ -7850,6 +7962,7 @@ function project(){
 
 			},
 			error => {
+			  this.loadingEvidence = false;
 			  toast(error.message, "error");
 			}
 		  );

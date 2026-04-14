@@ -48,6 +48,7 @@ services:
       - SUPPORT_EMAIL=${SUPPORT_EMAIL:-inquiry@masridigital.com}
       - DOMAIN=${DOMAIN:-localhost}
       - RATELIMIT_STORAGE_URI=redis://redis:6379/0
+      - CACHE_REDIS_URL=redis://redis:6379/2
       - PLAYGROUND_CSS=
     env_file:
       - .env

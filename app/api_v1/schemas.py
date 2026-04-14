@@ -203,6 +203,7 @@ class ProjectSettingsSchema(Schema):
         unknown = EXCLUDE
     name = fields.Str(load_default=None, validate=validate.Length(max=255))
     description = fields.Str(load_default=None)
+    notes = fields.Str(load_default=None)
     auditor_enabled = fields.Bool(load_default=None)
     can_auditor_read_scratchpad = fields.Bool(load_default=None)
     can_auditor_write_scratchpad = fields.Bool(load_default=None)
