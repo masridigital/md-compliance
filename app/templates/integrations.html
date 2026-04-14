@@ -518,10 +518,11 @@
                         }"
                         @change="saveLlmSlot()">
                   <option value="">Select model...</option>
-                  <template x-if="llmTierConfig._sameModel && !sameModels.includes(llmTierConfig._sameModel)">
-                    <option :value="llmTierConfig._sameModel" x-text="llmTierConfig._sameModel.split('/').pop()" selected></option>
-                  </template>
-                  <template x-for="m in sameModels" :key="'same-'+m">
+                  <template x-for="m in (() => {
+                    const saved = llmTierConfig._sameModel;
+                    if (saved && !sameModels.includes(saved)) return [saved, ...sameModels];
+                    return sameModels;
+                  })()" :key="'same-'+m">
                     <option :value="m" x-text="m.split('/').pop()"></option>
                   </template>
                 </select>
@@ -532,18 +533,22 @@
               tierModels: { extraction: [], mapping: [], analysis: [], advanced: [] },
               tierLoaded: {},
               loadTierModels(tierId) {
-                const prov = llmTierConfig[tierId]?.provider || llmForm.provider;
+                const prov = llmTierConfig[tierId]?.provider;
                 if (!prov) return;
+                this.tierLoaded[tierId] = false;
                 fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
-                  .then(r=>r.json()).then(d=>{ this.tierModels[tierId] = d.models||[]; this.tierLoaded[tierId] = true; }).catch(()=>{});
+                  .then(r=>r.json()).then(d=>{ this.tierModels[tierId] = d.models||[]; this.tierLoaded[tierId] = true; }).catch(()=>{ this.tierLoaded[tierId] = true; });
               }
             }" x-init="
-              // Auto-load models for all tiers on page open
-              llmTiers.forEach((t, i) => {
-                if(!llmTierConfig[t.id]) llmTierConfig[t.id] = { provider: '', model: '' };
-                setTimeout(() => loadTierModels(t.id), 300 + i * 400);
-              });
-            ">
+              // Model loading is triggered by loadLlmConfig() after tier config is populated.
+              // Only load here if config is already available (e.g., drawer re-open).
+              if (tierConfigLoaded) {
+                llmTiers.forEach((t, i) => {
+                  if (llmTierConfig[t.id]?.provider) setTimeout(() => loadTierModels(t.id), 100 + i * 200);
+                });
+              }
+            "
+            @tier-models-loaded.window="tierModels[$event.detail.tierId] = $event.detail.models; tierLoaded[$event.detail.tierId] = true">
               <!-- Explanation of primary model vs tier models -->
               <p class="text-[10px] opacity-50 mb-1">The model selected on each provider above is the default. Below you can override which provider + model handles each task type.</p>
 
@@ -556,7 +561,7 @@
                     </div>
                     <select class="select select-bordered select-xs w-28"
                             x-model="llmTierConfig[tier.id].provider"
-                            @change="tierModels[tier.id] = []; tierLoaded[tier.id] = false; loadTierModels(tier.id); saveLlmSlot()">
+                            @change="tierModels[tier.id] = []; tierLoaded[tier.id] = false; llmTierConfig[tier.id].model = ''; loadTierModels(tier.id); if (tierConfigLoaded) saveLlmSlot()">
                       <option value="">Select...</option>
                       <option value="together_ai">Together AI</option>
                       <option value="anthropic">Anthropic</option>
@@ -566,13 +571,14 @@
                     <select class="select select-bordered select-xs w-40 min-w-0"
                             x-model="llmTierConfig[tier.id].model"
                             @mousedown="if (!tierModels[tier.id]?.length && !tierLoaded[tier.id]) loadTierModels(tier.id)"
-                            @change="saveLlmSlot()">
+                            @change="if (tierConfigLoaded) saveLlmSlot()">
                       <option value="">Select model...</option>
-                      <!-- Show saved model even before list loads -->
-                      <template x-if="llmTierConfig[tier.id].model && !(tierModels[tier.id] || []).includes(llmTierConfig[tier.id].model)">
-                        <option :value="llmTierConfig[tier.id].model" x-text="llmTierConfig[tier.id].model.split('/').pop()" selected></option>
-                      </template>
-                      <template x-for="m in (tierModels[tier.id] || [])" :key="'t-'+tier.id+'-'+m">
+                      <template x-for="m in (() => {
+                        const list = tierModels[tier.id] || [];
+                        const saved = llmTierConfig[tier.id]?.model;
+                        if (saved && !list.includes(saved)) return [saved, ...list];
+                        return list;
+                      })()" :key="'t-'+tier.id+'-'+m">
                         <option :value="m" x-text="m.split('/').pop()"></option>
                       </template>
                     </select>
@@ -1471,6 +1477,7 @@ function integrationsHub() {
     llmModels: [],
     llmModelsByProvider: {},  // { "together_ai": [...], "anthropic": [...] }
     llmModelsFetching: false,
+    tierConfigLoaded: false,  // Guard: prevents saveLlmSlot from saving during initial load
 
     // Telivy state
     telivyForm: { api_key: '' },
@@ -1923,12 +1930,36 @@ function integrationsHub() {
             }
           }
         } catch(e) {}
+        // Mark tier config as loaded BEFORE triggering model fetches
+        this.tierConfigLoaded = true;
+        // Trigger model loading for each tier that has a saved provider.
+        // Use $nextTick to ensure Alpine has processed the inner x-data scope.
+        this.$nextTick(() => {
+          this.llmTiers.forEach((t, i) => {
+            if (this.llmTierConfig[t.id]?.provider) {
+              setTimeout(() => {
+                // Dispatch a custom event the inner scope can listen to,
+                // or directly call fetch here since we know the provider.
+                const prov = this.llmTierConfig[t.id].provider;
+                fetch('/api/v1/settings/llm/models', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider: prov }) })
+                  .then(r => r.json())
+                  .then(d => {
+                    // Update the inner scope's tierModels via a dispatched event
+                    this.$dispatch('tier-models-loaded', { tierId: t.id, models: d.models || [] });
+                  })
+                  .catch(() => {});
+              }, 100 + i * 200);
+            }
+          });
+        });
         // Load additional providers list
         this.loadLlmProviders();
       } catch (e) { console.debug('Could not load LLM config:', e); }
     },
 
     async saveLlmSlot() {
+      // Don't save during initial page load — prevents race condition from clearing saved models
+      if (!this.tierConfigLoaded) return;
       this.llmSaving = true;
       this.llmMsg = '';
       try {

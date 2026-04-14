@@ -533,6 +533,8 @@ def update_settings_in_project(pid):
         result["extra"]["project"].name = data["name"]
     if data.get("description"):
         result["extra"]["project"].description = data["description"]
+    if data.get("notes") is not None:
+        result["extra"]["project"].notes = data["notes"]
     if type(data.get("auditor_enabled")) is bool:
         result["extra"]["project"].auditor_enabled = data["auditor_enabled"]
     if type(data.get("can_auditor_read_scratchpad")) is bool:
