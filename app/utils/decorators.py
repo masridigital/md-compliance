@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 from flask import request, jsonify, redirect, url_for, flash
 from app.models import *
 from flask_login import current_user, login_user, logout_user
+from app.utils.authorizer import Authorizer
 
 
 def _safe_next(next_url):
@@ -109,4 +110,43 @@ def login_required(view_function):
         # It's OK to call the view
         return view_function(*args, **kwargs)
 
+    return decorator
+
+
+def requires_auth(method_name, param=None, inject=None):
+    """Authorization decorator that wraps Authorizer checks.
+
+    Replaces the boilerplate pattern::
+
+        result = Authorizer(current_user).can_user_access_project(pid)
+        project = result["extra"]["project"]
+
+    With::
+
+        @requires_auth("can_user_access_project", param="pid", inject="project")
+        def view_project(pid, project):
+            ...
+
+    Args:
+        method_name: Name of the Authorizer method (e.g. ``"can_user_access_project"``).
+        param: URL parameter name to pass to the auth method. If None, the auth
+               method is called with no arguments (e.g. ``can_user_manage_platform``).
+        inject: Key from the result's ``extra`` dict to inject as a keyword argument
+                to the view function. If None, the full result is injected as ``auth_result``.
+    """
+    def decorator(view_function):
+        @wraps(view_function)
+        def wrapper(*args, **kwargs):
+            auth = Authorizer(current_user)
+            auth_method = getattr(auth, method_name)
+            if param:
+                result = auth_method(kwargs[param])
+            else:
+                result = auth_method()
+            if inject:
+                kwargs[inject] = result["extra"][inject]
+            else:
+                kwargs["auth_result"] = result
+            return view_function(*args, **kwargs)
+        return wrapper
     return decorator

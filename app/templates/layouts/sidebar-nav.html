@@ -630,6 +630,57 @@
       </div>
     </div>
 
+    <!-- ═══ Command Palette (Cmd+K / Ctrl+K) ═══ -->
+    <div x-show="showCommandPalette" x-cloak
+         @keydown.escape.window="showCommandPalette=false"
+         @keydown.meta.k.window.prevent="showCommandPalette=!showCommandPalette"
+         @keydown.ctrl.k.window.prevent="showCommandPalette=!showCommandPalette"
+         class="fixed inset-0 z-[999] flex items-start justify-center pt-[15vh]"
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-100"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+      <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="showCommandPalette=false"></div>
+      <div class="relative w-full max-w-lg bg-base-200 rounded-xl border border-base-300 shadow-2xl overflow-hidden"
+           @click.outside="showCommandPalette=false">
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-base-300">
+          <i class="ti ti-search text-lg text-gray-400"></i>
+          <input type="text" x-ref="cmdInput" x-model="cmdQuery"
+                 @input="filterCommands()"
+                 @keydown.arrow-down.prevent="cmdSelectedIdx=Math.min(cmdSelectedIdx+1,filteredCommands.length-1)"
+                 @keydown.arrow-up.prevent="cmdSelectedIdx=Math.max(cmdSelectedIdx-1,0)"
+                 @keydown.enter.prevent="executeCommand(filteredCommands[cmdSelectedIdx])"
+                 x-effect="if(showCommandPalette) { cmdQuery=''; filteredCommands=cmdCommands; $nextTick(()=>$refs.cmdInput?.focus()); }"
+                 placeholder="Search projects, controls, actions..."
+                 class="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none border-none focus:ring-0">
+          <kbd class="text-[0.6rem] font-mono px-1.5 py-0.5 rounded bg-base-300 text-gray-500 border border-base-300">ESC</kbd>
+        </div>
+        <div class="max-h-80 overflow-y-auto p-2" x-show="filteredCommands.length > 0">
+          <template x-for="(cmd, idx) in filteredCommands" :key="cmd.id || idx">
+            <button @click="executeCommand(cmd)" @mouseenter="cmdSelectedIdx=idx"
+                    :class="{'bg-emerald-500/10 border-emerald-500/20': cmdSelectedIdx===idx}"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left border border-transparent hover:bg-base-300/50 transition-colors">
+              <i :class="cmd.icon" class="text-lg shrink-0" :style="'color:'+cmd.color"></i>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-white truncate" x-text="cmd.label"></div>
+                <div class="text-xs text-gray-500 truncate" x-text="cmd.description" x-show="cmd.description"></div>
+              </div>
+              <span x-show="cmd.badge" class="text-[0.6rem] font-semibold uppercase px-1.5 py-0.5 rounded bg-base-300 text-gray-400" x-text="cmd.badge"></span>
+            </button>
+          </template>
+        </div>
+        <div class="p-6 text-center text-sm text-gray-500" x-show="cmdQuery && filteredCommands.length===0">
+          No results for "<span x-text="cmdQuery" class="text-white"></span>"
+        </div>
+        <div class="flex items-center justify-between px-4 py-2 border-t border-base-300 text-[0.6rem] text-gray-500">
+          <span><kbd class="font-mono px-1 py-0.5 rounded bg-base-300 mr-0.5">Enter</kbd> to select</span>
+          <span><kbd class="font-mono px-1 py-0.5 rounded bg-base-300 mr-0.5">Esc</kbd> to close</span>
+        </div>
+      </div>
+    </div>
+
     <script>
       function clean(html, tags=[]) {
         return DOMPurify.sanitize(html,{ALLOWED_TAGS: tags})
@@ -708,8 +759,10 @@
                   if (this.selectedTenant && this.selectedTenant.id) {
                     this.riskLinks = [{ 'label': 'Risk Register', 'link': `/tenants/${this.selectedTenant.id}/risk` }];
                   }
+                  this.initCommandPalette();
             })
             this.riskLinks = [];
+            this.initCommandPalette();
           },
           riskLinks: [],
           getURLParam: function(param, defaultValue="") {
@@ -864,6 +917,67 @@
           isSettingsPanelOpen: false,
           {%endif%}
           isSearchBoxOpen: false,
+          // Command Palette state
+          showCommandPalette: false,
+          cmdQuery: '',
+          cmdSelectedIdx: 0,
+          cmdCommands: [],
+          filteredCommands: [],
+          initCommandPalette() {
+            var t = this.selectedTenant || {};
+            var tid = t.id || '';
+            this.cmdCommands = [
+              {id:'nav-home', label:'Go to Home', description:'Dashboard overview', icon:'ti ti-home', color:'#10b981', action:()=>window.location.href='/'},
+              {id:'nav-clients', label:'Go to Clients', description:'Manage tenants', icon:'ti ti-building-skyscraper', color:'#3b82f6', action:()=>window.location.href='/clients'},
+              {id:'nav-integrations', label:'Go to Integrations', description:'Configure integrations', icon:'ti ti-car-fan', color:'#8b5cf6', action:()=>window.location.href='/integrations'},
+              {id:'nav-projects', label:'Go to Projects', description:'View all projects', icon:'ti ti-folder', color:'#f59e0b', action:()=>window.location.href='/projects'},
+              {id:'nav-users', label:'Go to Users', description:'User management', icon:'ti ti-users', color:'#6366f1', action:()=>window.location.href='/management/users'},
+              {id:'nav-risk', label:'Risk Register', description:'View risk register', icon:'ti ti-alert-triangle', color:'#ef4444', badge:'risk', action:()=>{if(tid) window.location.href='/tenants/'+tid+'/risk'; else toast('Select a tenant first','warning');}},
+              {id:'nav-system', label:'System Info', description:'Logs and system status', icon:'ti ti-server', color:'#64748b', action:()=>window.location.href='/system'},
+              {id:'act-theme', label:'Toggle Theme', description:'Switch light/dark mode', icon:'ti ti-sun-moon', color:'#eab308', action:()=>{document.querySelector('[data-toggle-theme]')?.click();}},
+            ];
+            this.filteredCommands = this.cmdCommands;
+          },
+          _cmdProjectsCache: null,
+          filterCommands() {
+            var q = this.cmdQuery.toLowerCase().trim();
+            var self = this;
+            this.cmdSelectedIdx = 0;
+            if (!q) { this.filteredCommands = this.cmdCommands; return; }
+            // Filter static commands
+            var matched = this.cmdCommands.filter(c =>
+              c.label.toLowerCase().includes(q) ||
+              (c.description||'').toLowerCase().includes(q) ||
+              (c.badge||'').toLowerCase().includes(q)
+            );
+            // Dynamically search projects (fetch once, filter in-memory)
+            var tid = (this.selectedTenant||{}).id;
+            if (tid && q.length >= 2) {
+              if (this._cmdProjectsCache) {
+                var projResults = this._cmdProjectsCache.filter(p =>
+                  p.name.toLowerCase().includes(q) || (p.framework||'').toLowerCase().includes(q)
+                ).slice(0, 5).map(p => ({
+                  id:'proj-'+p.id, label:p.name,
+                  description:(p.framework||'Project')+' — '+(p.completion_progress||0)+'%',
+                  icon:'ti ti-folder-open', color:'#10b981', badge:'project',
+                  action:()=>window.location.href='/projects/'+p.id
+                }));
+                matched = [...matched, ...projResults];
+              } else {
+                request("GET", "/api/v1/tenants/"+tid+"/projects?exclude-timely=true",
+                  function(data) {
+                    self._cmdProjectsCache = data;
+                    self.filterCommands();
+                  }, function(){});
+              }
+            }
+            this.filteredCommands = matched;
+          },
+          executeCommand(cmd) {
+            this.showCommandPalette = false;
+            this.cmdQuery = '';
+            if (cmd && cmd.action) cmd.action();
+          },
           {%if layout["second-panel"]%}
           isSecondSidebarOpen: false,
           toggleSecondSidebarMenu() {

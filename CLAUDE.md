@@ -321,7 +321,19 @@ Users configure 4 tiers (not 11+ individual features). Features are hardcoded to
 ```
 app/
   __init__.py              # App factory, startup tasks, error handlers
-  models.py                # Core models (5000+ lines)
+  models/                  # Domain-split models (was monolithic models.py)
+    __init__.py            # Re-exports all 48 classes + event listeners
+    vendor.py              # Finding, VendorFile, VendorApp, Vendor (6 classes)
+    tenant.py              # Tenant, DataClass (2 classes)
+    framework.py           # Framework, Policy, Control, SubControl (5 classes)
+    project.py             # Project, ProjectControl, ProjectSubControl, Evidence (8 classes)
+    auth.py                # User, Role, TenantMember, UserRole (5 classes)
+    assessment.py          # Assessment, Form, FormSection, FormItem (6 classes)
+    risk.py                # RiskRegister, RiskComment, RiskTags (3 classes)
+    policy.py              # ProjectPolicy, PolicyVersion, PolicyLabel (4 classes)
+    comments.py            # AuditorFeedback, ControlComment, SubControlComment (4 classes)
+    tags.py                # Tag, ControlTags, ProjectTags (3 classes)
+    config.py              # ConfigStore, Logs (2 classes)
   masri/
     llm_routes.py          # LLM endpoints + auto-process + 3-phase analysis
     llm_service.py         # Multi-provider LLM abstraction + 4-tier routing
@@ -661,6 +673,8 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | D8E | Verify TOTP redesign (centered card + emerald gradient bg) | 2026-04-10 |
 | D8F | Confirm Email redesign (icon header + inline code entry) | 2026-04-10 |
 | D8G | Set Password redesign (centered card + password validation) | 2026-04-10 |
+| E1-QW | Perf: N+1 batch-fetch, context caching, auth decorator, Cmd+K palette, optimistic UI | 2026-04-14 |
+| E1 | Split models.py (5,161 lines, 48 classes) into 11 domain modules under app/models/ | 2026-04-14 |
 
 ---
 
@@ -774,6 +788,12 @@ Custom 502/503/504 at `nginx/error-pages/502.html` with auto-refresh.
 
 ### First-Run Web Setup — DONE
 Admin account created via web UI at `/setup` instead of setup.sh prompts.
+
+---
+
+## Scalability Refactoring
+
+See **PHASES.md** for the full refactoring plan (Phases E1-E5).
 
 ---
 

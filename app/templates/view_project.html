@@ -6518,6 +6518,9 @@ function project(){
 		},
 		updateReviewStatus: function(tempReviewStatus) {
 			let payload = {"review-status": tempReviewStatus}
+			// Optimistic UI: update immediately, revert on failure
+			let prevStatus = this.selectedControl.review_status;
+			this.selectedControl.review_status = tempReviewStatus;
 			request("PUT",
 				`/api/v1/controls/${this.selectedControl.id}/status`,
 				data => {
@@ -6525,6 +6528,7 @@ function project(){
 					this.patchControl(data)
 				},
 				error => {
+				  this.selectedControl.review_status = prevStatus;
 				  toast(error.message, "error");
 				},
 				payload
@@ -6554,7 +6558,9 @@ function project(){
 				"owner-id": subcontrol.owner_id,
 				"context": subcontrol.context
 			}
-
+			// Optimistic UI: update selectedSubControl immediately
+			let prevSub = this.selectedSubControl ? {...this.selectedSubControl} : null;
+			this.selectedSubControl = {...subcontrol};
 			request("PUT",
 				`/api/v1/project-controls/${subcontrol.project_control_id}/subcontrols/${subcontrol.id}`,
 				data => {
@@ -6564,6 +6570,7 @@ function project(){
 					this.projectRefreshRequired = true;
 				},
 				error => {
+				  if (prevSub) this.selectedSubControl = prevSub;
 				  toast(error.message, "error");
 				},
 				payload

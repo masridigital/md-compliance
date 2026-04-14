@@ -70,3 +70,89 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 | 2 | Setup advisory lock, tenant isolation, stored XSS fix, open redirect fix | 2026-04-07 |
 | 3 | Missing `Authorizer.get_tenant_id()` — 17+ routes affected | 2026-04-09 |
 | 4 | Open redirect fix in `is_logged_in`, XSS fix in policy center TOC | 2026-04-11 |
+| 5 | Deep audit: JWT expiry, TOTP brute-force, MCP OAuth bypass, 25+ fixes | 2026-04-12 |
+
+## Phase E: Scalability Refactoring — IN PROGRESS
+
+**Goal**: Domain-driven architecture, service layer, production-grade background jobs.
+**Execution order:** E1 -> E2 -> E3, E1 -> E5, E4 (independent)
+
+### Quick Wins (completed 2026-04-14)
+
+| Item | Description | Files |
+|------|-------------|-------|
+| N+1 fix | Batch-fetch subcontrols on controls endpoint | `api_v1/views.py`, `utils/mixin_models.py` |
+| Context cache | Session-cache tenant branding (5 min TTL), app-cache LLM flag | `masri/context_processors.py` |
+| Auth decorator | `@requires_auth()` wraps Authorizer boilerplate | `utils/decorators.py` |
+| Command Palette | Cmd+K global nav with project search | `templates/layouts/sidebar-nav.html` |
+| Optimistic UI | Instant review status + subcontrol updates | `templates/view_project.html` |
+
+### E1: Split `models.py` into Domain Modules
+**Status**: **DONE** 2026-04-14
+**Risk**: Low (backwards-compatible re-exports)
+
+Split the 5,161-line `app/models.py` (47 classes, 57 `lazy="dynamic"`) into domain modules. `__init__.py` re-exports everything so 106 importing files don't break.
+
+```
+app/models/
+    __init__.py    # Re-exports all classes (backwards compat)
+    base.py        # db, EncryptedText, shared imports
+    tenant.py      # Tenant, TenantMember, TenantMemberRole, DataClass
+    auth.py        # User, Role, UserRole
+    framework.py   # Framework, Policy, Control, SubControl
+    project.py     # Project, ProjectMember, ProjectControl, ProjectSubControl,
+                   #   ProjectPolicy, ProjectEvidence, EvidenceAssociation, CompletionHistory
+    risk.py        # RiskRegister, RiskComment, RiskTags
+    vendor.py      # Vendor, VendorApp, VendorFile, VendorHistory, Finding
+    assessment.py  # Assessment, Form, FormSection, FormItem, FormItemMessage, AssessmentGuest
+    comments.py    # ControlComment, SubControlComment, ProjectComment, AuditorFeedback
+    policy.py      # PolicyVersion, PolicyAssociation, ProjectPolicyAssociation, PolicyLabel, PolicyTags
+    tags.py        # Tag, ControlTags, ProjectTags
+    config.py      # ConfigStore, Logs
+```
+
+**Validation**: `python -c "from app.models import *"` + Docker build + health check.
+
+**Result (2026-04-14):** 5,161-line monolith split into 11 domain modules (48 classes). `__init__.py` re-exports all classes — 106 importing files unchanged. Event listeners + `login.user_loader` live in `__init__.py`. No module exceeds ~1,150 lines. Granularity is per-domain-aggregate, not per-class — modules only warrant further splitting if they exceed ~1,000 lines or contain unrelated concerns.
+
+| Module | Classes | Lines |
+|--------|---------|-------|
+| `project.py` | 8 | 1,155 |
+| `assessment.py` | 6 | 922 |
+| `tenant.py` | 2 | 795 |
+| `vendor.py` | 6 | 560 |
+| `auth.py` | 5 | 553 |
+| `framework.py` | 5 | 379 |
+| `policy.py` | 4 | 321 |
+| `config.py` | 2 | 238 |
+| `risk.py` | 3 | 203 |
+| `comments.py` | 4 | 123 |
+| `tags.py` | 3 | 83 |
+
+### E2: Service Layer for Core Business Logic
+**Status**: NOT STARTED — depends on E1
+
+Move DB mutations out of views into `app/services/`. Views become thin wrappers: parse request -> call service -> return response.
+
+| Service | Covers |
+|---------|--------|
+| `project_service.py` | project CRUD, control management, progress |
+| `risk_service.py` | risk CRUD, risk scoring |
+| `evidence_service.py` | evidence upload, association, generation |
+| `compliance_service.py` | framework management, control mapping |
+| `vendor_service.py` | vendor CRUD, assessments |
+
+### E3: Split `SettingsService` God Object
+**Status**: NOT STARTED — depends on E2
+
+Break 20+ method `SettingsService` into: `platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`.
+
+### E4: Remove `threading.Timer` Fallback
+**Status**: NOT STARTED — independent
+
+Make Redis + Celery hard requirement. Remove threading.Timer fallback. Add Celery health check to startup.
+
+### E5: Replace `lazy="dynamic"` on Hot Paths
+**Status**: NOT STARTED — depends on E1
+
+Change 4 high-traffic relationships to `lazy="select"`: `ProjectControl.subcontrols`, `.tags`, `.feedback`, `ProjectSubControl.evidence`.

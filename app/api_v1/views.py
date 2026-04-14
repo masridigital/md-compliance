@@ -572,24 +572,35 @@ def get_project_completion_history(pid):
 @limiter.limit("60 per minute")
 @login_required
 def get_controls_for_project(pid):
+    from collections import defaultdict
     result = Authorizer(current_user).can_user_access_project(pid)
+    project = result["extra"]["project"]
     data = []
     view = request.args.get("view")
     if view == "all":
         view = None
-    stats = request.args.get("stats", False)
-    if stats:
-        stats = True
 
-    # Eager-load parent Control to avoid N+1 on control.name/ref_code/description
+    # N+1 fix: batch-fetch subcontrols + eager-load parent Control
     ProjectControl = current_app.models["ProjectControl"]
+    ProjectSubControl = current_app.models["ProjectSubControl"]
+
     controls = ProjectControl.query.filter_by(
-        project_id=result["extra"]["project"].id
+        project_id=project.id
     ).options(
         selectinload(ProjectControl.control),
     ).all()
+
+    all_subs = db.session.execute(
+        db.select(ProjectSubControl)
+        .where(ProjectSubControl.project_id == project.id)
+        .order_by(ProjectSubControl.date_added.desc())
+    ).scalars().all()
+    subs_by_control = defaultdict(list)
+    for sc in all_subs:
+        subs_by_control[sc.project_control_id].append(sc)
+
     for control in controls:
-        record = control.as_dict()
+        record = control.as_dict(subcontrols=subs_by_control.get(control.id))
         if view:
             if view == "with-evidence" and record["progress_evidence"] > 0:
                 data.append(record)
