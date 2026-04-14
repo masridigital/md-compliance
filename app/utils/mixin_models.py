@@ -337,17 +337,18 @@ class SubControlMixin(object):
         if not self.is_applicable:
             return 0
 
-        has_evidence = 100 if self.has_evidence() else 0
+        impl = self.implemented or 0
+        has_ev = self.has_evidence()
 
-        # Base progress is the implementation percentage
-        implemented_adjusted = self.implemented
+        # Completion requires BOTH implementation AND evidence.
+        # Implementation is the primary driver (70%), evidence (30%).
+        # Evidence without implementation gives minimal credit.
+        if impl >= 100 and has_ev:
+            return 100
+        impl_score = impl * 0.7
+        ev_score = min(impl * 0.3, 30) if has_ev else 0
 
-        # If no evidence, reduce implemented progress by 25%
-        if not self.has_evidence():
-            implemented_adjusted *= 0.75
-
-        # Ensure that having evidence alone contributes some progress
-        return max(implemented_adjusted, has_evidence * 0.25)
+        return round(min(impl_score + ev_score, 100), 0)
 
     def completion_description(self):
         text = ""
