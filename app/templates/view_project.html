@@ -172,6 +172,8 @@
 		<label for="right-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
 
 		<div class="d5-drawer flex flex-col h-screen w-3/4">
+			<template x-if="selectedControl">
+			<div class="flex flex-col h-full">
 
 			<!-- Top Section (Static) -->
 			<div class="d5-drawer-header">
@@ -681,7 +683,7 @@
 						<div x-show="messagesForControl.length>0" class="flex-grow overflow-y-auto">
 							 <template x-for="message in messagesForControl" :key="message.id">
 								<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
-								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteMessage=false" class="chat-image avatar placeholder cursor-pointer">
+								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteControlMessage=false" class="chat-image avatar placeholder cursor-pointer">
 									  <div class="bg-neutral text-neutral-content rounded-full w-8">
 										<span x-show="!showDeleteControlMessage" class="text-xs uppercase" x-text="message.author_email[0]"></span>
 										<span x-show="showDeleteControlMessage" class="text-xs uppercase"><i class='ti ti-trash text-error'></i></span>
@@ -864,7 +866,7 @@
 						<div x-show="messagesForControl.length>0" class="flex-grow min-h-full overflow-y-auto control-section">
 							 <template x-for="message in messagesForControl" :key="message.id">
 								<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
-								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteMessage=false" class="chat-image avatar placeholder cursor-pointer">
+								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteControlMessage=false" class="chat-image avatar placeholder cursor-pointer">
 									  <div class="bg-neutral text-neutral-content rounded-full w-8">
 										<span x-show="!showDeleteControlMessage" class="text-xs uppercase" x-text="message.author_email[0]"></span>
 										<span x-show="showDeleteControlMessage" class="text-xs uppercase"><i class='ti ti-trash text-error'></i></span>
@@ -913,6 +915,8 @@
 				</div>
 
 			</div>
+			</div><!-- /x-if wrapper div -->
+			</template><!-- /x-if selectedControl -->
 		</div>
 	</div>
 </div>
@@ -2053,17 +2057,17 @@
 										<span class="text-xs" x-text="item.progress_completed"></span>
 										<div class="flex flex-row gap-x-0.5">
 										  <div class="flex space-x-1">
-											  <template x-for="n in idToProgressBarMapping[item.id].total">
+											  <template x-for="n in (idToProgressBarMapping[item.id] || {total:0}).total">
 												<div
 												  class="flex flex-col flex-nowrap justify-end w-0.5 h-3 bg-neutral-content opacity-90 rounded-full overflow-hidden relative"
 												  role="progressbar"
-												  :aria-valuenow="n <= idToProgressBarMapping[item.id].filledBars ? 100 : 0"
+												  :aria-valuenow="n <= (idToProgressBarMapping[item.id] || {}).filledBars ? 100 : 0"
 												  aria-valuemin="0"
 												  aria-valuemax="100">
 												  <div
 													class="rounded-full overflow-hidden"
-													:class="idToProgressBarMapping[item.id].color"
-													:style="`height: ${n <= idToProgressBarMapping[item.id].filledBars ? '100%' : '0%'}`">
+													:class="(idToProgressBarMapping[item.id] || {}).color"
+													:style="`height: ${n <= (idToProgressBarMapping[item.id] || {}).filledBars ? '100%' : '0%'}`">
 												  </div>
 												  <span class="text-xs absolute bottom-0 left-0 right-0 text-center"></span>
 												</div>
@@ -2709,8 +2713,8 @@
 								</td>
 								<td>
 									<div x-data="{ expanded: false }" class="max-w-xs">
-									  <p class="text-xs text-gray-400" x-text="expanded ? report.description : (report.description.length > 120 ? report.description.slice(0, 120) + '...' : report.description)"></p>
-									  <button x-show="report.description.length > 120" @click="expanded = !expanded" class="text-emerald-400 text-xs hover:underline" x-text="expanded ? 'less' : 'more'"></button>
+									  <p class="text-xs text-gray-400" x-text="expanded ? (report.description || '') : ((report.description || '').length > 120 ? (report.description || '').slice(0, 120) + '...' : (report.description || ''))"></p>
+									  <button x-show="(report.description || '').length > 120" @click="expanded = !expanded" class="text-emerald-400 text-xs hover:underline" x-text="expanded ? 'less' : 'more'"></button>
 									</div>
 								</td>
 								<td>
@@ -4952,7 +4956,7 @@ function project(){
 		projectUsers: [],
 		controlTab: "overview",
 		subcontrolTab: "overview",
-		projectData: {},
+		projectData: {members: [], auditors: [], completion_progress: 0},
 		projectId: "{{project.id}}",
 		isAuditor: false,
 		showPolicyModal: false,
@@ -4981,7 +4985,6 @@ function project(){
 		loadingSkeleton: '<span class="loading loading-dots loading-lg"></span>',
 		tabLoading: true,
 		tableLoading: true,
-		selectedControl: {},
 		selectedTab: "summary",
 		view: "default",
 		contextEditor: null,
@@ -6152,7 +6155,7 @@ function project(){
 			toast("No help page registered", "warning")
 		},
 		addAssociation: function(subcontrol) {
-		  data = {
+		  let reqData = {
 			"evidence": this.associatedEvidence.id
 		  }
 		  request("PUT",
@@ -6166,12 +6169,11 @@ function project(){
 			error => {
 			  toast(error.message, "error");
 			},
-			data
+			reqData
 		  );
 		},
 		removeAssociation: function(subcontrol) {
-		  console.log(subcontrol)
-		  data = {
+		  let reqData = {
 			"evidence": this.associatedEvidence.id
 		  }
 		  request("DELETE",
@@ -6185,7 +6187,7 @@ function project(){
 			error => {
 			  toast(error.message, "error");
 			},
-			data
+			reqData
 		  );
 
 		},
@@ -6226,7 +6228,7 @@ function project(){
 			this.controlFilter.tags = this.controlFilter.tags.filter(tag => tag !== name);
 		},
 		addTagToControl: function(control) {
-			payload = {"tags": [this.tempTagName]}
+			let payload = {"tags": [this.tempTagName]}
 			request("PUT",
 				`/api/v1/controls/${control.id}/tags`,
 				data => {
@@ -6241,7 +6243,7 @@ function project(){
 			);
 		},
 		removeTagFromControl: function(control, tag_name) {
-			payload = {"tags": [tag_name]}
+			let payload = {"tags": [tag_name]}
 			request("DELETE",
 				`/api/v1/controls/${control.id}/tags`,
 				data => {
@@ -6879,7 +6881,7 @@ function project(){
 		},
 		updateRisk: function(risk) {
 			//TODO
-		  data = {
+		  let data = {
 			"title": risk.title,
 			"description": risk.description,
 			"status":risk.status,
@@ -6899,7 +6901,7 @@ function project(){
 		  );
 		},
 		updatePolicy: function() {
-		  data = {
+		  let data = {
 			"description": this.selectedPolicy.description,
 			"reviewer": this.selectedPolicy.reviewer
 		  }
@@ -7053,7 +7055,7 @@ function project(){
 		  var data = tableData;
 		  var columns = [];
 
-		  gridOptions = {
+		  let gridOptions = {
 			pagination: true,
 			paginationPageSize: 25,
 			domLayout: "autoHeight",
@@ -7160,7 +7162,7 @@ function project(){
 			let cacheControls = this.keyExistsInLocalStorage(`${this.projectId}_controls`, parse=true);
 			if (cacheControls !== false) {
 				console.log("Updating controls in cache")
-				patchedControls = cacheControls.map(control => {
+				let patchedControls = cacheControls.map(control => {
 				  if (Array.isArray(control.subcontrols)) {
 					// Map through subcontrols and patch the matching subcontrol by id
 					control = {
@@ -7201,6 +7203,7 @@ function project(){
 			},
 			error => {
 			  this.loadingControlsMessage = "Something went wrong"
+			  this.loadingControls = false;
 			  toast(error.message, "error");
 			}
 		  );
@@ -7228,6 +7231,8 @@ function project(){
 			  }
 			},
 			error => {
+			  this.tabLoading = false;
+			  this.tableLoading = false;
 			  toast(error.message, "error");
 			}
 		  )
@@ -7248,6 +7253,9 @@ function project(){
 
 			},
 			error => {
+			  this.loadingReports = false;
+			  this.tabLoading = false;
+			  this.tableLoading = false;
 			  toast(error.message, "error");
 			}
 		  )
@@ -7274,17 +7282,19 @@ function project(){
 			this.controlFilter.owner = this.controlOwner
 		},
 		deleteRisk: function() {
+			let riskId = this.selectedRisk ? this.selectedRisk.id : null;
+			if (!riskId) return;
 			request("DELETE",
-				`/api/v1/projects/${this.projectId}/risks/${selectedRisk.id}`,
+				`/api/v1/projects/${this.projectId}/risks/${riskId}`,
 				data => {
-					this.risks.push(data)
-					this.showCreateRisk = false
-					this.riskPayload = {}
+					this.risks = this.risks.filter(r => r.id !== riskId);
+					this.filteredRisks = this.filteredRisks.filter(r => r.id !== riskId);
+					this.selectedRisk = {};
+					toast("Risk deleted", "success");
 				},
 				error => {
 				  toast(error.message, "error");
-				},
-				this.riskPayload
+				}
 			);
 		},
 		getTenantPolicies: function() {
@@ -7303,8 +7313,8 @@ function project(){
 		},
 		setControlData: function(options={}) {
 			console.log("Reloading the controls");
-			controls = options["controls"]
-			readURL = options["readURL"]
+			let controls = options["controls"]
+			let readURL = options["readURL"]
 
 			if (!controls) {
 				controls = this.controls;
@@ -7536,16 +7546,20 @@ function project(){
 			if (readURL) {
 				if (this.getURLParam("control-id")) {
 					let control = this.controls.find(obj => obj.id === this.getURLParam("control-id"));
-					this.openControlInDrawer(control)
+					if (control) {
+						this.openControlInDrawer(control)
 
-					if (this.getURLParam("subcontrol-id")) {
-						let subcontrol = this.subcontrols.find(obj => obj.id === this.getURLParam("subcontrol-id"));
-						this.selectedSubControl = subcontrol
-						this.changeSubControlTabInDrawer(this.getURLParam("drawer-subtab", defaultValue="details"))
+						if (this.getURLParam("subcontrol-id")) {
+							let subcontrol = this.subcontrols.find(obj => obj.id === this.getURLParam("subcontrol-id"));
+							if (subcontrol) {
+								this.selectedSubControl = subcontrol
+								this.changeSubControlTabInDrawer(this.getURLParam("drawer-subtab") || "details")
+							}
+						}
 					}
 				  } else if (this.getURLParam("evidence-id")) {
 					let evidence = this.projectEvidence.find(obj => obj.id === this.getURLParam("evidence-id"));
-					this.openEvidenceDrawer(evidence)
+					if (evidence) this.openEvidenceDrawer(evidence)
 				}
 		    }
 
@@ -7581,6 +7595,7 @@ function project(){
 		  }, 100);
 		},
 		loadCommentsForControl: function() {
+			if (!this.selectedControl) return;
 			request("GET",
 				`/api/v1/projects/${this.projectId}/controls/${this.selectedControl.id}/comments`,
 				data => {
@@ -7601,10 +7616,12 @@ function project(){
 				  this.tableLoading = false;
 				  setTimeout(function() {
 					var divElement = document.getElementById("messageDiv");
-					divElement.scrollTop = divElement.scrollHeight;
+					if (divElement) divElement.scrollTop = divElement.scrollHeight;
 				  }, 100);
 				},
 				error => {
+				  this.tabLoading = false;
+				  this.tableLoading = false;
 				  toast(error.message, "error");
 				}
 			);
@@ -7669,7 +7686,7 @@ function project(){
 
 		},
 		closeControlDrawer: function() {
-			this.previouslySelectedRowId = this.selectedControl.id;
+			this.previouslySelectedRowId = this.selectedControl ? this.selectedControl.id : '';
 			this.selectedControl = null;
 			this.isControlOpen = false
 			this.deleteURLParam("control-id")
@@ -7727,7 +7744,7 @@ function project(){
 			  toast("Not able to find evidence", "error")
 			  return
 			}
-			data = {
+			let data = {
 			  "evidence": evidence.id
 			}
 			request("DELETE",
@@ -7945,6 +7962,7 @@ function project(){
 
 			},
 			error => {
+			  this.loadingEvidence = false;
 			  toast(error.message, "error");
 			}
 		  );
