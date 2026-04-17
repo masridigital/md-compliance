@@ -1,7 +1,7 @@
 """app.models.project — Project domain models."""
 
 from app import db
-from app.utils.mixin_models import QueryMixin, ControlMixin, SubControlMixin
+from app.utils.mixin_models import QueryMixin, ControlMixin, SubControlMixin, DateMixin
 from app.masri.settings_service import EncryptedText
 from flask import current_app, abort
 from sqlalchemy import func, case
