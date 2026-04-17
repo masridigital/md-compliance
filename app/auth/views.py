@@ -6,9 +6,12 @@ from flask import (
     flash,
     redirect,
     url_for,
+    render_template,
+    abort,
 )
 from flask_login import current_user, logout_user
 from app.utils.decorators import custom_login, login_required, is_logged_in
+from app.utils.authorizer import Authorizer
 from app import db, limiter
 from . import auth
 from app.models import *

@@ -3,6 +3,7 @@ from flask import (
     url_for,
     flash,
     request,
+    render_template,
 )
 from . import main
 from app.models import *
