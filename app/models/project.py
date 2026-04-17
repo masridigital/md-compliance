@@ -7,6 +7,7 @@ from flask import current_app, abort
 from sqlalchemy import func, case
 from sqlalchemy.orm import validates
 from datetime import datetime
+from typing import List
 from app.utils import misc
 import shortuuid
 import secrets

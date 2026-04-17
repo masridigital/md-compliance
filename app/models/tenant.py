@@ -7,6 +7,7 @@ from flask import current_app, abort
 from sqlalchemy import func
 from sqlalchemy.orm import validates
 from datetime import datetime
+from typing import List
 from app.utils.authorizer import Authorizer
 from app.utils import misc
 from app.email import send_email
