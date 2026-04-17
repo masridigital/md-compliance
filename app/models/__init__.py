@@ -137,3 +137,37 @@ _m_tenant.Tag = Tag
 
 _m_vendor.Assessment = Assessment
 _m_vendor.Form = Form
+
+
+# ── Explicit __all__ to prevent submodule leakage ─────────────────────
+# Without __all__, ``from app.models import *`` would import the
+# submodule names (auth, risk, tenant, ...) which collide with Flask
+# blueprints like ``app.auth``. Listing only classes prevents that.
+__all__ = [
+    "db",
+    # vendor
+    "Finding", "VendorFile", "AppHistory", "VendorHistory", "VendorApp", "Vendor",
+    # tenant
+    "DataClass", "Tenant",
+    # framework
+    "Framework", "Policy", "Control", "SubControl", "PolicyAssociation",
+    # project
+    "ProjectEvidence", "EvidenceAssociation", "ProjectMember",
+    "CompletionHistory", "Project", "ProjectControl", "ProjectSubControl",
+    "ProjectPolicyAssociation",
+    # policy
+    "ProjectPolicy", "PolicyVersion", "PolicyLabel", "PolicyTags",
+    # risk
+    "RiskRegister", "RiskComment", "RiskTags",
+    # comments
+    "AuditorFeedback", "SubControlComment", "ControlComment", "ProjectComment",
+    # tags
+    "ControlTags", "ProjectTags", "Tag",
+    # auth
+    "Role", "TenantMember", "TenantMemberRole", "UserRole", "User",
+    # assessment
+    "Form", "AssessmentGuest", "FormItemMessage", "FormItem",
+    "FormSection", "Assessment",
+    # config
+    "ConfigStore", "Logs",
+]
