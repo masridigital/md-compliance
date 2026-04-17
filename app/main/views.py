@@ -5,6 +5,8 @@ from flask import (
     abort,
     redirect,
     url_for,
+    render_template,
+    current_app,
 )
 from . import main
 from app.utils.decorators import *

@@ -2,7 +2,7 @@
 
 from app import db
 from app.masri.settings_service import EncryptedText
-from flask import current_app
+from flask import current_app, abort
 from datetime import datetime
 import shortuuid
 import secrets
