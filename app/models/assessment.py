@@ -3,8 +3,10 @@
 from app import db
 from app.utils.mixin_models import QueryMixin, DateMixin
 from app.masri.settings_service import EncryptedText
-from flask import current_app, abort
+from flask import current_app, abort, render_template
 from sqlalchemy import func
+from app.utils import misc
+from app.email import send_email
 from sqlalchemy.orm import validates
 from datetime import datetime
 from string import Formatter

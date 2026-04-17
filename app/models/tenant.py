@@ -3,8 +3,10 @@
 from app import db
 from app.utils.mixin_models import QueryMixin, AuthorizerMixin
 from app.masri.settings_service import EncryptedText
-from flask import current_app, abort
+from flask import current_app, abort, render_template
 from sqlalchemy import func
+from app.utils.file_handler import FileStorageHandler
+import email_validator
 from sqlalchemy.orm import validates
 from datetime import datetime
 from typing import List
@@ -17,6 +19,7 @@ import json
 import arrow
 import logging
 import hashlib
+import shutil
 
 
 class DataClass(db.Model, QueryMixin):

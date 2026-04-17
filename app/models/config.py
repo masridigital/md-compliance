@@ -202,37 +202,5 @@ class Logs(db.Model):
         return db.session.execute(_query).scalars().all()
 
 
-@login.user_loader
-def load_user(user_id):
-    return db.session.get(User, user_id)
-
-
-@listens_for(FormItem.remediation_vendor_agreed, "set")
-def before_update_vendor_remediation_listener(target, value, old_value, initiator):
-    """
-    When remediation_vendor_agreed is set to True, we will update the review_status to complete
-    b/c the vendor submitted a remediation plan and agreed to the Gap
-
-    When set to False, we will update the review_status to "pending", so that the InfoSec team
-    can review the rejected remediation
-    """
-    if value is True:
-        target.review_status = "complete"
-    if value is False:
-        target.review_status = "pending"
-
-
-@listens_for(ProjectSubControl.implemented, "set")
-def after_update_project_sub_control_implementation_listener(
-    target, value, old_value, initiator
-):
-    """
-    When the implementation of a subcontrol is updated, we are going to calculate the project
-    completion so that we can show a progress chart overtime
-    """
-    project = target.project
-    if project.ready_for_completion_update():
-        completion = project.completion_progress()
-        project.add_completion_metric(completion=completion)
 
 

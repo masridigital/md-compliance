@@ -3,11 +3,13 @@
 from app import db
 from app.masri.settings_service import EncryptedText
 from flask import current_app
+from sqlalchemy.orm import validates
 from datetime import datetime
 import shortuuid
 import secrets
 import hashlib
 import json
+import arrow
 
 
 class RiskComment(db.Model):
