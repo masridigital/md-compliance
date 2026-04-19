@@ -133,6 +133,35 @@ def run_mapper(db, project):
                             db.session.add(assoc)
                             
                 created_count += 1
+        else:
+            # Stage 6 - Drift Degradation
+            # If the rule fails now, but there's accepted evidence from this source, we must demote it.
+            existing_evs = db.session.execute(
+                db.select(ProjectEvidence).filter_by(
+                    project_id=project.id,
+                    source=f"{source}:{subject}",
+                    kind="integration_artifact",
+                    status="accepted"
+                )
+            ).scalars().all()
+            
+            for ex in existing_evs:
+                ex.status = "proposed"
+                ex.rejection_reason = f"System detected drift. Previous fact no longer holds. New data: {fact.assertion} (Collected At: {fact.collected_at}). Rule failed."
+                logger.warning(f"Drift detected for subcontrols on {ref_code}. Demoted evidence {ex.id} to proposed.")
+                
+                # Drop verified state on connected subcontrols
+                assocs = db.session.execute(
+                    db.select(EvidenceAssociation).filter_by(evidence_id=ex.id)
+                ).scalars().all()
+                
+                for assoc in assocs:
+                    from app.models.project import ProjectSubControl
+                    sc = db.session.get(ProjectSubControl, assoc.control_id)
+                    if sc and sc.verified_at:
+                        sc.verified_at = None
+                        sc.verified_by_id = None
+                        sc.verification_note = (sc.verification_note or "") + f"\n\n[System] Drift detected on {fact.collected_at}, automatically unverifying subcontrol."
                 
     db.session.commit()
     return created_count
