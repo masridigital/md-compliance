@@ -1,8 +1,14 @@
 # MD Compliance — Session Memory
 
-Last updated: 2026-04-11
+Last updated: 2026-04-19
 
-## Current Phase: D (UI/UX Redesign)
+## Current Phase: E (Scalability Refactoring) — E1-E5 DONE
+
+Phase D is complete. Phase E (backend scalability) is now wrapped: E1
+(split `models.py`), E2 (5 domain services), E3 (split
+`SettingsService`), E4 (drop threading.Timer), E5 (`lazy="select"` on
+hot paths). What remains is opportunistic follow-up migration + the
+deferred UI/correctness items in the Known Issues table.
 
 ### Completed (All Sessions)
 
@@ -169,7 +175,66 @@ Last updated: 2026-04-11
   - Verified: CSRF globally enabled, all raw SQL parameterized, Jinja2 auto-escaping on, all routes auth-protected
 - Updated PHASES.md security hardening table
 
-### Remaining Work (Priority Order)
-1. Additional integration connections (ConnectWise, Duo, KnowBe4, Veeam)
-2. Trust portal: custom domain CNAME support
-3. Minor UI polish: modal dialogs, toast styles
+### Session 2026-04-19 (Phase E + Telivy debug hardening)
+
+Commits on `claude/continue-session-plan-4jkFL` (merged to `main`):
+
+- **Phase E2 — Service layer rollout (5/5):**
+  - `project_service.py` — 7 operations (list, get_serializable, update_basic, update_settings, delete, create_for_tenant, set_notes). 7 view endpoints migrated.
+  - `risk_service.py` — 8 operations. 9 view endpoints migrated across `views.py` + `vendors.py`. Replaced raw-SQL risk queries with relationship reads.
+  - `evidence_service.py` — 11 operations (list/create/update/delete at project + subcontrol level, groupings, associate, add/remove bindings). 12 view endpoints migrated. Fixed latent `Project.evidence_groupings` bug that called nonexistent `self.subcontrols()`.
+  - `compliance_service.py` — 16 operations (framework seeding, policy CRUD, versions, project↔control bridge, review-status + applicability + notes, subcontrol updates). 20 view endpoints migrated.
+  - `vendor_service.py` — 13 operations (vendor + app + assessment CRUD, tenant rollups, notes, categories, business units). 14 view endpoints in `vendors.py` migrated.
+- **Phase E4 — threading.Timer removed:** `scheduler.py` 611 → ~460 lines. Celery + Redis now hard-required (`from celery import Celery` at module top fails fast if missing). `docker-compose.yml` celery-worker/celery-beat gate dropped — they start with `docker-compose up`. `_started` flag + `threading.Lock` replace `_timers`/`_running`. Closes the 3 scheduler Known Issues entries.
+- **Phase E5 — lazy="select" on hot paths:** `ProjectControl.subcontrols`, `.tags`, `.feedback`, and `ProjectSubControl.evidence` switched off AppenderQuery. Call-sites in `api_v1/views.py`, `masri/llm_routes.py`, `masri/evidence_generators.py`, `utils/mixin_models.py`, and `models/project.py` rewritten to use list idioms.
+- **Phase E3 — SettingsService god class split (7 domain services):**
+  - `app/services/platform_service.py` — PlatformSettings singleton + MCP key validation
+  - `app/services/branding_service.py` — TenantBranding overlaid on platform defaults
+  - `app/services/llm_config_service.py` — primary SettingsLLM row
+  - `app/services/storage_config_service.py` — SettingsStorage rows + default election
+  - `app/services/sso_service.py` — SettingsSSO (platform + per-tenant)
+  - `app/services/notification_service.py` — channels + DueDate reminders
+  - `app/services/entra_config_service.py` — platform Entra credentials
+  - `settings_service.py` shrank 568 → 160 lines; only Fernet primitives (`encrypt_value`/`decrypt_value`/`is_encrypted`/`EncryptedText`) remain because ~30 call-sites consume them as module-level helpers
+  - 15 call-sites migrated: `settings_routes.py` (14), `context_processors.py`, `entra_routes.py`, `telivy_routes.py`, `llm_service.py`, `model_recommender.py`, `storage_router.py`, tests. Dead `SettingsService` import removed from `notification_engine.py`.
+- **Telivy debug-data hardening (5 fixes):**
+  - Response is a single JSON object — docstring makes the machine-only contract explicit
+  - New `normalized_status` field collapses `scan_status` + `llm_status` with authoritative precedence rules:
+    - `telivy.scan.scanStatus` wins over `telivy.assessment.scanStatus`
+    - `llm_result.success == True` wins over stale `llm_status.status == "processing"`
+  - `_mask_secret` helper redacts `telivyKey` (both `scan` and `assessment` blobs) and top-level `tenant_id`, defensively (doesn't mutate source)
+  - Findings indexed by slug in both the debug response (`telivy_findings_by_slug`) and the LLM compression pass in `llm_routes.py` — slugs are stable machine ids; names drift between scans.
+
+### Next Session — Priority Order
+
+**Carried over from the Phase D/E tables in CLAUDE.md:**
+
+1. **Phase D UI follow-ups** (captured in CLAUDE.md "Known UI/UX Follow-ups"):
+   - Home page: hero treatment for top-level risk count + drift-alert callout refinement
+   - Workspace drawer interior (SSO fields, project list) still uses legacy styling — apply `d5-drawer` internals
+   - Projects page: Fraunces-serif progress ring number + `d5-framework-chip` for wrapping framework codes
+   - `view_project.html` sub-tabs pending: Controls list status pills, Evidence card grid, Risk Register, Policies, Settings, Integrations, Users, Audit Review, Report — plus control drawer header + sub-tabs
+   - 30-day completion chart: clamp y-axis to `[0, max(series)+10]` or switch to sparkline card for flat data
+
+2. **Known Issues (deferred bugs in CLAUDE.md Security Audit table):**
+   - `ControlMixin.generate_stats` reports "not started" on a 99% project — needs live API response from `/api/v1/projects/<pid>/controls` to diagnose (possible causes: URL-preserved filter, stale pre-loaded subs, or mismatch between `_fast_summary` SQL aggregation and `generate_stats` Python loop)
+   - `has_evidence(id=...)` uses `int(id)` on shortuuid string — ValueError crash path
+   - `TestingConfig` inherits `SQLALCHEMY_ENGINE_OPTIONS = {"pool_size": 5, ...}` — SQLite rejects pool_size, test suite can't run locally. Override to `{}` in TestingConfig.
+   - `SMTP TLS` setting stored as string (always truthy) — can never disable via settings
+   - `email_confirm_code` has no expiry — valid forever once generated
+   - Drift detection baselines never auto-created — drift checks silently disabled until manual baseline
+   - MFA false positives: new users flagged as "MFA disabled" (baseline check should exclude users not in baseline)
+   - Missing `ondelete` on FKs, mutable `default={}` on several model columns, `PlatformSettings`/`SettingsLLM` singleton not DB-enforced
+
+3. **Opportunistic E2 follow-ups** (as touched during feature work):
+   - `project_service`: migrate control member management, tag management, project history, auditor-feedback endpoints
+   - `compliance_service`: evidence-subcontrol bindings at the subcontrol level
+
+4. **Product backlog (Phase C6+):**
+   - Trust portal: custom domain CNAME support
+   - Additional integrations: ConnectWise Manage/Automate, Duo Security, KnowBe4, Veeam/Datto — each follows the "Integration Methodology" section in CLAUDE.md
+
+5. **Follow-ups from today's work to verify on next boot:**
+   - Test the `/api/v1/settings/debug-data/<tid>` endpoint in the live admin UI — confirm the new `normalized_status` renders and `telivyKey` masking works on a real assessment
+   - Confirm Celery workers pick up the 6 scheduled tasks on a real deploy (E4 verified on import, not on a live broker)
+   - Watch `app/services/__init__.py` — if any new service is added, also update the docstring list there

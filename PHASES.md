@@ -72,10 +72,21 @@ Apple-inspired design system: DM Sans font, emerald #10b981 accent, charcoal sur
 | 4 | Open redirect fix in `is_logged_in`, XSS fix in policy center TOC | 2026-04-11 |
 | 5 | Deep audit: JWT expiry, TOTP brute-force, MCP OAuth bypass, 25+ fixes | 2026-04-12 |
 
-## Phase E: Scalability Refactoring — IN PROGRESS
+## Phase E: Scalability Refactoring — COMPLETE (E1-E5)
 
 **Goal**: Domain-driven architecture, service layer, production-grade background jobs.
 **Execution order:** E1 -> E2 -> E3, E1 -> E5, E4 (independent)
+
+| Step | Status | Landed |
+|------|--------|--------|
+| E1 — split `models.py` | **DONE** | 2026-04-14 |
+| E2 — service layer (5/5) | **DONE** | 2026-04-19 |
+| E3 — split `SettingsService` | **DONE** | 2026-04-19 |
+| E4 — drop threading.Timer | **DONE** | 2026-04-19 |
+| E5 — `lazy="select"` on hot paths | **DONE** | 2026-04-19 |
+
+Opportunistic follow-ups remain (see CLAUDE.md "Pending Refactoring
+Order") but no blocking Phase E work is outstanding.
 
 ### Quick Wins (completed 2026-04-14)
 
