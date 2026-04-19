@@ -6538,12 +6538,12 @@ function project(){
 				data => {
 				  toast("Updated User")
 				  location.reload()
-<!--                  const tempUserList = this.projectUsers.filter(obj => obj.id !== this.selectedUser.id);-->
-<!--                  tempUserList.push({"id":this.selectedUser.id, "email": this.selectedUser.email, "access_level": this.updatedAccessLevel, "member": true})-->
-<!--                  this.projectUsers = tempUserList-->
-<!--                  this.showEditUserModal = false;-->
-<!--                  this.updatedAccessLevel = false;-->
-<!--                  this.selectedUser = {}-->
+				  // const tempUserList = this.projectUsers.filter(obj => obj.id !== this.selectedUser.id);
+				  // tempUserList.push({"id":this.selectedUser.id, "email": this.selectedUser.email, "access_level": this.updatedAccessLevel, "member": true})
+				  // this.projectUsers = tempUserList
+				  // this.showEditUserModal = false;
+				  // this.updatedAccessLevel = false;
+				  // this.selectedUser = {}
 				},
 				error => {
 				  toast(error.message, "error");
