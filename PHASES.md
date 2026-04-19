@@ -236,6 +236,6 @@ comprehensions, `len`, truthiness) instead of query chaining.
 | F1 | Data-model migrations | **DONE** 2026-04-19 | `IntegrationFact`, `AiSuggestion`, updated columns on `ProjectEvidence` |
 | F2 | Scoring rewrite | **DONE** 2026-04-19 | strict stats, no partial implementation points, strict project summary |
 | F3 | Fact extraction | **DONE** 2026-04-19 | evidence_generators rewritten to output `IntegrationFact` rows |
-| F4 | Rule-based mapper | Pending | deterministic framework rule matching |
+| F4 | Rule-based mapper | **DONE** 2026-04-19 | deterministic framework mapping with rule execution engine and YAML patterns |
 | F5 | LLM narrowing | Pending | restrict AI to proposals vs mutations |
 | F6 | UI surface | **PARTIAL** | collapsed drawer complete |

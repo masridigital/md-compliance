@@ -1545,14 +1545,21 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     db.session.commit()
 
                     # Generate automated evidence from integration data
-                    _update_job_status(tenant_id, "generating_evidence", f"Generating evidence for {project.name if hasattr(project, 'name') else project.id}")
+                    _update_job_status(tenant_id, "generating_evidence", f"Generating facts for {project.name if hasattr(project, 'name') else project.id}")
                     try:
                         from app.masri.evidence_generators import generate_all_evidence
-                        ev_count = generate_all_evidence(db, project, tenant_id)
+                        facts_count = generate_all_evidence(db, project, tenant_id)
+                        if facts_count:
+                            logger.info("Generated %d integration facts for project %s", facts_count, project.id)
+                            
+                        # Run Stage 3 - Rule-Based Mapper
+                        from app.masri.rule_mapper import run_mapper
+                        ev_count = run_mapper(db, project)
                         if ev_count:
-                            logger.info("Generated %d evidence records for project %s", ev_count, project.id)
+                            logger.info("Mapped %d pieces of evidence for project %s", ev_count, project.id)
+                            
                     except Exception as ev_err:
-                        logger.warning("Evidence generation failed for project %s: %s", project.id, ev_err)
+                        logger.warning("Evidence generation/mapping failed for project %s: %s", project.id, ev_err)
                 except Exception as e:
                     logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
             else:
