@@ -410,155 +410,24 @@
 							</div>
 						</div>
 					</div>
-						<div class="flex items-center gap-1.5 mt-4 pb-0">
-					  <button @click="changeControlTabInDrawer('details')" :class="{'active': activeSideTab==='details'}" class="d5-drawer-tab">Details</button>
-					  <button @click="changeControlTabInDrawer('subcontrols')" :class="{'active': activeSideTab==='subcontrols'}" class="d5-drawer-tab">
+						<div class="flex items-center gap-1.5 mt-4 pb-0 sticky top-0 bg-base-100 z-10 pt-2 border-b border-white/6 px-1">
+					  <button @click="document.getElementById('section-details').scrollIntoView({behavior: 'smooth'})" class="d5-drawer-tab">Details</button>
+					  <button @click="document.getElementById('section-subcontrols').scrollIntoView({behavior: 'smooth'})" class="d5-drawer-tab">
 						  <span class="flex items-center gap-1">
 							<i x-show="selectedControl.stats.subcontrols_complete===selectedControl.stats.applicable_subcontrols" class="ti ti-check text-emerald-400"></i>
 							<i x-show="selectedControl.stats.subcontrols_complete!==selectedControl.stats.applicable_subcontrols" class="ti ti-alert-triangle text-amber-400"></i>
 							<span x-text="'Subcontrols ' + selectedControl.stats.subcontrols_complete+'/'+selectedControl.stats.applicable_subcontrols"></span>
 						  </span>
 					  </button>
-					  <button @click="changeControlTabInDrawer('auditor')" :class="{'active': activeSideTab==='auditor'}" class="d5-drawer-tab">
+					  <button @click="document.getElementById('section-auditor').scrollIntoView({behavior: 'smooth'})" class="d5-drawer-tab">
 						  <span class="flex items-center gap-1">
 							<i x-show="selectedControl.review_complete" class="ti ti-check text-emerald-400"></i>
 							<i x-show="selectedControl.stats.feedback && !selectedControl.review_complete" class="ti ti-alert-triangle text-amber-400"></i>
 							<span x-text="'Review ' + (selectedControl.stats.feedback || 0)"></span>
 						  </span>
 					  </button>
-					  <button @click="changeControlTabInDrawer('comments'); scrollToRecentMessagesInDrawer()" :class="{'active': activeSideTab==='comments'}" class="d5-drawer-tab" x-text="'Comments ' + messagesForControl.length"></button>
+					  <button @click="document.getElementById('section-comments').scrollIntoView({behavior: 'smooth'}); scrollToRecentMessagesInDrawer()" class="d5-drawer-tab" x-text="'Comments ' + messagesForControl.length"></button>
 					</div>
-					</div>
-				</div>
-				<div x-show="selectedSubControl">
-					<div class="flex items-center gap-3 mb-3">
-						<button @click="closeSubControlInDrawer" class="btn btn-xs btn-ghost border border-white/10 tooltip tooltip-right" data-tip="Back"><i class="ti ti-arrow-left text-gray-400"></i></button>
-						<h3 :class="{'text-error': !selectedSubControl.is_applicable}" class="text-lg font-bold" x-text="selectedSubControl.progress_completed"></h3>
-							<div class="flex justify-stretch space-x-1 my-auto">
-							  <template x-for="n in idToProgressBarMapping[selectedSubControl.id+'_progress'].total">
-								<div
-								  class="flex flex-col flex-nowrap justify-end w-0.5 h-6 bg-neutral-content opacity-90 rounded-full overflow-hidden relative"
-								  role="progressbar"
-								  :aria-valuenow="n <= idToProgressBarMapping[selectedSubControl.id+'_progress'].filledBars ? 100 : 0"
-								  aria-valuemin="0"
-								  aria-valuemax="100">
-								  <div
-									class="rounded-full overflow-hidden"
-									:class="idToProgressBarMapping[selectedSubControl.id+'_progress'].color"
-									:style="`height: ${n <= idToProgressBarMapping[selectedSubControl.id+'_progress'].filledBars ? '100%' : '0%'}`">
-								  </div>
-								  <span class="text-xs absolute bottom-0 left-0 right-0 text-center"></span>
-								</div>
-							  </template>
-							</div>
-						</div>
-
-						<div class="flex justify-between w-full pl-4 border-l border-white/6 min-w-0">
-							<div class="min-w-0">
-								<span class="d5-info-label !min-w-0" x-text="'Subcontrol ' + selectedSubControl.ref_code.toUpperCase()"></span>
-								<span class="text-sm font-semibold text-white block truncate" x-text="selectedSubControl.name"></span>
-							</div>
-							<div class="flex items-center gap-1.5 shrink-0 ml-3">
-								<div class="dropdown dropdown-end">
-								  <div tabindex="0" role="button" class="btn btn-xs btn-ghost border border-white/10">
-									<i class="ti ti-dots-vertical text-gray-400"></i>
-								  </div>
-								  <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-lg z-[1] w-48 p-1.5 shadow-lg border border-white/6">
-									<li>
-										<button x-show="selectedSubControl.is_applicable" @click="setSubControlAsNotApplicable(selectedSubControl)" class="text-xs text-error"><i class="ti ti-eye-off mr-1"></i>Not Applicable</button>
-										<button x-show="!selectedSubControl.is_applicable" @click="setSubControlAsApplicable(selectedSubControl)" class="text-xs text-success"><i class="ti ti-eye mr-1"></i>Applicable</button>
-									</li>
-								  </ul>
-								</div>
-								<div class="dropdown dropdown-bottom dropdown-end">
-								  <div tabindex="0" role="button" class="btn btn-xs btn-ghost border border-white/10">
-									<i class="ti ti-list text-gray-400"></i>
-								  </div>
-								  <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-lg z-[1] w-80 p-1.5 shadow-lg border border-white/6 max-h-64 overflow-y-auto">
-									<template x-for="subcontrol in selectedControl.subcontrols">
-										<li @click="openSubControlInDrawer(subcontrol)">
-											<div :class="{'opacity-40': selectedSubControl.id===subcontrol.id}" class="flex justify-between text-xs">
-												<div x-show="subcontrol.is_applicable" class="flex items-center gap-2 w-1/2">
-													<span class="font-semibold" x-text="subcontrol.progress_completed + '%'"></span>
-													<progress class="progress w-full h-1" :value="subcontrol.progress_completed+1" max="100"></progress>
-												</div>
-												<div x-show="!subcontrol.is_applicable" class="text-red-400 text-xs">N/A</div>
-												<span class="font-mono text-gray-500" x-text="subcontrol.ref_code"></span>
-											</div>
-										</li>
-									</template>
-								  </ul>
-								</div>
-								<button @click="copySubControlLink(selectedSubControl.id)" class="btn btn-xs btn-ghost border border-white/10 tooltip" data-tip="Share"><i class="ti ti-share text-gray-400"></i></button>
-							</div>
-						</div>
-					</div>
-						<div class="grid grid-cols-12 mt-3 gap-3">
-							<div class="col-span-3">
-								<div class="d5-card">
-									<span class="d5-info-label block mb-1">Status</span>
-									<span class="text-sm text-white capitalize" x-text="selectedSubControl.completion_status"></span>
-								</div>
-							</div>
-							<div class="col-span-4">
-								<div class="flex flex-col w-3/4">
-									<div class="d5-card">
-									<div class="space-y-3">
-										<div>
-											<div class="flex justify-between mb-1">
-												<span class="d5-info-label !min-w-0">Implemented</span>
-												<span class="text-xs font-semibold" x-text="selectedSubControl.implemented+'%'"></span>
-											</div>
-											<progress
-												:class="{
-													'progress-error': selectedSubControl.implemented < 30,
-													'progress-warning': selectedSubControl.implemented >= 30 && selectedSubControl.implemented < 75,
-													'progress-success': selectedSubControl.implemented >= 75
-												}"
-												class="progress h-1" :value="selectedSubControl.implemented+1" max="100"></progress>
-										</div>
-										<div>
-											<div class="flex justify-between mb-1">
-												<span class="d5-info-label !min-w-0">Evidence</span>
-												<span class="text-xs font-semibold" x-show="selectedSubControl.has_evidence">100%</span>
-												<span class="text-xs font-semibold" x-show="!selectedSubControl.has_evidence">0%</span>
-											</div>
-											<progress x-show="selectedSubControl.has_evidence" class="progress h-1 progress-success" value="100" max="100"></progress>
-											<progress x-show="!selectedSubControl.has_evidence" class="progress h-1 progress-error" value="1" max="100"></progress>
-										</div>
-									</div>
-								</div>
-							</div>
-							<div class="col-span-5">
-								<div class="d5-card">
-									<span class="d5-info-label block mb-1">Description</span>
-									<div x-data="{ expanded: false }">
-										<div :class="expanded ? 'max-h-40' : 'max-h-10'" class="overflow-y-auto transition-all">
-											<span class="text-xs text-gray-300 leading-relaxed" x-text="expanded ? (selectedControl.description || selectedSubControl.name) : (selectedControl.description || selectedSubControl.name).slice(0, 90) + '...'"></span>
-										</div>
-										<button
-											x-show="(selectedControl.description || selectedSubControl.name).length > 100"
-											@click="expanded = !expanded"
-											class="text-emerald-400 text-xs mt-1 hover:underline">
-											<span x-text="expanded ? 'Show less' : 'Show more'"></span>
-										</button>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="flex items-center gap-1.5 mt-4 pb-0">
-						  <button @click="closeSubControlInDrawer" class="d5-drawer-tab text-gray-500 hover:text-white"><i class="ti ti-arrow-left mr-1"></i>Back</button>
-						  <button @click="changeSubControlTabInDrawer('details')" :class="{'active': activeSubSideTab==='details'}" class="d5-drawer-tab">Details</button>
-						  <button @click="changeSubControlTabInDrawer('evidence')" :class="{'active': activeSubSideTab==='evidence'}" class="d5-drawer-tab">
-							<span class="flex items-center gap-1">
-								<i x-show="!selectedSubControl.has_evidence" class="ti ti-minus text-gray-500"></i>
-								<i x-show="selectedSubControl.has_evidence" class="ti ti-check text-emerald-400"></i>
-								<span x-text="'Evidence ' + (selectedSubControl.evidence ? selectedSubControl.evidence.length : 0)"></span>
-							</span>
-						  </button>
-						  <button @click="changeSubControlTabInDrawer('comments'); scrollToRecentMessagesInDrawer()" :class="{'active': activeSubSideTab==='comments'}" class="d5-drawer-tab" x-text="'Comments ' + messagesForControl.length"></button>
-						</div>
 					</div>
 				</div>
 			</div>
@@ -567,8 +436,9 @@
 			<div id="middle-section" class="flex-1 overflow-y-auto">
 
 	<!--            Control drawer content-->
-				<div x-show="!selectedSubControl">
-					<div x-show="activeSideTab==='details'" class="px-6 py-4">
+				<div>
+					<!-- Section: Details -->
+					<div id="section-details" class="px-6 py-4">
 						<div x-show="!selectedControl.is_applicable" class="d5-card border-red-500/20 mb-4 flex items-center gap-2">
 							<i class="ti ti-alert-circle text-red-400"></i>
 							<span class="text-xs text-red-300">This control is marked as Not Applicable. No action items unless changed.</span>
@@ -660,70 +530,123 @@
 						</div>
 					</div>
 					</div>
-					<div x-show="activeSideTab==='subcontrols'" class="px-6 py-4">
-					  <div class="d5-card border-amber-500/10 mb-4 flex items-center gap-2">
-						  <i class="ti ti-info-circle text-amber-400 text-sm"></i>
-						  <p class="text-xs text-gray-400">Open each subcontrol to update implementation, attach evidence, and add comments.</p>
-					  </div>
+					
+					<!-- Section: Subcontrols -->
+					<div id="section-subcontrols" class="px-6 py-4 border-t border-white/6 mt-6">
+					  <h4 class="text-sm font-semibold mb-4 text-gray-300 uppercase letter-spacing-wider">Subcontrols</h4>
 
-					  <table class="table table-xs d5-table w-full">
-						<thead>
-						  <tr>
-							<th class="w-8"></th>
-							<th>Status</th>
-							<th>Subcontrol</th>
-							<th class="text-center">Progress</th>
-							<th class="text-center">Evidence</th>
-							<th class="text-center">Owner</th>
-						  </tr>
-						</thead>
-						<tbody>
-							<template x-for="subcontrol in selectedControl.subcontrols" :key="subcontrol.id">
-							  <tr class="cursor-pointer" @click="openSubControlInDrawer(subcontrol)">
-								<td><button class="btn btn-xs btn-ghost"><i class="ti ti-chevron-right text-gray-500"></i></button></td>
-								<td>
-									<span x-show="subcontrol.is_complete && subcontrol.is_applicable" class="d5-badge d5-badge-success">Done</span>
-									<span x-show="!subcontrol.is_applicable" class="d5-badge d5-badge-error">N/A</span>
-									<span x-show="subcontrol.is_applicable && !subcontrol.is_complete" class="d5-badge d5-badge-warning">WIP</span>
-								</td>
-								<td class="text-xs hover:text-emerald-400 transition-colors">
-									<span class="font-mono text-gray-500 mr-1" x-text="subcontrol.ref_code"></span>
-									<span x-text="subcontrol.name"></span>
-								</td>
-								<td class="text-center">
-									<div class="flex items-center gap-1.5 justify-center">
-										<span class="text-xs font-semibold" x-text="subcontrol.implemented + '%'"></span>
-										<progress
-											:class="{
-												'progress-error': subcontrol.implemented < 30,
-												'progress-warning': subcontrol.implemented >= 30 && subcontrol.implemented < 75,
-												'progress-success': subcontrol.implemented >= 75
-											}"
-											class="progress w-12 h-1" :value="subcontrol.implemented+1" max="100"></progress>
+					<div class="space-y-3">
+						<template x-for="subcontrol in selectedControl.subcontrols" :key="subcontrol.id">
+							<div x-data="{ expanded: false }" class="d5-card !p-0 overflow-hidden">
+								<!-- Collapsed Row -->
+								<div @click="expanded = !expanded" class="flex items-center gap-4 p-3 cursor-pointer hover:bg-white/5 transition-colors">
+									<div class="w-4 flex justify-center text-gray-500 transition-transform" :class="{'rotate-90': expanded}">
+										<i class="ti ti-chevron-right"></i>
 									</div>
-								</td>
-								<td class="text-center">
-									<i x-show="subcontrol.has_evidence" class="ti ti-check text-emerald-400"></i>
-									<i x-show="!subcontrol.has_evidence" class="ti ti-minus text-gray-600"></i>
-								</td>
-								<td class="text-center">
-									<div class="avatar placeholder">
-										<div x-show="subcontrol.owner==='Missing Owner'" class="w-6 h-6 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center">
-											<i class="ti ti-alert-triangle text-xs"></i>
+									<div class="w-16">
+										<span x-show="subcontrol.is_complete && subcontrol.is_applicable" class="d5-badge d5-badge-success !text-[9px]">Done</span>
+										<span x-show="!subcontrol.is_applicable" class="d5-badge d5-badge-error !text-[9px]">N/A</span>
+										<span x-show="subcontrol.is_applicable && !subcontrol.is_complete" class="d5-badge d5-badge-warning !text-[9px]">WIP</span>
+									</div>
+									<div class="flex-1 min-w-0 flex items-center">
+										<span class="font-mono text-xs text-gray-500 mr-2 shrink-0" x-text="subcontrol.ref_code"></span>
+										<span class="text-xs text-white truncate group-hover:text-emerald-400 transition-colors" x-text="subcontrol.name"></span>
+									</div>
+									<div class="w-24 shrink-0 flex items-center gap-1.5 justify-center">
+										<span class="text-[10px] font-semibold" x-text="subcontrol.implemented + '%'"></span>
+										<progress :class="{'progress-error': subcontrol.implemented < 30, 'progress-warning': subcontrol.implemented >= 30 && subcontrol.implemented < 75, 'progress-success': subcontrol.implemented >= 75}" class="progress w-12 h-1" :value="subcontrol.implemented+1" max="100"></progress>
+									</div>
+									<div class="w-8 shrink-0 flex justify-center tooltip" data-tip="Evidence">
+										<i x-show="subcontrol.has_evidence" class="ti ti-check text-emerald-400 text-sm"></i>
+										<i x-show="!subcontrol.has_evidence" class="ti ti-minus text-gray-600 text-sm"></i>
+									</div>
+								</div>
+								
+								<!-- Expanded Content (Inline Edit) -->
+								<div x-show="expanded" x-collapse class="border-t border-white/6 bg-base-300">
+									<div class="p-4 grid grid-cols-2 gap-6">
+										<!-- Column 1: Config -->
+										<div class="space-y-4">
+											<div>
+												<span class="d5-info-label block mb-2">Guidance</span>
+												<p class="text-xs text-gray-400" x-text="subcontrol.guidance || 'No specific guidance provided.'"></p>
+											</div>
+											<div class="grid grid-cols-2 gap-4">
+												<div>
+													<span class="d5-info-label flex items-center justify-between mb-1">
+														Applicable
+														<input x-model="subcontrol.is_applicable" @change="updateSubcontrol(subcontrol)" type="checkbox" class="toggle toggle-xs" :class="{'toggle-success':subcontrol.is_applicable}" :checked="subcontrol.is_applicable" />
+													</span>
+												</div>
+												<div>
+													<span class="d5-info-label block mb-1">Owner</span>
+													<select @change="updateSubcontrol(subcontrol)" x-model="subcontrol.owner_id" class="select select-xs w-full bg-base-200">
+														<option value="" :selected="subcontrol.owner === 'Missing Owner'">Missing Owner</option>
+														<template x-for="user in projectUsers">
+															<option :value="user.id" x-text="user.email" :selected="subcontrol.owner === user.email"></option>
+														</template>
+													</select>
+												</div>
+											</div>
+											<div>
+												<span class="d5-info-label block mb-1">Implementation Progress</span>
+												<select @change="updateSubcontrol(subcontrol)" x-model="subcontrol.implemented" class="select select-xs w-full bg-base-200">
+													<option value="0" :selected="parseInt(subcontrol.implemented) === 0">Not Implemented</option>
+													<option value="50" :selected="parseInt(subcontrol.implemented) > 0 && parseInt(subcontrol.implemented) < 100">Partially Implemented</option>
+													<option value="100" :selected="parseInt(subcontrol.implemented) === 100">Fully Implemented</option>
+												</select>
+											</div>
+											<div>
+												<span class="d5-info-label block mb-1">Implementation Context</span>
+												<textarea rows="3" @change="updateSubcontrol(subcontrol)" x-model="subcontrol.context" class="textarea textarea-xs w-full bg-base-200" placeholder="Add information about how the subcontrol is satisfied..."></textarea>
+											</div>
 										</div>
-										<div x-show="subcontrol.owner!=='Missing Owner'" class="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center">
-											<span class="text-[10px] uppercase font-semibold text-gray-400" x-text="subcontrol.owner[0]"></span>
+										<!-- Column 2: Evidence -->
+										<div>
+											<div class="flex items-center justify-between mb-2">
+												<span class="d5-info-label !mb-0">Evidence</span>
+												<div class="flex gap-1 border border-white/10 rounded overflow-hidden">
+													<button @click="selectedSubControl = subcontrol; showAttachModal=true; attachEvidence()" class="btn btn-xs btn-ghost rounded-none bg-base-200 border-r border-white/10 text-gray-300 hover:text-white px-2">Attach</button>
+													<button @click="selectedSubControl = subcontrol; openCreateEvidenceModal()" class="btn btn-xs btn-ghost rounded-none bg-base-200 text-emerald-400 hover:text-emerald-300 px-2">Add New</button>
+												</div>
+											</div>
+											<div class="space-y-2">
+												<template x-if="!subcontrol.evidence || subcontrol.evidence.length === 0">
+													<div class="text-center py-6 bg-white/5 rounded border border-dashed border-white/10">
+														<i class="ti ti-file-x text-xl text-gray-600 mb-1 block"></i>
+														<span class="text-xs text-gray-500">No evidence attached</span>
+													</div>
+												</template>
+												<template x-for="item in subcontrol.evidence" :key="item.id">
+													<div class="flex items-center justify-between p-2 bg-base-200 rounded border border-white/6">
+														<div class="flex items-center gap-2 min-w-0">
+															<i class="ti ti-file-text text-emerald-400"></i>
+															<div class="min-w-0">
+																<span class="text-xs font-semibold text-white block truncate" x-text="item.name"></span>
+																<span x-show="item.file_name" class="text-[10px] text-gray-500 flex items-center gap-1">
+																	<i class="ti ti-download"></i> <span x-text="item.file_name" class="truncate"></span>
+																</span>
+															</div>
+														</div>
+														<div class="flex items-center gap-1 shrink-0">
+															<button @click="selectedSubControl = subcontrol; openEvidence(item)" class="btn btn-xs btn-ghost w-6 h-6 p-0 min-h-0 text-gray-400"><i class="ti ti-external-link"></i></button>
+															<button @click="selectedSubControl = subcontrol; removeEvidenceIndex = item.id; showRemoveEvidenceModal = true" class="btn btn-xs btn-ghost w-6 h-6 p-0 min-h-0 text-red-400 bg-red-400/10"><i class="ti ti-trash"></i></button>
+														</div>
+													</div>
+												</template>
+											</div>
 										</div>
 									</div>
-								</td>
-							  </tr>
-							</template>
-						</tbody>
-					  </table>
+								</div>
+							</div>
+						</template>
+					</div>
 
 					</div>
-					<div x-show="activeSideTab==='auditor'" class="px-6 py-4">
-
+					
+					<!-- Section: Review -->
+					<div id="section-auditor" class="px-6 py-4 border-t border-white/6 mt-6">
+						<h4 class="text-sm font-semibold mb-4 text-gray-300 uppercase letter-spacing-wider">Review</h4>
 						<div class="grid grid-cols-12 gap-4">
 							<div x-show="projectData.auditors.length > 0" class="col-span-3">
 								<div class="d5-card">
@@ -792,7 +715,10 @@
 						</div>
 
 					</div>
-					<div x-show="activeSideTab==='comments'" class="flex-1 overflow-y-auto px-6 py-4">
+					
+					<!-- Section: Comments -->
+					<div id="section-comments" class="px-6 py-4 border-t border-white/6 mt-6 pb-20">
+						<h4 class="text-sm font-semibold mb-4 text-gray-300 uppercase letter-spacing-wider">Comments</h4>
 						<div x-show="messagesForControl.length===0" class="flex flex-col items-center justify-center py-12">
 							<i class="ti ti-messages text-3xl text-gray-600 mb-3"></i>
 							<p class="text-sm font-semibold text-white mb-1">No Comments</p>
@@ -816,222 +742,24 @@
 							 </template>
 						</div>
 					</div>
-				</div>
-
-	<!--            Subcontrol drawer content-->
-				<div x-show="selectedSubControl">
-					<div x-show="activeSubSideTab==='details'" class="card p-4">
-						<div class="grid grid-cols-10 gap-6">
-							<div class="col-span-3">
-								<div class="card card-body bg-base-300">
-									<div class="card-title">Completion %</div>
-									<figure>
-										<div
-										  :class="{'text-warning': selectedSubControl.progress_completed<76 && selectedSubControl.progress_completed>49 , 'text-error': selectedSubControl.progress_completed<50, 'text-success': selectedSubControl.progress_completed>75}"
-										  class="radial-progress text-sm font-semibold my-2 border-base-100 border-2 mt-6"
-										  :style="'--value:' + selectedSubControl.progress_completed + '; --size: 12rem; --thickness: 2px;'"
-										  role="progressbar" x-text="selectedSubControl.progress_completed+'%'">
-										</div>
-									</figure>
-								</div>
-
-							</div>
-							<div class="col-span-7">
-								<div x-show="!selectedSubControl.is_applicable" role="alert" class="alert bg-base-300 mb-2 text-error">
-									<i class="ti ti-x text-lg"></i>
-									<span class="text-sm">
-										This subcontrol has been marked as 'Not Applicable'. There are action items here.
-									</span>
-								</div>
-								<div x-show="selectedSubControl.is_applicable && selectedSubControl.is_complete" role="alert" class="alert bg-base-300 text-success mb-2">
-									<i class="ti ti-check text-lg"></i>
-									<span class="text-sm">
-										This subcontrol is complete. There are no other action items.
-									</span>
-								</div>
-								<div class="grid grid-cols-6 gap-4">
-									<div class="col-span-6">
-										<h4 class="subtitle text-sm">Subcontrol Guidance</h4>
-										<p x-text="selectedSubControl.guidance"></p>
-									</div>
-									<div class="col-span-4">
-										<h4 class="subtitle text-sm">Status</h4>
-										<div class="flex flex-row">
-											<p class="my-auto" x-text="selectedSubControl.completion_status"></p>
-										</div>
-									</div>
-									<div class="col-span-2">
-										<h4 class="subtitle text-sm">Is Applicable</h4>
-										<div class="flex flex-row">
-											<input x-model="selectedSubControl.is_applicable" @change="updateSubcontrol(selectedSubControl)" type="checkbox" :class="{'toggle-success':selectedSubControl.is_applicable}" class="toggle toggle-sm" :checked="selectedSubControl.is_applicable" />
-										</div>
-									</div>
-									 <div class="col-span-3">
-										<h4 class="subtitle text-sm"><i x-show="selectedSubControl.implemented===0" class="ti ti-alert-triangle text-warning mr-1 my-auto"></i>Implementation Progress</h4>
-										<select @change="updateSubcontrol(selectedSubControl)" x-model="selectedSubControl.implemented" class="select w-full select-sm">
-										  <option value="0" :selected="parseInt(selectedSubControl.implemented) === 0">Not Implemented</option>
-										  <option value="50" :selected="parseInt(selectedSubControl.implemented) > 0 && parseInt(selectedSubControl.implemented) < 100">Partially Implemented</option>
-										  <option value="100" :selected="parseInt(selectedSubControl.implemented) === 100">Fully Implemented</option>
-										</select>
-									</div>
-									<div class="col-span-3">
-										<div class="flex flex-row">
-											<h4 class="subtitle text-sm"><i x-show="!selectedSubControl.owner_id" class="ti ti-alert-triangle text-warning mr-1 my-auto"></i>Owner</h4>
-										</div>
-										<select @change="updateSubcontrol(selectedSubControl)" x-model="selectedSubControl.owner_id" class="select select-sm w-full">
-											<option value="" :selected="selectedSubControl.owner === 'Missing Owner'">Missing Owner</option>
-											<template  x-for="user in projectUsers">
-												<option :value="user.id" x-text="user.email" :selected="selectedSubControl.owner === user.email"></option>
-											</template>
-										</select>
-									</div>
-									<div class="col-span-6">
-										<h4 class="subtitle text-sm"><i x-show="!selectedSubControl.context" class="ti ti-alert-triangle text-warning mr-1 my-auto"></i>Implementation Details</h4>
-										<textarea rows="5" @change="updateSubcontrol(selectedSubControl)" x-model="selectedSubControl.context" :value="selectedSubControl.context" x-text="selectedSubControl.context" :class="{'border-warning animate-pulse': !selectedSubControl.context && selectedSubControl.implemented>0}" class="textarea w-full" placeholder="Add information about how the subcontrol is satisfied. Provide details on the scope and any context for the auditor."></textarea>
-										<p class="text-xs">Note: The implementation details describes how the InfoSec team satisfies the control.</p>
-									</div>
-
-								</div>
-							</div>
-						</div>
 					</div>
-					<div x-show="activeSubSideTab==='evidence'" class="card p-4">
-						<div class="overflow-auto">
-							<div class="text-center mt-5" x-show="loadingEvidence">
-								<span class="loading loading-dots loading-lg"></span>
-							</div>
-
-							<div class="flex flex-col justify-center items-center min-h-[60vh] w-full" x-show="!loadingEvidence && !selectedSubControl.evidence.length">
-								<div class="hero w-full h-full">
-									<div class="hero-content text-center flex flex-col justify-center w-full h-full">
-										<div class="max-w-md mx-auto">
-											<h1 class="text-2xl font-bold">No Evidence</h1>
-											<p class="py-6">
-												No evidence has been uploaded for the subcontrol. Attach existing evidence or create new evidence.
-											</p>
-											<div class="flex flex-row gap-x-4 justify-center">
-												<button class="btn btn-sm bg-base-100" @click="showAttachModal=true;attachEvidence()">Attach Evidence</button>
-												<button @click="openCreateEvidenceModal" class="btn btn-sm btn-primary">Add Evidence</button>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-
-							<div x-show="!loadingEvidence && selectedSubControl.evidence.length">
-								<div class="flex justify-between mb-2">
-									<h1 class="text-2xl font-semibold">Evidence</h1>
-									<div class="flex flex-row gap-x-2">
-										<button class="btn btn-sm bg-base-100" @click="showAttachModal=true;attachEvidence()">Attach Evidence</button>
-										<button @click="openCreateEvidenceModal" class="btn btn-sm btn-primary">Add Evidence</button>
-									</div>
-								</div>
-								<div class="overflow-x-auto">
-									  <table class="table bg-base-100">
-										<!-- head -->
-										<thead>
-										  <tr>
-											<th class="w-1 py-6"></th>
-											<th>Evidence Name</th>
-											<th>Description</th>
-											<th class="w-1">Attached File</th>
-											<th class="w-2 text-center">Actions</th>
-										  </tr>
-										</thead>
-										<tbody>
-											<template x-for="(item, index) in selectedSubControl.evidence">
-											  <tr>
-												<th></th>
-												<td x-text="item.name"></td>
-												<td x-text="item.description || 'No description'"></td>
-												<td>
-													<div x-show="item.file_name" class="flex flex-row gap-x-2">
-														<i class="ti ti-download my-auto"></i>
-														<a :href="'/api/v1/evidence/'+item.id+'/file'" :download="item.file['name']" class="btn btn-xs bg-base-100" x-text="item.file_name"></a>
-													</div>
-													<div x-show="!item.file_name">
-														No files
-													</div>
-
-												</td>
-												<td>
-													<div class="flex flex-row gap-x-2">
-														<button @click="removeEvidenceIndex=item.id;showRemoveEvidenceModal=true" class="btn btn-xs"><i class="ti ti-trash text-error"></i></button>
-														<button @click="openEvidence(item)" class="btn btn-xs">View</button>
-
-													</div>
-												</td>
-											  </tr>
-											</template>
-										</tbody>
-									  </table>
-									</div>
-							</div>
-
-						</div>
-
-					</div>
-					<div x-show="activeSubSideTab==='comments'" class="flex-1 overflow-y-auto">
-						<div x-show="messagesForControl.length===0" class="flex-grow min-h-full hero-content text-center">
-							<div class="max-w-md">
-							  <h1 class="text-2xl font-semibold mt-10">No Comments</h1>
-							  <p class="py-6">
-								There are no comments! Start communicating with team members and auditors.
-							  </p>
-							</div>
-						</div>
-						<div x-show="messagesForControl.length>0" class="flex-grow min-h-full overflow-y-auto control-section">
-							 <template x-for="message in messagesForControl" :key="message.id">
-								<div :class='{"chat-start": isMessageFromAuditor(message), "chat-end": !isMessageFromAuditor(message)}' class="chat">
-								  <div @click="deleteControlMessage(message)" @mouseenter="showDeleteControlMessage=true" @mouseleave="showDeleteControlMessage=false" class="chat-image avatar placeholder cursor-pointer">
-									  <div class="bg-neutral text-neutral-content rounded-full w-8">
-										<span x-show="!showDeleteControlMessage" class="text-xs uppercase" x-text="message.author_email[0]"></span>
-										<span x-show="showDeleteControlMessage" class="text-xs uppercase"><i class='ti ti-trash text-error'></i></span>
-									  </div>
-								  </div>
-								  <div class="chat-header mb-2">
-									<span class="text-xs opacity-50 mr-1" x-text="simpleDate(message.date_added)"></span>
-									<span x-text="message.author_email"></span>
-								  </div>
-								  <div class="chat-bubble text-sm" x-text="message.message"></div>
-								</div>
-							 </template>
-						</div>
-					</div>
-
 				</div>
 
 			</div>
 
 			<!-- Sticky Footer -->
-			<div class="border-t border-base-300 py-4">
-<!--                Control message-->
-				<div x-show="!selectedSubControl && activeSideTab==='comments'" class="relative flex">
+			<div class="border-t border-base-300 py-4 px-6 bg-base-200">
+				<div class="relative flex">
 					<input x-model="controlCurrentMessage" @keyup.enter="createControlMessage" type="text" placeholder="Write your message!" class="w-full input-md border border-base-100 bg-base-300 focus:outline-none pl-6 rounded-md py-3">
 					<div class="absolute right-0 items-center inset-y-0 hidden sm:flex">
-						<button @click="createControlMessage" :class='{"btn-disabled": !controlCurrentMessage}' class="btn btn-sm btn-success">
+						<button @click="createControlMessage" :class='{"btn-disabled": !controlCurrentMessage}' class="btn btn-sm btn-success mr-2">
 						   <span class="font-bold">Send</span>
-						   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-6 w-6 ml-2 transform rotate-90">
+						   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 ml-1 transform rotate-90">
 							  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
 						   </svg>
 						</button>
 					</div>
 				</div>
-
-<!--                Subcontrol message-->
-				<div x-show="selectedSubControl && activeSubSideTab==='comments'" class="relative flex">
-					<input x-model="controlCurrentMessage" @keyup.enter="createControlMessage" type="text" placeholder="Write your message!" class="w-full input-md border border-base-100 bg-base-300 focus:outline-none pl-6 rounded-md py-3">
-					<div class="absolute right-0 items-center inset-y-0 hidden sm:flex">
-						<button @click="createControlMessage" :class='{"btn-disabled": !controlCurrentMessage}' class="btn btn-sm btn-success">
-						   <span class="font-bold">Send</span>
-						   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-6 w-6 ml-2 transform rotate-90">
-							  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
-						   </svg>
-						</button>
-					</div>
-				</div>
-
 			</div>
 			</div><!-- /x-if wrapper div -->
 			</template><!-- /x-if selectedControl -->

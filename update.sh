@@ -237,7 +237,7 @@ fi
 # ── Step 6: Rebuild Docker containers ───────────────────────────────────────
 step "Step 6/7: Rebuilding containers"
 log "Building app container..."
-if $DC build --no-cache app 2>&1 | tail -5; then
+if $DC build --pull --no-cache app; then
     ok "App container rebuilt"
 else
     err "Build failed — rolling back to previous commit"
