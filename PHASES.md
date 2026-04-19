@@ -148,9 +148,18 @@ Move DB mutations out of views into `app/services/`. Views become thin wrappers:
 Break 20+ method `SettingsService` into: `platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`.
 
 ### E4: Remove `threading.Timer` Fallback
-**Status**: NOT STARTED — independent
+**Status**: NEXT — independent
 
-Make Redis + Celery hard requirement. Remove threading.Timer fallback. Add Celery health check to startup.
+Make Redis + Celery a hard requirement. Remove `threading.Timer` fallback paths. Add a startup health check that fails loudly when Celery/Redis is unreachable instead of silently downgrading.
+
+**Scope:**
+- `app/masri/scheduler.py` — delete the `threading.Timer` branches, keep only the Celery task-registration path.
+- `app/masri/celery_app.py` — ensure `_app` is bound in the worker process.
+- `app/__init__.py` — add a boot-time check that Redis is reachable and Celery workers are registered; exit with a clear error if not.
+- `docker-compose.yml` — keep Celery worker + beat under their existing profile so `docker-compose up` without `--profile celery` still fails fast (by design now).
+- Delete dead `_running` / `_timers` shared state and the `threading.Lock` audit item associated with the fallback.
+
+**Rationale:** the fallback was written for local dev convenience but now obscures real broker failures in production. After B2 (Celery migration) and with Redis already in docker-compose for sessions, the fallback is more liability than safety net.
 
 ### E5: Replace `lazy="dynamic"` on Hot Paths
 **Status**: **DONE** 2026-04-19

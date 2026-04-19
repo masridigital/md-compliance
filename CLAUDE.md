@@ -920,6 +920,33 @@ These were identified but deferred as lower priority or requiring architectural 
 | Entra `collect_all_security_data()` silently swallows all errors | `entra_integration.py` | Medium | 10 collection steps fail with no logging |
 | Token refresh race condition (latent) | `ninjaone_integration.py` | Low | Not exploitable today, becomes problem if instances shared |
 | `list_organizations` parses `resp.json()` up to 3 times | `ninjaone_integration.py` | Low | Performance: parse once |
+| `isinstance(relates_to, int)` guard on shortuuid string ID | `app/models/project.py` | Low | `ProjectControl.create_feedback` / `update_feedback` — branch always-false because IDs are 8-char strings |
+| `Project.evidence_groupings` calls `self.subcontrols()` on Project | `app/models/project.py` | Low | Project has no `.subcontrols` relation — dead code, never reached |
+| `pc.evidence.count()` with `hasattr` guard | `app/masri/llm_routes.py:522` | Low | ProjectControl has no `.evidence` relation — `hasattr` always False, count always 0 |
+| `get_subcontrols(as_query=True)` is a dead parameter | `app/utils/mixin_models.py` | Low | Retained for E5 compat but no live callers — safe to remove |
+| `has_evidence(id=...)` uses `int(id)` on shortuuid string | `app/utils/mixin_models.py` | Medium | `int("c3xssptq")` raises ValueError — the id-matching branch always errors |
+| `TestingConfig` inherits `SQLALCHEMY_ENGINE_OPTIONS = {"pool_size": 5, ...}` | `config.py` | Medium | SQLite rejects pool_size → test suite can't run locally; override to `{}` in TestingConfig |
+| `pc.status == "not started"` reported on a 99%-complete project | `app/utils/mixin_models.py` (`ControlMixin.generate_stats`) | High | Per-control status shows "not started" while project aggregate is 99%. Static analysis says status branch requires both progress_implemented AND progress_evidence to be 0 — shouldn't happen at 99%. Needs live API response from `/api/v1/projects/<pid>/controls` to diagnose. Possible causes: URL-preserved filter, stale pre-loaded subs, or a mismatch between `_fast_summary` SQL aggregation and `generate_stats` Python loop. |
+
+### Known UI/UX Follow-ups (Phase D — pending)
+
+These are in-scope design tasks surfaced during the recent polish pass but not yet delivered. CLAUDE.md tracks them so they don't get lost.
+
+| Item | Scope | Notes |
+|------|-------|-------|
+| Home page polish | `home.html` | Risk severity cards, empty state upgraded. Needs hero treatment for top-level risk count + drift-alert callout refinement. |
+| Workspace (`/clients`) polish | `workspace.html` | Client cards adopt `d5-card-lifts` + `d5-status-pill` + `d5-empty`. Drawer interior (SSO fields, project list) still uses legacy styling. |
+| Projects (`/projects`) polish | `projects.html` | D4 redesign already landed. Needs Fraunces-serif treatment for progress ring number + `d5-framework-chip` for wrapping framework codes. |
+| View-project sub-tabs | `view_project.html` (8,500+ lines) | Summary tab landed in `c46bb0a`/`9cf503c`. Still pending: Controls list status pills, Evidence card grid, Risk Register, Policies, Settings, Integrations, Users, Audit Review, Report tabs — plus the control drawer header + sub-tabs. Deferred because the file is large and each tab warrants a focused commit. |
+| Chart y-axis for flat data | `view_project.html` | When only one day has non-zero completion, the 30-day chart shows a single spike. Consider clamping y-axis to `[0, max(series)+10]` or showing a smaller sparkline card instead. |
+
+### Pending Refactoring Order
+
+Matches `PHASES.md`. Next item in the queue is **E4** (independent — doesn't wait on anything), then E2 (service layer, depends on E1 which is done), then E3 (depends on E2).
+
+- **E4**: Remove `threading.Timer` fallback. Make Redis+Celery a hard requirement. Add startup health check. Files: `app/masri/scheduler.py`, `app/masri/celery_app.py`, startup task init.
+- **E2**: Extract service layer. Move DB mutations from views into `app/services/*`. Views become thin request → service → response wrappers. Scope: `project_service`, `risk_service`, `evidence_service`, `compliance_service`, `vendor_service`.
+- **E3**: Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`).
 
 ### Key Security Rules (from audit)
 
