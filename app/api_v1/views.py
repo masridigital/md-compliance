@@ -47,17 +47,15 @@ from app.api_v1.schemas import (
     ProjectTagSchema,
     ProjectControlCreateSchema,
 )
-from app.services import project_service, risk_service, evidence_service
+from app.services import project_service, risk_service, evidence_service, compliance_service
 
 @api.route("/tenants/<string:id>/frameworks", methods=["GET"])
 @limiter.limit("60 per minute")
 @login_required
 def get_frameworks(id):
-    data = []
     result = Authorizer(current_user).can_user_access_tenant(id)
-    for framework in result["extra"]["tenant"].frameworks.all():
-        data.append(framework.as_dict())
-    return jsonify(data)
+    frameworks = compliance_service.list_frameworks_for_tenant(result["extra"]["tenant"])
+    return jsonify([f.as_dict() for f in frameworks])
 
 
 @api.route("/projects/<string:id>/reports", methods=["POST"])
@@ -274,21 +272,19 @@ def delete_user_from_project(pid, uid):
 @login_required
 def get_frameworks_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
-    data = []
-    for framework in result["extra"]["tenant"].frameworks.all():
-        data.append(framework.as_dict())
-    return jsonify(data)
+    frameworks = compliance_service.list_frameworks_for_tenant(result["extra"]["tenant"])
+    return jsonify([f.as_dict() for f in frameworks])
 
 
 @api.route("/tenants/<string:tid>/controls", methods=["POST"])
 @limiter.limit("30 per minute")
 @login_required
 def create_control_for_tenant(tid):
-    Authorizer(current_user).can_user_manage_tenant(tid)
+    result = Authorizer(current_user).can_user_manage_tenant(tid)
     payload, err = validate_payload(ControlCreateSchema, request.get_json())
     if err:
         return err
-    models.Control.create(payload, tid)
+    compliance_service.create_tenant_control(result["extra"]["tenant"], payload)
     return jsonify({"message": "ok"})
 
 
@@ -297,10 +293,8 @@ def create_control_for_tenant(tid):
 @login_required
 def get_policies_for_tenant(tid):
     result = Authorizer(current_user).can_user_read_tenant(tid)
-    data = []
-    for policy in result["extra"]["tenant"].policies.all():
-        data.append(policy.as_dict())
-    return jsonify(data)
+    policies = compliance_service.list_policies_for_tenant(result["extra"]["tenant"])
+    return jsonify([p.as_dict() for p in policies])
 
 
 @api.route("/tenants/<string:tid>/policies", methods=["POST"])
@@ -311,13 +305,7 @@ def create_policy_for_tenant(tid):
     payload, err = validate_payload(TenantPolicyCreateSchema, request.get_json())
     if err:
         return err
-    policy = models.Policy(
-        name=payload["name"],
-        description=payload.get("description"),
-        ref_code=payload.get("code"),
-    )
-    result["extra"]["tenant"].policies.append(policy)
-    db.session.commit()
+    policy = compliance_service.create_tenant_policy(result["extra"]["tenant"], payload)
     return jsonify(policy.as_dict())
 
 
@@ -326,7 +314,7 @@ def create_policy_for_tenant(tid):
 @login_required
 def reload_tenant_frameworks(tid):
     result = Authorizer(current_user).can_user_admin_tenant(tid)
-    result["extra"]["tenant"].create_base_frameworks()
+    compliance_service.reload_base_frameworks(result["extra"]["tenant"])
     return jsonify({"message": "ok"})
 
 
@@ -335,7 +323,7 @@ def reload_tenant_frameworks(tid):
 @login_required
 def reload_tenant_policies(tid):
     result = Authorizer(current_user).can_user_admin_tenant(tid)
-    result["extra"]["tenant"].create_base_policies()
+    compliance_service.reload_base_policies(result["extra"]["tenant"])
     return jsonify({"message": "ok"})
 
 
@@ -393,13 +381,7 @@ def update_policy(pid):
     data, err = validate_payload(PolicyUpdateSchema, request.get_json())
     if err:
         return err
-    policy = result["extra"]["policy"]
-    policy.name = data["name"]
-    policy.ref_code = data["ref_code"]
-    policy.description = data["description"]
-    policy.template = data["template"]
-    policy.content = data["content"]
-    db.session.commit()
+    policy = compliance_service.update_policy(result["extra"]["policy"], data)
     return jsonify(policy.as_dict())
 
 
@@ -471,8 +453,7 @@ def add_evidence_to_controls(eid):
 @login_required
 def delete_policy(pid):
     result = Authorizer(current_user).can_user_manage_policy(pid)
-    db.session.delete(result["extra"]["policy"])
-    db.session.commit()
+    compliance_service.delete_policy(result["extra"]["policy"])
     return jsonify({"message": "ok"})
 
 
@@ -481,8 +462,7 @@ def delete_policy(pid):
 @login_required
 def delete_control(cid):
     result = Authorizer(current_user).can_user_manage_control(cid)
-    result["extra"]["control"].visible = False
-    db.session.commit()
+    compliance_service.soft_delete_control(result["extra"]["control"])
     return jsonify({"message": "ok"})
 
 
@@ -647,10 +627,8 @@ def create_risk_from_feedback(cid, fid):
 @login_required
 def get_policies_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
-    data = []
-    for policy in result["extra"]["project"].policies.all():
-        data.append(policy.as_dict())
-    return jsonify(data)
+    policies = compliance_service.list_policies_for_project(result["extra"]["project"])
+    return jsonify([p.as_dict() for p in policies])
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>", methods=["GET"])
@@ -670,7 +648,9 @@ def get_policy_for_project(pid, ppid):
 @login_required
 def get_version_for_policy_in_project(pid, ppid, version):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
-    return jsonify(result["extra"]["policy"].get_version(version, as_dict=True))
+    return jsonify(
+        compliance_service.get_policy_version(result["extra"]["policy"], version)
+    )
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>/versions", methods=["POST"])
@@ -681,7 +661,9 @@ def create_version_for_policy_in_project(pid, ppid):
     data, err = validate_payload(PolicyVersionCreateSchema, request.get_json())
     if err:
         return err
-    version = result["extra"]["policy"].add_version(data.get("content", ""))
+    version = compliance_service.create_policy_version(
+        result["extra"]["policy"], data.get("content", "")
+    )
     return jsonify(version.as_dict())
 
 
@@ -693,7 +675,7 @@ def create_version_for_policy_in_project(pid, ppid):
 @login_required
 def delete_version_for_policy_in_project(pid, ppid, version):
     result = Authorizer(current_user).can_user_read_project_policy(ppid)
-    result["extra"]["policy"].delete_version(version)
+    compliance_service.delete_policy_version(result["extra"]["policy"], version)
     return jsonify({"message": "ok"})
 
 
@@ -708,13 +690,10 @@ def update_policy_version_for_project(pid, ppid, version):
     data, err = validate_payload(PolicyVersionUpdateSchema, request.get_json())
     if err:
         return err
-    version = result["extra"]["policy"].update_version(
-        version=version,
-        content=data.get("content"),
-        status=data.get("status"),
-        publish=data.get("publish"),
+    version_obj = compliance_service.update_policy_version(
+        result["extra"]["policy"], version, data
     )
-    return jsonify(version.as_dict())
+    return jsonify(version_obj.as_dict())
 
 
 @api.route("/projects/<string:pid>/policies/<string:ppid>", methods=["PUT"])
@@ -725,11 +704,7 @@ def update_policy_for_project(pid, ppid):
     data, err = validate_payload(ProjectPolicyUpdateSchema, request.get_json())
     if err:
         return err
-    policy = result["extra"]["policy"].update(
-        name=data.get("name"),
-        description=data.get("description"),
-        reviewer=data.get("reviewer"),
-    )
+    policy = compliance_service.update_project_policy(result["extra"]["policy"], data)
     return jsonify(policy.as_dict())
 
 
@@ -738,7 +713,9 @@ def update_policy_for_project(pid, ppid):
 @login_required
 def delete_policy_for_project(pid, ppid):
     result = Authorizer(current_user).can_user_delete_policy_from_project(ppid, pid)
-    result["extra"]["policy"].project.remove_policy(ppid)
+    compliance_service.delete_project_policy(
+        result["extra"]["policy"], result["extra"]["policy"].project, ppid
+    )
     return jsonify({"message": "ok"})
 
 
@@ -802,7 +779,7 @@ def get_subcontrols_for_control_in_project(pid, cid):
 @login_required
 def remove_control_from_project(pid, cid):
     result = Authorizer(current_user).can_user_delete_control_from_project(cid, pid)
-    result["extra"]["project"].remove_control(cid)
+    compliance_service.remove_control_from_project(result["extra"]["project"], cid)
     return jsonify({"message": "ok"})
 
 
@@ -814,10 +791,8 @@ def create_policy_for_project(id):
     data, err = validate_payload(ProjectPolicyCreateSchema, request.get_json())
     if err:
         return err
-    policy = result["extra"]["project"].create_policy(
-        name=data.get("name"),
-        description=data.get("description"),
-        template=data.get("template"),
+    policy = compliance_service.create_policy_for_project(
+        result["extra"]["project"], data
     )
     return jsonify(policy.as_dict())
 
@@ -827,7 +802,9 @@ def create_policy_for_project(id):
 @login_required
 def add_control_to_project(cid, pid):
     result = Authorizer(current_user).can_user_add_control_to_project(cid, pid)
-    result["extra"]["project"].add_control(result["extra"]["control"])
+    compliance_service.add_control_to_project(
+        result["extra"]["project"], result["extra"]["control"]
+    )
     return jsonify(result["extra"]["control"].as_dict())
 
 
@@ -841,27 +818,22 @@ def update_review_status_for_control(id):
     result = Authorizer(current_user).can_user_manage_project_control_status(
         id, payload.get("review_status")
     )
-    result["extra"]["control"].review_status = payload["review_status"].lower()
-    db.session.commit()
-    return jsonify(result["extra"]["control"].as_dict())
+    control = compliance_service.set_review_status(
+        result["extra"]["control"], payload["review_status"]
+    )
+    return jsonify(control.as_dict())
 
 
 @api.route("/project-controls/<string:cid>/subcontrols/<string:sid>", methods=["PUT"])
 @limiter.limit("30 per minute")
 @login_required
 def update_subcontrols_in_control_for_project(cid, sid):
-    # TODO - update
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
     payload, err = validate_payload(SubcontrolUpdateSchema, request.get_json())
     if err:
         return err
-    subcontrol = result["extra"]["subcontrol"].update(
-        applicable=payload.get("applicable"),
-        implemented=payload.get("implemented"),
-        notes=payload.get("notes"),
-        context=payload.get("context"),
-        evidence=payload.get("evidence"),
-        owner_id=payload.get("owner_id"),
+    subcontrol = compliance_service.update_subcontrol(
+        result["extra"]["subcontrol"], payload
     )
     return jsonify(subcontrol.as_dict())
 
@@ -874,7 +846,9 @@ def set_applicability_of_control_for_project(cid):
     payload, err = validate_payload(ApplicabilitySchema, request.get_json())
     if err:
         return err
-    result["extra"]["control"].set_applicability(payload["applicable"])
+    compliance_service.set_control_applicability(
+        result["extra"]["control"], payload["applicable"]
+    )
     return jsonify(result["extra"]["control"].as_dict())
 
 
@@ -894,8 +868,7 @@ def update_notes_for_control(pid, cid):
     data, err = validate_payload(DataFieldSchema, request.get_json())
     if err:
         return err
-    result["extra"]["control"].notes = data["data"]
-    db.session.commit()
+    compliance_service.update_control_notes(result["extra"]["control"], data["data"])
     return jsonify({"message": "ok"})
 
 
