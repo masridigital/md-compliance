@@ -20,6 +20,7 @@ from app.api_v1.schemas import (
     TenantRiskUpdateSchema,
     EmailListSchema,
 )
+from app.services import risk_service
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["GET"])
@@ -184,10 +185,8 @@ def get_assessments_for_tenant(id):
 @login_required
 def get_risks_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    data = []
-    for risk in db.session.execute(db.select(RiskRegister).filter(RiskRegister.tenant_id == id)).scalars().all():
-        data.append(risk.as_dict())
-    return jsonify(data)
+    risks = risk_service.list_for_tenant(result["extra"]["tenant"])
+    return jsonify([r.as_dict() for r in risks])
 
 
 @api.route("/vendors/<string:id>/notes", methods=["PUT"])
@@ -246,21 +245,7 @@ def create_risk(id):
     data, err = validate_payload(TenantRiskCreateSchema, request.get_json(silent=True))
     if err:
         return err
-    risk = result["extra"]["tenant"].create_risk(
-        title=data.get("title"),
-        description=data.get("description"),
-        remediation=data.get("remediation"),
-        tags=data.get("tags"),
-        assignee=data.get("assignee"),
-        enabled=data.get("enabled"),
-        status=data.get("status"),
-        risk=data.get("risk"),
-        priority=data.get("priority"),
-        vendor_id=data.get("vendor_id"),
-    )
-
-    db.session.add(risk)
-    db.session.commit()
+    risk = risk_service.create_for_tenant(result["extra"]["tenant"], data)
     return jsonify(risk.as_dict())
 
 
@@ -272,20 +257,7 @@ def update_risk(tid, rid):
     data, err = validate_payload(TenantRiskUpdateSchema, request.get_json(silent=True))
     if err:
         return err
-    risk = result["extra"]["risk"]
-
-    # Update the risk using the model's update method
-    print(data)
-    risk.update(**data)
-
-    # Add audit log entry
-    risk.tenant.add_log(
-        message=f"Updated risk: {risk.title}",
-        namespace="risks",
-        action="update",
-        user_id=current_user.id,
-    )
-
+    risk = risk_service.update(result["extra"]["risk"], data, user=current_user)
     return jsonify(risk.as_dict())
 
 
@@ -294,9 +266,7 @@ def update_risk(tid, rid):
 @login_required
 def delete_risk(tid, rid):
     result = Authorizer(current_user).can_user_manage_risk(rid)
-    risk = result["extra"]["risk"]
-    db.session.delete(risk)
-    db.session.commit()
+    risk_service.delete(result["extra"]["risk"])
     return jsonify({"message": "ok"})
 
 

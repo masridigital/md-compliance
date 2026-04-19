@@ -143,7 +143,7 @@ Moving DB mutations out of views into `app/services/`. Views become thin wrapper
 | Service | Status | Covers |
 |---------|--------|--------|
 | `project_service.py` | **pilot landed 2026-04-19** — 7 operations (`list_for_user`, `get_serializable`, `update_basic`, `update_settings`, `delete`, `create_for_tenant`, `set_notes`). Views updated: `get_project`, `update_project`, `delete_project`, `create_project`, `get_projects_in_tenant`, `update_settings_in_project`, `update_scratchpad_for_project`. | project CRUD, control management, progress |
-| `risk_service.py` | PENDING | risk CRUD, risk scoring |
+| `risk_service.py` | **landed 2026-04-19** — 8 operations (`list_for_project`, `list_for_tenant`, `create_for_project`, `update_in_project`, `create_for_tenant`, `update`, `delete`, `add_comment`, `create_from_feedback`). Views updated in both `views.py` (5 endpoints) and `vendors.py` (4 endpoints). Replaced raw-SQL risk queries with relationship-based reads. | risk CRUD, risk scoring |
 | `evidence_service.py` | PENDING | evidence upload, association, generation |
 | `compliance_service.py` | PENDING | framework management, control mapping |
 | `vendor_service.py` | PENDING | vendor CRUD, assessments |

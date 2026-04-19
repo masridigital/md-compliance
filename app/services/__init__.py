@@ -23,8 +23,10 @@ Conventions
 Currently exported service modules:
 
 - :mod:`app.services.project_service`
+- :mod:`app.services.risk_service`
 """
 
 from app.services import project_service  # noqa: F401
+from app.services import risk_service  # noqa: F401
 
-__all__ = ["project_service"]
+__all__ = ["project_service", "risk_service"]

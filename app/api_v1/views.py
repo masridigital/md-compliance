@@ -47,7 +47,7 @@ from app.api_v1.schemas import (
     ProjectTagSchema,
     ProjectControlCreateSchema,
 )
-from app.services import project_service
+from app.services import project_service, risk_service
 
 @api.route("/tenants/<string:id>/frameworks", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -609,13 +609,7 @@ def create_risk_for_project(pid):
     data, err = validate_payload(RiskCreateSchema, request.get_json())
     if err:
         return err
-    risk = result["extra"]["project"].create_risk(
-        title=data.get("title"),
-        description=data.get("description"),
-        status=data.get("status"),
-        risk=data.get("risk"),
-        priority=data.get("priority"),
-    )
+    risk = risk_service.create_for_project(result["extra"]["project"], data)
     return jsonify(risk.as_dict())
 
 
@@ -624,33 +618,19 @@ def create_risk_for_project(pid):
 @login_required
 def get_risks_for_project(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
-    data = []
-    for risk in db.session.execute(db.select(models.RiskRegister).filter(
-        models.RiskRegister.project_id == pid
-    )).scalars().all():
-        data.append(risk.as_dict())
-    return jsonify(data)
+    risks = risk_service.list_for_project(result["extra"]["project"])
+    return jsonify([r.as_dict() for r in risks])
 
 
 @api.route("/projects/<string:pid>/risks/<string:rid>", methods=["PUT"])
 @limiter.limit("30 per minute")
 @login_required
 def update_risk_for_project(pid, rid):
-    Authorizer(current_user).can_user_manage_project(pid)
+    result = Authorizer(current_user).can_user_manage_project(pid)
     data, err = validate_payload(RiskCreateSchema, request.get_json())
     if err:
         return err
-    risk = db.session.execute(db.select(models.RiskRegister).filter(
-        models.RiskRegister.project_id == pid
-    ).filter(models.RiskRegister.id == rid)).scalars().first()
-    if not risk:
-        abort(404)
-    risk.title = data.get("title")
-    risk.description = data.get("description")
-    risk.status = data.get("status")
-    risk.risk = data.get("risk")
-    risk.priority = data.get("priority")
-    db.session.commit()
+    risk = risk_service.update_in_project(result["extra"]["project"], rid, data)
     return jsonify(risk.as_dict())
 
 
@@ -661,7 +641,7 @@ def create_risk_from_feedback(cid, fid):
     result = Authorizer(current_user).can_user_manage_project_control_auditor_feedback(
         cid, fid
     )
-    result["extra"]["feedback"].create_risk_record()
+    risk_service.create_from_feedback(result["extra"]["feedback"])
     return jsonify(result["extra"]["feedback"].as_dict())
 
 
@@ -1339,17 +1319,8 @@ def add_comment_for_risk(id):
     data, err = validate_payload(RiskCommentSchema, request.get_json())
     if err:
         return err
-    tenant = result["extra"]["risk"].tenant
-    comment = models.RiskComment(
-        message=data["message"], owner_id=current_user.id, tenant_id=tenant.id
-    )
-    result["extra"]["risk"].comments.append(comment)
-    db.session.commit()
-    tenant.add_log(
-        message=f"Added comment for risk:{id}",
-        namespace="comments",
-        action="create",
-        user_id=current_user.id,
+    comment = risk_service.add_comment(
+        result["extra"]["risk"], data["message"], owner=current_user
     )
     return jsonify(comment.as_dict())
 
