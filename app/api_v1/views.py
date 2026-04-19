@@ -548,6 +548,10 @@ def get_controls_for_project(pid):
     all_subs = db.session.execute(
         db.select(ProjectSubControl)
         .where(ProjectSubControl.project_id == project.id)
+        .options(
+            selectinload(ProjectSubControl.evidence),
+            selectinload(ProjectSubControl.ai_suggestions),
+        )
         .order_by(ProjectSubControl.date_added.desc())
     ).scalars().all()
     subs_by_control = defaultdict(list)

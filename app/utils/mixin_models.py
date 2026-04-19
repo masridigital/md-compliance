@@ -306,8 +306,23 @@ class SubControlMixin(object):
     def __tablename__(cls):
         return cls.__name__.lower()
 
-    def as_dict(self, include_evidence=False):
+    # ── class-level user-email cache shared across as_dict() calls ──
+    _user_email_cache = {}
+
+    @classmethod
+    def _get_user_email(cls, user_id, fallback="Missing"):
+        """Resolve a user id to an email with an in-request cache."""
+        if not user_id:
+            return fallback
+        if user_id in cls._user_email_cache:
+            return cls._user_email_cache[user_id]
         User = current_app.models["User"]
+        user = db.session.get(User, user_id)
+        email = user.email if user else fallback
+        cls._user_email_cache[user_id] = email
+        return email
+
+    def as_dict(self, include_evidence=False):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         data["implementation_status"] = self.implementation_status()
         data["completion_status"] = self.completion_description()
@@ -323,14 +338,8 @@ class SubControlMixin(object):
         data["guidance"] = self.subcontrol.guidance
         data["evidence"] = len(self.evidence)
 
-        data["owner"] = (
-            db.session.get(User, self.owner_id).email if self.owner_id else "Missing Owner"
-        )
-        data["operator"] = (
-            db.session.get(User, self.operator_id).email
-            if self.operator_id
-            else "Missing Operator"
-        )
+        data["owner"] = self._get_user_email(self.owner_id, "Missing Owner")
+        data["operator"] = self._get_user_email(self.operator_id, "Missing Operator")
         data["evidence"] = self.get_evidence(as_dict=True)
         data["has_evidence"] = False
         if data["evidence"]:
