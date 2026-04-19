@@ -410,7 +410,7 @@ def auto_map():
             ctrl = pc.control
             if ctrl:
                 controls.append({
-                    "project_control_id": pc.id,
+                    "subcontrol_id": pc.id,
                     "ref_code": ctrl.ref_code or "",
                     "name": ctrl.name or "",
                     "description": ctrl.description or "",
@@ -426,7 +426,7 @@ def auto_map():
         import json
 
         # Chunk controls to avoid token limits (max ~20 at a time)
-        all_mappings = []
+        all_suggestions = []
         chunk_size = 15
         for i in range(0, len(controls), chunk_size):
             chunk = controls[i:i + chunk_size]
@@ -438,7 +438,7 @@ def auto_map():
                         "security tools (Entra ID, vulnerability scanners, etc.) and a list of "
                         "compliance controls, map each finding to the most relevant control.\n\n"
                         "Respond with a JSON array of objects:\n"
-                        '[{"project_control_id": "...", "suggested_status": "compliant|partial|non_compliant|not_started", '
+                        '[{"subcontrol_id": "...", "suggested_status": "compliant|partial|non_compliant|not_started", '
                         '"evidence_summary": "brief description of what the integration data shows for this control", '
                         '"confidence": 0-100, "source": "entra|telivy|manual", '
                         '"auto_notes": "detailed notes to add to this control"}]\n\n'
@@ -470,16 +470,16 @@ def auto_map():
             try:
                 parsed = json.loads(content)
                 if isinstance(parsed, list):
-                    all_mappings.extend(parsed)
+                    all_suggestions.extend(parsed)
             except (json.JSONDecodeError, ValueError):
                 logger.warning("LLM auto-map returned non-JSON for chunk %d", i)
 
         return jsonify({
             "project_id": project_id,
-            "mappings": all_mappings,
+            "mappings": all_suggestions,
             "integration_sources": list(integration_data.keys()),
             "total_controls": len(controls),
-            "mapped_controls": len(all_mappings),
+            "mapped_controls": len(all_suggestions),
         })
 
     except RuntimeError as e:
@@ -523,7 +523,7 @@ def _bg_assist_gaps(app, project_id, tenant_id):
             except Exception:
                 pass
             gap_controls.append({
-                "project_control_id": pc.id,
+                "subcontrol_id": pc.id,
                 "ref_code": ctrl.ref_code or "",
                 "name": ctrl.name or "",
                 "description": (ctrl.description or "")[:200],
@@ -562,7 +562,7 @@ def _bg_assist_gaps(app, project_id, tenant_id):
             for i in range(0, len(gap_controls), chunk_size):
                 chunk = gap_controls[i:i + chunk_size]
                 ctrl_text = "\n".join([
-                    f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+                    f"- [{c['subcontrol_id']}] {c['ref_code']}: {c['name']}"
                     f" (status: {c['review_status']}, evidence: {'yes' if c['has_evidence'] else 'none'})"
                     + (f" | Notes: {c['notes'][:100]}" if c['notes'] else "")
                     for c in chunk
@@ -577,7 +577,7 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                             "Telivy vulnerability scans and/or Microsoft 365.\n\n"
                             "For EACH control, provide specific, actionable recommendations.\n"
                             "You MUST respond with ONLY a valid JSON array:\n"
-                            '[{"project_control_id":"ID","priority":"high","recommendation":"specific action",'
+                            '[{"subcontrol_id":"ID","priority":"high","recommendation":"specific action",'
                             '"evidence_suggestion":"specific source","estimated_effort":"quick",'
                             '"policy_needed":false,"template_suggestion":""}]\n\n'
                             "Rules: include ALL controls, priority=high|medium|low, "
@@ -622,7 +622,7 @@ def _bg_assist_gaps(app, project_id, tenant_id):
                     else:
                         for c in chunk:
                             all_recommendations.append({
-                                "project_control_id": c["project_control_id"],
+                                "subcontrol_id": c["subcontrol_id"],
                                 "priority": "medium",
                                 "recommendation": f"Review control {c['ref_code']} ({c['name']}) and gather required evidence.",
                                 "evidence_suggestion": "Document current implementation status.",
@@ -956,7 +956,7 @@ def debug_integration_mapping(project_id):
         "project_id": project_id,
         "tenant_id": tenant_id,
         "tenant_name": tenant_name,
-        "all_mappings": mappings,
+        "all_suggestions": mappings,
         "matched_for_tenant": matched,
         "has_telivy_api_key": has_telivy_key,
     })
@@ -1206,16 +1206,33 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
             pass
 
         for project in projects:
+            # Phase F3 & F4: Generate facts and map deterministically before LLM
+            _update_job_status(tenant_id, "generating_evidence", f"Extracting facts and running mapper for {project.name if hasattr(project, 'name') else project.id}")
+            try:
+                from app.masri.evidence_generators import generate_all_evidence
+                facts_count = generate_all_evidence(db, project, tenant_id)
+                if facts_count:
+                    logger.info("Generated %d integration facts for project %s", facts_count, project.id)
+                    
+                from app.masri.rule_mapper import run_mapper
+                ev_count = run_mapper(db, project)
+                if ev_count:
+                    logger.info("Mapped %d pieces of evidence for project %s", ev_count, project.id)
+            except Exception as ev_err:
+                logger.warning("Evidence generation/mapping failed for project %s: %s", project.id, ev_err)
+
             controls = []
             for pc in project.controls.all():
                 ctrl = pc.control
-                if ctrl:
-                    controls.append({
-                        "project_control_id": pc.id,
-                        "ref_code": ctrl.ref_code or "",
-                        "name": ctrl.name or "",
-                        "description": ctrl.description or "",
-                    })
+                for sc in pc.subcontrols:
+                    # ONLY send subcontrols to LLM if they are applicable, unverified, and have NO mapped evidence from Stage 3
+                    if sc.is_applicable and not sc.verified_at and not sc.evidence:
+                        controls.append({
+                            "subcontrol_id": sc.id,
+                            "ref_code": f"{ctrl.ref_code if ctrl else ''} - {sc.title}",
+                            "name": sc.title or "",
+                            "description": sc.description or "",
+                        })
             if not controls:
                 continue
 
@@ -1227,7 +1244,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                     has_profiles = bool(integration_data.get("risk_profiles"))
 
                     CHUNK_SIZE = 10
-                    all_mappings = []
+                    all_suggestions = []
                     all_risks = []
 
                     # ── Phase 1: Telivy-only analysis ─────────────────────
@@ -1252,7 +1269,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- Include finding name, count, domain, and severity from the data\n"
                             "- Group related findings (e.g. all cert issues = 1 risk)\n"
                             "- Aim for 5-15 risks. NEVER invent data not in the scan.\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\","
                             "\"notes\":\"Telivy: [finding name] - [grade/count/severity]. [What this means]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name\","
@@ -1261,10 +1278,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "\"evidence_data\":[{\"type\":\"finding\",\"name\":\"finding name from scan\",\"detail\":\"severity, count, description\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
-                        all_mappings, all_risks = _run_chunked_llm(
+                        all_suggestions, all_risks = _run_chunked_llm(
                             LLMService, telivy_prompt, telivy_data, controls,
                             fw_name, "Telivy scan", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_suggestions, all_risks, "auto_map",
                         )
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
@@ -1290,7 +1307,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "If Secure Score is high, that proves security controls work. If zero alerts, that's good.\n\n"
                             "RISKS: Only for actual gaps. Include user emails, device names, policy names.\n"
                             "- Aim for 3-10 risks. NEVER invent entities.\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\","
                             "\"notes\":\"Microsoft: [data point with numbers]. [What this means for compliance]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name\","
@@ -1299,10 +1316,10 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "\"evidence_data\":[{\"type\":\"user|device|policy|alert\",\"name\":\"entity name\",\"detail\":\"finding\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
-                        all_mappings, all_risks = _run_chunked_llm(
+                        all_suggestions, all_risks = _run_chunked_llm(
                             LLMService, ms_prompt, ms_data, controls,
                             fw_name, "Microsoft 365", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_suggestions, all_risks, "auto_map",
                         )
 
                     # ── Phase 3: NinjaOne RMM analysis ────────────────────
@@ -1324,15 +1341,15 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- For endpoint protection: cite AV coverage %, devices without protection\n"
                             "- For asset management: cite stale/inactive devices (30+ days no sync)\n\n"
                             "MAPPING: compliant | partial | non_compliant\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
+                            "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\",\"notes\":\"NinjaOne finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence summary\",\"description\":\"Detailed explanation + remediation plan.\",\"evidence_data\":[{\"type\":\"device|patch|av\",\"name\":\"device or patch name\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
-                        all_mappings, all_risks = _run_chunked_llm(
+                        all_suggestions, all_risks = _run_chunked_llm(
                             LLMService, ninja_prompt, ninja_data, controls,
                             fw_name, "NinjaOne RMM", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_suggestions, all_risks, "auto_map",
                         )
 
                     # ── Phase 4: DefensX browser security analysis ────────
@@ -1354,15 +1371,15 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- For shadow IT/AI: cite detected unauthorized tools and users\n"
                             "- For endpoint coverage: cite agent deployment % and unprotected users\n\n"
                             "MAPPING: compliant | partial | non_compliant\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
+                            "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\",\"notes\":\"DefensX finding: [specific data point]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence summary\",\"description\":\"Detailed explanation + remediation.\",\"evidence_data\":[{\"type\":\"shadow_ai|policy|credential\",\"name\":\"service or user\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
-                        all_mappings, all_risks = _run_chunked_llm(
+                        all_suggestions, all_risks = _run_chunked_llm(
                             LLMService, dx_prompt, dx_data, controls,
                             fw_name, "DefensX", tenant_id, CHUNK_SIZE,
-                            all_mappings, all_risks, "auto_map",
+                            all_suggestions, all_risks, "auto_map",
                         )
 
                     # ── Phase 5: Cross-source analysis (if 2+ sources) ───
@@ -1394,122 +1411,45 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                             "- Access control: open ports + Conditional Access + web filtering policies\n\n"
                             "ONLY map controls where cross-source correlation adds value beyond what "
                             "individual analyses already found. Reference data from MULTIPLE sources in notes.\n\n"
-                            "JSON: {\"mappings\":[{\"project_control_id\":\"ID\","
+                            "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\","
                             "\"notes\":\"Cross-source: [Source A] shows [X] + [Source B] shows [Y] = [conclusion]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name (no severity prefix)\",\"summary\":\"One sentence cross-source summary\",\"description\":\"Correlated explanation + remediation.\",\"evidence_data\":[{\"type\":\"cross_source\",\"source\":\"integration name\",\"name\":\"entity\",\"detail\":\"specifics\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         # Only send controls that weren't already mapped as non_compliant
-                        mapped_ids = {m.get("project_control_id") for m in all_mappings
+                        mapped_ids = {m.get("subcontrol_id") for m in all_suggestions
                                       if m.get("status") == "non_compliant"}
-                        unmapped = [c for c in controls if c["project_control_id"] not in mapped_ids]
+                        unmapped = [c for c in controls if c["subcontrol_id"] not in mapped_ids]
                         if unmapped:
-                            all_mappings, all_risks = _run_chunked_llm(
+                            all_suggestions, all_risks = _run_chunked_llm(
                                 LLMService, cross_prompt, combined_data, unmapped,
                                 fw_name, "Cross-source", tenant_id, CHUNK_SIZE,
-                                all_mappings, all_risks, "auto_map",
+                                all_suggestions, all_risks, "auto_map",
                             )
 
-                    _update_job_status(tenant_id, "generating_evidence", f"Applying {len(all_mappings)} mappings + generating evidence")
-                    # Apply mappings
-                    _STATUS_MAP = {
-                        "compliant": "complete", "partial": "ready for auditor",
-                        "non_compliant": "infosec action", "unknown": "infosec action",
-                    }
-                    _IMPL_MAP = {
-                        "compliant": 100, "partial": 50, "non_compliant": 0,
-                    }
-                    from app.models import ProjectSubControl, ProjectEvidence, EvidenceAssociation
-                    for m in all_mappings:
+                    _update_job_status(tenant_id, "generating_evidence", f"Processing {len(all_suggestions)} LLM AI suggestions")
+                    from app.models.project import AiSuggestion
+                    for m in all_suggestions:
                         try:
-                            pc_id = m.get("project_control_id")
-                            notes = m.get("notes", "")
-                            if pc_id and notes:
-                                pc = db.session.get(ProjectControl, pc_id)
-                                if pc:
-                                    existing = pc.notes or ""
-                                    pc.notes = f"{existing}\n\n[Auto-Mapped] {notes}".strip()
-                                    llm_status = m.get("status", "").lower()
-                                    new_status = _STATUS_MAP.get(llm_status)
-                                    if new_status and pc.review_status in ("infosec action", "new", None, ""):
-                                        pc.review_status = new_status
-                                    # Update subcontrol progress
-                                    impl_pct = _IMPL_MAP.get(llm_status, 0)
-                                    for sc in pc.subcontrols:
-                                        if sc.is_applicable and (sc.implemented or 0) != impl_pct:
-                                            sc.implemented = impl_pct
-
-                                    # Auto-generate evidence from the finding
-                                    ctrl = pc.control
-                                    ref_code = ctrl.ref_code if ctrl else pc_id
-                                    ev_name = f"[Auto] {ref_code} - Integration Scan Evidence"
-                                    # Check if evidence already exists for this control
-                                    existing_ev = db.session.execute(
-                                        db.select(ProjectEvidence).filter_by(
-                                            name=ev_name, project_id=project.id)
-                                    ).scalars().first()
-                                    if not existing_ev:
-                                        try:
-                                            # Determine completeness — only mark complete if we have
-                                            # concrete scan data. Otherwise mark as partial/draft.
-                                            has_concrete_data = bool(notes and len(notes) > 50)
-                                            is_compliant = llm_status == "compliant"
-
-                                            if is_compliant and has_concrete_data:
-                                                ev_status = "Complete — scan confirms compliance"
-                                            elif has_concrete_data:
-                                                ev_status = "Partial — scan data available, needs review"
-                                            else:
-                                                ev_status = "Draft — insufficient scan data"
-
-                                            # Build exhibit references based on what evidence is needed
-                                            ctrl_name = ctrl.name if ctrl else ref_code
-                                            exhibits = []
-                                            exhibits.append(f"Exhibit A: Integration scan report showing {ref_code} compliance status")
-                                            if not is_compliant:
-                                                exhibits.append(f"Exhibit B: Screenshot of current configuration or policy addressing this control")
-                                                exhibits.append(f"Exhibit C: Remediation plan or change ticket documenting the fix")
-                                            if "MFA" in (notes or "").upper() or "mfa" in (ctrl_name or "").lower():
-                                                exhibits.append(f"Exhibit {'D' if not is_compliant else 'B'}: Screenshot of MFA enforcement policy (Source: Entra ID → Security → MFA)")
-                                            if "encrypt" in (notes or "").lower() or "encrypt" in (ctrl_name or "").lower():
-                                                exhibits.append(f"Exhibit {'D' if not is_compliant else 'B'}: Screenshot of encryption settings (Source: Device management or BitLocker status)")
-
-                                            ev = ProjectEvidence(
-                                                name=ev_name,
-                                                description=(
-                                                    f"Evidence Status: {ev_status}\n\n"
-                                                    f"Control: {ref_code} — {ctrl_name}\n"
-                                                    f"Compliance Status: {llm_status}\n"
-                                                    f"Source: Integration Security Scan\n\n"
-                                                    f"What the scan found:\n{notes}\n\n"
-                                                    f"--- REQUIRED EXHIBITS ---\n" +
-                                                    "\n".join(exhibits) +
-                                                    f"\n\nUpload each exhibit as a supporting document. "
-                                                    f"{'Review only — control appears compliant.' if is_compliant else 'This evidence is incomplete until all exhibits are uploaded.'}"
-                                                ),
-                                                content=notes,
-                                                group="integration_scan",
-                                                project_id=project.id,
-                                                tenant_id=tenant_id,
-                                            )
-                                            db.session.add(ev)
-                                            db.session.flush()  # Get ev.id
-                                            # Link to all applicable subcontrols
-                                            for sc in pc.subcontrols:
-                                                if sc.is_applicable:
-                                                    assoc = EvidenceAssociation(
-                                                        control_id=sc.id,
-                                                        evidence_id=ev.id,
-                                                    )
-                                                    db.session.add(assoc)
-                                        except Exception as _ev_err:
-                                            logger.debug("Evidence association failed: %s", _ev_err)
-
-                                    total_mapped += 1
+                            sc_id = m.get("subcontrol_id")
+                            if sc_id:
+                                sugg = AiSuggestion(
+                                    project_id=project.id,
+                                    subject_type="ProjectSubControl",
+                                    subject_id=sc_id,
+                                    kind="integration_hint",
+                                    payload={
+                                        "suggestion_text": m.get("suggestion_text", ""),
+                                        "rationale": m.get("rationale", ""),
+                                        "suggested_evidence_type": m.get("suggested_evidence_type", "")
+                                    },
+                                    status="pending"
+                                )
+                                db.session.add(sugg)
+                                total_mapped += 1
                         except Exception as _map_err:
-                            logger.warning("Control mapping failed for control %s: %s",
-                                           m.get("control_id", "?"), _map_err)
+                            logger.warning("AI suggestion saving failed for subcontrol %s: %s", m.get("subcontrol_id", "?"), _map_err)
 
                     # Add risks
                     _SEV = {"critical": "critical", "high": "high", "medium": "moderate", "low": "low"}
@@ -1539,27 +1479,8 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                         except Exception as _risk_err:
                             logger.warning("Risk creation failed for '%s': %s",
                                            r.get("title", "?")[:50], _risk_err)
-                    _update_job_status(tenant_id, "syncing_progress", f"Syncing progress for {project.name if hasattr(project, 'name') else project.id}")
-                    # Sync ALL subcontrol progress for this project
-                    _sync_project_progress(db, project, ProjectControl, ProjectSubControl)
+                    # DB Session Commit (progress sync is automatic via continuous monitor)
                     db.session.commit()
-
-                    # Generate automated evidence from integration data
-                    _update_job_status(tenant_id, "generating_evidence", f"Generating facts for {project.name if hasattr(project, 'name') else project.id}")
-                    try:
-                        from app.masri.evidence_generators import generate_all_evidence
-                        facts_count = generate_all_evidence(db, project, tenant_id)
-                        if facts_count:
-                            logger.info("Generated %d integration facts for project %s", facts_count, project.id)
-                            
-                        # Run Stage 3 - Rule-Based Mapper
-                        from app.masri.rule_mapper import run_mapper
-                        ev_count = run_mapper(db, project)
-                        if ev_count:
-                            logger.info("Mapped %d pieces of evidence for project %s", ev_count, project.id)
-                            
-                    except Exception as ev_err:
-                        logger.warning("Evidence generation/mapping failed for project %s: %s", project.id, ev_err)
                 except Exception as e:
                     logger.warning("LLM auto-process failed for project %s: %s", project.id, e)
             else:
@@ -1759,12 +1680,12 @@ def refresh_microsoft_data(tenant_id):
 
 def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                       fw_name, source_label, tenant_id, chunk_size,
-                      all_mappings, all_risks, feature):
+                      all_suggestions, all_risks, feature):
     """Run chunked LLM analysis for a single data source.
 
     Sends controls in batches of chunk_size, accumulates mappings and risks.
     Uses prompt adapter layer to optimize prompts per model family.
-    Returns updated (all_mappings, all_risks) lists.
+    Returns updated (all_suggestions, all_risks) lists.
     """
     import json
     from app.masri.prompt_adapters import get_adapter
@@ -1791,7 +1712,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
         chunk_label = f"{source_label} {chunk_num}/{total_chunks}"
         _update_job_status(tenant_id, f"analyzing_{source_label.lower().replace(' ', '_')}", f"Analyzing {source_label}", f"{chunk_num}/{total_chunks} chunks")
         ctrl_list = "\n".join([
-            f"- [{c['project_control_id']}] {c['ref_code']}: {c['name']}"
+            f"- [{c['subcontrol_id']}] {c['ref_code']}: {c['name']}"
             for c in chunk
         ])
         user_content = f"Framework: {fw_name}\nSource: {source_label}\n\n"
@@ -1800,7 +1721,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
         else:
             user_content += (
                 f"(Data provided in batch 1. Previous: "
-                f"{len(all_mappings)} mapped, {len(all_risks)} risks.)\n"
+                f"{len(all_suggestions)} mapped, {len(all_risks)} risks.)\n"
             )
             if prev_summary:
                 user_content += f"Recent: {prev_summary}\n"
@@ -1832,9 +1753,9 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
                     except Exception:
                         pass
             if parsed:
-                new_maps = parsed.get("mappings", [])
+                new_maps = parsed.get("ai_suggestions", [])
                 new_risks = parsed.get("risks", [])
-                all_mappings.extend(new_maps)
+                all_suggestions.extend(new_maps)
                 all_risks.extend(new_risks)
                 rt = [r.get("title", "") for r in new_risks]
                 prev_summary = f"{len(new_maps)} mapped. Risks: {', '.join(rt[:3])}" if rt else ""
@@ -1852,7 +1773,7 @@ def _run_chunked_llm(LLMService, system_prompt, data_summary, controls,
             except Exception:
                 pass
 
-    return all_mappings, all_risks
+    return all_suggestions, all_risks
 
 
 def _build_evidence_description(ref_code, ctrl_name, status, is_compliant, has_data, finding_text):
@@ -2254,10 +2175,10 @@ def _gather_integration_data(tenant_id: str) -> dict:
         # Get scan-to-tenant mappings
         mapping_record = ConfigStore.find("telivy_scan_mappings")
         if mapping_record and mapping_record.value:
-            all_mappings = json.loads(mapping_record.value)
+            all_mappings_data = json.loads(mapping_record.value)
             mapped_items = []
             mapped_ids = set()
-            for item_id, mapping in all_mappings.items():
+            for item_id, mapping in all_mappings_data.items():
                 if isinstance(mapping, str):
                     mapped_tid = mapping
                     item_data = {"id": item_id, "org": item_id, "type": "unknown"}
