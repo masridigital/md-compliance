@@ -343,22 +343,66 @@ class SubControlMixin(object):
             return [evidence.as_dict() for evidence in query]
         return query
 
-    def get_completion_progress(self):
+    def legacy_completion_progress(self):
+        import logging
+        logging.getLogger(__name__).warning("legacy_completion_progress called. Deprecated in methodology F2.")
         if not self.is_applicable:
             return 0
-
         impl = self.implemented or 0
-        has_ev = self.has_evidence()
-
-        # Completion requires BOTH implementation AND evidence.
-        # Implementation is the primary driver (70%), evidence (30%).
-        # Evidence without implementation gives minimal credit.
+        has_ev = getattr(self, "_legacy_has_evidence", lambda: self.has_evidence())()
         if impl >= 100 and has_ev:
             return 100
         impl_score = impl * 0.7
         ev_score = min(impl * 0.3, 30) if has_ev else 0
-
         return round(min(impl_score + ev_score, 100), 0)
+
+    def get_completion_progress(self):
+        if self.subcontrol_state() == "complete":
+            return 100
+        return 0
+
+    def subcontrol_state(self):
+        if not self.is_applicable:
+            return "not_applicable"
+            
+        slots = []
+        # get evidence_requirements from ProjectControl, else Control
+        if getattr(self.p_control, "evidence_requirements", None):
+            slots = self.p_control.evidence_requirements.get("slots", [])
+        elif getattr(self.p_control.control, "evidence_requirements", None):
+            slots = self.p_control.control.evidence_requirements.get("slots", [])
+            
+        missing = [s for s in slots if not self.has_accepted_evidence(slot=s.get("key"))]
+        if missing:
+            if self.implemented and self.implemented > 0:
+                return "in_progress"
+            return "not_started"
+            
+        if self.implemented != 100:
+            return "ready_for_review"
+            
+        if getattr(self, "verified_at", None) is None:
+            return "awaiting_verification"
+            
+        if getattr(self.project, "has_auditor", lambda: False)() and getattr(self.p_control, "review_status", None) != "complete":
+            return "awaiting_auditor"
+            
+        return "complete"
+
+    def has_accepted_evidence(self, slot=None):
+        # Local import to avoid circular dependencies
+        from app.models.project import ProjectEvidence, EvidenceAssociation
+        
+        stmt = db.select(ProjectEvidence).join(
+            EvidenceAssociation, EvidenceAssociation.evidence_id == ProjectEvidence.id
+        ).where(
+            EvidenceAssociation.control_id == self.id,
+            ProjectEvidence.status == "accepted"
+        )
+        if slot:
+            stmt = stmt.where(EvidenceAssociation.requirement_slot == slot)
+            
+        return db.session.execute(stmt).scalars().first() is not None
 
     def completion_description(self):
         text = ""
@@ -392,13 +436,9 @@ class SubControlMixin(object):
         return "partially implemented"
 
     def is_complete(self):
-        if self.implemented != 100:
-            return False
-        if not self.has_evidence():
-            return False
-        return True
+        return self.subcontrol_state() == "complete"
 
-    def has_evidence(self, id=None):
+    def _legacy_has_evidence(self, id=None):
         """Return True when this subcontrol has *real* supporting evidence.
 
         Auto-generated stubs — evidence rows whose ``group`` is
@@ -427,6 +467,9 @@ class SubControlMixin(object):
             if getattr(ev, "group", None) not in _AUTO_EVIDENCE_GROUPS:
                 return True
         return False
+
+    def has_evidence(self, slot=None):
+        return self.has_accepted_evidence(slot=slot)
 
     def is_implemented(self):
         if self.implemented == 100:

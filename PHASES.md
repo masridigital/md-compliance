@@ -234,7 +234,7 @@ comprehensions, `len`, truthiness) instead of query chaining.
 | Step | Component | Status | Notes |
 |------|-----------|--------|-------|
 | F1 | Data-model migrations | **DONE** 2026-04-19 | `IntegrationFact`, `AiSuggestion`, updated columns on `ProjectEvidence` |
-| F2 | Scoring rewrite | Pending | strict stats, no partial implementation points |
+| F2 | Scoring rewrite | **DONE** 2026-04-19 | strict stats, no partial implementation points, strict project summary |
 | F3 | Fact extraction | Pending | migrate integration logic to output `IntegrationFact` rows |
 | F4 | Rule-based mapper | Pending | deterministic framework rule matching |
 | F5 | LLM narrowing | Pending | restrict AI to proposals vs mutations |

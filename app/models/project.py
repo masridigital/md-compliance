@@ -816,113 +816,42 @@ class Project(db.Model, DateMixin):
         return data
 
     def _fast_summary(self):
-        """Compute project summary stats with bulk SQL — avoids N+1 queries.
+        """Compute project summary stats strictly over subcontrols, respecting methodology F2.
 
         Returns dict with: completion_progress, implemented_progress,
         evidence_progress, applicable_controls, total_controls,
         total_policies, total_risks, policy_stats.
         """
-
-        # ── 1. Per-control aggregate in ONE query ──
-        # For each control: count applicable subs, sum implemented, avg completion
-        sub_stats = (
-            db.session.execute(
-                db.select(
-                    ProjectSubControl.project_control_id,
-                    func.count(ProjectSubControl.id).label("total_subs"),
-                    func.sum(
-                        case((ProjectSubControl.is_applicable == True, 1), else_=0)
-                    ).label("applicable_subs"),
-                    func.sum(
-                        case(
-                            (ProjectSubControl.is_applicable == True, ProjectSubControl.implemented),
-                            else_=0,
-                        )
-                    ).label("impl_sum"),
-                )
-                .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
-                .where(ProjectControl.project_id == self.id)
-                .group_by(ProjectSubControl.project_control_id)
-            ).all()
-        )
-
-        # ── 2. Subcontrol IDs that have evidence ──
-        subs_with_evidence = set()
-        ev_rows = db.session.execute(
-            db.select(distinct(EvidenceAssociation.control_id))
-            .join(ProjectSubControl, ProjectSubControl.id == EvidenceAssociation.control_id)
-            .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
-            .where(
-                ProjectControl.project_id == self.id,
-                ProjectSubControl.is_applicable == True,
-            )
-        ).all()
-        for row in ev_rows:
-            subs_with_evidence.add(row[0])
-
-        # ── 3. All applicable subcontrol IDs (for evidence % calc) ──
-        applicable_sub_rows = db.session.execute(
-            db.select(ProjectSubControl.id, ProjectSubControl.project_control_id, ProjectSubControl.implemented)
-            .join(ProjectControl, ProjectControl.id == ProjectSubControl.project_control_id)
-            .where(
-                ProjectControl.project_id == self.id,
-                ProjectSubControl.is_applicable == True,
-            )
-        ).all()
-
-        # Build per-control evidence counts
-        evidence_by_control = {}
-        applicable_by_control = {}
-        for sub_id, ctrl_id, impl in applicable_sub_rows:
-            applicable_by_control.setdefault(ctrl_id, 0)
-            applicable_by_control[ctrl_id] += 1
-            if sub_id in subs_with_evidence:
-                evidence_by_control.setdefault(ctrl_id, 0)
-                evidence_by_control[ctrl_id] += 1
-
-        # ── 4. Compute per-control completion (matching mixin logic) ──
-        total_controls = len(sub_stats)
+        total_controls = 0
         applicable_controls = 0
-        completion_total = 0.0
-        implemented_total = 0.0
-        evidence_total = 0.0
-
-        for ctrl_id, total_subs, applicable_subs, impl_sum in sub_stats:
-            if not applicable_subs:
-                continue
-            applicable_controls += 1
-
-            # Implemented progress = avg implemented across applicable subs
-            avg_impl = (impl_sum or 0) / applicable_subs
-            implemented_total += avg_impl
-
-            # Evidence progress = % of applicable subs with evidence
-            ev_count = evidence_by_control.get(ctrl_id, 0)
-            if applicable_subs:
-                ev_pct = (ev_count / applicable_subs) * 100
-            else:
-                ev_pct = 0
-            evidence_total += ev_pct
-
-            # Completion progress per subcontrol (matching get_completion_progress):
-            # For each applicable sub: base = implemented, reduce by 25% if no evidence,
-            # but at least 25 if has evidence.
-            # Approximate with aggregate: use per-sub detail from applicable_sub_rows
-            ctrl_completion = 0.0
-            ctrl_applicable = 0
-            for sub_id, sc_ctrl_id, sub_impl in applicable_sub_rows:
-                if sc_ctrl_id != ctrl_id:
+        complete_subcontrols = 0
+        applicable_subcontrols = 0
+        implemented_sum = 0
+        evidence_covered_subs = 0
+        
+        for control in self.controls:
+            total_controls += 1
+            has_applicable_sub = False
+            for sc in control.subcontrols:
+                if not sc.is_applicable:
                     continue
-                ctrl_applicable += 1
-                has_ev = sub_id in subs_with_evidence
-                impl_val = sub_impl or 0
-                if has_ev:
-                    sub_progress = max(impl_val, 25.0)
-                else:
-                    sub_progress = impl_val * 0.75
-                ctrl_completion += sub_progress
-            if ctrl_applicable:
-                completion_total += round(ctrl_completion / ctrl_applicable, 0)
+                has_applicable_sub = True
+                applicable_subcontrols += 1
+                
+                if sc.is_complete():
+                    complete_subcontrols += 1
+                
+                implemented_sum += (sc.implemented or 0)
+                
+                if sc.has_evidence():
+                    evidence_covered_subs += 1
+
+            if has_applicable_sub:
+                applicable_controls += 1
+
+        completion_progress = round((complete_subcontrols / applicable_subcontrols) * 100, 0) if applicable_subcontrols else 0
+        implemented_progress = round(implemented_sum / applicable_subcontrols, 0) if applicable_subcontrols else 0
+        evidence_progress = round((evidence_covered_subs / applicable_subcontrols) * 100, 0) if applicable_subcontrols else 0
 
         # ── 5. Policy acceptance (bulk) ──
         policies = self.policies.all()
@@ -968,9 +897,9 @@ class Project(db.Model, DateMixin):
             "applicable_controls": applicable_controls,
             # Same principle for completion: a project with zero applicable
             # controls isn't "complete" — it's uninitialised.
-            "completion_progress": round(completion_total / applicable_controls, 0) if applicable_controls else 0,
-            "implemented_progress": round(implemented_total / applicable_controls, 0) if applicable_controls else 0,
-            "evidence_progress": round(evidence_total / applicable_controls, 0) if applicable_controls else 0,
+            "completion_progress": completion_progress,
+            "implemented_progress": implemented_progress,
+            "evidence_progress": evidence_progress,
             "total_policies": total_policies,
             "total_risks": total_risks,
             "policy_stats": {
@@ -983,6 +912,22 @@ class Project(db.Model, DateMixin):
         }
 
     def completion_progress(self, controls=None, default=100):
+        complete_subcontrols = 0
+        applicable_subcontrols = 0
+        if controls is None:
+            controls = self.controls.all()
+        for control in controls:
+            for sc in control.subcontrols:
+                if not sc.is_applicable:
+                    continue
+                applicable_subcontrols += 1
+                if sc.is_complete():
+                    complete_subcontrols += 1
+        if not applicable_subcontrols:
+            return default
+        return round((complete_subcontrols / applicable_subcontrols) * 100, 0)
+        
+    def _legacy_completion_progress(self, controls=None, default=100):
         total = 0
         applicable_count = 0
         if controls is None:
@@ -995,7 +940,9 @@ class Project(db.Model, DateMixin):
             return default
         return round((total / applicable_count), 0)
 
-    def evidence_progress(self, controls=None):
+    def _legacy_evidence_progress(self, controls=None):
+        import logging
+        logging.getLogger(__name__).warning("_legacy_evidence_progress called. Deprecated in methodology F2.")
         total = 0
         applicable_count = 0
         if controls is None:
@@ -1009,8 +956,24 @@ class Project(db.Model, DateMixin):
         if not applicable_count:
             return 0
         return round((total / applicable_count), 0)
+        
+    def evidence_progress(self, controls=None):
+        evidence_covered_subs = 0
+        applicable_subcontrols = 0
+        if controls is None:
+            controls = self.controls.all()
+        for control in controls:
+            for sc in control.subcontrols:
+                if not sc.is_applicable:
+                    continue
+                applicable_subcontrols += 1
+                if sc.has_evidence():
+                    evidence_covered_subs += 1
+        if not applicable_subcontrols:
+            return 0
+        return round((evidence_covered_subs / applicable_subcontrols) * 100, 0)
 
-    def implemented_progress(self, controls=None):
+    def _legacy_implemented_progress(self, controls=None):
         total = 0
         applicable_count = 0
         if not controls:
@@ -1024,6 +987,23 @@ class Project(db.Model, DateMixin):
         if not applicable_count:
             return 0
         return round((total / applicable_count), 0)
+        
+    def implemented_progress(self, controls=None):
+        implemented_sum = 0
+        applicable_subcontrols = 0
+        if not controls:
+            controls = self.controls.all()
+        if not controls:
+            return 0
+        for control in controls:
+            for sc in control.subcontrols:
+                if not sc.is_applicable:
+                    continue
+                applicable_subcontrols += 1
+                implemented_sum += sc.implemented or 0
+        if not applicable_subcontrols:
+            return 0
+        return round((implemented_sum / applicable_subcontrols), 0)
 
     def policy_acceptance_summary(self):
         """Returns policy acceptance stats: total, accepted, current (within 12 months), expired."""
