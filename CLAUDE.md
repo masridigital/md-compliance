@@ -943,10 +943,10 @@ These are in-scope design tasks surfaced during the recent polish pass but not y
 
 ### Pending Refactoring Order
 
-Matches `PHASES.md`. With E4 done, the queue is **E2** (service layer — depends on E1 which is done), then **E3** (depends on E2).
+Matches `PHASES.md`. **E2 kicked off 2026-04-19** — `project_service` pilot landed (7 operations, 7 view functions migrated). Remaining:
 
-- **E2**: Extract service layer. Move DB mutations from views into `app/services/*`. Views become thin request → service → response wrappers. Scope: `project_service`, `risk_service`, `evidence_service`, `compliance_service`, `vendor_service`.
-- **E3**: Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`).
+- **E2 (in progress)**: Complete the service-layer extraction: `risk_service`, `evidence_service`, `compliance_service`, `vendor_service`, plus the rest of `project_service` (control CRUD, member management, tag management, project history). Conventions documented in `app/services/__init__.py`.
+- **E3** (depends on E2): Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`).
 
 ### Key Security Rules (from audit)
 

@@ -130,17 +130,25 @@ app/models/
 | `tags.py` | 3 | 83 |
 
 ### E2: Service Layer for Core Business Logic
-**Status**: NOT STARTED — depends on E1
+**Status**: IN PROGRESS — started 2026-04-19
 
-Move DB mutations out of views into `app/services/`. Views become thin wrappers: parse request -> call service -> return response.
+Moving DB mutations out of views into `app/services/`. Views become thin wrappers: parse request → call service → serialise response. Conventions documented in `app/services/__init__.py`:
 
-| Service | Covers |
-|---------|--------|
-| `project_service.py` | project CRUD, control management, progress |
-| `risk_service.py` | risk CRUD, risk scoring |
-| `evidence_service.py` | evidence upload, association, generation |
-| `compliance_service.py` | framework management, control mapping |
-| `vendor_service.py` | vendor CRUD, assessments |
+1. Services accept domain objects, not IDs. Auth stays in the view.
+2. Services own their `db.session.commit()` calls.
+3. Services return domain objects; views own serialisation.
+4. Services may `abort(...)` on domain-invariant violations.
+5. No Flask request/response objects in services.
+
+| Service | Status | Covers |
+|---------|--------|--------|
+| `project_service.py` | **pilot landed 2026-04-19** — 7 operations (`list_for_user`, `get_serializable`, `update_basic`, `update_settings`, `delete`, `create_for_tenant`, `set_notes`). Views updated: `get_project`, `update_project`, `delete_project`, `create_project`, `get_projects_in_tenant`, `update_settings_in_project`, `update_scratchpad_for_project`. | project CRUD, control management, progress |
+| `risk_service.py` | PENDING | risk CRUD, risk scoring |
+| `evidence_service.py` | PENDING | evidence upload, association, generation |
+| `compliance_service.py` | PENDING | framework management, control mapping |
+| `vendor_service.py` | PENDING | vendor CRUD, assessments |
+
+Remaining project operations that still live in views (control CRUD, member management, tag management, project history, evidence association at subcontrol level) will migrate as the per-domain services land — keeping each commit reviewable.
 
 ### E3: Split `SettingsService` God Object
 **Status**: NOT STARTED — depends on E2

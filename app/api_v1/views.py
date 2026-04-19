@@ -12,7 +12,7 @@ from . import api
 from app import models, db, limiter
 from flask_login import current_user
 from app.utils.decorators import login_required
-from app.utils.misc import project_creation, get_users_from_text
+from app.utils.misc import get_users_from_text
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from app.email import send_email
@@ -47,6 +47,7 @@ from app.api_v1.schemas import (
     ProjectTagSchema,
     ProjectControlCreateSchema,
 )
+from app.services import project_service
 
 @api.route("/tenants/<string:id>/frameworks", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -84,8 +85,7 @@ def update_scratchpad_for_project(id):
     data, err = validate_payload(DataFieldSchema, request.get_json())
     if err:
         return err
-    result["extra"]["project"].notes = data["data"]
-    db.session.commit()
+    project_service.set_notes(result["extra"]["project"], data["data"])
     return jsonify({"message": "ok"})
 
 
@@ -343,11 +343,13 @@ def reload_tenant_policies(tid):
 @limiter.limit("60 per minute")
 @login_required
 def get_project(pid):
-    with_summary = False
-    if request.args.get("summary"):
-        with_summary = True
+    with_summary = bool(request.args.get("summary"))
     result = Authorizer(current_user).can_user_access_project(pid)
-    return jsonify(result["extra"]["project"].as_dict(with_summary=with_summary))
+    return jsonify(
+        project_service.get_serializable(
+            result["extra"]["project"], with_summary=with_summary
+        )
+    )
 
 
 @api.route("/projects/<string:pid>", methods=["PUT"])
@@ -358,12 +360,12 @@ def update_project(pid):
     data, err = validate_payload(ProjectUpdateSchema, request.get_json())
     if err:
         return err
-    if data.get("name"):
-        result["extra"]["project"].name = data.get("name")
-    if data.get("description"):
-        result["extra"]["project"].description = data.get("description")
-    db.session.commit()
-    return jsonify(result["extra"]["project"].as_dict())
+    project = project_service.update_basic(
+        result["extra"]["project"],
+        name=data.get("name"),
+        description=data.get("description"),
+    )
+    return jsonify(project.as_dict())
 
 
 @api.route("/projects/<string:pid>", methods=["DELETE"])
@@ -371,8 +373,7 @@ def update_project(pid):
 @login_required
 def delete_project(pid):
     result = Authorizer(current_user).can_user_manage_project(pid)
-    db.session.delete(result["extra"]["project"])
-    db.session.commit()
+    project_service.delete(result["extra"]["project"])
     return jsonify({"message": "ok"})
 
 
@@ -500,12 +501,12 @@ def get_control(cid):
 @limiter.limit("60 per minute")
 @login_required
 def get_projects_in_tenant(tid):
-    data = []
     result = Authorizer(current_user).can_user_access_tenant(tid)
     exclude = request.args.get("exclude-timely", False)
-    for record in current_user.get_projects(result["extra"]["tenant"].id):
-        data.append(record.as_dict(with_summary=True, exclude_timely=exclude))
-    return jsonify(data)
+    projects = project_service.list_for_user(current_user, result["extra"]["tenant"])
+    return jsonify(
+        [p.as_dict(with_summary=True, exclude_timely=exclude) for p in projects]
+    )
 
 
 @api.route("/tenants/<string:tid>/projects", methods=["POST"])
@@ -516,8 +517,10 @@ def create_project(tid):
     payload, err = validate_payload(ProjectCreateSchema, request.get_json())
     if err:
         return err
-    result = project_creation(result["extra"]["tenant"], payload, current_user)
-    if not result:
+    created = project_service.create_for_tenant(
+        result["extra"]["tenant"], payload, current_user
+    )
+    if not created:
         return jsonify({"message": "Failed to create project"}), 400
     return jsonify({"message": "ok"})
 
@@ -531,33 +534,7 @@ def update_settings_in_project(pid):
     data, err = validate_payload(ProjectSettingsSchema, request.get_json())
     if err:
         return err
-    if data.get("name"):
-        result["extra"]["project"].name = data["name"]
-    if data.get("description"):
-        result["extra"]["project"].description = data["description"]
-    if data.get("notes") is not None:
-        result["extra"]["project"].notes = data["notes"]
-    if type(data.get("auditor_enabled")) is bool:
-        result["extra"]["project"].auditor_enabled = data["auditor_enabled"]
-    if type(data.get("can_auditor_read_scratchpad")) is bool:
-        result["extra"]["project"].can_auditor_read_scratchpad = data[
-            "can_auditor_read_scratchpad"
-        ]
-    if type(data.get("can_auditor_write_scratchpad")) is bool:
-        result["extra"]["project"].can_auditor_write_scratchpad = data[
-            "can_auditor_write_scratchpad"
-        ]
-    if type(data.get("can_auditor_read_comments")) is bool:
-        result["extra"]["project"].can_auditor_read_comments = data[
-            "can_auditor_read_comments"
-        ]
-    if type(data.get("can_auditor_write_comments")) is bool:
-        result["extra"]["project"].can_auditor_write_comments = data[
-            "can_auditor_write_comments"
-        ]
-    if type(data.get("policies_require_cc")) is bool:
-        result["extra"]["project"].policies_require_cc = data["policies_require_cc"]
-    db.session.commit()
+    project_service.update_settings(result["extra"]["project"], data)
     return jsonify({"message": "ok"})
 
 
