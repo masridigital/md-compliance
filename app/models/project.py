@@ -786,7 +786,7 @@ class Project(db.Model, DateMixin):
     def evidence_groupings(self):
         data = {}
         for sub in self.subcontrols():
-            for evidence in sub.evidence.all():
+            for evidence in sub.evidence:
                 if evidence.id not in data:
                     data[evidence.id] = {
                         "id": evidence.id,
@@ -1126,19 +1126,19 @@ class ProjectControl(db.Model, ControlMixin):
     tags = db.relationship(
         "Tag",
         secondary="control_tags",
-        lazy="dynamic",
+        lazy="select",
         backref=db.backref("project_controls", lazy="dynamic"),
     )
     feedback = db.relationship(
         "AuditorFeedback",
         backref="control",
-        lazy="dynamic",
+        lazy="select",
         cascade="all, delete-orphan",
     )
     subcontrols = db.relationship(
         "ProjectSubControl",
         backref="p_control",
-        lazy="dynamic",
+        lazy="select",
         cascade="all, delete-orphan",
     )
     project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=False)
@@ -1149,17 +1149,17 @@ class ProjectControl(db.Model, ControlMixin):
     VALID_REVIEW_STATUS = ["infosec action", "ready for auditor", "complete"]
 
     def set_as_applicable(self):
-        for subcontrol in self.subcontrols.all():
+        for subcontrol in self.subcontrols:
             subcontrol.is_applicable = True
         db.session.commit()
 
     def set_as_not_applicable(self):
-        for subcontrol in self.subcontrols.all():
+        for subcontrol in self.subcontrols:
             subcontrol.is_applicable = False
         db.session.commit()
 
     def set_assignee(self, assignee_id):
-        for subcontrol in self.subcontrols.all():
+        for subcontrol in self.subcontrols:
             subcontrol.owner_id = assignee_id
         db.session.commit()
 
@@ -1183,7 +1183,7 @@ class ProjectControl(db.Model, ControlMixin):
 
     def has_tag(self, tag_name):
         has_tag = next(
-            (i for i in self.tags.all() if i.name.lower() == tag_name.lower()), False
+            (i for i in self.tags if i.name.lower() == tag_name.lower()), False
         )
         return has_tag
 
@@ -1212,7 +1212,7 @@ class ProjectControl(db.Model, ControlMixin):
         if is_complete is not None:
             feedback.is_complete = is_complete
         if relates_to and isinstance(relates_to, int):
-            if self.subcontrols.filter(ProjectSubControl.id == relates_to).first():
+            if any(s.id == relates_to for s in self.subcontrols):
                 feedback.relates_to = relates_to
 
         self.feedback.append(feedback)
@@ -1228,7 +1228,7 @@ class ProjectControl(db.Model, ControlMixin):
         response=None,
         relates_to=None,
     ):
-        feedback = self.feedback.filter(AuditorFeedback.id == feedback_id).first()
+        feedback = next((f for f in self.feedback if f.id == feedback_id), None)
         if not feedback:
             abort(422, f"Feedback:{feedback_id} not found")
         if title:
@@ -1240,7 +1240,7 @@ class ProjectControl(db.Model, ControlMixin):
         if is_complete is not None:
             feedback.is_complete = is_complete
         if relates_to and isinstance(relates_to, int):
-            if self.subcontrols.filter(ProjectSubControl.id == relates_to).first():
+            if any(s.id == relates_to for s in self.subcontrols):
                 feedback.relates_to = relates_to
         db.session.commit()
         return feedback
@@ -1277,7 +1277,7 @@ class ProjectSubControl(db.Model, SubControlMixin):
     evidence = db.relationship(
         "ProjectEvidence",
         secondary="evidence_association",
-        lazy="dynamic",
+        lazy="select",
         backref=db.backref("project_subcontrols", lazy="dynamic"),
     )
     comments = db.relationship(

@@ -1436,7 +1436,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                         pc.review_status = new_status
                                     # Update subcontrol progress
                                     impl_pct = _IMPL_MAP.get(llm_status, 0)
-                                    for sc in pc.subcontrols.all():
+                                    for sc in pc.subcontrols:
                                         if sc.is_applicable and (sc.implemented or 0) != impl_pct:
                                             sc.implemented = impl_pct
 
@@ -1496,7 +1496,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                             db.session.add(ev)
                                             db.session.flush()  # Get ev.id
                                             # Link to all applicable subcontrols
-                                            for sc in pc.subcontrols.all():
+                                            for sc in pc.subcontrols:
                                                 if sc.is_applicable:
                                                     assoc = EvidenceAssociation(
                                                         control_id=sc.id,
@@ -1893,7 +1893,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
             is_auto = "[Auto-Mapped]" in (pc.notes or "")
             impl_pct = _IMPL.get(pc.review_status, 0)
             if is_auto:
-                for sc in pc.subcontrols.all():
+                for sc in pc.subcontrols:
                     if sc.is_applicable and (sc.implemented or 0) != impl_pct:
                         sc.implemented = impl_pct
 
@@ -1933,7 +1933,7 @@ def _sync_project_progress(db, project, ProjectControl, ProjectSubControl):
                         )
                         db.session.add(ev)
                         db.session.flush()
-                        for sc in pc.subcontrols.all():
+                        for sc in pc.subcontrols:
                             if sc.is_applicable:
                                 db.session.add(EvidenceAssociation(
                                     control_id=sc.id, evidence_id=ev.id))
