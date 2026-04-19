@@ -14,14 +14,14 @@ from app import db  # noqa: F401 — many callers do ``from app.models import db
 from app.models.vendor import (  # noqa: F401
     Finding, VendorFile, AppHistory, VendorHistory, VendorApp, Vendor,
 )
-from app.models.tenant import DataClass, Tenant  # noqa: F401
+from app.models.tenant import DataClass, Tenant, IntegrationFact  # noqa: F401
 from app.models.framework import (  # noqa: F401
     Framework, Policy, Control, SubControl, PolicyAssociation,
 )
 from app.models.project import (  # noqa: F401
     ProjectEvidence, EvidenceAssociation, ProjectMember,
     CompletionHistory, Project, ProjectControl, ProjectSubControl,
-    ProjectPolicyAssociation,
+    ProjectPolicyAssociation, AiSuggestion,
 )
 from app.models.policy import (  # noqa: F401
     ProjectPolicy, PolicyVersion, PolicyLabel, PolicyTags,
@@ -111,6 +111,7 @@ _m_project.ProjectPolicy = ProjectPolicy
 _m_project.PolicyVersion = PolicyVersion
 _m_project.AuditorFeedback = AuditorFeedback
 _m_project.Tenant = Tenant
+_m_project.AiSuggestion = AiSuggestion
 
 _m_risk.User = User
 _m_risk.Project = Project
@@ -134,6 +135,7 @@ _m_tenant.ProjectMember = ProjectMember
 _m_tenant.RiskRegister = RiskRegister
 _m_tenant.Vendor = Vendor
 _m_tenant.Tag = Tag
+_m_tenant.IntegrationFact = IntegrationFact
 
 _m_vendor.Assessment = Assessment
 _m_vendor.Form = Form
@@ -148,13 +150,13 @@ __all__ = [
     # vendor
     "Finding", "VendorFile", "AppHistory", "VendorHistory", "VendorApp", "Vendor",
     # tenant
-    "DataClass", "Tenant",
+    "DataClass", "Tenant", "IntegrationFact",
     # framework
     "Framework", "Policy", "Control", "SubControl", "PolicyAssociation",
     # project
     "ProjectEvidence", "EvidenceAssociation", "ProjectMember",
     "CompletionHistory", "Project", "ProjectControl", "ProjectSubControl",
-    "ProjectPolicyAssociation",
+    "ProjectPolicyAssociation", "AiSuggestion",
     # policy
     "ProjectPolicy", "PolicyVersion", "PolicyLabel", "PolicyTags",
     # risk

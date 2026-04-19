@@ -194,6 +194,7 @@ class Control(db.Model):
     guidance = db.Column(db.String)
     references = db.Column(db.String())
     mapping = db.Column(db.JSON(), default={})
+    evidence_requirements = db.Column(db.JSON(), default={})
     is_custom = db.Column(db.Boolean(), default=False)
     vendor_recommendations = db.Column(db.JSON(), default={})
     """framework specific fields"""

@@ -102,6 +102,9 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
     risks = db.relationship(
         "RiskRegister", backref="tenant", lazy="dynamic", cascade="all, delete-orphan"
     )
+    integration_facts = db.relationship(
+        "IntegrationFact", backref="tenant", lazy="dynamic", cascade="all, delete-orphan"
+    )
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     labels = db.relationship(
         "PolicyLabel", backref="tenant", lazy="dynamic", cascade="all, delete-orphan"
@@ -793,8 +796,21 @@ class Tenant(db.Model, QueryMixin, AuthorizerMixin):
             description="Default evidence object. Used to satisfy evidence collection.",
         )
         project.evidence.append(evidence)
-        db.session.commit()
-        return project
 
 
-
+class IntegrationFact(db.Model, QueryMixin):
+    __tablename__ = "integration_facts"
+    id = db.Column(
+        db.String,
+        primary_key=True,
+        default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
+        unique=True,
+    )
+    source = db.Column(db.String(), nullable=False)
+    subject = db.Column(db.String(), nullable=False)
+    assertion = db.Column(db.String(), nullable=False)
+    fingerprint = db.Column(db.String(), nullable=False)
+    collected_at = db.Column(db.DateTime, default=datetime.utcnow)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)

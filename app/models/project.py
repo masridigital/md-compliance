@@ -40,6 +40,16 @@ class ProjectEvidence(db.Model, QueryMixin):
     owner_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
     project_id = db.Column(db.String, db.ForeignKey("projects.id"))
     tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"))
+    
+    # Extended fields for methodology
+    kind = db.Column(db.String, nullable=False, default="uploaded")
+    status = db.Column(db.String, nullable=False, default="draft")
+    source = db.Column(db.String, nullable=True)
+    integration_fingerprint = db.Column(db.String, nullable=True)
+    reviewed_by_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
@@ -325,6 +335,7 @@ class EvidenceAssociation(db.Model):
     evidence_id = db.Column(
         db.String(), db.ForeignKey("project_evidence.id", ondelete="CASCADE")
     )
+    requirement_slot = db.Column(db.String, nullable=True)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
     date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
@@ -1128,6 +1139,7 @@ class ProjectControl(db.Model, ControlMixin):
     )
     notes = db.Column(EncryptedText)
     auditor_notes = db.Column(EncryptedText)
+    evidence_requirements = db.Column(db.JSON(), default={})
     review_status = db.Column(db.String(), default="infosec action")
     comments = db.relationship(
         "ControlComment",
@@ -1275,6 +1287,9 @@ class ProjectSubControl(db.Model, SubControlMixin):
     is_applicable = db.Column(db.Boolean(), default=True)
     context = db.Column(EncryptedText)
     notes = db.Column(EncryptedText)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    verified_by_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    verification_note = db.Column(db.Text, nullable=True)
     """
     framework specific fields
     """
@@ -1366,3 +1381,21 @@ class ProjectSubControl(db.Model, SubControlMixin):
 
 
 
+class AiSuggestion(db.Model, QueryMixin):
+    __tablename__ = "ai_suggestions"
+    id = db.Column(
+        db.String,
+        primary_key=True,
+        default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower(),
+        unique=True,
+    )
+    project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=False)
+    subject_type = db.Column(db.String, nullable=False)
+    subject_id = db.Column(db.String, nullable=False)
+    kind = db.Column(db.String, nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    confidence = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    dismissed_at = db.Column(db.DateTime, nullable=True)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+    reviewed_by_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
