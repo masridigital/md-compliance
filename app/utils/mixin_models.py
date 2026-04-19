@@ -8,6 +8,15 @@ from datetime import datetime
 import arrow
 
 
+# Evidence rows written by background automation (evidence_generators.py
+# + llm_routes.py auto-process). These are discovery stubs — LLM-authored
+# text or integration scan summaries with no user-uploaded file. They
+# seed the evidence tab as hints, but they are NOT compliance artefacts.
+# Anywhere we ask "does this subcontrol have evidence?" we ignore these
+# unless a file has been attached afterwards.
+_AUTO_EVIDENCE_GROUPS = frozenset({"auto_evidence", "integration_scan"})
+
+
 class ControlMixin(object):
     __table_args__ = {"extend_existing": True}
     """
@@ -390,9 +399,34 @@ class SubControlMixin(object):
         return True
 
     def has_evidence(self, id=None):
-        if not id:
-            return bool(self.evidence)
-        return int(id) in [i.id for i in self.get_evidence()]
+        """Return True when this subcontrol has *real* supporting evidence.
+
+        Auto-generated stubs — evidence rows whose ``group`` is
+        ``auto_evidence`` (from ``evidence_generators.py``) or
+        ``integration_scan`` (from the LLM auto-process pipeline) and
+        that carry no uploaded file — are discovery hints, not
+        compliance artefacts. Treating them as evidence was the reason
+        a 0/5-subcontrol control could show ``Evidence 100%`` and a
+        project could report 99 % complete despite the audit team
+        never uploading anything.
+
+        A row counts as real evidence when EITHER:
+          * ``file_name`` is set (a file has been uploaded), or
+          * ``group`` is outside the auto groups (user-authored content).
+
+        The ``id=`` lookup path previously did ``int(id)`` on a
+        shortuuid string — always raised ``ValueError``. Compare as
+        strings now so the branch actually works.
+        """
+        if id is not None:
+            needle = str(id)
+            return any(str(ev.id) == needle for ev in self.evidence)
+        for ev in self.evidence:
+            if getattr(ev, "file_name", None):
+                return True
+            if getattr(ev, "group", None) not in _AUTO_EVIDENCE_GROUPS:
+                return True
+        return False
 
     def is_implemented(self):
         if self.implemented == 100:
