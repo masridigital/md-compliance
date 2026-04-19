@@ -67,7 +67,7 @@ def view_policy_center(id):
 @main.route("/projects", methods=["GET"])
 @login_required
 def projects():
-    return redirect(url_for("main.workspace"))
+    return render_template("projects.html")
 
 
 @main.route("/projects/<string:pid>", methods=["GET"])
