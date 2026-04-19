@@ -226,3 +226,16 @@ Call-sites across `api_v1/views.py`, `masri/llm_routes.py`,
 `masri/evidence_generators.py`, `utils/mixin_models.py`, and
 `models/project.py` rewritten to use list idioms (`sorted`, list
 comprehensions, `len`, truthiness) instead of query chaining.
+
+## Phase F: Validation Methodology — IN PROGRESS
+
+**Goal**: Strict compliance pipeline with verifiable facts, clear mapping, and strict scoring.
+
+| Step | Component | Status | Notes |
+|------|-----------|--------|-------|
+| F1 | Data-model migrations | **DONE** 2026-04-19 | `IntegrationFact`, `AiSuggestion`, updated columns on `ProjectEvidence` |
+| F2 | Scoring rewrite | Pending | strict stats, no partial implementation points |
+| F3 | Fact extraction | Pending | migrate integration logic to output `IntegrationFact` rows |
+| F4 | Rule-based mapper | Pending | deterministic framework rule matching |
+| F5 | LLM narrowing | Pending | restrict AI to proposals vs mutations |
+| F6 | UI surface | **PARTIAL** | collapsed drawer complete |
