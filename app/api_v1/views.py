@@ -47,7 +47,7 @@ from app.api_v1.schemas import (
     ProjectTagSchema,
     ProjectControlCreateSchema,
 )
-from app.services import project_service, risk_service
+from app.services import project_service, risk_service, evidence_service
 
 @api.route("/tenants/<string:id>/frameworks", methods=["GET"])
 @limiter.limit("60 per minute")
@@ -424,7 +424,7 @@ def get_evidence(eid):
 def get_file_for_evidence(id):
     result = Authorizer(current_user).can_user_read_evidence(id)
     evidence = result["extra"]["evidence"]
-    file_bytes = evidence.get_file(as_blob=True)
+    file_bytes = evidence_service.get_file_bytes(evidence)
     return Response(
         file_bytes,
         mimetype="application/octet-stream",
@@ -437,12 +437,9 @@ def get_file_for_evidence(id):
 @login_required
 def update_evidence(eid):
     result = Authorizer(current_user).can_user_manage_evidence(eid)
-    evidence = result["extra"]["evidence"]
-    evidence.update(
-        name=request.form.get("name"),
-        description=request.form.get("description"),
-        content=request.form.get("content"),
-        collected_on=request.form.get("collected"),
+    evidence = evidence_service.update(
+        result["extra"]["evidence"],
+        request.form,
         file=request.files.get("file"),
     )
     return jsonify(evidence.as_dict())
@@ -453,7 +450,7 @@ def update_evidence(eid):
 @login_required
 def delete_evidence(eid):
     result = Authorizer(current_user).can_user_manage_evidence(eid)
-    result["extra"]["evidence"].delete()
+    evidence_service.delete(result["extra"]["evidence"])
     return jsonify({"message": "ok"})
 
 
@@ -465,7 +462,7 @@ def add_evidence_to_controls(eid):
     payload, err = validate_payload(EvidenceAssociationSchema, request.get_json())
     if err:
         return err
-    result["extra"]["evidence"].associate_with_controls(payload)
+    evidence_service.associate_with_controls(result["extra"]["evidence"], payload)
     return jsonify({"message": "ok"})
 
 
@@ -886,11 +883,7 @@ def set_applicability_of_control_for_project(cid):
 @login_required
 def project_evidence_by_control(pid):
     result = Authorizer(current_user).can_user_access_project(pid)
-    data = []
-    if evidence := result["extra"]["project"].evidence_groupings():
-        for rid, record in evidence.items():
-            data.append(record)
-    return jsonify(data)
+    return jsonify(evidence_service.groupings_for_project(result["extra"]["project"]))
 
 
 @api.route("/projects/<string:pid>/controls/<string:cid>/notes", methods=["PUT"])
@@ -1183,10 +1176,8 @@ def delete_feedback_for_control(pid, cid, fid):
 @login_required
 def get_evidence_for_project(pid):
     result = Authorizer(current_user).can_user_read_project(pid)
-    data = [
-        evidence.as_dict() for evidence in result["extra"]["project"].evidence.all()
-    ]
-    return jsonify(data)
+    evidence = evidence_service.list_for_project(result["extra"]["project"])
+    return jsonify([e.as_dict() for e in evidence])
 
 
 @api.route("/projects/<string:id>/evidence", methods=["POST"])
@@ -1194,12 +1185,12 @@ def get_evidence_for_project(pid):
 @login_required
 def create_evidence_for_project(id):
     result = Authorizer(current_user).can_user_edit_project(id)
-
-    evidence = result["extra"]["project"].create_evidence(
+    evidence = evidence_service.create_for_project(
+        result["extra"]["project"],
         name=request.form.get("name"),
         content=request.form.get("content"),
         description=request.form.get("description"),
-        owner_id=current_user.id,
+        owner=current_user,
         file=request.files.get("file"),
     )
     return jsonify(evidence.as_dict())
@@ -1212,9 +1203,9 @@ def create_evidence_for_project(id):
 @limiter.limit("30 per minute")
 @login_required
 def remove_file_from_evidence(pid, sid, eid):
-    result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
+    Authorizer(current_user).can_user_manage_project_subcontrol(sid)
     next_check = Authorizer(current_user).can_user_manage_evidence(eid)
-    next_check["extra"]["evidence"].remove_file()
+    evidence_service.remove_file(next_check["extra"]["evidence"])
     return jsonify({"message": "ok"})
 
 
@@ -1223,10 +1214,8 @@ def remove_file_from_evidence(pid, sid, eid):
 @login_required
 def get_evidence_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
-    data = [
-        evidence.as_dict() for evidence in result["extra"]["subcontrol"].evidence
-    ]
-    return jsonify(data)
+    evidence = evidence_service.list_for_subcontrol(result["extra"]["subcontrol"])
+    return jsonify([e.as_dict() for e in evidence])
 
 
 @api.route("/projects/<string:pid>/subcontrols/<string:sid>/evidence", methods=["POST"])
@@ -1234,14 +1223,13 @@ def get_evidence_for_subcontrol(pid, sid):
 @login_required
 def add_evidence_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol(sid)
-
-    evidence = result["extra"]["subcontrol"].project.create_evidence(
+    evidence = evidence_service.create_for_subcontrol(
+        result["extra"]["subcontrol"],
         name=request.form.get("name"),
         content=request.form.get("content"),
         description=request.form.get("description"),
-        owner_id=current_user.id,
+        owner=current_user,
         file=request.files.get("file"),
-        associate_with=[sid],
     )
     return jsonify(evidence.as_dict())
 
@@ -1254,7 +1242,9 @@ def associate_evidence_with_subcontrol(sid):
     data, err = validate_payload(EvidenceAssociationSchema, request.get_json())
     if err:
         return err
-    result["extra"]["subcontrol"].associate_with_evidence(data["evidence"])
+    evidence_service.add_evidence_to_subcontrol(
+        result["extra"]["subcontrol"], data["evidence"]
+    )
     return jsonify(result["extra"]["subcontrol"].as_dict())
 
 
@@ -1266,7 +1256,9 @@ def disassociate_evidence_with_subcontrol(sid):
     data, err = validate_payload(EvidenceAssociationSchema, request.get_json())
     if err:
         return err
-    result["extra"]["subcontrol"].disassociate_with_evidence(data["evidence"])
+    evidence_service.remove_evidence_ids_from_subcontrol(
+        result["extra"]["subcontrol"], data["evidence"]
+    )
     return jsonify(result["extra"]["subcontrol"].as_dict())
 
 
@@ -1280,8 +1272,9 @@ def delete_evidence_for_subcontrol(pid, sid, eid):
     result = Authorizer(current_user).can_user_manage_project_subcontrol_evidence(
         sid, eid
     )
-    result["extra"]["subcontrol"].evidence.remove(result["extra"]["evidence"])
-    db.session.commit()
+    evidence_service.remove_evidence_from_subcontrol(
+        result["extra"]["subcontrol"], result["extra"]["evidence"]
+    )
     return jsonify({"message": "ok"})
 
 

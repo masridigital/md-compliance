@@ -784,17 +784,24 @@ class Project(db.Model, DateMixin):
         return applicable_controls_count
 
     def evidence_groupings(self):
+        """Group evidence by evidence id across every subcontrol in the project.
+
+        Returns a dict keyed by evidence id, each value is a summary of
+        the evidence (id, name) with a ``count`` of subcontrols it is
+        linked to. Used by the ``/evidence/controls`` endpoint.
+        """
         data = {}
-        for sub in self.subcontrols():
-            for evidence in sub.evidence:
-                if evidence.id not in data:
-                    data[evidence.id] = {
-                        "id": evidence.id,
-                        "name": evidence.name,
-                        "count": 0,
-                    }
-                else:
-                    data[evidence.id]["count"] += 1
+        for pc in self.controls.all():
+            for sub in pc.subcontrols:
+                for evidence in sub.evidence:
+                    if evidence.id not in data:
+                        data[evidence.id] = {
+                            "id": evidence.id,
+                            "name": evidence.name,
+                            "count": 1,
+                        }
+                    else:
+                        data[evidence.id]["count"] += 1
         return data
 
     def _fast_summary(self):

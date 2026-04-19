@@ -922,7 +922,7 @@ These were identified but deferred as lower priority or requiring architectural 
 | Token refresh race condition (latent) | `ninjaone_integration.py` | Low | Not exploitable today, becomes problem if instances shared |
 | `list_organizations` parses `resp.json()` up to 3 times | `ninjaone_integration.py` | Low | Performance: parse once |
 | `isinstance(relates_to, int)` guard on shortuuid string ID | `app/models/project.py` | Low | `ProjectControl.create_feedback` / `update_feedback` — branch always-false because IDs are 8-char strings |
-| `Project.evidence_groupings` calls `self.subcontrols()` on Project | `app/models/project.py` | Low | Project has no `.subcontrols` relation — dead code, never reached |
+| ~~`Project.evidence_groupings` calls `self.subcontrols()` on Project~~ | ~~`app/models/project.py`~~ | ~~Low~~ | **Resolved 2026-04-19** — now iterates `self.controls.all()` → `pc.subcontrols` → `sub.evidence` correctly. Exercised by `/projects/<pid>/evidence/controls` via `evidence_service.groupings_for_project`. |
 | `pc.evidence.count()` with `hasattr` guard | `app/masri/llm_routes.py:522` | Low | ProjectControl has no `.evidence` relation — `hasattr` always False, count always 0 |
 | `get_subcontrols(as_query=True)` is a dead parameter | `app/utils/mixin_models.py` | Low | Retained for E5 compat but no live callers — safe to remove |
 | `has_evidence(id=...)` uses `int(id)` on shortuuid string | `app/utils/mixin_models.py` | Medium | `int("c3xssptq")` raises ValueError — the id-matching branch always errors |
