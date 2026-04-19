@@ -675,6 +675,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | D8G | Set Password redesign (centered card + password validation) | 2026-04-10 |
 | E1-QW | Perf: N+1 batch-fetch, context caching, auth decorator, Cmd+K palette, optimistic UI | 2026-04-14 |
 | E1 | Split models.py (5,161 lines, 48 classes) into 11 domain modules under app/models/ | 2026-04-14 |
+| E5 | lazy="select" on ProjectControl.subcontrols/.tags/.feedback + ProjectSubControl.evidence | 2026-04-19 |
 
 ---
 
