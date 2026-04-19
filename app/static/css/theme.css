@@ -1,16 +1,67 @@
 /*
- * MD Compliance — Emerald Dark Theme
- * Only overrides primary + accent. Leaves success/warning/error/info untouched.
+ * MD Compliance — Editorial SaaS Theme
+ * Design direction: editorial serif display + ink-black surfaces + off-white
+ * text + refined emerald + muted camel secondary accent. Distinctive,
+ * premium, compliance-appropriate. No generic "dashboard purple" aesthetics.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght,SOFT,WONK@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700;9..144,400..100..0;9..144,400..100..1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Brand colors — refined emerald + muted camel secondary */
+  --brand-emerald: #10b981;
+  --brand-emerald-hi: #34d399;
+  --brand-emerald-lo: #047857;
+  --brand-camel: #c8a97e;          /* premium/complete states */
+  --brand-camel-hi: #dfc49e;
+  /* Surface palette — ink-black with subtle warmth */
+  --ink-0: #0a0d12;                /* page */
+  --ink-1: #0f1218;                /* card */
+  --ink-2: #151922;                /* elevated card / hero */
+  --ink-3: #1b202b;                /* hover */
+  /* Text — off-white, never pure #fff */
+  --text-hi: #eef0f4;
+  --text-md: #a4a9b5;
+  --text-lo: #6a6f7a;
+  --text-mut: #52565f;
+  /* Hairline borders */
+  --hair: rgba(255, 255, 255, 0.06);
+  --hair-hi: rgba(255, 255, 255, 0.1);
+  /* Sheen — subtle inner top-edge highlight on elevated surfaces */
+  --sheen: linear-gradient(180deg, rgba(255,255,255,0.045) 0%, transparent 14%);
+}
 
 /* ═══ Typography ═══ */
 body, html {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--text-hi);
+  font-feature-settings: "ss01", "cv11";  /* DM Sans stylistic alternates */
+  letter-spacing: -0.005em;
 }
+
+/* Serif display utility class — for hero numbers + editorial titles */
+.d-serif {
+  font-family: 'Fraunces', 'Iowan Old Style', 'Apple Garamond', Georgia, serif !important;
+  font-feature-settings: "ss01", "ss02", "liga";
+  font-variation-settings: "opsz" 144, "SOFT" 50, "WONK" 0;
+  letter-spacing: -0.02em;
+}
+
+/* Page titles (h1 in app headers) — subtle Fraunces touch on the largest */
+.d-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 72, "SOFT" 50;
+  font-weight: 450;
+  letter-spacing: -0.025em;
+}
+
+/* Tabular numerics utility */
+.d-nums { font-variant-numeric: tabular-nums; }
+
+/* Override pure-white text so nothing looks clinical */
+.text-white { color: var(--text-hi) !important; }
 
 /* ═══ DaisyUI dark theme — emerald primary ═══ */
 [data-theme="dark"] {
@@ -22,7 +73,10 @@ body, html {
   --a: 0.696 0.17 162.48;
   --af: 0.595 0.17 162.48;
   --ac: 1 0 0;
-  /* Leave --su, --wa, --er, --in, --b1, --b2, --b3, --bc ALL as DaisyUI defaults */
+  /* Leave DaisyUI surface (--b1/b2/b3) + content (--bc) at their defaults
+   * to avoid cascade breakage across existing templates. The new
+   * editorial palette applies via the d5-* component classes that opt
+   * into --ink-*/text-* variables below. */
 }
 
 /* ═══ Buttons ═══ */
@@ -68,3 +122,227 @@ body, html {
   background: #10b981 !important;
   height: 2px !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * D-series shared UI primitives
+ * Originally defined inside view_project.html; promoted here so the
+ * same building blocks can be reused across home, clients, projects,
+ * and other pages for visual consistency.
+ * ══════════════════════════════════════════════════════════════════*/
+
+/* ── Section label ── */
+.d5-section-title {
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: oklch(var(--bc) / .35);
+  margin-bottom: 0.75rem;
+}
+.d5-info-label {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: oklch(var(--bc) / .35);
+  min-width: 100px;
+}
+.d5-info-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid oklch(var(--bc) / .04);
+}
+.d5-info-row:last-child { border-bottom: none; }
+
+/* ── Generic card ── */
+.d5-card {
+  background: var(--ink-1);
+  border: 1px solid var(--hair);
+  border-radius: 12px; padding: 1rem;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.2s;
+  position: relative;
+}
+.d5-card::before {
+  content: ""; position: absolute; inset: 0;
+  background: var(--sheen);
+  border-radius: inherit; pointer-events: none;
+}
+.d5-card:hover { border-color: var(--hair-hi); }
+.d5-card-lifts:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+}
+
+/* ── Hero card (large primary metric) ── */
+.d5-hero-card {
+  background:
+    radial-gradient(140% 130% at 0% 0%, rgba(16,185,129,0.08) 0%, transparent 55%),
+    var(--ink-2);
+  border: 1px solid var(--hair);
+  border-radius: 14px; padding: 1.75rem 2rem;
+  position: relative; overflow: hidden;
+  transition: border-color 0.15s;
+}
+.d5-hero-card::after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--sheen);
+  border-radius: inherit; pointer-events: none;
+}
+.d5-hero-card:hover { border-color: var(--hair-hi); }
+.d5-hero-card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: linear-gradient(180deg, var(--brand-emerald) 0%, rgba(16,185,129,0.15) 100%);
+  border-radius: 14px 0 0 14px;
+}
+.d5-hero-number {
+  /* Serif display via .d-serif utility on the element itself. Defaults
+   * retained for templates that don't opt in. */
+  font-size: 4rem;
+  font-weight: 300;
+  letter-spacing: -0.045em;
+  line-height: 0.95; color: var(--text-hi);
+  font-variant-numeric: tabular-nums;
+}
+.d5-hero-number .pct {
+  font-size: 1.1rem; font-weight: 400; color: var(--text-lo);
+  margin-left: 0.25rem; letter-spacing: -0.01em;
+  font-family: 'DM Sans', sans-serif;
+}
+.d5-hero-meta-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* ── Secondary metric rail card ── */
+.d5-rail-card {
+  background: var(--ink-1); border: 1px solid var(--hair);
+  border-radius: 12px; padding: 1.1rem 1.25rem;
+  transition: border-color 0.15s;
+  display: flex; flex-direction: column; justify-content: space-between; min-height: 100%;
+  position: relative;
+}
+.d5-rail-card::before {
+  content: ""; position: absolute; inset: 0;
+  background: var(--sheen);
+  border-radius: inherit; pointer-events: none;
+}
+.d5-rail-card:hover { border-color: var(--hair-hi); }
+.d5-rail-label {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: oklch(var(--bc) / .35);
+}
+.d5-rail-value {
+  font-family: 'Fraunces', Georgia, serif;
+  font-variation-settings: "opsz" 72, "SOFT" 50;
+  font-size: 2rem; font-weight: 400;
+  color: var(--text-hi); line-height: 1;
+  letter-spacing: -0.035em; font-variant-numeric: tabular-nums;
+  margin: 0.6rem 0 0.7rem;
+}
+.d5-rail-value .pct {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem; font-weight: 400; color: var(--text-lo);
+  margin-left: 0.1rem; letter-spacing: 0;
+}
+.d5-rail-bar {
+  height: 4px; width: 100%; border-radius: 999px;
+  background: oklch(var(--bc) / .06); overflow: hidden;
+}
+.d5-rail-bar > span {
+  display: block; height: 100%; border-radius: 999px;
+  transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.d5-rail-bar > span.low  { background: linear-gradient(90deg, #ef4444, #f87171); }
+.d5-rail-bar > span.mid  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.d5-rail-bar > span.high { background: linear-gradient(90deg, #10b981, #34d399); }
+
+/* ── Status pill ── */
+.d5-status-pill {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.25rem 0.65rem; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+.d5-status-pill.active {
+  background: rgba(245,158,11,0.1); color: #fbbf24;
+  border-color: rgba(245,158,11,0.25);
+}
+.d5-status-pill.done {
+  background: rgba(16,185,129,0.1); color: #10b981;
+  border-color: rgba(16,185,129,0.25);
+}
+.d5-status-pill.idle {
+  background: rgba(239,68,68,0.08); color: #f87171;
+  border-color: rgba(239,68,68,0.2);
+}
+.d5-status-pill.neutral {
+  background: rgba(148,163,184,0.08); color: #94a3b8;
+  border-color: rgba(148,163,184,0.18);
+}
+
+/* ── Framework chip ── */
+.d5-framework-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.25rem 0.65rem; border-radius: 6px;
+  background: oklch(var(--bc) / .05); color: oklch(var(--bc) / .75);
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; white-space: normal; word-break: break-word;
+  overflow-wrap: anywhere;
+  border: 1px solid oklch(var(--bc) / .06);
+}
+
+/* ── Compact badge ── */
+.d5-badge {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; padding: 0.2rem 0.5rem;
+  border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;
+}
+.d5-badge-success { background: rgba(16,185,129,0.1); color: #10b981; }
+.d5-badge-warning { background: rgba(245,158,11,0.1); color: #f59e0b; }
+.d5-badge-error   { background: rgba(239,68,68,0.1);  color: #ef4444; }
+.d5-badge-neutral { background: rgba(148,163,184,0.08); color: #94a3b8; }
+
+/* ── Chart/visual frame ── */
+.d5-chart-frame {
+  background:
+    radial-gradient(90% 60% at 50% 110%, rgba(16,185,129,0.04) 0%, transparent 60%),
+    oklch(var(--b2));
+  border: 1px solid oklch(var(--bc) / .06);
+  border-radius: 12px; padding: 1.25rem;
+}
+
+/* ── AI/action strip ── */
+.d5-ai-bar {
+  background:
+    linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.015) 35%, transparent 75%),
+    oklch(var(--b2));
+  border: 1px solid oklch(var(--bc) / .06);
+  border-left: 2px solid #10b981;
+  border-radius: 12px; padding: 0.65rem 1rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+
+/* ── Empty state ── */
+.d5-empty {
+  text-align: center; padding: 3.5rem 2rem;
+  border: 1px dashed oklch(var(--bc) / .1);
+  border-radius: 14px;
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(16,185,129,0.025) 0%, transparent 60%),
+    oklch(var(--b2) / .5);
+}
+.d5-empty-icon {
+  width: 56px; height: 56px; border-radius: 14px;
+  background: rgba(16,185,129,0.08);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 1rem;
+}
+
+/* ── Table treatment ── */
+.d5-table th {
+  background: oklch(var(--b2));
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: oklch(var(--bc) / .45);
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid oklch(var(--bc) / .06);
+}
+.d5-table td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid oklch(var(--bc) / .03);
+  font-size: 0.8rem;
+}
+.d5-table tr:hover td { background: oklch(var(--bc) / .02); }

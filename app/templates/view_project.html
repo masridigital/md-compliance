@@ -1489,10 +1489,9 @@
 				<div class="grid grid-cols-10 gap-4">
 					<!-- ═══ Hero: Completion + identity ═══ -->
 					<div class="col-span-4 d5-hero-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-3">Completion</div>
 						<div x-show="loadingProjectData"><span class="loading loading-spinner loading-sm"></span></div>
 						<div x-show="!loadingProjectData" x-transition>
-							<div class="d5-hero-number">
+							<div class="d5-hero-number d-serif d-nums">
 								<span x-text="projectData.completion_progress || 0"></span><span class="pct">%</span>
 							</div>
 							<div class="d5-hero-meta-row">
@@ -1766,28 +1765,13 @@
 				</div>
 			</div>
 
-			<!-- ═══ AI Actions Panel ═══ -->
-			<div class="col-span-full" x-show="selectedTab === 'summary' && !tabLoading">
+			<!-- ═══ AI Results Panel ═══
+			     Buttons live in the AI Assistant strip above — this block only
+			     renders OUTPUT from runs. Hidden entirely when there's nothing
+			     to show. -->
+			<div class="col-span-full" x-show="selectedTab === 'summary' && !tabLoading && (autoMapResults || assistGapsResults || aiError)" x-cloak>
 				<div class="card bg-base-200 border border-base-300 mt-4">
 					<div class="card-body">
-						<div class="flex items-center gap-2 mb-3">
-							<i class="ti ti-brain text-2xl text-primary"></i>
-							<h3 class="card-title text-md">AI Compliance Assistant</h3>
-						</div>
-						<p class="text-sm opacity-60 mb-2">Integration data is <strong>automatically compiled and mapped</strong> to controls when you map scans to this client in Integrations. Risks are added to the Risk Register automatically.</p>
-						<p class="text-sm opacity-60 mb-4">Use the buttons below for <strong>manual actions</strong>: re-run the auto-map if you've added new data, or get AI suggestions for gaps that need human attention.</p>
-						<div class="flex gap-3 flex-wrap">
-							<button class="btn btn-primary btn-sm gap-2" @click="runAutoMap()" :disabled="autoMapRunning">
-								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
-								<i class="ti ti-refresh" x-show="!autoMapRunning"></i>
-								Re-run Auto-Map
-							</button>
-							<button class="btn btn-sm btn-outline btn-secondary gap-2" @click="runAssistGaps()" :disabled="assistGapsRunning">
-								<span class="loading loading-spinner loading-xs" x-show="assistGapsRunning"></span>
-								<i class="ti ti-bulb" x-show="!assistGapsRunning"></i>
-								AI Suggest Fixes
-							</button>
-						</div>
 						<!-- Auto-Map Results -->
 						<div x-show="autoMapResults" x-cloak class="mt-4">
 							<div class="divider text-xs">Auto-Map Results</div>

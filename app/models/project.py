@@ -935,7 +935,10 @@ class Project(db.Model, DateMixin):
                         policy_current += 1
                     else:
                         policy_expired += 1
-        policy_progress = round((policy_current / total_policies) * 100, 0) if total_policies else 100
+        # When the project has no policies at all, "100%" is misleading (it's
+        # zero-of-zero). Report 0 so the UI can show an empty/encouraging state
+        # instead of a full green bar.
+        policy_progress = round((policy_current / total_policies) * 100, 0) if total_policies else 0
 
         # ── 6. Counts ──
         total_risks = db.session.execute(
@@ -945,7 +948,9 @@ class Project(db.Model, DateMixin):
         return {
             "total_controls": total_controls,
             "applicable_controls": applicable_controls,
-            "completion_progress": round(completion_total / applicable_controls, 0) if applicable_controls else 100,
+            # Same principle for completion: a project with zero applicable
+            # controls isn't "complete" — it's uninitialised.
+            "completion_progress": round(completion_total / applicable_controls, 0) if applicable_controls else 0,
             "implemented_progress": round(implemented_total / applicable_controls, 0) if applicable_controls else 0,
             "evidence_progress": round(evidence_total / applicable_controls, 0) if applicable_controls else 0,
             "total_policies": total_policies,

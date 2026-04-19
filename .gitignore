@@ -59,3 +59,12 @@ venv
 tmp
 # Added by code-review-graph
 .code-review-graph/
+
+# Host-specific deploy overrides — never committed, always present on
+# production hosts. Keeping these ignored stops the pull script from
+# flagging a "dirty working tree" on every deploy.
+docker-compose.override.yml
+nginx/conf.d/mdcompliance.conf
+nginx/conf.d/*.conf.local
+nginx/ssl/
+nginx/ssl/**
