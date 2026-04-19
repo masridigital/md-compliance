@@ -20,7 +20,7 @@ from app.api_v1.schemas import (
     TenantRiskUpdateSchema,
     EmailListSchema,
 )
-from app.services import risk_service
+from app.services import risk_service, vendor_service
 
 
 @api.route("/tenants/<string:id>/vendors", methods=["GET"])
@@ -28,8 +28,8 @@ from app.services import risk_service
 @login_required
 def get_vendors(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    vendors = result["extra"]["tenant"].vendors.all()
-    return jsonify([vendor.as_dict() for vendor in vendors])
+    vendors = vendor_service.list_for_tenant(result["extra"]["tenant"])
+    return jsonify([v.as_dict() for v in vendors])
 
 
 @api.route("/vendors/<string:id>", methods=["GET"])
@@ -49,20 +49,7 @@ def create_vendor(id):
     data, err = validate_payload(VendorCreateSchema, request.get_json(silent=True))
     if err:
         return err
-    vendor = Vendor(
-        name=data.get("name"),
-        description=data.get("description"),
-        contact_email=data.get("contact_email"),
-        vendor_contact_email=data.get("vendor_contact_email"),
-        location=data.get("location"),
-        criticality=data.get("criticality"),
-        review_cycle=int(data.get("review_cycle", 12)),
-        disabled=data.get("disabled", False),
-        notes=data.get("notes"),
-        start_date=data.get("start_date"),
-    )
-    result["extra"]["tenant"].vendors.append(vendor)
-    db.session.commit()
+    vendor = vendor_service.create(result["extra"]["tenant"], data)
     return jsonify(vendor.as_dict())
 
 
@@ -71,24 +58,10 @@ def create_vendor(id):
 @login_required
 def update_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
     data, err = validate_payload(VendorUpdateSchema, request.get_json(silent=True))
     if err:
         return err
-    for field in [
-        "description",
-        "status",
-        "contact_email",
-        "vendor_contact_email",
-        "location",
-        "start_date",
-        "end_date",
-        "criticality",
-        "review_cycle",
-        "notes",
-    ]:
-        setattr(vendor, field, data.get(field))
-    db.session.commit()
+    vendor = vendor_service.update(result["extra"]["vendor"], data)
     return jsonify(vendor.as_dict())
 
 
@@ -97,8 +70,8 @@ def update_vendor(id):
 @login_required
 def get_vendor_applications(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
-    return jsonify([application.as_dict() for application in vendor.apps.all()])
+    apps = vendor_service.list_applications(result["extra"]["vendor"])
+    return jsonify([a.as_dict() for a in apps])
 
 
 @api.route("/vendors/<string:id>/applications", methods=["POST"])
@@ -106,24 +79,11 @@ def get_vendor_applications(id):
 @login_required
 def create_vendor_application(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
     data, err = validate_payload(VendorAppCreateSchema, request.get_json(silent=True))
     if err:
         return err
-    app = vendor.create_app(
-        name=data.get("name"),
-        description=data.get("description"),
-        contact_email=data.get("contact_email"),
-        start_date=data.get("start_date"),
-        end_date=data.get("end_date"),
-        criticality=data.get("criticality"),
-        review_cycle=data.get("review_cycle"),
-        notes=data.get("notes"),
-        category=data.get("category"),
-        business_unit=data.get("business_unit"),
-        is_on_premise=data.get("is_on_premise"),
-        is_saas=data.get("is_saas"),
-        owner_id=current_user.id,
+    app = vendor_service.create_application(
+        result["extra"]["vendor"], data, owner=current_user
     )
     return jsonify(app.as_dict())
 
@@ -133,8 +93,7 @@ def create_vendor_application(id):
 @login_required
 def get_vendor_categories(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
-    return jsonify(vendor.get_categories())
+    return jsonify(vendor_service.get_categories(result["extra"]["vendor"]))
 
 
 @api.route("/vendors/<string:id>/assessments", methods=["GET"])
@@ -142,8 +101,8 @@ def get_vendor_categories(id):
 @login_required
 def get_vendor_assessments(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
-    return jsonify([assessment.as_dict() for assessment in vendor.get_assessments()])
+    assessments = vendor_service.list_assessments(result["extra"]["vendor"])
+    return jsonify([a.as_dict() for a in assessments])
 
 
 @api.route("/vendors/<string:id>/bus", methods=["GET"])
@@ -151,8 +110,7 @@ def get_vendor_assessments(id):
 @login_required
 def get_vendor_business_units(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
-    return jsonify(vendor.get_bus())
+    return jsonify(vendor_service.get_business_units(result["extra"]["vendor"]))
 
 
 # Duplicate route removed — get_vendors (above) handles GET /tenants/<id>/vendors
@@ -163,10 +121,8 @@ def get_vendor_business_units(id):
 @login_required
 def get_apps_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    applications = db.session.execute(db.select(VendorApp).filter(
-        VendorApp.tenant_id == result["extra"]["tenant"].id
-    )).scalars().all()
-    return jsonify([application.as_dict() for application in applications])
+    apps = vendor_service.list_applications_for_tenant(result["extra"]["tenant"])
+    return jsonify([a.as_dict() for a in apps])
 
 
 @api.route("/tenants/<string:id>/assessments", methods=["GET"])
@@ -174,10 +130,8 @@ def get_apps_for_tenant(id):
 @login_required
 def get_assessments_for_tenant(id):
     result = Authorizer(current_user).can_user_access_tenant(id)
-    assessments = db.session.execute(db.select(Assessment).filter(
-        Assessment.tenant_id == result["extra"]["tenant"].id
-    )).scalars().all()
-    return jsonify([assessment.as_dict() for assessment in assessments])
+    assessments = vendor_service.list_assessments_for_tenant(result["extra"]["tenant"])
+    return jsonify([a.as_dict() for a in assessments])
 
 
 @api.route("/tenants/<string:id>/risks", methods=["GET"])
@@ -194,12 +148,10 @@ def get_risks_for_tenant(id):
 @login_required
 def update_notes_for_vendor(id):
     result = Authorizer(current_user).can_user_access_vendor(id)
-    vendor = result["extra"]["vendor"]
     data, err = validate_payload(VendorNotesSchema, request.get_json(silent=True))
     if err:
         return err
-    vendor.notes = data.get("data")
-    db.session.commit()
+    vendor = vendor_service.set_notes(result["extra"]["vendor"], data.get("data"))
     return jsonify(vendor.as_dict())
 
 
@@ -211,13 +163,8 @@ def create_assessment_for_vendor(id):
     data, err = validate_payload(AssessmentCreateSchema, request.get_json(silent=True))
     if err:
         return err
-
-    assessment = result["extra"]["vendor"].create_assessment(
-        name=data.get("name"),
-        description=data.get("description"),
-        due_date=data.get("due_date"),
-        clone_from=data.get("clone_from"),
-        owner_id=current_user.id,
+    assessment = vendor_service.create_assessment(
+        result["extra"]["vendor"], data, owner=current_user
     )
     return jsonify(assessment.as_dict())
 
@@ -227,13 +174,10 @@ def create_assessment_for_vendor(id):
 @login_required
 def update_application(id):
     result = Authorizer(current_user).can_user_access_application(id)
-    app = result["extra"]["application"]
     data, err = validate_payload(ApplicationUpdateSchema, request.get_json(silent=True))
     if err:
         return err
-    for key, value in data.items():
-        setattr(app, key, value)
-    db.session.commit()
+    app = vendor_service.update_application(result["extra"]["application"], data)
     return jsonify(app.as_dict())
 
 

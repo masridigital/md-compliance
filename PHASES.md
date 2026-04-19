@@ -130,7 +130,7 @@ app/models/
 | `tags.py` | 3 | 83 |
 
 ### E2: Service Layer for Core Business Logic
-**Status**: IN PROGRESS — started 2026-04-19
+**Status**: **all five services landed** 2026-04-19 — remaining project_service operations (control CRUD, member management, tags) roll in as opportunistic cleanups during normal feature work.
 
 Moving DB mutations out of views into `app/services/`. Views become thin wrappers: parse request → call service → serialise response. Conventions documented in `app/services/__init__.py`:
 
@@ -146,7 +146,7 @@ Moving DB mutations out of views into `app/services/`. Views become thin wrapper
 | `risk_service.py` | **landed 2026-04-19** — 8 operations (`list_for_project`, `list_for_tenant`, `create_for_project`, `update_in_project`, `create_for_tenant`, `update`, `delete`, `add_comment`, `create_from_feedback`). Views updated in both `views.py` (5 endpoints) and `vendors.py` (4 endpoints). Replaced raw-SQL risk queries with relationship-based reads. | risk CRUD, risk scoring |
 | `evidence_service.py` | **landed 2026-04-19** — 11 operations (list/create/update/delete at project + subcontrol level, file helpers, groupings, associate_with_controls, add/remove evidence-subcontrol bindings). 12 view endpoints migrated. Also fixed the latent `Project.evidence_groupings` bug that called the nonexistent `self.subcontrols()`. | evidence upload, association, generation |
 | `compliance_service.py` | **landed 2026-04-19** — 16 operations covering framework seeding, tenant + project policy CRUD, policy versions, generic policy + control mutations, project ↔ control bridge, review-status + applicability + notes on project controls, and subcontrol updates. 20 view endpoints migrated. | framework management, control mapping |
-| `vendor_service.py` | PENDING | vendor CRUD, assessments |
+| `vendor_service.py` | **landed 2026-04-19** — 13 operations covering vendor + app + assessment CRUD, tenant-level rollups, notes, categories, business units. 14 view endpoints in `vendors.py` migrated. | vendor CRUD, assessments |
 
 Remaining project operations that still live in views (control CRUD, member management, tag management, project history, evidence association at subcontrol level) will migrate as the per-domain services land — keeping each commit reviewable.
 

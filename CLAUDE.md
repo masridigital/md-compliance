@@ -943,10 +943,10 @@ These are in-scope design tasks surfaced during the recent polish pass but not y
 
 ### Pending Refactoring Order
 
-Matches `PHASES.md`. **E2 kicked off 2026-04-19** — `project_service` pilot landed (7 operations, 7 view functions migrated). Remaining:
+Matches `PHASES.md`. **E2 complete 2026-04-19** — all five services landed covering ~60 view endpoints. Next:
 
-- **E2 (in progress)**: Complete the service-layer extraction: `risk_service`, `evidence_service`, `compliance_service`, `vendor_service`, plus the rest of `project_service` (control CRUD, member management, tag management, project history). Conventions documented in `app/services/__init__.py`.
-- **E3** (depends on E2): Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`).
+- **E3**: Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`). Depends on E2 (now done).
+- Opportunistic E2 follow-ups: the remaining project operations (control member management, tag management, project history, auditor-feedback endpoints) can migrate to `project_service` / `compliance_service` during normal feature work as they're touched.
 
 ### Key Security Rules (from audit)
 

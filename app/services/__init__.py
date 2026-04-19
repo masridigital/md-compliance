@@ -26,16 +26,19 @@ Currently exported service modules:
 - :mod:`app.services.risk_service`
 - :mod:`app.services.evidence_service`
 - :mod:`app.services.compliance_service`
+- :mod:`app.services.vendor_service`
 """
 
 from app.services import project_service  # noqa: F401
 from app.services import risk_service  # noqa: F401
 from app.services import evidence_service  # noqa: F401
 from app.services import compliance_service  # noqa: F401
+from app.services import vendor_service  # noqa: F401
 
 __all__ = [
     "project_service",
     "risk_service",
     "evidence_service",
     "compliance_service",
+    "vendor_service",
 ]
