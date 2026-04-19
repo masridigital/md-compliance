@@ -335,6 +335,11 @@ class SubControlMixin(object):
         data["has_evidence"] = False
         if data["evidence"]:
             data["has_evidence"] = True
+
+        data["ai_suggestions"] = []
+        if hasattr(self, "ai_suggestions"):
+            data["ai_suggestions"] = [s.as_dict() for s in self.ai_suggestions]
+
         return data
 
     def get_evidence(self, as_dict=False):

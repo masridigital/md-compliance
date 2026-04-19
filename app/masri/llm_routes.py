@@ -1443,8 +1443,7 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
                                         "suggestion_text": m.get("suggestion_text", ""),
                                         "rationale": m.get("rationale", ""),
                                         "suggested_evidence_type": m.get("suggested_evidence_type", "")
-                                    },
-                                    status="pending"
+                                    }
                                 )
                                 db.session.add(sugg)
                                 total_mapped += 1

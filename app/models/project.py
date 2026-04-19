@@ -1287,6 +1287,13 @@ class ProjectSubControl(db.Model, SubControlMixin):
         lazy="select",
         backref=db.backref("project_subcontrols", lazy="dynamic"),
     )
+
+    ai_suggestions = db.relationship(
+        "AiSuggestion",
+        primaryjoin="and_(foreign(ProjectSubControl.id) == AiSuggestion.subject_id, AiSuggestion.subject_type == 'ProjectSubControl')",
+        lazy="select",
+        order_by="AiSuggestion.created_at.desc()"
+    )
     comments = db.relationship(
         "SubControlComment",
         backref="subcontrol",
@@ -1379,3 +1386,27 @@ class AiSuggestion(db.Model, QueryMixin):
     dismissed_at = db.Column(db.DateTime, nullable=True)
     accepted_at = db.Column(db.DateTime, nullable=True)
     reviewed_by_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+
+    @property
+    def status(self):
+        if self.accepted_at:
+            return "accepted"
+        if self.dismissed_at:
+            return "dismissed"
+        return "pending"
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "subject_type": self.subject_type,
+            "subject_id": self.subject_id,
+            "kind": self.kind,
+            "payload": dict(self.payload) if self.payload else {},
+            "confidence": self.confidence,
+            "status": getattr(self, "status", "pending"),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "dismissed_at": self.dismissed_at.isoformat() if self.dismissed_at else None,
+            "accepted_at": self.accepted_at.isoformat() if self.accepted_at else None,
+            "reviewed_by_id": self.reviewed_by_id
+        }
