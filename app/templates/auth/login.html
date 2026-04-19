@@ -109,9 +109,12 @@
               <i class="ti ti-brand-google text-lg"></i> Google
             </a>
             {%endif%}
+            
+            {%if config.ENABLE_MICROSOFT_AUTH%}
             <a href="{{url_for('auth.microsoft_auth', flow='login')}}" class="btn btn-outline flex-1 gap-2 hover:bg-base-200 hover:border-base-content/20">
               <i class="ti ti-brand-azure text-lg"></i> Microsoft
             </a>
+            {%endif%}
           </div>
         </div>
 
