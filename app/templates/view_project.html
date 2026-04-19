@@ -147,6 +147,112 @@
 		align-items: center; justify-content: center;
 		font-size: 0.65rem; font-weight: 700; color: oklch(var(--bc) / .4);
 	}
+
+	/* ═══ Summary hero + rail ═══ */
+	.d5-hero-card {
+		background:
+			radial-gradient(120% 140% at 0% 0%, rgba(16,185,129,0.06) 0%, transparent 55%),
+			oklch(var(--b2));
+		border: 1px solid oklch(var(--bc) / .06);
+		border-radius: 14px; padding: 1.5rem 1.75rem;
+		position: relative; overflow: hidden;
+	}
+	.d5-hero-card::before {
+		content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+		background: linear-gradient(180deg, #10b981 0%, rgba(16,185,129,0.2) 100%);
+		border-radius: 14px 0 0 14px;
+	}
+	.d5-hero-number {
+		font-size: 3.25rem; font-weight: 700; letter-spacing: -0.035em;
+		line-height: 1; color: white;
+		font-variant-numeric: tabular-nums;
+	}
+	.d5-hero-number .pct {
+		font-size: 1.25rem; font-weight: 500; color: oklch(var(--bc) / .45);
+		margin-left: 0.15rem; letter-spacing: -0.01em;
+	}
+	.d5-hero-meta-row {
+		display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+		margin-top: 0.75rem;
+	}
+	.d5-status-pill {
+		display: inline-flex; align-items: center; gap: 0.375rem;
+		padding: 0.25rem 0.65rem; border-radius: 999px;
+		font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em;
+		border: 1px solid transparent;
+	}
+	.d5-status-pill.active {
+		background: rgba(245,158,11,0.1); color: #fbbf24;
+		border-color: rgba(245,158,11,0.25);
+	}
+	.d5-status-pill.done {
+		background: rgba(16,185,129,0.1); color: #10b981;
+		border-color: rgba(16,185,129,0.25);
+	}
+	.d5-status-pill.idle {
+		background: rgba(239,68,68,0.08); color: #f87171;
+		border-color: rgba(239,68,68,0.2);
+	}
+	.d5-framework-chip {
+		display: inline-flex; align-items: center; gap: 0.4rem;
+		padding: 0.25rem 0.65rem; border-radius: 6px;
+		background: oklch(var(--bc) / .05); color: oklch(var(--bc) / .75);
+		font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+		text-transform: uppercase; white-space: normal; word-break: break-word;
+		border: 1px solid oklch(var(--bc) / .06);
+	}
+
+	.d5-rail-card {
+		background: oklch(var(--b2)); border: 1px solid oklch(var(--bc) / .06);
+		border-radius: 12px; padding: 1rem 1.1rem;
+		transition: border-color 0.15s;
+		display: flex; flex-direction: column; justify-content: space-between; min-height: 100%;
+	}
+	.d5-rail-card:hover { border-color: oklch(var(--bc) / .12); }
+	.d5-rail-label {
+		font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
+		text-transform: uppercase; color: oklch(var(--bc) / .35);
+	}
+	.d5-rail-value {
+		font-size: 1.5rem; font-weight: 700; color: white; line-height: 1;
+		letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+		margin: 0.5rem 0 0.6rem;
+	}
+	.d5-rail-value .pct {
+		font-size: 0.8rem; font-weight: 500; color: oklch(var(--bc) / .4);
+		margin-left: 0.1rem;
+	}
+	.d5-rail-bar {
+		height: 4px; width: 100%; border-radius: 999px;
+		background: oklch(var(--bc) / .06); overflow: hidden;
+	}
+	.d5-rail-bar > span {
+		display: block; height: 100%; border-radius: 999px;
+		transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+	.d5-rail-bar > span.low    { background: linear-gradient(90deg, #ef4444, #f87171); }
+	.d5-rail-bar > span.mid    { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+	.d5-rail-bar > span.high   { background: linear-gradient(90deg, #10b981, #34d399); }
+
+	/* ═══ AI Assistant refinement ═══ */
+	.d5-ai-bar {
+		background:
+			linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.015) 35%, transparent 75%),
+			oklch(var(--b2));
+		border: 1px solid oklch(var(--bc) / .06);
+		border-left: 2px solid #10b981;
+		border-radius: 12px; padding: 0.65rem 1rem;
+		display: flex; align-items: center; gap: 0.75rem;
+	}
+
+	/* ═══ Chart frame ═══ */
+	.d5-chart-frame {
+		background:
+			radial-gradient(90% 60% at 50% 110%, rgba(16,185,129,0.04) 0%, transparent 60%),
+			oklch(var(--b2));
+		border: 1px solid oklch(var(--bc) / .06);
+		border-radius: 12px; padding: 1.25rem;
+	}
 </style>
 
 {% endblock %}
@@ -1381,101 +1487,93 @@
 					<button class="btn btn-xs btn-success" @click="getProject;projectRefreshRequired=false">Refresh Stats</button>
 				</div>
 				<div class="grid grid-cols-10 gap-4">
-					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Project Status</div>
-						<div class="flex items-center gap-2">
-						  <i :class="{'ti-check text-emerald-400':projectData.status === 'complete', 'ti-x text-red-400':projectData.status === 'not started', 'ti-progress text-amber-400':projectData.status === 'in progress'}" class="ti text-lg"></i>
-						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-lg font-bold text-white capitalize'"
-							  x-text="loadingProjectData ? '' : projectData.status">
-						  </span>
+					<!-- ═══ Hero: Completion + identity ═══ -->
+					<div class="col-span-4 d5-hero-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="proj-stat-label mb-3">Completion</div>
+						<div x-show="loadingProjectData"><span class="loading loading-spinner loading-sm"></span></div>
+						<div x-show="!loadingProjectData" x-transition>
+							<div class="d5-hero-number">
+								<span x-text="projectData.completion_progress || 0"></span><span class="pct">%</span>
+							</div>
+							<div class="d5-hero-meta-row">
+								<span class="d5-status-pill"
+									:class="{
+										'done': projectData.status === 'complete',
+										'active': projectData.status === 'in progress',
+										'idle': projectData.status === 'not started'
+									}">
+									<i :class="{
+										'ti-check':projectData.status === 'complete',
+										'ti-progress':projectData.status === 'in progress',
+										'ti-circle-dot':projectData.status === 'not started'
+									}" class="ti text-xs"></i>
+									<span class="capitalize" x-text="projectData.status"></span>
+								</span>
+								<span class="d5-framework-chip" x-show="projectData.framework" x-text="projectData.framework"></span>
+							</div>
 						</div>
 					</div>
-					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Completion</div>
-						<div class="flex items-center gap-3">
-						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : (projectData.completion_progress || 0) + '%'">
-						  </span>
-						  <progress
-							:class="{
-								'progress-error': projectData.completion_progress < 30,
-								'progress-warning': projectData.completion_progress >= 30 && projectData.completion_progress < 75,
-								'progress-success': projectData.completion_progress >= 75
-							}"
-							class="progress flex-1 h-2"
-							:value="projectData.completion_progress || 0"
-							max="100">
-						  </progress>
+
+					<!-- ═══ Rail: three secondary metrics ═══ -->
+					<div class="col-span-2 d5-rail-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="d5-rail-label">Implemented</div>
+						<div>
+							<div class="d5-rail-value">
+								<span x-text="projectData.implemented_progress || 0"></span><span class="pct">%</span>
+							</div>
+							<div class="d5-rail-bar">
+								<span :class="{
+									'low': (projectData.implemented_progress || 0) < 30,
+									'mid': (projectData.implemented_progress || 0) >= 30 && (projectData.implemented_progress || 0) < 75,
+									'high': (projectData.implemented_progress || 0) >= 75
+								}" :style="'width:' + (projectData.implemented_progress || 0) + '%'"></span>
+							</div>
 						</div>
 					</div>
-					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Implemented</div>
-						<div class="flex items-center gap-3">
-						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : (projectData.implemented_progress || 0) + '%'">
-						  </span>
-						  <progress
-							:class="{
-								'progress-error': projectData.implemented_progress < 30,
-								'progress-warning': projectData.implemented_progress >= 30 && projectData.implemented_progress < 75,
-								'progress-success': projectData.implemented_progress >= 75
-							}"
-							class="progress flex-1 h-2"
-							:value="projectData.implemented_progress || 0"
-							max="100">
-						  </progress>
+					<div class="col-span-2 d5-rail-card cursor-pointer" @click="switchTab({'tab':'controls'})">
+						<div class="d5-rail-label">Evidence</div>
+						<div>
+							<div class="d5-rail-value">
+								<span x-text="projectData.evidence_progress || 0"></span><span class="pct">%</span>
+							</div>
+							<div class="d5-rail-bar">
+								<span :class="{
+									'low': (projectData.evidence_progress || 0) < 30,
+									'mid': (projectData.evidence_progress || 0) >= 30 && (projectData.evidence_progress || 0) < 75,
+									'high': (projectData.evidence_progress || 0) >= 75
+								}" :style="'width:' + (projectData.evidence_progress || 0) + '%'"></span>
+							</div>
 						</div>
 					</div>
-					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'controls'})">
-						<div class="proj-stat-label mb-2">Evidence</div>
-						<div class="flex items-center gap-3">
-						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : (projectData.evidence_progress || 0) + '%'">
-						  </span>
-						  <progress
-							:class="{
-								'progress-error': projectData.evidence_progress < 30,
-								'progress-warning': projectData.evidence_progress >= 30 && projectData.evidence_progress < 75,
-								'progress-success': projectData.evidence_progress >= 75
-							}"
-							class="progress flex-1 h-2"
-							:value="projectData.evidence_progress || 0"
-							max="100">
-						  </progress>
+					<div class="col-span-2 d5-rail-card cursor-pointer" @click="switchTab({'tab':'policies'})">
+						<div class="d5-rail-label flex items-center justify-between">
+							<span>Policies</span>
+							<span x-show="projectData.policies_expired > 0"
+							      class="text-amber-400 normal-case tracking-normal"
+							      style="font-size: 0.6rem; letter-spacing: 0;">
+								<i class="ti ti-alert-triangle"></i>
+								<span x-text="projectData.policies_expired"></span> expired
+							</span>
 						</div>
-					</div>
-					<div class="col-span-2 proj-stat-card cursor-pointer" @click="switchTab({'tab':'policies'})">
-						<div class="proj-stat-label mb-2">Policies</div>
-						<div class="flex items-center gap-3">
-						  <span x-transition
-							  :class="loadingProjectData ? 'loading loading-spinner loading-xs' : 'text-2xl font-bold text-white'"
-							  x-text="loadingProjectData ? '' : (projectData.policy_progress || 0) + '%'">
-						  </span>
-						  <progress
-							:class="{
-								'progress-error': (projectData.policy_progress || 0) < 30,
-								'progress-warning': (projectData.policy_progress || 0) >= 30 && (projectData.policy_progress || 0) < 75,
-								'progress-success': (projectData.policy_progress || 0) >= 75
-							}"
-							class="progress flex-1 h-2"
-							:value="projectData.policy_progress || 0"
-							max="100">
-						  </progress>
-						</div>
-						<div class="text-xs text-gray-500 mt-1" x-show="projectData.policies_expired > 0">
-						  <i class="ti ti-alert-triangle text-amber-400"></i>
-						  <span x-text="projectData.policies_expired"></span> expired
+						<div>
+							<div class="d5-rail-value">
+								<span x-text="projectData.policy_progress || 0"></span><span class="pct">%</span>
+							</div>
+							<div class="d5-rail-bar">
+								<span :class="{
+									'low': (projectData.policy_progress || 0) < 30,
+									'mid': (projectData.policy_progress || 0) >= 30 && (projectData.policy_progress || 0) < 75,
+									'high': (projectData.policy_progress || 0) >= 75
+								}" :style="'width:' + (projectData.policy_progress || 0) + '%'"></span>
+							</div>
 						</div>
 					</div>
 
 					<!-- ═══ AI Actions Bar ═══ -->
-					<div class="col-span-10 d5-card flex items-center gap-3 !p-3">
-						<i class="ti ti-brain text-lg text-emerald-400"></i>
-						<span class="text-xs font-semibold text-white">AI Assistant</span>
+					<div class="col-span-10 d5-ai-bar">
+						<i class="ti ti-brain text-base text-emerald-400"></i>
+						<span class="text-xs font-semibold text-white tracking-wide">AI Assistant</span>
+						<span class="text-xs text-gray-500 hidden md:inline">Auto-map controls and surface remediations</span>
 						<div class="flex gap-2 ml-auto">
 							<button class="btn btn-xs btn-primary gap-1" @click="runAutoMap()" :disabled="autoMapRunning">
 								<span class="loading loading-spinner loading-xs" x-show="autoMapRunning"></span>
@@ -1548,42 +1646,40 @@
 						</div>
 
 						<div x-transition x-show="!loadingProjectData" class="space-y-3">
-							<div class="d5-info-row">
-								<span class="d5-info-label">Name</span>
-								<span class="capitalize text-sm text-white" x-text="projectData.name"></span>
+							<!-- Identity: framework as prominent wrapped chip -->
+							<div>
+								<div class="d5-info-label mb-1.5">Framework</div>
+								<span class="d5-framework-chip" x-text="projectData.framework || projectData.name"></span>
 							</div>
-							<div class="d5-info-row">
+
+							<!-- Show Description only when it's meaningful (not echoing framework/name) -->
+							<div class="d5-info-row"
+							     x-show="projectData.description
+							             && projectData.description.toLowerCase() !== (projectData.name || '').toLowerCase()
+							             && projectData.description.toLowerCase() !== (projectData.framework || '').toLowerCase()">
 								<span class="d5-info-label">Description</span>
-								<span class="text-xs text-gray-300" x-text="projectData.description || 'No description'"></span>
+								<span class="text-xs text-gray-300" x-text="projectData.description"></span>
 							</div>
-							<div class="d5-info-row cursor-pointer" @click="switchTab({'tab': 'controls'})">
-								<span class="d5-info-label">Status</span>
-								<div class="flex items-center gap-1.5">
-									<i :class="{'ti-check text-emerald-400':projectData.status === 'complete', 'ti-x text-red-400':projectData.status === 'not started', 'ti-progress text-amber-400':projectData.status === 'in progress'}" class="ti text-sm"></i>
-									<span class="capitalize text-sm text-white" x-text="projectData.status"></span>
-								</div>
-							</div>
-							<div class="d5-info-row">
-								<span class="d5-info-label">Framework</span>
-								<span class="uppercase text-xs font-semibold text-white" x-text="projectData.framework"></span>
-							</div>
+
 							<div class="d5-info-row cursor-pointer" @click="switchTab({'tab': 'controls'})">
 								<span class="d5-info-label">Controls</span>
-								<span class="text-sm font-semibold text-white" x-text="projectData.total_controls"></span>
+								<span class="text-sm font-semibold text-white tabular-nums" x-text="projectData.total_controls"></span>
 							</div>
 							<div class="d5-info-row cursor-pointer" @click="switchTab({'tab': 'policies'})">
 								<span class="d5-info-label">Policies</span>
-								<span class="text-sm font-semibold text-white" x-text="projectData.total_policies"></span>
+								<span class="text-sm font-semibold text-white tabular-nums" x-text="projectData.total_policies"></span>
 							</div>
 							<div class="d5-info-row cursor-pointer" @click="switchTab({'tab': 'settings'})">
 								<span class="d5-info-label">Auditor</span>
-								<span x-show="projectData.auditor_enabled" class="d5-badge d5-badge-success">Enabled</span>
+								<span x-show="projectData.auditor_enabled" class="d5-badge d5-badge-success">
+									<i class="ti ti-shield-check text-[0.7rem]"></i> Enabled
+								</span>
 								<span x-show="!projectData.auditor_enabled" class="d5-badge bg-white/5 text-gray-400">Disabled</span>
 							</div>
 						</div>
 					</div>
 
-					<div class="col-span-6 d5-overview-card mb-20">
+					<div class="col-span-6 d5-chart-frame mb-20">
 						<div class="flex items-center justify-between mb-5">
 							<div class="flex items-center gap-2">
 								<i class="ti ti-road text-emerald-400"></i>
@@ -6296,7 +6392,8 @@ function project(){
 					}
 					const categories = data.map((item) => item.date);
 					const seriesData = data.map((item) => item.value);
-					const formattedCategories = categories.map((value, index) => (index % 2 === 0 ? value : ""));
+					// Show every 5th label to prevent date cramping
+					const formattedCategories = categories.map((value, index) => (index % 5 === 0 ? value : ""));
 
 					var options = {
 					  series: [
@@ -6306,55 +6403,88 @@ function project(){
 						},
 					  ],
 					  chart: {
-						height: 350,
-						type: "line",
-						toolbar: {
-						  show: false
+						height: 320,
+						type: "area",
+						toolbar: { show: false },
+						zoom: { enabled: false },
+						animations: {
+							enabled: true,
+							easing: "easeinout",
+							speed: 450,
 						},
-						zoom: {
-						  enabled: false,
-						},
+						foreColor: "#8b93a1",
+					  },
+					  colors: ["#10b981"],
+					  stroke: {
+						curve: "smooth",
+						width: 2.5,
 					  },
 					  grid: {
-						show: false, // Disable the grid
+						show: true,
+						borderColor: "rgba(255,255,255,0.05)",
+						strokeDashArray: 3,
+						xaxis: { lines: { show: false } },
+						yaxis: { lines: { show: true } },
+						padding: { left: 8, right: 16, top: 0, bottom: 0 },
 					  },
 					  xaxis: {
 						categories: formattedCategories,
+						axisBorder: { show: false },
+						axisTicks: { show: false },
 						labels: {
 						  style: {
-							colors: "#6a6f7a", // Set the color of y-axis labels
-							fontSize: "10px",  // Optional: Set font size
+							colors: "#6a6f7a",
+							fontSize: "10px",
+							fontFamily: "DM Sans, sans-serif",
 						  },
 						},
 					  },
 					  yaxis: {
-						max: 100, // Set the maximum value for the y-axis
+						max: 100,
+						tickAmount: 4,
 						title: {
 						  text: "Completion %",
 						  style: {
-							color: "#6a6f7a", // Set the color of y-axis labels
-							fontSize: "10px",  // Optional: Set font size
+							color: "#6a6f7a",
+							fontSize: "10px",
+							fontWeight: 500,
+							fontFamily: "DM Sans, sans-serif",
 						  },
 						},
 						labels: {
+						  formatter: (val) => Math.round(val) + "%",
 						  style: {
-							colors: "#6a6f7a", // Set the color of y-axis labels
-							fontSize: "10px",  // Optional: Set font size
+							colors: "#6a6f7a",
+							fontSize: "10px",
+							fontFamily: "DM Sans, sans-serif",
 						  },
 						},
 					  },
-
-					  dataLabels: {
-						enabled: false,
-					  },
+					  dataLabels: { enabled: false },
 					  fill: {
-						type: 'gradient',
+						type: "gradient",
 						gradient: {
-							shadeIntensity: 1,
-							opacityFrom: 0.7,
-							opacityTo: 0.9,
-							colorStops: generateColors(seriesData)
-						}
+							shade: "dark",
+							type: "vertical",
+							shadeIntensity: 0.5,
+							gradientToColors: ["#10b981"],
+							inverseColors: false,
+							opacityFrom: 0.35,
+							opacityTo: 0.02,
+							stops: [0, 95, 100],
+						},
+					  },
+					  tooltip: {
+						theme: "dark",
+						x: { show: true },
+						y: { formatter: (val) => val + "%" },
+					  },
+					  markers: {
+						size: 0,
+						hover: { size: 5, sizeOffset: 2 },
+						colors: ["#10b981"],
+						strokeColors: "#0f1419",
+						strokeWidth: 2,
 					  },
 					};
 
