@@ -148,18 +148,17 @@ Move DB mutations out of views into `app/services/`. Views become thin wrappers:
 Break 20+ method `SettingsService` into: `platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`.
 
 ### E4: Remove `threading.Timer` Fallback
-**Status**: NEXT — independent
+**Status**: **DONE** 2026-04-19
 
-Make Redis + Celery a hard requirement. Remove `threading.Timer` fallback paths. Add a startup health check that fails loudly when Celery/Redis is unreachable instead of silently downgrading.
+`scheduler.py` collapsed from 611 lines to ~460 — the `_timers` list, `_schedule_recurring`, `_wrapper` reschedule plumbing, and the "Celery not available" fallback branch all gone. What remains is task-body implementations (`_task_*`) that Celery workers call via the tasks defined in `celery_app.py`.
 
-**Scope:**
-- `app/masri/scheduler.py` — delete the `threading.Timer` branches, keep only the Celery task-registration path.
-- `app/masri/celery_app.py` — ensure `_app` is bound in the worker process.
-- `app/__init__.py` — add a boot-time check that Redis is reachable and Celery workers are registered; exit with a clear error if not.
-- `docker-compose.yml` — keep Celery worker + beat under their existing profile so `docker-compose up` without `--profile celery` still fails fast (by design now).
-- Delete dead `_running` / `_timers` shared state and the `threading.Lock` audit item associated with the fallback.
+Hard changes:
+- `celery_app.py` drops the graceful-ImportError pattern — `from celery import Celery` at module top. If `celery` is not installed, the app fails at import time with a clear error.
+- `MasriScheduler.start` now binds the Flask app, calls `init_celery`, and logs a single WARNING line if the broker ping fails (instead of silently switching to timers). The web process still boots — workers may come up after web.
+- `docker-compose.yml` celery-worker and celery-beat services no longer gated behind `profiles: celery`. They now start with `docker-compose up` by default.
+- `MasriScheduler._timers` / `_running` replaced with a single `_started` + `threading.Lock` guarding `start()` idempotency. Eliminates the "Thread-unsafe `_running`/`_timers`" and "Missing `db.session.remove()` in threading.Timer tasks" entries from the Known Remaining Issues table.
 
-**Rationale:** the fallback was written for local dev convenience but now obscures real broker failures in production. After B2 (Celery migration) and with Redis already in docker-compose for sessions, the fallback is more liability than safety net.
+Verified end-to-end on SQLite: app boots, scheduler registers, all 6 Celery tasks (`task_due_reminders`, `task_drift_detection`, `task_auto_update`, `task_integration_refresh`, `task_model_recommendations`, `task_backup_integration_data`) visible to the Celery app, broker-unreachable case logs cleanly.
 
 ### E5: Replace `lazy="dynamic"` on Hot Paths
 **Status**: **DONE** 2026-04-19

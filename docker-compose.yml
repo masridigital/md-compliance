@@ -113,8 +113,6 @@ services:
       - MASRI_SCHEDULER_ENABLED=false
     env_file:
       - .env
-    profiles:
-      - celery
 
   # ── Celery Beat (task scheduler) ───────────────────────────────────────────
   celery-beat:
@@ -137,8 +135,6 @@ services:
       - MASRI_SCHEDULER_ENABLED=false
     env_file:
       - .env
-    profiles:
-      - celery
 
   # ── Redis (rate-limit backend + Celery broker) ─────────────────────────────
   redis:

@@ -676,6 +676,7 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | E1-QW | Perf: N+1 batch-fetch, context caching, auth decorator, Cmd+K palette, optimistic UI | 2026-04-14 |
 | E1 | Split models.py (5,161 lines, 48 classes) into 11 domain modules under app/models/ | 2026-04-14 |
 | E5 | lazy="select" on ProjectControl.subcontrols/.tags/.feedback + ProjectSubControl.evidence | 2026-04-19 |
+| E4 | Removed threading.Timer fallback; Celery + Redis now hard required; docker-compose celery profile gate dropped | 2026-04-19 |
 
 ---
 
@@ -908,9 +909,9 @@ These were identified but deferred as lower priority or requiring architectural 
 | `PlatformSettings`/`SettingsLLM` singleton not enforced | `new_models.py` | Medium | No DB constraint preventing multiple rows |
 | Training validators silently coerce invalid values | `new_models.py` | Low | Should raise ValueError like other validators |
 | MCP rate limiting is in-memory only | `mcp_server.py` | Medium | Resets on restart, doubled with 2 workers |
-| Thread-unsafe `_running`/`_timers` in scheduler | `scheduler.py` | Medium | No `threading.Lock` on shared state |
-| No concurrent execution guard for scheduler tasks | `scheduler.py` | Medium | Overlapping runs possible if task exceeds interval |
-| Missing `db.session.remove()` in threading.Timer tasks | `scheduler.py` | High | Session leaks in background timer threads |
+| ~~Thread-unsafe `_running`/`_timers` in scheduler~~ | ~~`scheduler.py`~~ | ~~Medium~~ | **Resolved by E4** (2026-04-19) — shared state removed with the threading.Timer fallback |
+| ~~No concurrent execution guard for scheduler tasks~~ | ~~`scheduler.py`~~ | ~~Medium~~ | **Resolved by E4** — Celery Beat owns scheduling; each task runs in its own worker process |
+| ~~Missing `db.session.remove()` in threading.Timer tasks~~ | ~~`scheduler.py`~~ | ~~High~~ | **Resolved by E4** — tasks now run under `_safe_task` with explicit `db.session.remove()` before + after |
 | Drift detection baselines never auto-created | `continuous_monitor.py` | Medium | Drift checks are silently disabled until manual baseline |
 | MFA false positives: new users flagged as "MFA disabled" | `continuous_monitor.py` | Medium | Should exclude users not in baseline |
 | Drift alerts accumulate without deduplication | `continuous_monitor.py` | Low | Same drift re-alerted daily |
@@ -942,9 +943,8 @@ These are in-scope design tasks surfaced during the recent polish pass but not y
 
 ### Pending Refactoring Order
 
-Matches `PHASES.md`. Next item in the queue is **E4** (independent — doesn't wait on anything), then E2 (service layer, depends on E1 which is done), then E3 (depends on E2).
+Matches `PHASES.md`. With E4 done, the queue is **E2** (service layer — depends on E1 which is done), then **E3** (depends on E2).
 
-- **E4**: Remove `threading.Timer` fallback. Make Redis+Celery a hard requirement. Add startup health check. Files: `app/masri/scheduler.py`, `app/masri/celery_app.py`, startup task init.
 - **E2**: Extract service layer. Move DB mutations from views into `app/services/*`. Views become thin request → service → response wrappers. Scope: `project_service`, `risk_service`, `evidence_service`, `compliance_service`, `vendor_service`.
 - **E3**: Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`).
 

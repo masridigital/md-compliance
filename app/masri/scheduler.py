@@ -1,21 +1,19 @@
 """
 Masri Digital Compliance Platform — Background Scheduler
 
-Zero-dependency background scheduler using ``threading.Timer``.
-Runs periodic tasks:
-  - Due-date reminders (every 1 hour)
-  - Drift detection (every 24 hours)
+Thin Celery integration shim. All recurring work runs under Celery Beat
+(schedule defined in :mod:`app.masri.celery_app`); this module's
+``MasriScheduler`` holds the Flask app reference that Celery task bodies
+need for ``app.app_context()``.
+
+Historical context: this file used to fall back to ``threading.Timer``
+when Celery wasn't installed. That fallback was deleted in phase E4 —
+Celery + Redis are now a hard requirement. See ``PHASES.md``.
 
 Usage::
 
     from app.masri.scheduler import masri_scheduler
-    masri_scheduler.start(app)  # call once during app init
-
-The scheduler is safe to use in development (auto-stops on shutdown)
-and is designed to run in a single-process deployment.  For multi-worker
-deployments (gunicorn with multiple workers), use an external scheduler
-(e.g. Celery Beat, APScheduler, or cron) and disable the built-in one
-by setting ``MASRI_SCHEDULER_ENABLED=false``.
+    masri_scheduler.start(app)  # bind Flask app once during app init
 """
 
 import logging
@@ -26,19 +24,22 @@ logger = logging.getLogger(__name__)
 
 
 class MasriScheduler:
-    """Lightweight background scheduler using threading.Timer."""
+    """Holds the Flask app reference used by Celery-triggered task bodies.
+
+    Beat drives the schedule; this class only provides the per-task
+    implementations (``_task_*``) that the Celery tasks in
+    :mod:`app.masri.celery_app` delegate to. No timers, no local clocks.
+    """
 
     def __init__(self):
-        self._timers: list[threading.Timer] = []
-        self._running = False
+        self._lock = threading.Lock()
+        self._started = False
         self._app = None
 
     def start(self, app):
-        """
-        Start the scheduler with the given Flask app context.
+        """Bind the Flask app and initialise Celery context.
 
-        Tries Celery Beat first (persistent, cluster-safe).
-        Falls back to threading.Timer if Celery is not available.
+        Safe to call multiple times — only the first call has effect.
 
         Args:
             app: Flask application instance (needed for app context in tasks)
@@ -47,90 +48,47 @@ class MasriScheduler:
             logger.info("Masri scheduler is disabled by config")
             return
 
-        if self._running:
-            logger.warning("Masri scheduler already running")
-            return
+        with self._lock:
+            if self._started:
+                logger.warning("Masri scheduler already started")
+                return
 
-        self._app = app
-        self._running = True
+            self._app = app
 
-        # Try Celery first — if workers are running, Celery Beat handles scheduling
-        try:
+            # Bind Flask context to Celery tasks. Failing here should halt
+            # boot — Celery is a hard requirement (phase E4).
             from app.masri.celery_app import init_celery, is_celery_available
+
             init_celery(app)
+
             if is_celery_available():
-                logger.info("Celery workers detected — using Celery Beat for scheduling")
-                return  # Celery Beat handles all recurring tasks
-        except Exception:
-            pass  # Celery not installed or not reachable
+                logger.info(
+                    "Celery broker reachable — Beat will drive the schedule"
+                )
+            else:
+                # Web worker can still boot — Celery workers may come up
+                # after the web process. Surface the issue at WARNING so it
+                # is obvious in startup logs without killing the app.
+                logger.warning(
+                    "Celery broker not reachable at startup. Beat-driven "
+                    "tasks will not fire until the broker is up and the "
+                    "celery-worker container is running. Check redis "
+                    "health and ``docker-compose ps``."
+                )
 
-        logger.info("Celery not available — using threading.Timer fallback")
-
-        # Fallback: schedule tasks via threading.Timer
-        self._schedule_recurring(
-            name="due_reminders",
-            interval_seconds=3600,  # 1 hour
-            func=self._task_due_reminders,
-        )
-        self._schedule_recurring(
-            name="drift_detection",
-            interval_seconds=86400,  # 24 hours
-            func=self._task_drift_detection,
-        )
-        self._schedule_recurring(
-            name="auto_update_check",
-            interval_seconds=3600,
-            func=self._task_auto_update,
-        )
-        self._schedule_recurring(
-            name="integration_data_refresh",
-            interval_seconds=86400,  # 24 hours
-            func=self._task_integration_refresh,
-        )
-        self._schedule_recurring(
-            name="model_recommendations",
-            interval_seconds=604800,  # 7 days
-            func=self._task_model_recommendations,
-        )
-        self._schedule_recurring(
-            name="integration_data_backup",
-            interval_seconds=86400,  # 24 hours
-            func=self._task_backup_integration_data,
-        )
-
-        logger.info("Masri scheduler started with %d tasks", len(self._timers))
+            self._started = True
 
     def stop(self):
-        """Stop all scheduled timers."""
-        self._running = False
-        for timer in self._timers:
-            timer.cancel()
-        self._timers.clear()
-        logger.info("Masri scheduler stopped")
+        """No-op retained for API compatibility.
 
-    def _schedule_recurring(self, name: str, interval_seconds: int, func):
-        """Schedule a function to run repeatedly at the given interval."""
+        Celery Beat owns the schedule lifecycle now; the web process has
+        no timers to cancel.
+        """
+        self._started = False
 
-        def _wrapper():
-            if not self._running:
-                return
-            # Remove the current (now-fired) timer from the list before rescheduling
-            self._timers[:] = [t for t in self._timers if t.is_alive()]
-            try:
-                logger.debug("Scheduler running task: %s", name)
-                func()
-            except Exception:
-                logger.exception("Scheduler task %s failed", name)
-            finally:
-                # Reschedule
-                if self._running:
-                    self._schedule_recurring(name, interval_seconds, func)
-
-        timer = threading.Timer(interval_seconds, _wrapper)
-        timer.daemon = True
-        timer.name = f"masri-scheduler-{name}"
-        timer.start()
-        self._timers.append(timer)
+    # ── Task implementations ─────────────────────────────────────────────
+    # Each method below is invoked by a Celery task in ``celery_app.py``.
+    # They MUST be idempotent and safely reentrant — Celery may retry.
 
     def _task_due_reminders(self):
         """Check for upcoming due dates and send reminders."""
@@ -263,7 +221,6 @@ class MasriScheduler:
         except Exception:
             logger.exception("Failed to send drift notification for tenant %s", tenant_id)
 
-
     def _send_update_notification(self, subject, body, is_pre=True):
         """Send email notification about updates to all admin users."""
         if not self._app:
@@ -370,7 +327,6 @@ class MasriScheduler:
 
             except Exception:
                 logger.exception("Auto-update task failed")
-
 
     def _task_backup_integration_data(self):
         """Daily: backup all tenant integration data to configured storage provider."""
