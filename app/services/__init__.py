@@ -27,6 +27,13 @@ Currently exported service modules:
 - :mod:`app.services.evidence_service`
 - :mod:`app.services.compliance_service`
 - :mod:`app.services.vendor_service`
+- :mod:`app.services.platform_service`          (E3)
+- :mod:`app.services.branding_service`          (E3)
+- :mod:`app.services.llm_config_service`        (E3)
+- :mod:`app.services.storage_config_service`    (E3)
+- :mod:`app.services.sso_service`               (E3)
+- :mod:`app.services.notification_service`      (E3)
+- :mod:`app.services.entra_config_service`      (E3)
 """
 
 from app.services import project_service  # noqa: F401
@@ -34,6 +41,13 @@ from app.services import risk_service  # noqa: F401
 from app.services import evidence_service  # noqa: F401
 from app.services import compliance_service  # noqa: F401
 from app.services import vendor_service  # noqa: F401
+from app.services import platform_service  # noqa: F401
+from app.services import branding_service  # noqa: F401
+from app.services import llm_config_service  # noqa: F401
+from app.services import storage_config_service  # noqa: F401
+from app.services import sso_service  # noqa: F401
+from app.services import notification_service  # noqa: F401
+from app.services import entra_config_service  # noqa: F401
 
 __all__ = [
     "project_service",
@@ -41,4 +55,11 @@ __all__ = [
     "evidence_service",
     "compliance_service",
     "vendor_service",
+    "platform_service",
+    "branding_service",
+    "llm_config_service",
+    "storage_config_service",
+    "sso_service",
+    "notification_service",
+    "entra_config_service",
 ]

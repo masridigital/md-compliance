@@ -136,14 +136,14 @@ def refresh_model_recommendations(app):
     """
     with app.app_context():
         from app.models import ConfigStore
-        from app.masri.settings_service import SettingsService
+        from app.services import llm_config_service
 
         # 1. Gather configured providers and their available models
         configured_providers = {}
 
         # Primary provider
         try:
-            primary = SettingsService.get_active_llm_config()
+            primary = llm_config_service.get_active_llm_config()
             if primary and primary.provider:
                 configured_providers[primary.provider] = {
                     "is_primary": True,
@@ -185,7 +185,7 @@ def refresh_model_recommendations(app):
                     api_key = None
                     if info["is_primary"]:
                         try:
-                            primary = SettingsService.get_active_llm_config()
+                            primary = llm_config_service.get_active_llm_config()
                             if primary:
                                 api_key = primary.get_api_key()
                         except Exception:

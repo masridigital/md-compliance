@@ -943,9 +943,8 @@ These are in-scope design tasks surfaced during the recent polish pass but not y
 
 ### Pending Refactoring Order
 
-Matches `PHASES.md`. **E2 complete 2026-04-19** — all five services landed covering ~60 view endpoints. Next:
+Matches `PHASES.md`. **E3 complete 2026-04-19** — `SettingsService` god class split into 7 per-domain services under `app/services/` (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`). `settings_service.py` shrank from 568 → 160 lines; only the Fernet encryption primitives (`encrypt_value` / `decrypt_value` / `is_encrypted` / `EncryptedText`) remain there because ~30 call-sites consume them directly as module-level utilities. All 15 call-sites across `settings_routes.py`, `context_processors.py`, `entra_routes.py`, `telivy_routes.py`, `llm_service.py`, `model_recommender.py`, `storage_router.py`, `notification_engine.py` (+ tests) now use the split modules. Next:
 
-- **E3**: Split `SettingsService` god object into per-domain services (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`). Depends on E2 (now done).
 - Opportunistic E2 follow-ups: the remaining project operations (control member management, tag management, project history, auditor-feedback endpoints) can migrate to `project_service` / `compliance_service` during normal feature work as they're touched.
 
 ### Key Security Rules (from audit)

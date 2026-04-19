@@ -151,9 +151,45 @@ Moving DB mutations out of views into `app/services/`. Views become thin wrapper
 Remaining project operations that still live in views (control CRUD, member management, tag management, project history, evidence association at subcontrol level) will migrate as the per-domain services land — keeping each commit reviewable.
 
 ### E3: Split `SettingsService` God Object
-**Status**: NOT STARTED — depends on E2
+**Status**: **DONE** 2026-04-19
 
-Break 20+ method `SettingsService` into: `platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`.
+The `SettingsService` static-method class in `app/masri/settings_service.py`
+(~400 lines, 17 methods across 9 unrelated domains) is gone. In its
+place, seven per-domain service modules under `app/services/`:
+
+| Module | Responsibilities |
+|--------|------------------|
+| `platform_service` | Singleton `PlatformSettings` + MCP API key validation |
+| `branding_service` | `TenantBranding` overlaid on platform defaults |
+| `llm_config_service` | Primary `SettingsLLM` row (provider / model / key) |
+| `storage_config_service` | `SettingsStorage` provider rows + default election |
+| `sso_service` | `SettingsSSO` platform-wide + per-tenant records |
+| `notification_service` | `SettingsNotifications` channels + `DueDate` reminders |
+| `entra_config_service` | Platform-level Entra credentials (Fernet at rest) |
+
+`settings_service.py` keeps only the encryption primitives (`_get_fernet`,
+`encrypt_value`, `decrypt_value`, `is_encrypted`, `EncryptedText`) — it
+shrank from 568 to 160 lines. Those helpers stay put because ~30
+callers (model column definitions, integrations, scheduler) import them
+directly as module-level utilities; moving them would churn unrelated
+files without benefit.
+
+Call-sites migrated:
+- `app/masri/settings_routes.py` — 14 call-sites across Platform /
+  Branding / LLM / Storage / SSO / Notification / Due-date / Entra
+  endpoints.
+- `app/masri/context_processors.py`, `app/masri/entra_routes.py`,
+  `app/masri/telivy_routes.py`, `app/masri/llm_service.py`,
+  `app/masri/model_recommender.py`, `app/masri/storage_router.py` —
+  re-pointed at the split modules.
+- `app/masri/notification_engine.py` — dead `SettingsService` import
+  removed (was imported but never called).
+- `tests/test_entra_routes.py` — updated to import
+  `entra_config_service` directly.
+
+Verified end-to-end on SQLite: app boots, every new service round-trips
+(create/update/read/delete), Fernet encryption survives, overdue
+flagging works.
 
 ### E4: Remove `threading.Timer` Fallback
 **Status**: **DONE** 2026-04-19

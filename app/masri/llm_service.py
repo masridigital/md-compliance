@@ -397,8 +397,8 @@ class LLMService:
 
         # Fallback: SettingsLLM (legacy)
         try:
-            from app.masri.settings_service import SettingsService
-            llm = SettingsService.get_active_llm_config()
+            from app.services import llm_config_service
+            llm = llm_config_service.get_active_llm_config()
             if llm is None:
                 return None
             config = {

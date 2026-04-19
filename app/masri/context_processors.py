@@ -59,8 +59,8 @@ def register_context_processors(app):
                 if cached and (time.time() - cache_ts) < 300:
                     tb = cached
                 else:
-                    from app.masri.settings_service import SettingsService
-                    tb = SettingsService.get_tenant_branding(tenant_id)
+                    from app.services import branding_service
+                    tb = branding_service.get_tenant_branding(tenant_id)
                     session[cache_key] = tb if isinstance(tb, dict) else {}
                     session[f"{cache_key}_ts"] = time.time()
                 if tb:

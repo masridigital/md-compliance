@@ -12,7 +12,15 @@ from flask_login import current_user
 from app.utils.decorators import login_required
 from app.utils.authorizer import Authorizer
 from app import db, limiter
-from app.masri.settings_service import SettingsService
+from app.services import (
+    platform_service,
+    branding_service,
+    llm_config_service,
+    storage_config_service,
+    sso_service,
+    notification_service,
+    entra_config_service,
+)
 from app.masri.schemas import (
     validate_payload,
     PlatformSettingsUpdateSchema,
@@ -93,7 +101,7 @@ def get_platform_settings():
     """GET /api/v1/settings/platform — retrieve singleton platform settings."""
     _require_admin()
     try:
-        ps = SettingsService.get_platform_settings()
+        ps = platform_service.get_platform_settings()
         return jsonify(ps.as_dict())
     except Exception as e:
         logger.exception("Error fetching platform settings")
@@ -110,7 +118,7 @@ def update_platform_settings():
     if err:
         return err
     try:
-        ps = SettingsService.update_platform_settings(data)
+        ps = platform_service.update_platform_settings(data)
         return jsonify(ps.as_dict())
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -130,7 +138,7 @@ def get_tenant_branding(tenant_id):
     """GET /api/v1/settings/tenants/<tenant_id>/branding — merged with defaults."""
     Authorizer(current_user).can_user_access_tenant(tenant_id)
     try:
-        branding = SettingsService.get_tenant_branding(tenant_id)
+        branding = branding_service.get_tenant_branding(tenant_id)
         return jsonify(branding)
     except Exception as e:
         logger.exception("Error fetching tenant branding for %s", tenant_id)
@@ -147,7 +155,7 @@ def update_tenant_branding(tenant_id):
     if err:
         return err
     try:
-        tb = SettingsService.update_tenant_branding(tenant_id, data)
+        tb = branding_service.update_tenant_branding(tenant_id, data)
         return jsonify(tb.as_dict())
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -167,7 +175,7 @@ def get_llm_config():
     """GET /api/v1/settings/llm — current LLM configuration."""
     _require_admin()
     try:
-        llm = SettingsService.get_active_llm_config()
+        llm = llm_config_service.get_active_llm_config()
         if llm is None:
             # Return empty but valid config
             return jsonify({"provider": "", "model_name": "", "enabled": False, "has_api_key": False})
@@ -191,7 +199,7 @@ def update_llm_config():
         return err
     try:
         data.pop("slot", None)  # slot no longer used
-        llm = SettingsService.update_llm_config(data)
+        llm = llm_config_service.update_llm_config(data)
         result = llm.as_dict()
         result.pop("api_key", None)
         result.pop("api_key_enc", None)
@@ -268,7 +276,7 @@ def update_storage_provider(provider):
     if err:
         return err
     try:
-        record = SettingsService.update_storage_provider(provider, data)
+        record = storage_config_service.update_storage_provider(provider, data)
         return jsonify(record.as_dict())
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -388,7 +396,7 @@ def get_sso_config():
     else:
         _require_admin()
     try:
-        sso = SettingsService.get_sso_config(tenant_id=tenant_id)
+        sso = sso_service.get_sso_config(tenant_id=tenant_id)
         if sso is None:
             return jsonify({"message": "No SSO configuration found"}), 404
         return jsonify(sso.as_dict())
@@ -409,7 +417,7 @@ def update_sso_config():
     # SSO config changes require admin, not just access
     _require_admin()
     try:
-        sso = SettingsService.update_sso_config(data, tenant_id=tenant_id)
+        sso = sso_service.update_sso_config(data, tenant_id=tenant_id)
         return jsonify(sso.as_dict())
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -436,7 +444,7 @@ def get_notification_channels():
         # No tenant scope → platform-level config; requires platform admin.
         _require_admin()
     try:
-        channels = SettingsService.get_notification_channels(tenant_id=tenant_id)
+        channels = notification_service.get_notification_channels(tenant_id=tenant_id)
         return jsonify([ch.as_dict() for ch in channels])
     except Exception as e:
         logger.exception("Error fetching notification channels")
@@ -460,7 +468,7 @@ def update_notification_channel(channel):
         # No tenant scope → platform-level config; requires platform admin.
         _require_admin()
     try:
-        record = SettingsService.update_notification_channel(
+        record = notification_service.update_notification_channel(
             channel, data, tenant_id=tenant_id
         )
         return jsonify(record.as_dict())
@@ -486,7 +494,7 @@ def get_due_dates(tenant_id):
     days_ahead = request.args.get("days_ahead", type=int)
 
     try:
-        due_dates = SettingsService.get_due_dates(
+        due_dates = notification_service.get_due_dates(
             tenant_id, status=status, days_ahead=days_ahead
         )
         return jsonify([dd.as_dict() for dd in due_dates])
@@ -504,7 +512,7 @@ def check_overdue(tenant_id):
     """POST /api/v1/settings/tenants/<tenant_id>/due-dates/check-overdue"""
     Authorizer(current_user).can_user_admin_tenant(tenant_id)
     try:
-        newly_overdue = SettingsService.check_and_flag_overdue(tenant_id=tenant_id)
+        newly_overdue = notification_service.check_and_flag_overdue(tenant_id=tenant_id)
         return jsonify({
             "flagged_count": len(newly_overdue),
             "items": [dd.as_dict() for dd in newly_overdue],
@@ -744,8 +752,7 @@ def get_llm_providers():
 
     # Migrate: if SettingsLLM has a provider not yet in ConfigStore, add it
     try:
-        from app.masri.settings_service import SettingsService
-        primary = SettingsService.get_active_llm_config()
+        primary = llm_config_service.get_active_llm_config()
         if primary and primary.provider:
             existing_keys = {p["key"] for p in providers}
             if primary.provider not in existing_keys:
@@ -887,7 +894,7 @@ def test_llm_connection():
         # Second try: primary provider config (only if same provider or no provider specified)
         if not api_key:
             try:
-                llm = SettingsService.get_active_llm_config()
+                llm = llm_config_service.get_active_llm_config()
                 if llm:
                     if not provider or provider == llm.provider:
                         api_key = llm.get_api_key() or ""
@@ -972,7 +979,7 @@ def fetch_llm_models():
 
     if not api_key:
         try:
-            llm = SettingsService.get_active_llm_config()
+            llm = llm_config_service.get_active_llm_config()
             if llm:
                 api_key = llm.get_api_key() or ""
                 if not provider:
@@ -1111,7 +1118,7 @@ def update_entra_config():
         return jsonify({"error": "entra_tenant_id, client_id, and client_secret are all required"}), 400
 
     try:
-        record = SettingsService.update_entra_config(entra_tenant_id, client_id, client_secret)
+        record = entra_config_service.update_entra_config(entra_tenant_id, client_id, client_secret)
         return jsonify(record.as_dict())
     except Exception:
         logger.exception("Error saving Entra credentials")

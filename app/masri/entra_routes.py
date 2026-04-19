@@ -39,9 +39,9 @@ def _get_entra_client():
     Raises RuntimeError if no credentials are found in either source.
     """
     from app.masri.entra_integration import EntraIntegration
-    from app.masri.settings_service import SettingsService
+    from app.services import entra_config_service
 
-    creds = SettingsService.get_entra_config()
+    creds = entra_config_service.get_entra_config()
 
     # Fall back to env vars if the DB record is absent or incomplete
     if not creds or not all(creds.values()):

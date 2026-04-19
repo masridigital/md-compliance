@@ -81,8 +81,8 @@ def _get_provider_for_role(role):
 
     if not provider_name:
         try:
-            from app.masri.settings_service import SettingsService
-            default = SettingsService.get_default_storage_provider()
+            from app.services import storage_config_service
+            default = storage_config_service.get_default_storage_provider()
             if default:
                 provider_name = default.provider
         except Exception:
@@ -110,8 +110,8 @@ def _get_provider_instance(provider_name, tenant_id=None):
 
     # Load config from DB
     try:
-        from app.masri.settings_service import SettingsService
-        config = SettingsService.get_storage_provider_config(provider_name)
+        from app.services import storage_config_service
+        config = storage_config_service.get_storage_provider_config(provider_name)
         if config:
             return get_storage_provider(provider_name, config, tenant_id=tenant_id), provider_name
     except Exception as e:

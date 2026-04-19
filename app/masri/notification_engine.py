@@ -433,7 +433,6 @@ class NotificationEngine:
 
         Also sets DueDate.status to 'overdue' for past-due items.
         """
-        from app.masri.settings_service import SettingsService
         from app.masri.new_models import DueDate
         from app import db
 

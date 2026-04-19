@@ -44,11 +44,11 @@ def _get_telivy_client():
     """
     from flask import current_app
     from app.masri.telivy_integration import TelivyIntegration
-    from app.masri.settings_service import SettingsService
+    from app.services import platform_service
 
     # Try DB-stored config first
     try:
-        ps = SettingsService.get_platform_settings()
+        ps = platform_service.get_platform_settings()
         api_key = getattr(ps, "telivy_api_key", None)
     except Exception:
         api_key = None

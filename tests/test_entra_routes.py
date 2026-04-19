@@ -129,13 +129,12 @@ class TestEntraCredentialResolution:
             app.config["ENTRA_CLIENT_ID"] = "env-client-id"
             app.config["ENTRA_CLIENT_SECRET"] = "env-secret"
 
-            from app.masri.settings_service import SettingsService
-            SettingsService.update_entra_config(
+            from app.services import entra_config_service
+            entra_config_service.update_entra_config(
                 "db-tenant-id", "db-client-id", "db-secret"
             )
 
-            from app.masri.settings_service import SettingsService as SS
-            creds = SS.get_entra_config()
+            creds = entra_config_service.get_entra_config()
             assert creds["entra_tenant_id"] == "db-tenant-id"  # DB wins
             assert creds["client_id"] == "db-client-id"
             assert creds["client_secret"] == "db-secret"
