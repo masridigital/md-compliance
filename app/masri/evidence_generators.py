@@ -100,7 +100,7 @@ def _build_controls_index(project):
     for pc in project.controls.all():
         ctrl = pc.control
         text = ((ctrl.name if ctrl else "") + " " + (ctrl.category if ctrl else "")).lower()
-        sc_ids = [sc.id for sc in pc.subcontrols.all() if sc.is_applicable]
+        sc_ids = [sc.id for sc in pc.subcontrols if sc.is_applicable]
         if sc_ids:
             index.append((text, sc_ids))
     return index

@@ -4,6 +4,7 @@ from sqlalchemy.ext.declarative import declared_attr
 from functools import partial
 from app.utils.authorizer import Authorizer
 from sqlalchemy import func
+from datetime import datetime
 import arrow
 
 
@@ -50,7 +51,7 @@ class ControlMixin(object):
         return False
 
     def get_feedback(self, as_dict=False):
-        query = self.feedback.all()
+        query = list(self.feedback)
         if as_dict:
             return [feedback.as_dict() for feedback in query]
         return query
@@ -64,9 +65,11 @@ class ControlMixin(object):
 
     def generate_stats(self, subcontrols=None):
         if not subcontrols:
-            subcontrols = self.subcontrols.order_by(
-                current_app.models["ProjectSubControl"].date_added.desc()
-            ).all()
+            subcontrols = sorted(
+                self.subcontrols,
+                key=lambda s: s.date_added or datetime.min,
+                reverse=True,
+            )
         feedback = self.get_feedback()
         data = {
             "description": self.control.description,
@@ -81,7 +84,7 @@ class ControlMixin(object):
             "feedback": self.get_feedback(as_dict=True),
             "subcontrols": [],
             "owners": [],
-            "tags": [{"id": tag.id, "name": tag.name} for tag in self.tags.all()],
+            "tags": [{"id": tag.id, "name": tag.name} for tag in self.tags],
             "comments": self.get_comments(),
             "stats": {
                 "feedback": len(feedback),
@@ -165,20 +168,19 @@ class ControlMixin(object):
         return [comment.as_dict() for comment in self.comments.all()]
 
     def get_subcontrols(self, only_applicable=False, as_query=False):
-        _query = self.subcontrols
+        subs = list(self.subcontrols)
         if only_applicable:
-            _query = _query.filter(
-                current_app.models["ProjectSubControl"].is_applicable == True
-            )
-        if as_query:
-            return _query
-        return _query.all()
+            subs = [s for s in subs if s.is_applicable]
+        # as_query is retained for backwards compatibility but no longer
+        # returns a query — callers that relied on chaining .filter()/.all()
+        # must be updated. Returns a list in both cases.
+        return subs
 
     def framework(self):
         return self.control.framework
 
     def set_applicability(self, applicable):
-        for subcontrol in self.subcontrols.all():
+        for subcontrol in self.subcontrols:
             subcontrol.is_applicable = applicable
         db.session.commit()
         return True
@@ -255,13 +257,12 @@ class ControlMixin(object):
         by default, will return applicable controls only
         """
         subcontrols = []
-        ProjectSubControl = current_app.models["ProjectSubControl"]
-        _query = self.subcontrols
-        if only_applicable:
-            _query = _query.filter(ProjectSubControl.is_applicable == True)
+        candidates = list(self.subcontrols)
         if filter == "not_applicable":
-            _query = _query.filter(ProjectSubControl.is_applicable == False)
-        for subcontrol in _query.all():
+            candidates = [s for s in candidates if not s.is_applicable]
+        elif only_applicable:
+            candidates = [s for s in candidates if s.is_applicable]
+        for subcontrol in candidates:
             if filter == "not_implemented":
                 if not subcontrol.is_implemented():
                     subcontrols.append(subcontrol)
@@ -311,7 +312,7 @@ class SubControlMixin(object):
         data["mitigation"] = self.subcontrol.mitigation
         data["ref_code"] = self.subcontrol.ref_code
         data["guidance"] = self.subcontrol.guidance
-        data["evidence"] = self.evidence.count()
+        data["evidence"] = len(self.evidence)
 
         data["owner"] = (
             db.session.get(User, self.owner_id).email if self.owner_id else "Missing Owner"
@@ -328,7 +329,7 @@ class SubControlMixin(object):
         return data
 
     def get_evidence(self, as_dict=False):
-        query = self.evidence.all()
+        query = list(self.evidence)
         if as_dict:
             return [evidence.as_dict() for evidence in query]
         return query
@@ -390,9 +391,7 @@ class SubControlMixin(object):
 
     def has_evidence(self, id=None):
         if not id:
-            if self.evidence.first():
-                return True
-            return False
+            return bool(self.evidence)
         return int(id) in [i.id for i in self.get_evidence()]
 
     def is_implemented(self):

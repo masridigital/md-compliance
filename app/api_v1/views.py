@@ -1,4 +1,5 @@
 from urllib.parse import quote
+from datetime import datetime
 from flask import (
     jsonify,
     request,
@@ -833,11 +834,11 @@ def get_subcontrol_for_project(pid, sid):
 def get_subcontrols_for_control_in_project(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
     data = []
-    for subcontrol in (
-        result["extra"]["control"]
-        .subcontrols.order_by(models.ProjectSubControl.date_added.asc())
-        .all()
-    ):
+    subs = sorted(
+        result["extra"]["control"].subcontrols,
+        key=lambda s: s.date_added or datetime.min,
+    )
+    for subcontrol in subs:
         data.append(subcontrol.as_dict(include_evidence=True))
     return jsonify(data)
 
@@ -1159,12 +1160,11 @@ def get_comments_for_subcontrol(pid, sid):
 @login_required
 def get_feedback_for_control(pid, cid):
     result = Authorizer(current_user).can_user_read_project_control(cid)
-    data = [
-        item.as_dict()
-        for item in result["extra"]["control"]
-        .feedback.order_by(models.AuditorFeedback.date_added.asc())
-        .all()
-    ]
+    feedback = sorted(
+        result["extra"]["control"].feedback,
+        key=lambda f: f.date_added or datetime.min,
+    )
+    data = [item.as_dict() for item in feedback]
     return jsonify(data)
 
 
@@ -1267,7 +1267,7 @@ def remove_file_from_evidence(pid, sid, eid):
 def get_evidence_for_subcontrol(pid, sid):
     result = Authorizer(current_user).can_user_read_project_subcontrol(sid)
     data = [
-        evidence.as_dict() for evidence in result["extra"]["subcontrol"].evidence.all()
+        evidence.as_dict() for evidence in result["extra"]["subcontrol"].evidence
     ]
     return jsonify(data)
 

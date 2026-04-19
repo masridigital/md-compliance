@@ -13,6 +13,7 @@ from typing import List
 from app.utils.authorizer import Authorizer
 from app.utils import misc
 from app.email import send_email
+import os
 import shortuuid
 import secrets
 import json

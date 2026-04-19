@@ -153,6 +153,13 @@ Break 20+ method `SettingsService` into: `platform_service`, `branding_service`,
 Make Redis + Celery hard requirement. Remove threading.Timer fallback. Add Celery health check to startup.
 
 ### E5: Replace `lazy="dynamic"` on Hot Paths
-**Status**: NOT STARTED — depends on E1
+**Status**: **DONE** 2026-04-19
 
-Change 4 high-traffic relationships to `lazy="select"`: `ProjectControl.subcontrols`, `.tags`, `.feedback`, `ProjectSubControl.evidence`.
+Switched four high-traffic relationships to `lazy="select"`:
+`ProjectControl.subcontrols`, `.tags`, `.feedback`, and
+`ProjectSubControl.evidence`. Removed the N+1 AppenderQuery pattern on
+these attributes — each parent now loads its collection once as a list.
+Call-sites across `api_v1/views.py`, `masri/llm_routes.py`,
+`masri/evidence_generators.py`, `utils/mixin_models.py`, and
+`models/project.py` rewritten to use list idioms (`sorted`, list
+comprehensions, `len`, truthiness) instead of query chaining.
