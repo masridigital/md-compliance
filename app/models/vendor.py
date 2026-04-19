@@ -4,6 +4,7 @@ from app import db
 from app.utils.mixin_models import QueryMixin
 from app.masri.settings_service import EncryptedText
 from flask import current_app, abort
+from sqlalchemy import func
 from sqlalchemy.orm import validates
 from datetime import datetime
 from werkzeug.datastructures import FileStorage

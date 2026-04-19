@@ -2,6 +2,7 @@
 
 from app import db
 from flask import current_app
+from sqlalchemy import func
 from datetime import datetime
 import shortuuid
 import secrets
