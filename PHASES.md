@@ -238,4 +238,4 @@ comprehensions, `len`, truthiness) instead of query chaining.
 | F3 | Fact extraction | **DONE** 2026-04-19 | evidence_generators rewritten to output `IntegrationFact` rows |
 | F4 | Rule-based mapper | **DONE** 2026-04-19 | deterministic framework mapping with rule execution engine and YAML patterns |
 | F5 | LLM narrowing | **DONE** 2026-04-19 | restrict AI to proposals vs mutations |
-| F6 | UI surface | **PARTIAL** | collapsed drawer complete |
+| F6 | UI surface | **DONE** 2026-04-19 | collapsed drawer complete and AI suggestion review queue implemented |
