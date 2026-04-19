@@ -2193,47 +2193,156 @@ def check_anthropic_admin_key():
 # Debug Data (raw API + LLM output)
 # ===========================================================================
 
+def _mask_secret(value, keep: int = 4) -> str:
+    """Mask a string secret for debug output, keeping the first ``keep`` chars.
+
+    Used in :func:`get_debug_data` so the response can be pasted into
+    bug reports without leaking API keys or tenant identifiers. Returns
+    the value untouched for non-strings / short values where masking
+    would hide nothing.
+    """
+    if not isinstance(value, str) or len(value) <= keep:
+        return value
+    return value[:keep] + "****"
+
+
+def _redact_telivy_secrets(telivy: dict) -> dict:
+    """Return a copy of the telivy blob with ``telivyKey`` redacted everywhere."""
+    if not isinstance(telivy, dict):
+        return telivy
+    # Deep-copy lightly — only duplicate the dicts that we touch. Lists /
+    # leaf values are shared by reference because the response is
+    # read-only (jsonify serialises before return).
+    redacted = dict(telivy)
+    for slot in ("assessment", "scan"):
+        blob = redacted.get(slot)
+        if isinstance(blob, dict) and "telivyKey" in blob:
+            blob_copy = dict(blob)
+            blob_copy["telivyKey"] = _mask_secret(blob_copy.get("telivyKey", ""))
+            redacted[slot] = blob_copy
+    return redacted
+
+
+def _findings_by_slug(findings) -> dict:
+    """Index a findings list by ``slug`` (fall back to ``id``/``name``).
+
+    Key by slug, not display name: slugs are stable machine identifiers,
+    names are human-editable and can collide. Returns ``{}`` for
+    non-list input so callers don't have to guard.
+    """
+    if not isinstance(findings, list):
+        return {}
+    out = {}
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        key = f.get("slug") or f.get("id") or f.get("name") or f.get("title")
+        if not key:
+            continue
+        # First occurrence wins — duplicate slugs in Telivy payloads are
+        # rare but when they happen we want the order-stable pick.
+        out.setdefault(key, f)
+    return out
+
+
+def _normalize_debug_status(
+    integration_data: dict,
+    llm_result: dict,
+    llm_status: dict,
+) -> dict:
+    """Collapse the multiple status surfaces into one authoritative view.
+
+    Precedence (fix #3):
+      * scan status — nested ``telivy.scan.scanStatus`` wins over the
+        parent ``telivy.assessment.scanStatus``; assessments can lag
+        real-time scan state.
+      * LLM status — an explicit ``llm_result.success == True`` wins
+        over ``llm_status.status == "processing"``. The status blob can
+        be stale when a run finished between polls.
+    """
+    scan_status = None
+    if isinstance(integration_data, dict):
+        telivy = integration_data.get("telivy") or {}
+        scan = telivy.get("scan") if isinstance(telivy, dict) else None
+        assessment = telivy.get("assessment") if isinstance(telivy, dict) else None
+        if isinstance(scan, dict) and scan.get("scanStatus"):
+            scan_status = scan.get("scanStatus")
+        elif isinstance(assessment, dict):
+            scan_status = assessment.get("scanStatus")
+
+    llm_final = None
+    if isinstance(llm_result, dict) and llm_result.get("success") is True:
+        llm_final = "done"
+    elif isinstance(llm_status, dict):
+        llm_final = llm_status.get("status")
+
+    return {"scan_status": scan_status, "llm_status": llm_final}
+
+
 @settings_bp.route("/debug-data/<string:tenant_id>", methods=["GET"])
 @limiter.limit("30 per minute")
 @login_required
 def get_debug_data(tenant_id):
-    """GET /api/v1/settings/debug-data/<tid> — raw integration + LLM data."""
+    """GET /api/v1/settings/debug-data/<tid> — raw integration + LLM data.
+
+    Response is a single JSON object — strictly machine-readable. Admins
+    paste it into tickets, so secrets (``telivyKey``, ``tenant_id``) are
+    masked and a normalised status field is derived with authoritative
+    precedence rules. See :func:`_normalize_debug_status`.
+    """
     _require_admin()
     import json as _dj
     from app.models import ConfigStore
 
-    result = {"tenant_id": tenant_id}
+    result = {"tenant_id": _mask_secret(tenant_id)}
 
+    integration_data = None
     # Raw integration data (from Telivy, Microsoft, NinjaOne, etc.)
     try:
         record = ConfigStore.find(f"tenant_integration_data_{tenant_id}")
         if record and record.value:
             raw = _dj.loads(record.value)
-            result["integration_data"] = {
-                "telivy": raw.get("telivy", {}),
+            telivy_blob = _redact_telivy_secrets(raw.get("telivy", {}))
+            integration_data = {
+                "telivy": telivy_blob,
+                # Surface findings keyed by slug so callers can look them
+                # up by stable identifier instead of display name.
+                "telivy_findings_by_slug": _findings_by_slug(
+                    telivy_blob.get("findings") if isinstance(telivy_blob, dict) else None
+                ),
                 "microsoft": raw.get("microsoft", {}),
                 "ninjaone": raw.get("ninjaone", {}),
                 "defensx": raw.get("defensx", {}),
                 "_updated": raw.get("_updated"),
             }
+            result["integration_data"] = integration_data
     except Exception:
         result["integration_data"] = None
 
     # LLM auto-process result
+    llm_result = None
     try:
         record = ConfigStore.find(f"auto_process_result_{tenant_id}")
         if record and record.value:
-            result["llm_result"] = _dj.loads(record.value)
+            llm_result = _dj.loads(record.value)
+            result["llm_result"] = llm_result
     except Exception:
         result["llm_result"] = None
 
     # LLM job status (last stage)
+    llm_status = None
     try:
         record = ConfigStore.find(f"auto_process_status_{tenant_id}")
         if record and record.value:
-            result["llm_status"] = _dj.loads(record.value)
+            llm_status = _dj.loads(record.value)
+            result["llm_status"] = llm_status
     except Exception:
         result["llm_status"] = None
+
+    # Authoritative, collapsed status (fixes #2 + #3).
+    result["normalized_status"] = _normalize_debug_status(
+        integration_data, llm_result, llm_status
+    )
 
     # LLM last error (if any chunk failed)
     try:

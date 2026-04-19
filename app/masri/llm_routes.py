@@ -1985,12 +1985,16 @@ def _compress_for_llm(data: dict) -> str:
 
         if findings:
             lines.append(f"\nFindings ({len(findings)}):")
+            # Key findings by slug first — slugs are stable machine
+            # identifiers that line up across scans. Name/title are
+            # human-editable strings that drift between runs and
+            # produce false "new finding" churn downstream.
             for f in findings[:20]:
                 if isinstance(f, dict):
-                    name = f.get("name", f.get("slug", f.get("title", "Unknown")))
+                    key = f.get("slug") or f.get("name") or f.get("title") or "Unknown"
                     severity = f.get("severity", f.get("riskLevel", ""))
                     desc = f.get("description", f.get("details", ""))[:150]
-                    lines.append(f"- [{severity}] {name}: {desc}")
+                    lines.append(f"- [{severity}] {key}: {desc}")
                 elif isinstance(f, str):
                     lines.append(f"- {f[:150]}")
 
