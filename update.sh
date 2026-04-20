@@ -259,6 +259,34 @@ log "Starting all services..."
 $DC up -d
 ok "All services started"
 
+# ── Step 7b: Database migrations ────────────────────────────────────────────
+# Alembic lives inside the app image, and a fresh container needs to be up
+# before migrations can connect. We poll until the DB is reachable, then
+# run flask db upgrade. Safe to rerun — alembic is idempotent on
+# already-applied revisions.
+step "Database migrations"
+log "Waiting for Postgres to accept connections..."
+MIG_RETRIES=0
+until $DC exec -T postgres pg_isready -U "${POSTGRES_USER:-db1}" >/dev/null 2>&1; do
+    MIG_RETRIES=$((MIG_RETRIES + 1))
+    if [ "$MIG_RETRIES" -ge 30 ]; then
+        warn "Postgres didn't become ready in 60s — skipping migrations"
+        warn "Run 'docker-compose exec app flask db upgrade' manually"
+        break
+    fi
+    sleep 2
+done
+
+if [ "$MIG_RETRIES" -lt 30 ]; then
+    log "Running flask db upgrade..."
+    if $DC exec -T app flask db upgrade 2>&1 | sed 's/^/    /'; then
+        ok "Migrations complete"
+    else
+        err "Migration failed — app will still start but schema may be stale"
+        err "Check logs with: $DC logs app | tail -50"
+    fi
+fi
+
 # ── Health check ─────────────────────────────────────────────────────────────
 step "Health Check"
 log "Waiting for app to start..."

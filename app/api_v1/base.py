@@ -352,7 +352,14 @@ def get_tenants():
     data = []
     for tenant in current_user.get_tenants():
         td = tenant.as_dict()
-        td["project_count"] = tenant.projects.count()
+        # project_count MUST match what the tenant drawer lists
+        # (`/api/v1/tenants/<tid>/projects` → list_for_user →
+        # User.get_projects, which applies the per-project access
+        # check). Using tenant.projects.count() here would count
+        # projects the current user can't open — making the card
+        # lie "1 project" while the drawer shows 0 and no way to
+        # open it.
+        td["project_count"] = len(current_user.get_projects(tenant.id))
         td["user_count"] = tenant.members.count()
         td["risk_count"] = tenant.risks.count()
         data.append(td)
