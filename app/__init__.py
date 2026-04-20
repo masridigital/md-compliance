@@ -389,6 +389,10 @@ def registering_blueprints(app):
     from app.masri.entra_routes import entra_bp
     app.register_blueprint(entra_bp)
 
+    from app.masri.m365_oauth_routes import m365_oauth_bp
+    app.register_blueprint(m365_oauth_bp)
+    csrf.exempt(m365_oauth_bp)  # OAuth callback uses state param for CSRF protection
+
     from app.masri.telivy_routes import telivy_bp
     app.register_blueprint(telivy_bp)
 

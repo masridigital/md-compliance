@@ -813,6 +813,24 @@ def get_integration_data(project_id):
                 microsoft["mfa"] = {"enrolled": mfa_on, "total": total, "rate": f"{int(mfa_on/total*100)}%" if total else "N/A"}
         if ms_cached.get("compliance"):
             microsoft["compliance_score"] = ms_cached["compliance"].get("overall_score", "N/A")
+        # SCUBA baseline findings (structured by product area)
+        if ms_cached.get("scuba_baseline"):
+            scuba = ms_cached["scuba_baseline"]
+            microsoft["scuba"] = {
+                "score": scuba.get("scuba_score"),
+                "max_score": scuba.get("max_score"),
+                "findings": scuba.get("findings", []),
+                "assessed_at": scuba.get("assessed_at"),
+            }
+        # Purview / Information Protection
+        if ms_cached.get("ms_purview"):
+            purview = ms_cached["ms_purview"]
+            microsoft["purview"] = {
+                "score": purview.get("purview_score"),
+                "max_score": purview.get("max_score"),
+                "findings": purview.get("findings", []),
+                "assessed_at": purview.get("assessed_at"),
+            }
         if microsoft:
             result["microsoft"] = microsoft
 
@@ -1286,39 +1304,59 @@ def _bg_auto_process(app, tenant_id, scan_id, scan_type, run_mode="full"):
 
                     # ── Phase 2: Microsoft-only analysis ──────────────────
                     if has_microsoft:
-                        _update_job_status(tenant_id, "analyzing_phase2", "Analyzing Microsoft 365 findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
+                        _update_job_status(tenant_id, "analyzing_phase2", "Analyzing Microsoft 365 + CISA SCUBA findings", f"0/{(len(controls) + CHUNK_SIZE - 1) // CHUNK_SIZE} chunks")
                         ms_data = _compress_for_llm({"microsoft": integration_data["microsoft"],
                                                       "risk_profiles": integration_data.get("risk_profiles", {})})
                         ms_prompt = (
-                            f"You are a Microsoft 365 security analyst mapping findings to "
-                            f"{fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
-                            "MICROSOFT DATA INCLUDES: Secure Score (overall posture + gap controls), "
-                            "Defender security alerts, Intune device compliance (encryption, policy status), "
-                            "MFA enrollment rates, Conditional Access policies, Identity Protection "
-                            "(risky users, risk detections with IPs), sign-in activity (failures, anomalies), "
-                            "SharePoint site inventory.\n\n"
+                            f"You are a Microsoft 365 security analyst and CISA SCUBA expert mapping M365 "
+                            f"security posture findings to {fw_name} controls. You MUST respond with ONLY valid JSON.\n\n"
+                            "MICROSOFT 365 DATA STRUCTURE (CISA SCUBA product areas):\n\n"
+                            "MS.AAD — Entra ID / Azure AD:\n"
+                            "  SCUBA baselines: MS.AAD.1 (Phishing-Resistant MFA), MS.AAD.2 (Block Legacy Auth),\n"
+                            "  MS.AAD.3 (FIDO2/Passwordless), MS.AAD.4 (User Consent Restrictions),\n"
+                            "  MS.AAD.5 (Guest Restrictions), MS.AAD.7 (Admin Roles)\n"
+                            "  Data: MFA enrollment %, FIDO2 status, Conditional Access policies,\n"
+                            "  Security Defaults, identity risk detections, risky users, sign-in anomalies,\n"
+                            "  authorization policy (consent, guest invite settings)\n\n"
+                            "MS.Defender — Microsoft Defender:\n"
+                            "  SCUBA baselines: MS.Defender.1 (Defender for Endpoint), MS.Defender.2 (Safe Attachments),\n"
+                            "  MS.Defender.3 (Safe Links), MS.Defender.4 (Anti-Phishing)\n"
+                            "  Data: Secure Score (current vs max), active security alerts by severity,\n"
+                            "  security incidents, alert categories (malware, credential access, etc.)\n\n"
+                            "MS.Intune — Device Management:\n"
+                            "  SCUBA baselines: MS.Intune.1 (Device Compliance), MS.Intune.2 (Encryption)\n"
+                            "  Data: Device compliance rate (compliant vs non-compliant), encryption rate,\n"
+                            "  OS versions, last sync dates for stale devices\n\n"
+                            "MS.Purview — Information Protection:\n"
+                            "  SCUBA baselines: MS.Purview.1 (Sensitivity Labels), MS.Purview.2 (DLP Policies),\n"
+                            "  MS.Purview.3 (Audit Logging), MS.Purview.4 (eDiscovery)\n"
+                            "  Data: Sensitivity label count and auto-labeling, DLP policy status,\n"
+                            "  audit log accessibility, insider risk / eDiscovery access\n\n"
+                            "MS.SharePoint — Collaboration:\n"
+                            "  Data: SharePoint site count and activity patterns\n\n"
                             "MAP EVERY CONTROL:\n"
-                            "- compliant: data CONFIRMS control is met (e.g. 'MFA: 100% enrolled', '5 Conditional "
-                            "Access policies active', 'All devices compliant', 'No security alerts'). "
-                            "Include the positive evidence with numbers in notes.\n"
-                            "- partial: some evidence but gaps exist\n"
-                            "- non_compliant: clear security gap\n\n"
-                            "IMPORTANT: Map POSITIVE findings too! If MFA is 100%, that's evidence of compliance. "
-                            "If Secure Score is high, that proves security controls work. If zero alerts, that's good.\n\n"
-                            "RISKS: Only for actual gaps. Include user emails, device names, policy names.\n"
+                            "- compliant: data CONFIRMS control is met. In notes, cite the specific SCUBA\n"
+                            "  control ID (e.g. 'SCUBA MS.AAD.2: Legacy auth blocked via CA policy') +\n"
+                            "  the metric proving it (e.g. 'MFA: 100% enrolled, 5 CA policies active').\n"
+                            "- partial: evidence exists but gaps remain — cite what is good and what is missing\n"
+                            "- non_compliant: clear gap — cite SCUBA control ID + specific finding\n\n"
+                            "IMPORTANT: Map POSITIVE SCUBA findings! 'pass' findings in scuba_baseline prove compliance — cite them.\n"
+                            "IMPORTANT: 'fail' or 'warning' SCUBA findings are direct evidence of control gaps.\n\n"
+                            "RISKS: Only for actual gaps. Reference SCUBA control IDs in risk descriptions.\n"
+                            "- Include SCUBA control ID, metric, and affected entities (user emails, device names)\n"
                             "- Aim for 3-10 risks. NEVER invent entities.\n\n"
                             "JSON: {\"ai_suggestions\":[{\"subcontrol_id\":\"ID\","
-                            "\"notes\":\"Microsoft: [data point with numbers]. [What this means for compliance]\","
+                            "\"notes\":\"Microsoft M365/SCUBA [MS.AAD.X/MS.Defender.X/etc]: [data point with numbers]. [Compliance implication]\","
                             "\"status\":\"compliant|partial|non_compliant\"}],"
                             "\"risks\":[{\"title\":\"Short risk name\","
-                            "\"summary\":\"One sentence with numbers from data\","
-                            "\"description\":\"1) What the data shows. 2) Business impact. 3) Remediation.\","
-                            "\"evidence_data\":[{\"type\":\"user|device|policy|alert\",\"name\":\"entity name\",\"detail\":\"finding\"}],"
+                            "\"summary\":\"One sentence with SCUBA control ID and numbers from data\","
+                            "\"description\":\"1) SCUBA control violated (MS.X.X). 2) What the data shows with numbers. 3) Business impact. 4) Remediation.\","
+                            "\"evidence_data\":[{\"type\":\"user|device|policy|alert|scuba_finding\",\"scuba_control\":\"MS.X.X\",\"name\":\"entity name\",\"detail\":\"finding\"}],"
                             "\"severity\":\"critical|high|medium|low\"}]}"
                         )
                         all_suggestions, all_risks = _run_chunked_llm(
                             LLMService, ms_prompt, ms_data, controls,
-                            fw_name, "Microsoft 365", tenant_id, CHUNK_SIZE,
+                            fw_name, "Microsoft 365 + SCUBA", tenant_id, CHUNK_SIZE,
                             all_suggestions, all_risks, "auto_map",
                         )
 
