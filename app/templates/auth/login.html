@@ -36,6 +36,10 @@
 {%block body%}
 <div x-data="login()" class="min-h-screen login-panel relative" data-theme="dark">
 
+  {# SSO-primary by default — /login?sso=false reveals the local form. #}
+  {% set sso_only = request.args.get('sso') != 'false' %}
+  {% set next_qs = ('?next=' + request.args.get('next')) if request.args.get('next') else '' %}
+
   <!-- Full-screen hero background -->
   <div class="login-hero fixed inset-0 overflow-hidden">
     <div class="relative z-10 flex items-end h-full p-6 pb-8 lg:p-10 lg:pb-10 max-w-[50%]">
@@ -53,22 +57,61 @@
   <!-- Login card floating on the right -->
   <div class="relative z-20 min-h-screen flex items-center justify-center p-4 lg:p-10">
     <div class="w-full max-w-md bg-base-200 rounded-2xl shadow-2xl shadow-black/50 p-8 lg:p-10 border border-emerald-500/10">
+
+      <div class="anim-up mb-7">
+        <div class="flex items-center gap-2 mb-5">
+          <div class="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center">
+            <i class="ti ti-shield-check text-white text-lg"></i>
+          </div>
+          <span class="font-bold text-lg text-white">MD Compliance</span>
+        </div>
+        <h2 class="text-2xl font-bold tracking-tight text-white">Welcome back</h2>
+        <p class="text-sm text-gray-400 mt-1">
+          {% if sso_only %}Sign in with your work account{% else %}Sign in with email and password{% endif %}
+        </p>
+        {%if config.IS_SELF_REGISTRATION_ENABLED %}
+        <p class="text-sm mt-2 opacity-60">New here? <a href="/register" class="text-emerald-400 hover:underline">Create an account</a></p>
+        {%endif%}
+      </div>
+
+      {% if sso_only %}
+      {# ═══ SSO-primary view — big provider buttons, no local fields. ═══
+         Microsoft button renders unconditionally: the customer wants to
+         see it even before Entra credentials are wired up. The backend
+         route (app/auth/microsoft.py:17) flashes "Provider not
+         configured" and bounces back here if someone clicks it without
+         setup — so the button stays visible-but-inert, not disappeared. #}
+      <div class="space-y-3">
+        <div class="anim-up anim-d1">
+          <a href="{{url_for('auth.microsoft_auth', flow='login')}}"
+             class="btn w-full gap-3 bg-white/5 hover:bg-white/8 border border-white/12 hover:border-emerald-500/30 text-white font-semibold tracking-wide h-12">
+            <i class="ti ti-brand-azure text-xl text-[#0078d4]"></i>
+            Continue with Microsoft
+          </a>
+        </div>
+
+        {%if config.ENABLE_GOOGLE_AUTH%}
+        <div class="anim-up anim-d2">
+          <a href="{{url_for('auth.google_auth', flow='login')}}"
+             class="btn w-full gap-3 bg-white/5 hover:bg-white/8 border border-white/12 hover:border-emerald-500/30 text-white font-semibold tracking-wide h-12">
+            <i class="ti ti-brand-google text-xl text-[#ea4335]"></i>
+            Continue with Google
+          </a>
+        </div>
+        {%endif%}
+      </div>
+
+      <div class="anim-up anim-d3 mt-6 pt-5 border-t border-white/6 text-center">
+        <a href="{{url_for('auth.get_login')}}?sso=false{{ '&next=' + request.args.get('next') if request.args.get('next') else '' }}"
+           class="login-mono text-gray-500 hover:text-emerald-400 transition-colors">
+          Use email and password
+        </a>
+      </div>
+
+      {% else %}
+      {# ═══ Local auth view — email + password form. ═══ #}
       <form action="{{url_for('auth.get_login', next=request.args.get('next'))}}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <div class="anim-up mb-7">
-          <div class="flex items-center gap-2 mb-5">
-            <div class="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center">
-              <i class="ti ti-shield-check text-white text-lg"></i>
-            </div>
-            <span class="font-bold text-lg text-white">MD Compliance</span>
-          </div>
-          <h2 class="text-2xl font-bold tracking-tight text-white">Welcome back</h2>
-          <p class="text-sm text-gray-400 mt-1">Sign in to your account</p>
-          {%if config.IS_SELF_REGISTRATION_ENABLED %}
-          <p class="text-sm mt-2 opacity-60">New here? <a href="/register" class="text-emerald-400 hover:underline">Create an account</a></p>
-          {%endif%}
-        </div>
 
         <div class="space-y-4">
           <div class="anim-up anim-d1">
@@ -95,31 +138,17 @@
             </button>
           </div>
         </div>
-
-        <div class="anim-up anim-d4">
-          <div class="flex items-center gap-3 my-5">
-            <div class="flex-1 h-px bg-gray-700"></div>
-            <span class="login-mono text-gray-500">or continue with</span>
-            <div class="flex-1 h-px bg-gray-700"></div>
-          </div>
-
-          <div class="flex gap-3">
-            {%if config.ENABLE_GOOGLE_AUTH%}
-            <a href="{{url_for('auth.google_auth', flow='login')}}" class="btn btn-outline flex-1 gap-2 hover:bg-base-200 hover:border-base-content/20">
-              <i class="ti ti-brand-google text-lg"></i> Google
-            </a>
-            {%endif%}
-            
-            {%if config.ENABLE_MICROSOFT_AUTH%}
-            <a href="{{url_for('auth.microsoft_auth', flow='login')}}" class="btn btn-outline flex-1 gap-2 hover:bg-base-200 hover:border-base-content/20">
-              <i class="ti ti-brand-azure text-lg"></i> Microsoft
-            </a>
-            {%endif%}
-          </div>
-        </div>
-
-        <div x-show="adminEmail.length>2" class="mt-5 text-center text-xs text-gray-400" x-text="'Need help? Contact '+adminEmail"></div>
       </form>
+
+      <div class="anim-up anim-d4 mt-6 pt-5 border-t border-white/6 text-center">
+        <a href="{{url_for('auth.get_login')}}{{ next_qs }}"
+           class="login-mono text-gray-500 hover:text-emerald-400 transition-colors">
+          <i class="ti ti-arrow-left text-xs mr-1"></i> Back to SSO
+        </a>
+      </div>
+      {% endif %}
+
+      <div x-show="adminEmail.length>2" class="mt-5 text-center text-xs text-gray-400" x-text="'Need help? Contact '+adminEmail"></div>
     </div>
   </div>
 </div>
