@@ -350,7 +350,7 @@ app/
     prompt_adapters.py     # Model-family-specific prompt adapter layer
     risk_profiles.py       # User & device risk profile engine
     mcp_server.py          # MCP OAuth server for Claude/ChatGPT
-    scheduler.py           # Background scheduler (threading.Timer + Celery fallback)
+    scheduler.py           # Background scheduler (Celery/Redis, no threading.Timer fallback)
     celery_app.py          # Celery task definitions + Flask context binding
     new_models.py          # Masri-specific models (LLM, Entra, MCP, SSO, Training)
     log_buffer.py          # Ring buffer for in-app log viewer
@@ -361,8 +361,10 @@ app/
     evidence_generators.py # Automated evidence from integration data
     trust_portal.py        # Public trust portal (compliance status page)
   templates/
+    partials/              # Extracted template partials
+      project_modals.html  # 30+ modal dialogs for view_project (1,189 lines)
     integrations.html      # Unified integrations page
-    view_project.html      # Project detail (controls, risks, integrations, risk profiles)
+    view_project.html      # Project detail (~7,080 lines after partial extraction)
     workspace.html         # Client/tenant management
     training.html          # Training management (modules, assignments, completion)
     system_info.html       # System page with log viewer
@@ -677,6 +679,8 @@ Each provides: `adapt_system()`, `adapt_chunk_size()`, `adapt_temperature()`, `a
 | E1 | Split models.py (5,161 lines, 48 classes) into 11 domain modules under app/models/ | 2026-04-14 |
 | E5 | lazy="select" on ProjectControl.subcontrols/.tags/.feedback + ProjectSubControl.evidence | 2026-04-19 |
 | E4 | Removed threading.Timer fallback; Celery + Redis now hard required; docker-compose celery profile gate dropped | 2026-04-19 |
+| F1-F6 | Validation Methodology complete: data-model migrations, scoring rewrite, fact extraction, rule mapper, LLM narrowing, AI suggestion UI | 2026-04-19 |
+| G1-G7 | Performance: N+1 query fix, user email cache, scoped mutations, toast fix, template split (8.2k→7k lines), HTML comment fix, debug cleanup | 2026-04-19 |
 
 ---
 
@@ -938,12 +942,12 @@ These are in-scope design tasks surfaced during the recent polish pass but not y
 | Home page polish | `home.html` | Risk severity cards, empty state upgraded. Needs hero treatment for top-level risk count + drift-alert callout refinement. |
 | Workspace (`/clients`) polish | `workspace.html` | Client cards adopt `d5-card-lifts` + `d5-status-pill` + `d5-empty`. Drawer interior (SSO fields, project list) still uses legacy styling. |
 | Projects (`/projects`) polish | `projects.html` | D4 redesign already landed. Needs Fraunces-serif treatment for progress ring number + `d5-framework-chip` for wrapping framework codes. |
-| View-project sub-tabs | `view_project.html` (8,500+ lines) | Summary tab landed in `c46bb0a`/`9cf503c`. Still pending: Controls list status pills, Evidence card grid, Risk Register, Policies, Settings, Integrations, Users, Audit Review, Report tabs — plus the control drawer header + sub-tabs. Deferred because the file is large and each tab warrants a focused commit. |
+| View-project sub-tabs | `view_project.html` (~7,080 lines after modal extraction) | Summary tab landed. Modals extracted to `partials/project_modals.html` (1,189 lines). Still pending: Controls list status pills, Evidence card grid, Risk Register, Policies, Settings, Integrations, Users, Audit Review, Report tabs — plus the control drawer header + sub-tabs. Each tab warrants a focused commit. |
 | Chart y-axis for flat data | `view_project.html` | When only one day has non-zero completion, the 30-day chart shows a single spike. Consider clamping y-axis to `[0, max(series)+10]` or showing a smaller sparkline card instead. |
 
 ### Pending Refactoring Order
 
-Matches `PHASES.md`. **E3 complete 2026-04-19** — `SettingsService` god class split into 7 per-domain services under `app/services/` (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`). `settings_service.py` shrank from 568 → 160 lines; only the Fernet encryption primitives (`encrypt_value` / `decrypt_value` / `is_encrypted` / `EncryptedText`) remain there because ~30 call-sites consume them directly as module-level utilities. All 15 call-sites across `settings_routes.py`, `context_processors.py`, `entra_routes.py`, `telivy_routes.py`, `llm_service.py`, `model_recommender.py`, `storage_router.py`, `notification_engine.py` (+ tests) now use the split modules. Next:
+Matches `PHASES.md`. **Phase G (Performance) complete 2026-04-19** — N+1 queries eliminated with `selectinload`, user email lookups cached at class level, modal templates extracted, toast JS syntax fixed. **E3 complete 2026-04-19** — `SettingsService` god class split into 7 per-domain services under `app/services/` (`platform_service`, `branding_service`, `llm_config_service`, `storage_config_service`, `sso_service`, `notification_service`, `entra_config_service`). `settings_service.py` shrank from 568 → 160 lines; only the Fernet encryption primitives (`encrypt_value` / `decrypt_value` / `is_encrypted` / `EncryptedText`) remain there because ~30 call-sites consume them directly as module-level utilities. All 15 call-sites across `settings_routes.py`, `context_processors.py`, `entra_routes.py`, `telivy_routes.py`, `llm_service.py`, `model_recommender.py`, `storage_router.py`, `notification_engine.py` (+ tests) now use the split modules. Next:
 
 - Opportunistic E2 follow-ups: the remaining project operations (control member management, tag management, project history, auditor-feedback endpoints) can migrate to `project_service` / `compliance_service` during normal feature work as they're touched.
 

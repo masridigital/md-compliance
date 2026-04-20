@@ -1,6 +1,6 @@
 # MD Compliance — Methodology
 
-**Status:** Proposal — 2026-04-19. Not yet implemented. Author: platform team. This
+**Status:** Implemented — 2026-04-19 (Phases F1-F6 complete, Phase G perf optimization complete). This
 document replaces the implicit "auto-process writes whatever the LLM
 returns" flow with a strict, framework-faithful pipeline. Any deviation
 from what is written here is a bug.

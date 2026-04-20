@@ -239,3 +239,17 @@ comprehensions, `len`, truthiness) instead of query chaining.
 | F4 | Rule-based mapper | **DONE** 2026-04-19 | deterministic framework mapping with rule execution engine and YAML patterns |
 | F5 | LLM narrowing | **DONE** 2026-04-19 | restrict AI to proposals vs mutations |
 | F6 | UI surface | **DONE** 2026-04-19 | collapsed drawer complete and AI suggestion review queue implemented |
+
+## Phase G: Performance Optimization — DONE
+
+**Goal**: Reduce database query count, shrink browser payload, modularize the monolithic template.
+
+| Step | Component | Status | Notes |
+|------|-----------|--------|-------|
+| G1 | N+1 query elimination | **DONE** 2026-04-19 | `selectinload(evidence)` + `selectinload(ai_suggestions)` on batch subcontrol fetch in `get_controls_for_project` |
+| G2 | User email cache | **DONE** 2026-04-19 | `SubControlMixin._get_user_email()` class-level cache replaces per-subcontrol `db.session.get(User, id)` — 400 queries → ~5 per page |
+| G3 | Scoped API mutations | **DONE** 2026-04-19 | `handleAiSuggestion` dismiss no longer calls `refreshControlFromServer`; updates local Alpine state instantly |
+| G4 | Toast syntax fix | **DONE** 2026-04-19 | Fixed 7 `toast()` calls using Python-style named args (`level=`, `duration=`, `bottom=`) → proper positional JS |
+| G5 | Template splitting | **DONE** 2026-04-19 | Extracted 1,189 lines of modal dialogs → `partials/project_modals.html` (8,267 → 7,080 lines) |
+| G6 | HTML comment fix | **DONE** 2026-04-19 | Converted 2 blocks of `<!-- -->` inside `<script>` to `//` JS comments (was causing cascading parser failures) |
+| G7 | Debug cleanup | **DONE** 2026-04-19 | Removed 5 noisy `console.log` from hot paths + deleted 4 stale one-off scripts (`add_as_dict.py`, etc.) |
