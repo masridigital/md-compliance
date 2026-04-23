@@ -429,6 +429,7 @@ class DueDate(db.Model):
     VALID_ENTITY_TYPES = [
         "control", "wisp", "risk", "framework_review",
         "pen_test", "vuln_scan", "training",
+        "compliance_deadline",
     ]
     VALID_STATUSES = ["pending", "completed", "overdue", "dismissed"]
 
@@ -861,4 +862,196 @@ class TrainingAssignment(db.Model):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         if self.training:
             data["training_title"] = self.training.title
+        return data
+
+
+# ===========================================================================
+# Compliance platform models — questionnaires, exemptions, documents, templates
+# ===========================================================================
+
+class Questionnaire(db.Model):
+    """Per-tenant framework questionnaire answers.
+
+    One record per (tenant, framework_slug). When re-run, a new record is
+    created and the previous one is archived (status="archived") so we
+    never overwrite prior answers — the ExemptionProfile cross-reference
+    points at the live draft/completed record.
+    """
+    __tablename__ = "questionnaires"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
+    project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=True)
+    framework_slug = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False, default="draft")
+    answers = db.Column(db.JSON, nullable=False, default=dict)
+    created_by_user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    VALID_STATUSES = ["draft", "complete", "archived"]
+
+    @validates("status")
+    def _validate_status(self, key, value):
+        if value and value.lower() not in self.VALID_STATUSES:
+            raise ValueError(f"Invalid questionnaire status: {value}")
+        return value.lower() if value else "draft"
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class ExemptionProfile(db.Model):
+    """Derived applicability decisions for a (tenant, framework) pair.
+
+    Produced by :mod:`app.masri.compliance.exemptions`. Independent of the
+    Questionnaire so that a user can override/adjust determination without
+    editing raw answers.
+    """
+    __tablename__ = "exemption_profiles"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
+    framework_slug = db.Column(db.String, nullable=False)
+    questionnaire_id = db.Column(db.String, db.ForeignKey("questionnaires.id"), nullable=True)
+    exemption_type = db.Column(db.String, nullable=False, default="none")
+    exemptions_claimed = db.Column(db.JSON, nullable=False, default=dict)
+    scope_waived = db.Column(db.JSON, nullable=False, default=list)
+    rationale = db.Column(db.Text)
+    determined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    filed_at = db.Column(db.DateTime, nullable=True)
+    filing_confirmation = db.Column(db.String)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    VALID_TYPES = ["none", "limited", "full"]
+
+    @validates("exemption_type")
+    def _validate_type(self, key, value):
+        if value and value.lower() not in self.VALID_TYPES:
+            raise ValueError(f"Invalid exemption_type: {value}")
+        return value.lower() if value else "none"
+
+    def waives_section(self, section_code: str) -> bool:
+        waived = self.scope_waived or []
+        if "*" in waived:
+            return True
+        return section_code in waived
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class DocumentTemplate(db.Model):
+    """Uploaded .docx template with AI placeholder metadata.
+
+    ``tenant_id`` nullable + ``is_global=True`` marks Masri-curated templates
+    visible to every tenant. Per-tenant templates set ``tenant_id`` and
+    ``is_global=False``.
+    """
+    __tablename__ = "document_templates"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=True)
+    name = db.Column(db.String, nullable=False)
+    description = db.Column(db.Text)
+    framework_slug = db.Column(db.String, nullable=True)
+    doc_type = db.Column(db.String, nullable=False)
+    storage_key = db.Column(db.String, nullable=False)
+    placeholders = db.Column(db.JSON, nullable=False, default=list)
+    placeholder_map = db.Column(db.JSON, nullable=False, default=dict)
+    is_global = db.Column(db.Boolean, nullable=False, default=False)
+    created_by_user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    def as_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data["placeholder_count"] = len(self.placeholders or [])
+        data["mapped_count"] = len([
+            k for k, v in (self.placeholder_map or {}).items() if v
+        ])
+        return data
+
+
+class ComplianceDocument(db.Model):
+    """Generated/uploaded compliance artifact (policy, IR plan, exemption notice, etc.).
+
+    Distinct from :class:`ProjectPolicy` — compliance docs are tied to a
+    framework + doc_type and can reference an upstream ``DocumentTemplate``.
+    Versions store the actual .docx bytes via storage_router.
+    """
+    __tablename__ = "compliance_documents"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    tenant_id = db.Column(db.String, db.ForeignKey("tenants.id"), nullable=False)
+    project_id = db.Column(db.String, db.ForeignKey("projects.id"), nullable=True)
+    framework_slug = db.Column(db.String, nullable=True)
+    doc_type = db.Column(db.String, nullable=False)
+    title = db.Column(db.String, nullable=False)
+    status = db.Column(db.String, nullable=False, default="draft")
+    template_id = db.Column(db.String, db.ForeignKey("document_templates.id"), nullable=True)
+    current_version = db.Column(db.Integer, nullable=False, default=0)
+    created_by_user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    approved_by_user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    meta = db.Column(db.JSON, nullable=False, default=dict)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+    date_updated = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    versions = db.relationship(
+        "ComplianceDocumentVersion",
+        backref="document",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        order_by="ComplianceDocumentVersion.version_num.desc()",
+    )
+
+    VALID_STATUSES = ["draft", "approved", "archived", "expired"]
+
+    @validates("status")
+    def _validate_status(self, key, value):
+        if value and value.lower() not in self.VALID_STATUSES:
+            raise ValueError(f"Invalid document status: {value}")
+        return value.lower() if value else "draft"
+
+    def latest_version(self):
+        return self.versions.first()
+
+    def as_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        latest = self.latest_version()
+        if latest:
+            data["latest_version"] = latest.as_dict()
+        return data
+
+
+class ComplianceDocumentVersion(db.Model):
+    __tablename__ = "compliance_doc_versions"
+
+    id = db.Column(db.String, primary_key=True, default=_short_id, unique=True)
+    document_id = db.Column(db.String, db.ForeignKey("compliance_documents.id"), nullable=False)
+    version_num = db.Column(db.Integer, nullable=False)
+    storage_key = db.Column(db.String, nullable=False)
+    content_text = db.Column(db.Text)
+    prompt_used = db.Column(db.Text)
+    generation_mode = db.Column(db.String)
+    generated_by_user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    meta = db.Column(db.JSON, nullable=False, default=dict)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+
+    VALID_MODES = ["from_scratch", "from_template", "uploaded"]
+
+    @validates("generation_mode")
+    def _validate_mode(self, key, value):
+        if value and value.lower() not in self.VALID_MODES:
+            raise ValueError(f"Invalid generation_mode: {value}")
+        return value.lower() if value else value
+
+    def as_dict(self):
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        # content_text may be large — omit by default
+        data.pop("content_text", None)
         return data

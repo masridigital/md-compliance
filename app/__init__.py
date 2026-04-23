@@ -408,6 +408,12 @@ def registering_blueprints(app):
     from app.masri.trust_portal import trust_bp
     app.register_blueprint(trust_bp)
 
+    from app.masri.compliance.questionnaire_routes import questionnaire_bp
+    app.register_blueprint(questionnaire_bp)
+
+    from app.masri.compliance.documents_routes import compliance_docs_bp
+    app.register_blueprint(compliance_docs_bp)
+
     return
 
 

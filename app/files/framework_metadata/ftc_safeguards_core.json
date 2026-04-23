@@ -1,0 +1,59 @@
+{
+  "slug": "ftc_safeguards_core",
+  "name": "FTC Safeguards Rule (16 CFR Part 314)",
+  "version": "2023 amendments",
+  "description": "FTC Standards for Safeguarding Customer Information — Written Information Security Program required for financial institutions.",
+  "regulator": "Federal Trade Commission",
+  "exemptions": [
+    {
+      "code": "314.6(a)",
+      "label": "Small business: fewer than 5,000 consumers whose information is collected or maintained",
+      "type": "limited",
+      "threshold": "consumer_records < 5000",
+      "scope_waived": ["314.4(b)(1)", "314.4(d)(2)", "314.4(h)", "314.4(i)"]
+    }
+  ],
+  "sections": {
+    "314.4(a)": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["qualified_individual_designation"], "title": "Qualified Individual"},
+    "314.4(b)": {"severity": "critical", "deadline_kind": "annual_risk_assessment", "is_exemptable": false, "doc_types": ["ftc_risk_assessment"], "title": "Risk Assessment"},
+    "314.4(c)": {"severity": "critical", "deadline_kind": null, "is_exemptable": false, "doc_types": ["ftc_wisp", "access_control_policy", "encryption_policy", "mfa_policy", "data_disposal_policy", "change_management_policy"], "title": "Safeguards"},
+    "314.4(d)": {"severity": "high", "deadline_kind": null, "is_exemptable": true, "doc_types": ["continuous_monitoring_report", "penetration_test_report"], "title": "Regular Testing or Monitoring"},
+    "314.4(e)": {"severity": "high", "deadline_kind": "annual_training", "is_exemptable": false, "doc_types": ["security_awareness_training"], "title": "Personnel Training"},
+    "314.4(f)": {"severity": "high", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["vendor_management_policy"], "title": "Service Provider Oversight"},
+    "314.4(g)": {"severity": "high", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["ftc_wisp"], "title": "Evaluate and Adjust the Program"},
+    "314.4(h)": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": true, "doc_types": ["ftc_incident_response"], "title": "Written Incident Response Plan"},
+    "314.4(i)": {"severity": "critical", "deadline_kind": "annual_report", "is_exemptable": true, "doc_types": ["qi_board_report"], "title": "Report to the Board"},
+    "314.5": {"severity": "critical", "deadline_kind": "event_triggered_30day", "is_exemptable": false, "doc_types": ["ftc_breach_notification"], "title": "Notice of Security Event"}
+  },
+  "deadlines": [
+    {
+      "kind": "annual_risk_assessment",
+      "label": "Annual Written Risk Assessment (314.4(b))",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    },
+    {
+      "kind": "annual_training",
+      "label": "Annual Personnel Security Training (314.4(e))",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    },
+    {
+      "kind": "annual_report",
+      "label": "Annual Qualified Individual Report to Board (314.4(i))",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [60, 30],
+      "only_if_not_exempt": ["314.6(a)"]
+    },
+    {
+      "kind": "annual_review",
+      "label": "Annual WISP Review (314.4(g))",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    }
+  ]
+}

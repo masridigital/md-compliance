@@ -1,0 +1,58 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% block header_title %}Compliance{% endblock %}
+
+{% block content %}
+<div x-data="complianceIndex()" x-init="load()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+  <div class="flex items-end justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Compliance Frameworks</h1>
+      <p class="text-sm text-gray-400 mt-1">Select a framework to run the applicability questionnaire and generate required documents.</p>
+    </div>
+  </div>
+
+  <div x-show="loading" class="text-gray-400 text-sm">Loading frameworks…</div>
+
+  <div x-show="!loading" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <template x-for="fw in frameworks" :key="fw.slug">
+      <a :href="'/compliance/' + fw.slug" class="block rounded-2xl border border-white/5 bg-white/[0.02] hover:border-emerald-500/30 hover:bg-emerald-500/[0.03] transition p-6">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-emerald-400/80 font-mono" x-text="fw.slug"></div>
+            <h2 class="text-lg font-semibold text-white mt-1" x-text="fw.name"></h2>
+          </div>
+          <template x-if="fw.has_questionnaire">
+            <span class="text-[10px] uppercase tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">Guided</span>
+          </template>
+        </div>
+        <p class="text-sm text-gray-400 leading-relaxed line-clamp-3" x-text="fw.description"></p>
+        <div class="mt-4 text-xs text-gray-500" x-text="fw.regulator || ''"></div>
+      </a>
+    </template>
+  </div>
+
+  <template x-if="!loading && frameworks.length === 0">
+    <div class="text-center py-16 text-gray-500">No compliance frameworks registered yet.</div>
+  </template>
+</div>
+
+<script>
+function complianceIndex() {
+  return {
+    loading: true,
+    frameworks: [],
+    async load() {
+      try {
+        const res = await fetch('/api/v1/compliance/frameworks');
+        const data = await res.json();
+        this.frameworks = data.frameworks || [];
+      } catch (e) {
+        console.error('Failed to load frameworks', e);
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

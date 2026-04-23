@@ -33,6 +33,8 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 | ~~`training_bp`~~ | ~~`/api/v1/training`~~ | ~~`app/masri/training_routes.py`~~ *(removed — SAT via Phin Security/DefensX)* |
 | `wisp_bp` | `/api/v1/wisp` | `app/masri/wisp_routes.py` |
 | `trust_bp` | `/trust` | `app/masri/trust_portal.py` |
+| `questionnaire_bp` | `/api/v1/compliance` | `app/masri/compliance/questionnaire_routes.py` |
+| `compliance_docs_bp` | `/api/v1/compliance-docs` | `app/masri/compliance/documents_routes.py` |
 
 ### Key Models
 - **`SettingsLLM`** (`app/masri/new_models.py`): LLM provider config, single-row, encrypted API key
@@ -45,6 +47,11 @@ Tenant → Project → ProjectControl → ProjectSubControl → Evidence
 - **`RiskRegister`** (`app/models.py`): `title` is Fernet-encrypted, `title_hash` for dedup, `risk` field valid values: `["unknown", "low", "moderate", "high", "critical"]`
 - **`Training`** (`app/masri/new_models.py`): Training module definition (title, content_type, frequency, framework_requirements)
 - **`TrainingAssignment`** (`app/masri/new_models.py`): Per-user training assignment with completion tracking
+- **`Questionnaire`** (`app/masri/new_models.py`): Per-tenant framework answers. Drives exemption determination and compliance score.
+- **`ExemptionProfile`** (`app/masri/new_models.py`): Derived applicability decisions (e.g. NY DFS § 500.19 codes claimed, scope waived).
+- **`ComplianceDocument`** / **`ComplianceDocumentVersion`** (`app/masri/new_models.py`): Generated/uploaded regulatory artifacts (cybersecurity policy, IRP, risk assessment, exemption notice, WISP). Versions store .docx via `storage_router` role=`reports`.
+- **`DocumentTemplate`** (`app/masri/new_models.py`): Uploaded .docx templates with extracted `{{placeholders}}` and per-placeholder mapping to `org.*` / `questionnaire.*` paths or `leave_for_ai`. `is_global=True` + `tenant_id=None` means Masri-curated and visible to every tenant.
+- **`DueDate`** (`app/masri/new_models.py`): Reused for compliance deadlines — `entity_type="compliance_deadline"`, `entity_id="<framework_slug>::<kind>::<tenant_id>"`. Seeded by `compliance.deadlines.seed_deadlines_for_tenant` after questionnaire submit; reminders ride the existing `task_due_reminders` Celery beat.
 
 ### Primary Key Convention
 All models use 8-char lowercase shortuuid: `default=lambda: str(shortuuid.ShortUUID().random(length=8)).lower()`
@@ -403,6 +410,42 @@ docker-compose up -d --build
 | Telivy findings empty | Wrong method name | `get_external_scan_findings` not `get_scan_findings` |
 | Microsoft data missing on page load | Live API calls on every load | Cache-first: reads from ConfigStore |
 | Risk profiles not showing | Auto-process not re-run since feature added | Re-run triggers computation |
+
+## Compliance Platform (Questionnaires + Documents)
+
+All new modules live under `app/masri/compliance/` so the footprint is obvious.
+
+### Pipeline
+1. Tenant picks a framework at `/compliance` → `/compliance/<slug>/questionnaire` walks the question bank.
+2. `POST /api/v1/compliance/<slug>/submit` validates answers, persists `Questionnaire`, runs `exemptions.determine()`, writes an `ExemptionProfile`, and calls `deadlines.seed_deadlines_for_tenant()` which creates `DueDate` rows with `entity_type="compliance_deadline"`.
+3. Existing `task_due_reminders` Celery beat fires email via `NotificationEngine`; compliance deadline payloads include a friendly `label` + `framework_slug` so templates can render correctly.
+4. From `/compliance/documents`, users generate `.docx` documents — either `from_scratch` (prompt-only) or `from_template` (upload .docx → extract `{{placeholders}}` → map to `org.*` / `questionnaire.*` paths → inject literals → LLM fills the rest). All LLM traffic goes through `LLMService.chat(feature="policy_draft")` which is Tier 4 (Opus by default) and auto-adapts via `prompt_adapters.py`. Output is rendered to .docx via `python-docx` and stored through `storage_router` role=`reports`.
+5. `/compliance/<slug>` shows the compliance score (approved docs / applicable sections honoring exemption profile) + gap analysis sorted by severity.
+
+### Framework metadata format
+`app/files/framework_metadata/<slug>.json` carries per-section metadata the seed JSON does not: `severity`, `deadline_kind`, `is_exemptable`, `doc_types[]`, plus an `exemptions` array whose `scope_waived` lists the section codes each exemption waives (`"*"` = full). Add a new framework to this registry + add a question bank in `app/masri/compliance/banks/<slug>.py` + add the determinator branch in `exemptions.py` to enable the questionnaire for it.
+
+### Key files
+- `compliance/engine.py` — `Question` dataclass, visibility/validation helpers.
+- `compliance/banks/nydfs500.py`, `banks/ftc_safeguards.py` — per-framework question banks.
+- `compliance/exemptions.py` — `determine(slug, answers)` + `applicable_sections(slug, profile)` (pure, unit-testable).
+- `compliance/scoring.py` — compliance score + gap analysis.
+- `compliance/service.py` — Questionnaire/ExemptionProfile CRUD + submit workflow.
+- `compliance/prompts.py` — system + user prompts per doc_type (NY DFS policy/IRP/risk/exemption/vendor; FTC WISP; HIPAA risk analysis).
+- `compliance/document_service.py` — template upload, placeholder extraction, literal injection, LLM completion, .docx render, storage router persistence.
+- `compliance/deadlines.py` — `seed_deadlines_for_tenant()` + `list_deadlines()` — always writes to the shared `DueDate` table so existing reminders keep working.
+
+### Adding a new doc type
+1. Add a system prompt in `compliance/prompts.py` (key = `(doc_type, framework_slug)`).
+2. Add the doc_type string to the relevant section's `doc_types[]` in the framework metadata JSON.
+3. Optionally add a friendly title to `_TITLE_BY_TYPE` in `prompts.py`.
+4. Optionally add a Masri-curated global template via `/compliance/templates` (super_user only) so tenants can generate branded variants.
+
+### Things to NEVER do (compliance platform)
+21. **NEVER** put framework metadata inline in the base_controls seed JSON — use `app/files/framework_metadata/<slug>.json` so the seed remains canonical regulation text.
+22. **NEVER** bypass `LLMService.chat()` for document generation — it carries per-tier routing, rate limits, token budget, and prompt-adapter normalization.
+23. **NEVER** store raw .docx bytes in the database — always round-trip via `storage_router.store_file(..., role="reports")` so providers (local/S3/Azure/SharePoint/Egnyte) stay swappable.
+24. **NEVER** create a parallel reminder system — extend `entity_type` on the existing `DueDate` table so the single Celery beat continues to own reminder delivery.
 
 ## Storage System
 

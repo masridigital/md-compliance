@@ -1,0 +1,170 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% block header_title %}Framework{% endblock %}
+
+{% block content %}
+<div x-data="frameworkDash('{{ framework_slug }}')" x-init="load()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+  <div class="mb-8 flex items-start justify-between gap-4">
+    <div>
+      <a href="/compliance" class="text-xs text-gray-500 hover:text-emerald-400">← All frameworks</a>
+      <h1 class="text-2xl font-bold tracking-tight text-white mt-2" x-text="frameworkName"></h1>
+      <p class="text-sm text-gray-400 mt-1" x-text="regulator"></p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a :href="'/compliance/' + slug + '/questionnaire'" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium">Run questionnaire</a>
+      <a href="/compliance/documents" class="px-4 py-2 rounded-lg border border-white/10 hover:border-emerald-500/40 text-gray-300 text-sm">Documents</a>
+    </div>
+  </div>
+
+  <div x-show="loading" class="text-gray-400 text-sm">Loading…</div>
+
+  <div x-show="!loading" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Score card -->
+    <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+      <div class="text-[11px] uppercase tracking-wider text-gray-500 font-medium mb-2">Compliance score</div>
+      <div class="flex items-end gap-2">
+        <div class="text-5xl font-bold" :class="scoreColor" x-text="(summary.score ?? 0) + '%'"></div>
+      </div>
+      <div class="mt-4 space-y-2 text-xs text-gray-400">
+        <div class="flex justify-between"><span>Covered</span><span class="text-emerald-400 font-mono" x-text="summary.covered?.length || 0"></span></div>
+        <div class="flex justify-between"><span>In progress</span><span class="text-amber-400 font-mono" x-text="summary.partial?.length || 0"></span></div>
+        <div class="flex justify-between"><span>Missing</span><span class="text-red-400 font-mono" x-text="summary.missing?.length || 0"></span></div>
+        <div class="flex justify-between"><span>Exempt</span><span class="text-gray-500 font-mono" x-text="summary.exempt?.length || 0"></span></div>
+      </div>
+    </div>
+
+    <!-- Exemption profile -->
+    <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 lg:col-span-2">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Exemption status</div>
+        <template x-if="exemption">
+          <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" :class="exemption.exemption_type === 'full' ? 'bg-emerald-500/10 text-emerald-400' : (exemption.exemption_type === 'limited' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/5 text-gray-400')" x-text="exemption.exemption_type"></span>
+        </template>
+      </div>
+      <template x-if="!exemption">
+        <p class="text-sm text-gray-400">Run the questionnaire to determine your exemption status under this framework.</p>
+      </template>
+      <template x-if="exemption">
+        <div>
+          <p class="text-sm text-gray-300 whitespace-pre-line" x-text="exemption.rationale || ''"></p>
+          <template x-if="exemption.exemption_type === 'limited' && !exemption.filed_at">
+            <div class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <div class="text-xs text-amber-300">You must file an exemption notice annually. Mark the filing complete once submitted to the regulator.</div>
+              <button @click="markFiled()" class="mt-2 text-xs px-3 py-1.5 rounded-md bg-amber-500/20 text-amber-300 hover:bg-amber-500/30">Mark filing complete</button>
+            </div>
+          </template>
+          <template x-if="exemption.filed_at">
+            <div class="mt-3 text-xs text-emerald-400">Filed <span x-text="new Date(exemption.filed_at).toLocaleDateString()"></span></div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Gap table -->
+  <div class="mt-6 rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-white">Gap analysis</h2>
+      <div class="text-xs text-gray-500"><span x-text="gaps.length"></span> items</div>
+    </div>
+    <template x-if="gaps.length === 0">
+      <div class="text-sm text-gray-400 py-6 text-center">No gaps — all applicable sections are covered.</div>
+    </template>
+    <table x-show="gaps.length > 0" class="w-full text-sm">
+      <thead>
+        <tr class="text-[10px] uppercase tracking-wider text-gray-500 border-b border-white/5">
+          <th class="text-left py-2 font-medium">Section</th>
+          <th class="text-left py-2 font-medium">Title</th>
+          <th class="text-left py-2 font-medium">Severity</th>
+          <th class="text-left py-2 font-medium">Required docs</th>
+          <th class="text-left py-2 font-medium">Status</th>
+          <th class="text-right py-2 font-medium">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="g in gaps" :key="g.section_code">
+          <tr class="border-b border-white/5">
+            <td class="py-3 text-white font-mono text-xs" x-text="g.section_code"></td>
+            <td class="py-3 text-gray-300" x-text="g.title"></td>
+            <td class="py-3">
+              <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" :class="severityClass(g.severity)" x-text="g.severity"></span>
+            </td>
+            <td class="py-3 text-xs text-gray-400 font-mono" x-text="(g.doc_types || []).join(', ')"></td>
+            <td class="py-3">
+              <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" :class="g.status === 'partial' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'" x-text="g.status"></span>
+            </td>
+            <td class="py-3 text-right">
+              <a :href="'/compliance/documents?framework=' + slug + '&doc_type=' + (g.doc_types?.[0] || '')" class="text-xs text-emerald-400 hover:text-emerald-300">Generate</a>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function frameworkDash(slug) {
+  return {
+    slug,
+    loading: true,
+    frameworkName: '',
+    regulator: '',
+    summary: {},
+    gaps: [],
+    exemption: null,
+
+    get scoreColor() {
+      const s = this.summary.score ?? 0;
+      if (s >= 80) return 'text-emerald-400';
+      if (s >= 50) return 'text-amber-400';
+      return 'text-red-400';
+    },
+
+    severityClass(sev) {
+      return {
+        critical: 'bg-red-500/10 text-red-400',
+        high: 'bg-amber-500/10 text-amber-400',
+        medium: 'bg-blue-500/10 text-blue-400',
+        low: 'bg-emerald-500/10 text-emerald-400'
+      }[sev] || 'bg-white/5 text-gray-400';
+    },
+
+    async load() {
+      try {
+        const [qsRes, sumRes] = await Promise.all([
+          fetch(`/api/v1/compliance/${this.slug}/questions`),
+          fetch(`/api/v1/compliance/${this.slug}/summary`)
+        ]);
+        const qs = await qsRes.json();
+        this.frameworkName = qs.framework?.name || this.slug;
+        this.regulator = qs.framework?.regulator || '';
+        const sum = await sumRes.json();
+        this.summary = sum.score || {};
+        this.gaps = sum.gaps || [];
+        this.exemption = sum.exemption_profile;
+      } catch (e) {
+        console.error('Failed to load framework dashboard', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async markFiled() {
+      const confirmation = prompt('Enter DFS filing confirmation number (optional):');
+      try {
+        const res = await fetch(`/api/v1/compliance/${this.slug}/exemption/file`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({confirmation: confirmation || null})
+        });
+        const data = await res.json();
+        if (res.ok) this.exemption = data.exemption_profile;
+      } catch (e) {
+        console.error('Failed to mark filed', e);
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

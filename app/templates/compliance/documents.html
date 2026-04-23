@@ -1,0 +1,170 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% block header_title %}Compliance Documents{% endblock %}
+
+{% block content %}
+<div x-data="complianceDocs()" x-init="load()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+  <div class="flex items-start justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Compliance Documents</h1>
+      <p class="text-sm text-gray-400 mt-1">Generate audit-ready .docx documents from templates or from scratch. Each document is stored with version history.</p>
+    </div>
+    <a href="/compliance/templates" class="px-4 py-2 rounded-lg border border-white/10 hover:border-emerald-500/40 text-gray-300 text-sm">Manage templates</a>
+  </div>
+
+  <!-- Generator -->
+  <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-4">Generate new document</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">Framework</label>
+        <select x-model="gen.framework_slug" @change="onFrameworkChange()" class="mt-1 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="">— Select —</option>
+          <template x-for="fw in frameworks" :key="fw.slug"><option :value="fw.slug" x-text="fw.name"></option></template>
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">Document type</label>
+        <select x-model="gen.doc_type" class="mt-1 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="">— Select —</option>
+          <template x-for="dt in docTypes" :key="dt"><option :value="dt" x-text="prettyDocType(dt)"></option></template>
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">Template (optional)</label>
+        <select x-model="gen.template_id" class="mt-1 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="">— From scratch —</option>
+          <template x-for="t in compatibleTemplates" :key="t.id"><option :value="t.id" x-text="t.name"></option></template>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button @click="generate()" :disabled="generating || !canGenerate" class="w-full px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium disabled:opacity-40" x-text="generating ? 'Generating…' : 'Generate'"></button>
+      </div>
+    </div>
+    <template x-if="error">
+      <div class="mt-4 text-sm text-red-400" x-text="error"></div>
+    </template>
+  </div>
+
+  <!-- Document list -->
+  <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-white">Documents</h2>
+      <div class="text-xs text-gray-500"><span x-text="documents.length"></span> total</div>
+    </div>
+    <template x-if="documents.length === 0 && !loading">
+      <div class="text-center py-10 text-sm text-gray-400">No documents yet. Generate your first from the form above.</div>
+    </template>
+    <div class="space-y-2">
+      <template x-for="d in documents" :key="d.id">
+        <div class="flex items-center justify-between px-4 py-3 rounded-lg border border-white/5 hover:border-emerald-500/20 transition">
+          <div>
+            <div class="text-sm text-white" x-text="d.title"></div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              <span class="font-mono" x-text="d.doc_type"></span>
+              <span class="mx-2">·</span>
+              <span x-text="d.framework_slug || 'no framework'"></span>
+              <span class="mx-2">·</span>
+              <span :class="d.status === 'approved' ? 'text-emerald-400' : 'text-amber-400'" x-text="d.status"></span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <a :href="'/api/v1/compliance-docs/documents/' + d.id + '/download'" class="px-3 py-1.5 rounded-md border border-white/10 hover:border-emerald-500/30 text-xs text-gray-300">Download</a>
+            <button x-show="d.status !== 'approved'" @click="approve(d.id)" class="px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs">Approve</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script>
+function complianceDocs() {
+  return {
+    loading: true,
+    generating: false,
+    error: '',
+    frameworks: [],
+    templates: [],
+    docTypes: [],
+    documents: [],
+    gen: { framework_slug: '', doc_type: '', template_id: '' },
+
+    get compatibleTemplates() {
+      if (!this.gen.doc_type) return this.templates;
+      return this.templates.filter(t => !t.doc_type || t.doc_type === this.gen.doc_type);
+    },
+    get canGenerate() {
+      return this.gen.template_id || this.gen.doc_type;
+    },
+
+    prettyDocType(t) {
+      return (t || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    },
+
+    async load() {
+      try {
+        const [fwRes, tplRes, docsRes] = await Promise.all([
+          fetch('/api/v1/compliance/frameworks'),
+          fetch('/api/v1/compliance-docs/templates'),
+          fetch('/api/v1/compliance-docs/documents')
+        ]);
+        const fwData = await fwRes.json();
+        this.frameworks = fwData.frameworks || [];
+        const tplData = await tplRes.json();
+        this.templates = tplData.templates || [];
+        const docsData = await docsRes.json();
+        this.documents = docsData.documents || [];
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('framework')) this.gen.framework_slug = params.get('framework');
+        if (params.get('doc_type')) this.gen.doc_type = params.get('doc_type');
+        if (this.gen.framework_slug) await this.onFrameworkChange();
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async onFrameworkChange() {
+      if (!this.gen.framework_slug) { this.docTypes = []; return; }
+      const res = await fetch('/api/v1/compliance-docs/doc-types?framework=' + encodeURIComponent(this.gen.framework_slug));
+      const data = await res.json();
+      this.docTypes = data.doc_types || [];
+    },
+
+    async generate() {
+      this.generating = true;
+      this.error = '';
+      try {
+        const res = await fetch('/api/v1/compliance-docs/documents/generate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            doc_type: this.gen.doc_type,
+            framework_slug: this.gen.framework_slug,
+            template_id: this.gen.template_id || null
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) { this.error = data.error || 'Generation failed'; return; }
+        this.documents.unshift(data.document);
+        this.gen.template_id = '';
+      } catch (e) {
+        this.error = 'Network error';
+      } finally {
+        this.generating = false;
+      }
+    },
+
+    async approve(id) {
+      const res = await fetch('/api/v1/compliance-docs/documents/' + id + '/approve', {method: 'POST'});
+      const data = await res.json();
+      if (res.ok) {
+        const i = this.documents.findIndex(x => x.id === id);
+        if (i >= 0) this.documents[i] = data.document;
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,171 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% block header_title %}Document Templates{% endblock %}
+
+{% block content %}
+<div x-data="templateCenter()" x-init="load()" class="px-6 lg:px-10 py-8 max-w-[1400px] mx-auto">
+  <div class="flex items-start justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Document Templates</h1>
+      <p class="text-sm text-gray-400 mt-1">Upload a .docx template with <span class="font-mono text-emerald-400">{{ '{{VARIABLE}}' }}</span> placeholders. Map placeholders to organization data and the AI fills the rest.</p>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-4">Upload template</h2>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="md:col-span-2">
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">.docx file</label>
+        <input type="file" accept=".docx" @change="pickedFile = $event.target.files[0]" class="mt-1 w-full text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-emerald-500/20 file:text-emerald-300 file:text-xs hover:file:bg-emerald-500/30">
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">Document type</label>
+        <input type="text" x-model="newTemplate.doc_type" placeholder="cybersecurity_policy" class="mt-1 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+      </div>
+      <div>
+        <label class="text-[10px] uppercase tracking-wider text-gray-500">Framework (optional)</label>
+        <input type="text" x-model="newTemplate.framework_slug" placeholder="ny_dfs_23nycrr500" class="mt-1 w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-4">
+      <input type="text" x-model="newTemplate.name" placeholder="Template name (optional)" class="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none">
+      <button @click="upload()" :disabled="!pickedFile || !newTemplate.doc_type || uploading" class="px-5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium disabled:opacity-40" x-text="uploading ? 'Uploading…' : 'Upload'"></button>
+    </div>
+    <template x-if="uploadError"><div class="mt-3 text-sm text-red-400" x-text="uploadError"></div></template>
+  </div>
+
+  <!-- Template list -->
+  <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+    <h2 class="text-sm font-semibold text-white mb-4">Templates</h2>
+    <template x-if="templates.length === 0 && !loading">
+      <div class="text-center py-10 text-sm text-gray-400">No templates yet.</div>
+    </template>
+    <div class="space-y-2">
+      <template x-for="t in templates" :key="t.id">
+        <div class="px-4 py-3 rounded-lg border border-white/5">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-white flex items-center gap-2">
+                <span x-text="t.name"></span>
+                <span x-show="t.is_global" class="text-[9px] uppercase tracking-wider bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full">Global</span>
+              </div>
+              <div class="text-xs text-gray-500 mt-0.5">
+                <span class="font-mono" x-text="t.doc_type"></span>
+                <span class="mx-2">·</span>
+                <span x-text="t.framework_slug || 'no framework'"></span>
+                <span class="mx-2">·</span>
+                <span x-text="t.placeholder_count + ' placeholders (' + t.mapped_count + ' mapped)'"></span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="openMapper(t)" class="px-3 py-1.5 rounded-md border border-white/10 hover:border-emerald-500/30 text-xs text-gray-300">Map placeholders</button>
+              <button @click="remove(t.id)" class="px-3 py-1.5 rounded-md text-xs text-red-400/80 hover:text-red-400">Delete</button>
+            </div>
+          </div>
+          <template x-if="mapperOpen === t.id">
+            <div class="mt-4 pt-4 border-t border-white/5">
+              <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Placeholder mapping</div>
+              <div class="space-y-2">
+                <template x-for="ph in t.placeholders" :key="ph">
+                  <div class="flex items-center gap-3">
+                    <code class="text-xs text-emerald-400 font-mono flex-shrink-0 w-48 truncate" x-text="'{{' + ph + '}}'"></code>
+                    <select x-model="t.placeholder_map[ph]" class="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none">
+                      <option value="leave_for_ai">AI fills contextually</option>
+                      <option value="manual_input">Manual input</option>
+                      <option value="org.name">Organization name</option>
+                      <option value="org.contact_name">Primary contact name</option>
+                      <option value="org.contact_email">Primary contact email</option>
+                      <option value="questionnaire.legal_name">Questionnaire · Legal name</option>
+                      <option value="questionnaire.employee_count">Questionnaire · Employee count</option>
+                      <option value="questionnaire.avg_ny_revenue">Questionnaire · NY revenue</option>
+                      <option value="questionnaire.total_assets">Questionnaire · Total assets</option>
+                      <option value="questionnaire.ciso_status">Questionnaire · CISO status</option>
+                      <option value="questionnaire.fiscal_year_end">Questionnaire · Fiscal year end</option>
+                      <option value="generated_at">Generation timestamp</option>
+                    </select>
+                  </div>
+                </template>
+              </div>
+              <div class="flex justify-end gap-2 mt-4">
+                <button @click="mapperOpen = null" class="px-3 py-1.5 rounded-md text-xs text-gray-400">Cancel</button>
+                <button @click="saveMapping(t)" class="px-3 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-medium">Save mapping</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script>
+function templateCenter() {
+  return {
+    loading: true,
+    templates: [],
+    pickedFile: null,
+    uploading: false,
+    uploadError: '',
+    mapperOpen: null,
+    newTemplate: { doc_type: '', framework_slug: '', name: '' },
+
+    async load() {
+      try {
+        const res = await fetch('/api/v1/compliance-docs/templates');
+        const data = await res.json();
+        this.templates = (data.templates || []).map(t => ({...t, placeholder_map: t.placeholder_map || {}}));
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async upload() {
+      this.uploading = true;
+      this.uploadError = '';
+      try {
+        const form = new FormData();
+        form.append('file', this.pickedFile);
+        form.append('doc_type', this.newTemplate.doc_type);
+        if (this.newTemplate.framework_slug) form.append('framework_slug', this.newTemplate.framework_slug);
+        if (this.newTemplate.name) form.append('name', this.newTemplate.name);
+        const res = await fetch('/api/v1/compliance-docs/templates', {method: 'POST', body: form});
+        const data = await res.json();
+        if (!res.ok) { this.uploadError = data.error || 'Upload failed'; return; }
+        this.templates.unshift({...data.template, placeholder_map: data.template.placeholder_map || {}});
+        this.pickedFile = null;
+        this.newTemplate = { doc_type: '', framework_slug: '', name: '' };
+      } catch (e) {
+        this.uploadError = 'Network error';
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    openMapper(t) {
+      this.mapperOpen = this.mapperOpen === t.id ? null : t.id;
+    },
+
+    async saveMapping(t) {
+      const res = await fetch(`/api/v1/compliance-docs/templates/${t.id}/mapping`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({placeholder_map: t.placeholder_map})
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const i = this.templates.findIndex(x => x.id === t.id);
+        if (i >= 0) this.templates[i] = {...data.template, placeholder_map: data.template.placeholder_map || {}};
+        this.mapperOpen = null;
+      }
+    },
+
+    async remove(id) {
+      if (!confirm('Delete this template?')) return;
+      const res = await fetch(`/api/v1/compliance-docs/templates/${id}`, {method: 'DELETE'});
+      if (res.ok) this.templates = this.templates.filter(t => t.id !== id);
+    }
+  }
+}
+</script>
+{% endblock %}

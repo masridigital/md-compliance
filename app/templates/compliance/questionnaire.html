@@ -1,0 +1,218 @@
+{% extends "layouts/sidebar-nav.html" %}
+
+{% block header_title %}Compliance Questionnaire{% endblock %}
+
+{% block content %}
+<div x-data="questionnaire('{{ framework_slug }}')" x-init="load()" class="px-6 lg:px-10 py-8 max-w-3xl mx-auto">
+  <div class="mb-8">
+    <a :href="'/compliance/' + slug" class="text-xs text-gray-500 hover:text-emerald-400">← Back to framework</a>
+    <h1 class="text-2xl font-bold tracking-tight text-white mt-2" x-text="frameworkName || 'Questionnaire'"></h1>
+    <p class="text-sm text-gray-400 mt-1">Answer every applicable question to determine your compliance obligations and exemptions.</p>
+  </div>
+
+  <div x-show="loading" class="text-gray-400 text-sm">Loading questions…</div>
+
+  <!-- Progress -->
+  <div x-show="!loading && visibleQuestions.length > 0" class="mb-6">
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
+      <span>Question <span x-text="currentIndex + 1"></span> of <span x-text="visibleQuestions.length"></span></span>
+      <span x-text="Math.round(((currentIndex + 1) / visibleQuestions.length) * 100) + '%'"></span>
+    </div>
+    <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+      <div class="h-full bg-emerald-500 transition-all" :style="'width: ' + ((currentIndex + 1) / visibleQuestions.length * 100) + '%'"></div>
+    </div>
+  </div>
+
+  <!-- Current question -->
+  <template x-if="!loading && currentQuestion">
+    <div class="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+      <label class="block text-lg font-semibold text-white mb-2" x-text="currentQuestion.label"></label>
+      <p x-show="currentQuestion.help_text" class="text-sm text-gray-400 mb-4" x-text="currentQuestion.help_text"></p>
+
+      <!-- yes/no -->
+      <template x-if="currentQuestion.type === 'yes_no'">
+        <div class="flex gap-3">
+          <button @click="answers[currentQuestion.key] = true; save()" :class="answers[currentQuestion.key] === true ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-transparent text-gray-300 border-white/10 hover:border-emerald-500/40'" class="px-5 py-2.5 rounded-lg border text-sm font-medium transition">Yes</button>
+          <button @click="answers[currentQuestion.key] = false; save()" :class="answers[currentQuestion.key] === false ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-transparent text-gray-300 border-white/10 hover:border-emerald-500/40'" class="px-5 py-2.5 rounded-lg border text-sm font-medium transition">No</button>
+        </div>
+      </template>
+
+      <!-- text -->
+      <template x-if="currentQuestion.type === 'text'">
+        <input type="text" x-model="answers[currentQuestion.key]" @blur="save()" class="w-full bg-black/20 border border-white/10 focus:border-emerald-500/50 rounded-lg px-4 py-2.5 text-white outline-none">
+      </template>
+
+      <!-- number -->
+      <template x-if="currentQuestion.type === 'number'">
+        <input type="number" x-model.number="answers[currentQuestion.key]" :min="currentQuestion.minimum" :max="currentQuestion.maximum" @blur="save()" class="w-full bg-black/20 border border-white/10 focus:border-emerald-500/50 rounded-lg px-4 py-2.5 text-white outline-none">
+      </template>
+
+      <!-- date -->
+      <template x-if="currentQuestion.type === 'date'">
+        <input type="date" x-model="answers[currentQuestion.key]" @blur="save()" class="w-full bg-black/20 border border-white/10 focus:border-emerald-500/50 rounded-lg px-4 py-2.5 text-white outline-none">
+      </template>
+
+      <!-- single_select -->
+      <template x-if="currentQuestion.type === 'single_select'">
+        <div class="space-y-2">
+          <template x-for="opt in currentQuestion.options" :key="opt.value">
+            <button @click="answers[currentQuestion.key] = opt.value; save()" :class="answers[currentQuestion.key] === opt.value ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-transparent border-white/10 text-gray-300 hover:border-emerald-500/30'" class="w-full text-left px-4 py-3 rounded-lg border text-sm transition">
+              <span x-text="opt.label"></span>
+            </button>
+          </template>
+        </div>
+      </template>
+
+      <!-- multi_select -->
+      <template x-if="currentQuestion.type === 'multi_select'">
+        <div class="space-y-2">
+          <template x-for="opt in currentQuestion.options" :key="opt.value">
+            <button @click="toggleMulti(opt.value)" :class="(answers[currentQuestion.key] || []).includes(opt.value) ? 'bg-emerald-500/10 border-emerald-500/50 text-white' : 'bg-transparent border-white/10 text-gray-300 hover:border-emerald-500/30'" class="w-full text-left px-4 py-3 rounded-lg border text-sm transition">
+              <span x-text="opt.label"></span>
+            </button>
+          </template>
+        </div>
+      </template>
+
+      <!-- Nav -->
+      <div class="flex items-center justify-between mt-8">
+        <button @click="prev()" :disabled="currentIndex === 0" class="text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">← Previous</button>
+        <div class="flex items-center gap-3">
+          <template x-if="!isLast">
+            <button @click="next()" class="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition">Next →</button>
+          </template>
+          <template x-if="isLast">
+            <button @click="submit()" :disabled="submitting" class="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium transition disabled:opacity-50" x-text="submitting ? 'Submitting…' : 'Submit'"></button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Validation errors -->
+  <template x-if="errors.length > 0">
+    <div class="mt-6 rounded-lg border border-red-500/30 bg-red-500/5 p-4">
+      <div class="text-xs uppercase tracking-wider text-red-400 font-medium mb-2">Please fix:</div>
+      <ul class="space-y-1 text-sm text-red-300">
+        <template x-for="err in errors" :key="err"><li x-text="'• ' + err"></li></template>
+      </ul>
+    </div>
+  </template>
+
+  <!-- Result -->
+  <template x-if="result">
+    <div class="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+      <h2 class="text-lg font-semibold text-emerald-400">Questionnaire submitted</h2>
+      <p class="text-sm text-gray-300 mt-2">Exemption type: <span class="font-mono" x-text="result.exemption_profile.exemption_type"></span></p>
+      <p x-show="result.exemption_profile.rationale" class="text-sm text-gray-400 mt-2 whitespace-pre-line" x-text="result.exemption_profile.rationale"></p>
+      <a :href="'/compliance/' + slug" class="inline-block mt-4 text-sm text-emerald-400 hover:text-emerald-300">View framework dashboard →</a>
+    </div>
+  </template>
+</div>
+
+<script>
+function questionnaire(slug) {
+  return {
+    slug,
+    loading: true,
+    submitting: false,
+    frameworkName: '',
+    bank: [],
+    answers: {},
+    errors: [],
+    result: null,
+    currentIndex: 0,
+
+    get visibleQuestions() {
+      return this.bank.filter(q => this.isVisible(q));
+    },
+    get currentQuestion() {
+      return this.visibleQuestions[this.currentIndex] || null;
+    },
+    get isLast() {
+      return this.currentIndex >= this.visibleQuestions.length - 1;
+    },
+
+    isVisible(q) {
+      // Visibility predicates live server-side; the server decides when to show
+      // each question. For branching that depends on prior answers we handle
+      // the known cases inline so the wizard flows smoothly.
+      if (q.key === 'only_encrypted_npi_no_keys') return this.answers.holds_npi === true;
+      if (q.key === 'has_board_reporting') return this.answers.ciso_status && this.answers.ciso_status !== 'none';
+      return true;
+    },
+
+    toggleMulti(value) {
+      const key = this.currentQuestion.key;
+      const current = this.answers[key] || [];
+      if (current.includes(value)) {
+        this.answers[key] = current.filter(v => v !== value);
+      } else {
+        this.answers[key] = [...current, value];
+      }
+    },
+
+    async load() {
+      try {
+        const [questionsRes, stateRes] = await Promise.all([
+          fetch(`/api/v1/compliance/${this.slug}/questions`),
+          fetch(`/api/v1/compliance/${this.slug}`)
+        ]);
+        const q = await questionsRes.json();
+        this.bank = q.questions || [];
+        this.frameworkName = q.framework?.name || '';
+        const s = await stateRes.json();
+        if (s.questionnaire?.answers) this.answers = {...s.questionnaire.answers};
+      } catch (e) {
+        console.error('Failed to load questionnaire', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async save() {
+      try {
+        await fetch(`/api/v1/compliance/${this.slug}/draft`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({answers: this.answers})
+        });
+      } catch (e) {
+        console.error('Draft save failed', e);
+      }
+    },
+
+    next() {
+      this.errors = [];
+      if (this.currentIndex < this.visibleQuestions.length - 1) this.currentIndex++;
+    },
+    prev() {
+      this.errors = [];
+      if (this.currentIndex > 0) this.currentIndex--;
+    },
+
+    async submit() {
+      this.submitting = true;
+      this.errors = [];
+      try {
+        const res = await fetch(`/api/v1/compliance/${this.slug}/submit`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({answers: this.answers})
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.errors = data.errors || ['Submission failed'];
+          return;
+        }
+        this.result = data;
+      } catch (e) {
+        this.errors = ['Network error'];
+      } finally {
+        this.submitting = false;
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

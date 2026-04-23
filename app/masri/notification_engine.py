@@ -473,12 +473,30 @@ class NotificationEngine:
                     priority = "low"
 
             if event_type:
+                label = None
+                framework_slug = None
+                if dd.entity_type == "compliance_deadline":
+                    try:
+                        from app.masri.compliance import framework_meta
+                        parts = (dd.entity_id or "").split("::")
+                        if len(parts) >= 2:
+                            framework_slug = parts[0]
+                            kind = parts[1]
+                            fm = framework_meta.load(framework_slug) or {}
+                            for d in fm.get("deadlines", []):
+                                if d.get("kind") == kind:
+                                    label = d.get("label")
+                                    break
+                    except Exception:
+                        pass
                 self.send(
                     event_type=event_type,
                     tenant_id=dd.tenant_id,
                     data={
                         "entity_type": dd.entity_type,
                         "entity_id": dd.entity_id,
+                        "framework_slug": framework_slug,
+                        "label": label,
                         "due_date": str(dd.due_date.date()),
                         "days_until_due": days,
                         "days_overdue": abs(days) if days < 0 else 0,

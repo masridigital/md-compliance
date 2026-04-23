@@ -1,0 +1,135 @@
+{
+  "slug": "ny_dfs_23nycrr500",
+  "name": "NY DFS 23 NYCRR Part 500",
+  "version": "2023",
+  "description": "Cybersecurity Requirements for Financial Services Companies regulated by the New York State Department of Financial Services.",
+  "regulator": "New York State Department of Financial Services",
+  "exemptions": [
+    {
+      "code": "500.19(a)(1)",
+      "label": "Fewer than 20 employees (including independent contractors and affiliates)",
+      "type": "limited",
+      "threshold": "employee_count < 20",
+      "scope_waived": ["500.4", "500.5", "500.6", "500.8", "500.10", "500.12", "500.14", "500.15", "500.16"]
+    },
+    {
+      "code": "500.19(a)(2)",
+      "label": "Less than $7.5M gross annual revenue from NY business (3-year average)",
+      "type": "limited",
+      "threshold": "avg_ny_revenue < 7500000",
+      "scope_waived": ["500.4", "500.5", "500.6", "500.8", "500.10", "500.12", "500.14", "500.15", "500.16"]
+    },
+    {
+      "code": "500.19(a)(3)",
+      "label": "Less than $15M year-end total assets (including affiliates)",
+      "type": "limited",
+      "threshold": "total_assets < 15000000",
+      "scope_waived": ["500.4", "500.5", "500.6", "500.8", "500.10", "500.12", "500.14", "500.15", "500.16"]
+    },
+    {
+      "code": "500.19(b)",
+      "label": "Captive insurance companies that do not directly write insurance in NY",
+      "type": "full",
+      "threshold": "is_captive_insurance == true",
+      "scope_waived": "*"
+    },
+    {
+      "code": "500.19(c)",
+      "label": "Does not operate, maintain, utilize, or control any Information Systems and does not control or possess NPI",
+      "type": "limited",
+      "threshold": "!operates_information_systems AND !holds_npi",
+      "scope_waived": ["500.2", "500.3", "500.4", "500.5", "500.6", "500.7", "500.8", "500.10", "500.12", "500.13", "500.14", "500.15", "500.16"]
+    },
+    {
+      "code": "500.19(d)",
+      "label": "Only encrypted Nonpublic Information with no access to encryption keys",
+      "type": "limited",
+      "threshold": "only_encrypted_npi_no_keys == true",
+      "scope_waived": ["500.6", "500.8", "500.13", "500.14", "500.15"]
+    },
+    {
+      "code": "500.19(e)",
+      "label": "Covered under a parent or affiliate DFS-licensed entity's cybersecurity program",
+      "type": "full",
+      "threshold": "covered_by_other_dfs_entity == true",
+      "scope_waived": "*"
+    }
+  ],
+  "sections": {
+    "500.1": {"severity": "medium", "deadline_kind": null, "is_exemptable": false, "doc_types": [], "title": "Definitions and Applicability"},
+    "500.2": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["cybersecurity_program"], "title": "Cybersecurity Program"},
+    "500.3": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["cybersecurity_policy"], "title": "Cybersecurity Policy"},
+    "500.4": {"severity": "critical", "deadline_kind": "biennial_ciso_report", "is_exemptable": true, "doc_types": ["ciso_annual_report"], "title": "Chief Information Security Officer"},
+    "500.5": {"severity": "high", "deadline_kind": "annual_pentest", "is_exemptable": true, "doc_types": ["penetration_test_report"], "title": "Penetration Testing and Vulnerability Assessments"},
+    "500.6": {"severity": "high", "deadline_kind": "annual_review", "is_exemptable": true, "doc_types": ["audit_trail_policy"], "title": "Audit Trail"},
+    "500.7": {"severity": "high", "deadline_kind": null, "is_exemptable": false, "doc_types": ["access_control_policy"], "title": "Access Privileges"},
+    "500.8": {"severity": "high", "deadline_kind": null, "is_exemptable": true, "doc_types": ["sdlc_policy"], "title": "Application Security"},
+    "500.9": {"severity": "critical", "deadline_kind": "annual_risk_assessment", "is_exemptable": false, "doc_types": ["risk_assessment"], "title": "Risk Assessment"},
+    "500.10": {"severity": "medium", "deadline_kind": null, "is_exemptable": true, "doc_types": ["cybersecurity_personnel_policy"], "title": "Cybersecurity Personnel and Intelligence"},
+    "500.11": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": false, "doc_types": ["vendor_management_policy"], "title": "Third Party Service Provider Security Policy"},
+    "500.12": {"severity": "critical", "deadline_kind": null, "is_exemptable": true, "doc_types": ["mfa_policy"], "title": "Multi-Factor Authentication"},
+    "500.13": {"severity": "high", "deadline_kind": null, "is_exemptable": true, "doc_types": ["data_retention_policy"], "title": "Limitations on Data Retention"},
+    "500.14": {"severity": "high", "deadline_kind": "annual_training", "is_exemptable": true, "doc_types": ["security_awareness_training"], "title": "Training and Monitoring"},
+    "500.15": {"severity": "high", "deadline_kind": null, "is_exemptable": true, "doc_types": ["encryption_policy"], "title": "Encryption of Nonpublic Information"},
+    "500.16": {"severity": "critical", "deadline_kind": "annual_review", "is_exemptable": true, "doc_types": ["incident_response_plan", "business_continuity_plan"], "title": "Incident Response and Business Continuity Management"},
+    "500.17": {"severity": "critical", "deadline_kind": "event_triggered_72hr", "is_exemptable": false, "doc_types": ["incident_notification_procedure"], "title": "Notices to Superintendent"},
+    "500.18": {"severity": "medium", "deadline_kind": null, "is_exemptable": false, "doc_types": [], "title": "Confidentiality"},
+    "500.19": {"severity": "high", "deadline_kind": "annual_exemption_filing", "is_exemptable": false, "doc_types": ["nydfs_exemption_notice"], "title": "Exemptions"},
+    "500.20": {"severity": "critical", "deadline_kind": "annual_certification", "is_exemptable": false, "doc_types": ["compliance_certification"], "title": "Compliance (Annual Certification)"}
+  },
+  "deadlines": [
+    {
+      "kind": "annual_certification",
+      "label": "Annual Compliance Certification (500.20)",
+      "recurrence": "annual",
+      "due_month_day": "04-15",
+      "warning_days": [60, 30, 7],
+      "only_if_not_exempt": []
+    },
+    {
+      "kind": "annual_exemption_filing",
+      "label": "Annual Exemption Notice (500.19(f))",
+      "recurrence": "annual",
+      "due_month_day": "04-15",
+      "warning_days": [30, 7, 1],
+      "only_if_exempt": true
+    },
+    {
+      "kind": "annual_pentest",
+      "label": "Annual Penetration Test (500.5)",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7],
+      "only_if_not_exempt": ["500.19(a)(1)", "500.19(a)(2)", "500.19(a)(3)", "500.19(c)"]
+    },
+    {
+      "kind": "annual_risk_assessment",
+      "label": "Annual Risk Assessment (500.9)",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    },
+    {
+      "kind": "biennial_ciso_report",
+      "label": "CISO Written Report to Board (500.4(c))",
+      "recurrence": "biennial",
+      "due_month_day": null,
+      "warning_days": [60, 30],
+      "only_if_not_exempt": ["500.19(a)(1)", "500.19(a)(2)", "500.19(a)(3)"]
+    },
+    {
+      "kind": "annual_training",
+      "label": "Annual Security Awareness Training (500.14)",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    },
+    {
+      "kind": "annual_review",
+      "label": "Annual Policy Review (500.2/500.3/500.11/500.16)",
+      "recurrence": "annual",
+      "due_month_day": null,
+      "warning_days": [30, 7]
+    }
+  ]
+}

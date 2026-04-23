@@ -96,3 +96,39 @@ def view_policy_center_for_project(id):
     return render_template(
         "policy_center.html", project=result["extra"]["project"], policy_id=policy_id
     )
+
+
+@main.route("/compliance", methods=["GET"])
+@login_required
+def compliance_index():
+    """Landing page — pick a framework to run the questionnaire against."""
+    return render_template("compliance/index.html")
+
+
+@main.route("/compliance/<string:framework_slug>", methods=["GET"])
+@login_required
+def compliance_framework(framework_slug):
+    """Framework dashboard — score, gaps, questionnaire link, deadlines."""
+    return render_template(
+        "compliance/framework.html", framework_slug=framework_slug
+    )
+
+
+@main.route("/compliance/<string:framework_slug>/questionnaire", methods=["GET"])
+@login_required
+def compliance_questionnaire(framework_slug):
+    return render_template(
+        "compliance/questionnaire.html", framework_slug=framework_slug
+    )
+
+
+@main.route("/compliance/documents", methods=["GET"])
+@login_required
+def compliance_documents():
+    return render_template("compliance/documents.html")
+
+
+@main.route("/compliance/templates", methods=["GET"])
+@login_required
+def compliance_templates():
+    return render_template("compliance/templates.html")
