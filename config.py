@@ -212,7 +212,11 @@ class Config:
 
     @staticmethod
     def init_app(app):
-        pass
+        db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if db_uri.startswith("sqlite:"):
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+                "pool_pre_ping": True,
+            }
 
 
 class ProductionConfig(Config):
